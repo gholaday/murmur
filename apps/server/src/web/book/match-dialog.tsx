@@ -36,6 +36,15 @@ export function MatchDialog({
   onClose: () => void;
   onApplied: () => void;
 }) {
+  return (
+    <Sheet open={open} onClose={onClose} title="Match metadata">
+      <MatchPanel book={book} onApplied={onApplied} />
+    </Sheet>
+  );
+}
+
+/** Search, pick a result, review and apply. Starts searching as soon as it's shown. */
+export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: () => void }) {
   const [result, setResult] = useState<MatchSearchResult | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [preview, setPreview] = useState<MatchPreview | null>(null);
@@ -69,14 +78,8 @@ export function MatchDialog({
   );
 
   useEffect(() => {
-    if (open && !result) void search();
-    if (!open) {
-      setResult(null);
-      setPreview(null);
-      setSelected(null);
-      setError(null);
-    }
-  }, [open, result, search]);
+    void search();
+  }, [search]);
 
   const review = async () => {
     const c = result?.candidates.find((x) => keyOf(x) === selected);
@@ -116,7 +119,7 @@ export function MatchDialog({
   const top = result?.candidates[0];
 
   return (
-    <Sheet open={open} onClose={onClose} title={preview ? "Review changes" : "Match metadata"}>
+    <>
       {preview ? (
         <>
           <button type="button" className="btn" style={{ alignSelf: "flex-start" }} onClick={() => setPreview(null)}>
@@ -260,6 +263,6 @@ export function MatchDialog({
           </p>
         </>
       )}
-    </Sheet>
+    </>
   );
 }

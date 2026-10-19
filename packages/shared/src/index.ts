@@ -110,6 +110,33 @@ export const matchApplySchema = z.object({
 });
 export type MatchApplyInput = z.input<typeof matchApplySchema>;
 
+/**
+ * A book's details as edited by an admin. Every field is sent; a value equal to what the
+ * files say is stored as "use the files", and an empty string clears the field.
+ */
+export const bookEditSchema = z.object({
+  title: z.string().max(500),
+  author: z.string().max(500),
+  narrator: z.string().max(500),
+  series: z.string().max(500),
+  seriesPosition: z.number().min(0).max(100_000).nullable(),
+  year: z.string().max(20),
+  description: z.string().max(20_000),
+});
+export type BookEditInput = z.input<typeof bookEditSchema>;
+
+/** Hand-edited chapters, or null to go back to the files' chapters. */
+export const chaptersEditSchema = z.object({
+  chapters: z
+    .array(z.object({ title: z.string().trim().min(1).max(500), startSec: z.number().min(0) }))
+    .min(1)
+    .max(5000)
+    .nullable(),
+});
+export type ChaptersEditInput = z.input<typeof chaptersEditSchema>;
+
+export const coverUrlSchema = z.object({ url: z.url({ protocol: /^https?$/ }).trim().max(2000) });
+
 // ---------- Response shapes ----------
 
 export interface UserDto {
@@ -149,6 +176,8 @@ export interface BookSummary {
   addedAt: number;
   /** Set when the book's folder disappeared; it is hidden after 7 days. */
   missingSince: number | null;
+  /** Metadata was applied from Audible or Google Books. */
+  matched: boolean;
   progress: Pick<ProgressDto, "positionSec" | "finished" | "speed" | "updatedAt"> | null;
 }
 
@@ -288,6 +317,43 @@ export interface OpmlImportResult {
   added: number;
   alreadySubscribed: number;
   failed: Array<{ feedUrl: string; error: string }>;
+}
+
+export type EditableField = keyof BookEditInput;
+
+/** What the files say, before any match or edit. */
+export interface BookEditValues {
+  title: string;
+  author: string | null;
+  narrator: string | null;
+  series: string | null;
+  seriesPosition: number | null;
+  year: string | null;
+  description: string | null;
+}
+
+export interface BookFileInfo {
+  /** Path inside the book's folder. */
+  name: string;
+  size: number;
+  durationSec: number;
+  mimeType: string;
+}
+
+/** Everything the admin edit dialog needs for one book. */
+export interface BookEditInfo {
+  book: BookDetail;
+  scanned: BookEditValues;
+  /** Fields whose shown value differs from the files (edited or matched). */
+  edited: EditableField[];
+  chaptersEdited: boolean;
+  scannedChapters: ChapterDto[];
+  /** "custom" covers both uploaded and matched covers. */
+  coverSource: "files" | "custom" | "none";
+  scannedCoverHash: string | null;
+  /** Absolute folder path as the server sees it; null once its library folder was removed. */
+  folder: string | null;
+  files: BookFileInfo[];
 }
 
 export interface LibraryFolderDto {

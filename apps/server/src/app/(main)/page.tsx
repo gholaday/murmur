@@ -10,5 +10,5 @@ export default async function LibraryPage() {
   const emptyReason = ctx.scanState.running
     ? "The first scan is running. Books appear as soon as it finishes."
     : (ctx.scanState.lastError ?? "Check that the library folder is mounted, then rescan from Profile.");
-  return <Library books={books} emptyReason={emptyReason} />;
+  return <Library books={books} emptyReason={emptyReason} isAdmin={user.isAdmin} />;
 }

@@ -36,6 +36,13 @@
       "when": 1792372643504,
       "tag": "0004_drop_server_downloads",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1792373744079,
+      "tag": "0005_book_edits",
+      "breakpoints": true
     }
   ]
 }

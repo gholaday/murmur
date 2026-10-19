@@ -17,10 +17,21 @@ import {
 } from "@murmur/shared";
 import { Cover } from "../cover";
 import { BackIcon, FilterIcon, SearchIcon } from "../icons";
+import { EditBookDialog, type EditTab } from "../book/edit-dialog";
 import { Sheet, SheetItem } from "../sheet";
-import { BookCard, progressPct } from "./book-card";
+import { BookActionsContext, BookCard, progressPct } from "./book-card";
 
-type Tab = "books" | "authors" | "series" | "finished";
+type Tab = "books" | "authors" | "series" | "finished" | "attention";
+
+/** Problems an admin can fix from the edit dialog. "Not matched" is only listed on request. */
+const ISSUES = [
+  { id: "cover", label: "No cover", test: (b: BookSummary) => !b.coverHash },
+  { id: "author", label: "Unknown author", test: (b: BookSummary) => !b.author },
+  { id: "missing", label: "Files missing", test: (b: BookSummary) => b.missingSince !== null },
+  { id: "unmatched", label: "Not matched", test: (b: BookSummary) => !b.matched },
+] as const;
+type IssueId = (typeof ISSUES)[number]["id"] | "all";
+const issuesOf = (b: BookSummary) => ISSUES.filter((i) => i.id !== "unmatched" && i.test(b));
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: "books", label: "Books" },
@@ -88,8 +99,30 @@ function TitleWithCount({ title, count }: { title: string; count: number }) {
   );
 }
 
-export function Library({ books, emptyReason }: { books: BookSummary[]; emptyReason: string }) {
+export function Library({ books, emptyReason, isAdmin }: { books: BookSummary[]; emptyReason: string; isAdmin: boolean }) {
   const router = useRouter();
+  const [editing, setEditing] = useState<{ id: string; tab: EditTab } | null>(null);
+  const actions = useMemo(() => ({ isAdmin, edit: (id: string, tab: EditTab) => setEditing({ id, tab }) }), [isAdmin]);
+  return (
+    <BookActionsContext.Provider value={actions}>
+      <LibraryView books={books} emptyReason={emptyReason} isAdmin={isAdmin} />
+      {isAdmin && editing ? (
+        <EditBookDialog
+          key={`${editing.id}:${editing.tab}`}
+          bookId={editing.id}
+          tab={editing.tab}
+          open
+          onClose={() => setEditing(null)}
+          onChanged={() => router.refresh()}
+        />
+      ) : null}
+    </BookActionsContext.Provider>
+  );
+}
+
+function LibraryView({ books, emptyReason, isAdmin }: { books: BookSummary[]; emptyReason: string; isAdmin: boolean }) {
+  const router = useRouter();
+  const [issue, setIssue] = useState<IssueId>("all");
   const pathname = usePathname();
   const params = useSearchParams();
   const tab = (params.get("tab") as Tab | null) ?? "books";
@@ -125,6 +158,7 @@ export function Library({ books, emptyReason }: { books: BookSummary[]; emptyRea
     [books],
   );
   const sorted = useMemo(() => sortBooks(books, sort), [books, sort]);
+  const attentionCount = useMemo(() => books.filter((b) => issuesOf(b).length > 0).length, [books]);
   const q = query.trim().toLowerCase();
 
   if (books.length === 0) {
@@ -258,7 +292,24 @@ export function Library({ books, emptyReason }: { books: BookSummary[]; emptyRea
                 {t.label}
               </button>
             ))}
+            {isAdmin && (attentionCount > 0 || tab === "attention") ? (
+              <button
+                type="button"
+                role="tab"
+                className="chip chip-warn"
+                aria-selected={tab === "attention"}
+                aria-pressed={tab === "attention"}
+                onClick={() => go({ tab: "attention" })}
+              >
+                Needs attention
+                <span className="count-pill">{attentionCount}</span>
+              </button>
+            ) : null}
           </div>
+
+          {tab === "attention" ? (
+            <AttentionView books={sorted} issue={issue} setIssue={setIssue} />
+          ) : null}
 
           {tab === "books" ? (
             <>
@@ -362,6 +413,38 @@ export function Library({ books, emptyReason }: { books: BookSummary[]; emptyRea
         ))}
       </Sheet>
     </>
+  );
+}
+
+function AttentionView({ books, issue, setIssue }: { books: BookSummary[]; issue: IssueId; setIssue: (i: IssueId) => void }) {
+  const counts = new Map(ISSUES.map((i) => [i.id, books.filter(i.test).length]));
+  const list = issue === "all" ? books.filter((b) => issuesOf(b).length > 0) : books.filter(ISSUES.find((i) => i.id === issue)!.test);
+  return (
+    <section className="section">
+      <div className="chips" aria-label="Problem">
+        <button type="button" className="chip" aria-pressed={issue === "all"} onClick={() => setIssue("all")}>
+          All problems
+        </button>
+        {ISSUES.map((i) => (
+          <button key={i.id} type="button" className="chip" aria-pressed={issue === i.id} onClick={() => setIssue(i.id)}>
+            {i.label}
+            <span className="count-pill">{counts.get(i.id)}</span>
+          </button>
+        ))}
+      </div>
+      <p className="muted small" style={{ margin: 0 }}>
+        Use a book&apos;s options menu to edit its details, change the cover or match it.
+      </p>
+      {list.length === 0 ? (
+        <div className="empty">Nothing to fix here.</div>
+      ) : (
+        <div className="grid">
+          {list.map((b) => (
+            <BookCard key={b.id} book={b} sub={(issue === "unmatched" ? [ISSUES[3]] : issuesOf(b)).map((i) => i.label).join(", ")} />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -216,15 +216,16 @@ export const episodeArchives = sqliteTable(
 );
 
 /**
- * Metadata chosen through Match. Stored apart from the scanned values so a rescan never
- * undoes a match, and a null column means "use what the files say".
+ * Metadata chosen through Match or edited by an admin. Stored apart from the scanned values
+ * so a rescan never undoes it; a null column means "use what the files say".
  */
 export const bookOverrides = sqliteTable("book_overrides", {
   bookId: text("book_id")
     .primaryKey()
     .references(() => books.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(),
-  providerId: text("provider_id").notNull(),
+  /** Set once a match was applied; null when only edited by hand. */
+  provider: text("provider"),
+  providerId: text("provider_id"),
   title: text("title"),
   author: text("author"),
   narrator: text("narrator"),
@@ -235,7 +236,8 @@ export const bookOverrides = sqliteTable("book_overrides", {
   coverHash: text("cover_hash"),
   /** JSON array of { title, startSec, endSec }. */
   chapters: text("chapters"),
-  matchedAt: integer("matched_at").notNull(),
+  matchedAt: integer("matched_at"),
+  editedAt: integer("edited_at"),
 });
 
 /** Raw provider responses, kept for 30 days so repeat lookups are instant and polite. */

@@ -11,14 +11,14 @@ import { BackIcon, CheckIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from
 import { bookToPlayable, chapterAt, usePlayer, usePosition } from "../player/engine";
 import { setFinished } from "../progress";
 import { Sheet, SheetItem } from "../sheet";
-import { MatchDialog } from "./match-dialog";
+import { EditBookDialog, type EditTab } from "./edit-dialog";
 
 export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean }) {
   const router = useRouter();
   const player = usePlayer();
   const livePosition = usePosition();
   const [menu, setMenu] = useState(false);
-  const [matching, setMatching] = useState(false);
+  const [editing, setEditing] = useState<EditTab | null>(null);
   const [expanded, setExpanded] = useState(false);
 
   const current = player.isCurrent("book", book.id);
@@ -138,12 +138,15 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
       </div>
 
       <div className="actions">
-        <button type="button" className="btn btn-primary btn-big" onClick={onPlay} data-loading={(current && player.loading) || undefined}>
+        <button
+          type="button"
+          className="btn btn-primary btn-big"
+          aria-label={`${playLabel}, ${playSub}`}
+          onClick={onPlay}
+          data-loading={(current && player.loading) || undefined}
+        >
           {current && player.playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
-          <span className="btn-stack">
-            <span>{playLabel}</span>
-            <span className="btn-stack-sub">{playSub}</span>
-          </span>
+          <span>{playSub}</span>
         </button>
         <button
           type="button"
@@ -220,14 +223,32 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
           <SheetItem onClick={() => void mark(false)}>Reset progress</SheetItem>
         ) : null}
         {isAdmin ? (
-          <SheetItem
-            onClick={() => {
-              setMenu(false);
-              setMatching(true);
-            }}
-          >
-            Match metadata…
-          </SheetItem>
+          <>
+            <SheetItem
+              onClick={() => {
+                setMenu(false);
+                setEditing("details");
+              }}
+            >
+              Edit details…
+            </SheetItem>
+            <SheetItem
+              onClick={() => {
+                setMenu(false);
+                setEditing("cover");
+              }}
+            >
+              Change cover…
+            </SheetItem>
+            <SheetItem
+              onClick={() => {
+                setMenu(false);
+                setEditing("match");
+              }}
+            >
+              Match metadata…
+            </SheetItem>
+          </>
         ) : null}
         {isAdmin && book.match ? (
           <SheetItem danger onClick={() => void revertMatch()}>
@@ -237,15 +258,12 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
       </Sheet>
 
       {isAdmin ? (
-        <MatchDialog
-          book={book}
-          open={matching}
-          onClose={() => setMatching(false)}
-          onApplied={() => {
-            setMatching(false);
-            toast("Match applied");
-            router.refresh();
-          }}
+        <EditBookDialog
+          bookId={book.id}
+          open={editing !== null}
+          tab={editing ?? "details"}
+          onClose={() => setEditing(null)}
+          onChanged={() => router.refresh()}
         />
       ) : null}
     </>

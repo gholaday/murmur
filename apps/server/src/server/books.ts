@@ -14,19 +14,22 @@ interface BookRow {
   cover_hash: string | null;
   added_at: number;
   missing_since: number | null;
+  matched: number;
   p_position: number | null;
   p_finished: number | null;
   p_updated: number | null;
   p_speed: number | null;
 }
 
-// Matched values (book_overrides) win over scanned ones; a null override keeps the file's value.
+// Matched or edited values (book_overrides) win over scanned ones; a null override keeps the
+// file's value and an empty one clears it.
 const SUMMARY_COLUMNS = `
-  b.id, COALESCE(o.title, b.title) AS title, COALESCE(o.author, b.author) AS author,
-  COALESCE(o.narrator, b.narrator) AS narrator,
-  CASE WHEN o.series IS NOT NULL THEN o.series ELSE b.series END AS series,
+  b.id, COALESCE(o.title, b.title) AS title, NULLIF(COALESCE(o.author, b.author), '') AS author,
+  NULLIF(COALESCE(o.narrator, b.narrator), '') AS narrator,
+  CASE WHEN o.series IS NOT NULL THEN NULLIF(o.series, '') ELSE b.series END AS series,
   CASE WHEN o.series IS NOT NULL THEN o.series_position ELSE b.series_position END AS series_position,
   b.duration_sec, COALESCE(o.cover_hash, b.cover_hash) AS cover_hash, b.added_at, b.missing_since,
+  o.provider IS NOT NULL AS matched,
   p.position_sec AS p_position, p.finished AS p_finished, p.updated_at AS p_updated, p.speed AS p_speed`;
 
 const JOINS = `
@@ -46,6 +49,7 @@ function toSummary(r: BookRow, colors: Map<string, string>): BookSummary {
     coverColor: r.cover_hash ? (colors.get(r.cover_hash) ?? null) : null,
     addedAt: r.added_at,
     missingSince: r.missing_since,
+    matched: r.matched === 1,
     progress:
       r.p_updated === null
         ? null
@@ -84,8 +88,8 @@ export async function booksByIds(ctx: AppContext, ids: string[], userId: number)
 export async function getBook(ctx: AppContext, id: string, userId: number): Promise<BookDetail | null> {
   const row = ctx.sqlite
     .prepare(
-      `SELECT ${SUMMARY_COLUMNS}, COALESCE(o.description, b.description) AS description,
-         COALESCE(o.year, b.year) AS year, b.asin, o.chapters AS o_chapters,
+      `SELECT ${SUMMARY_COLUMNS}, NULLIF(COALESCE(o.description, b.description), '') AS description,
+         NULLIF(COALESCE(o.year, b.year), '') AS year, b.asin, o.chapters AS o_chapters,
          o.provider AS o_provider, o.provider_id AS o_provider_id, o.matched_at AS o_matched_at
        FROM books b ${JOINS} WHERE b.id = ?`,
     )

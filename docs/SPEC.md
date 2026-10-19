@@ -119,6 +119,7 @@ The phone and browser reach the server only through the Cloudflare Tunnel. Podca
 | --- | --- |
 | Auth | `POST /auth/setup` (first run only), `POST /auth/login`, `POST /auth/logout`, `GET /me` |
 | Library | `GET /books`, `GET /books/:id`, `GET /books/:id/cover`, `POST /library/scan` |
+| Book editing (admin) | `GET /books/:id/edit`, `PUT /books/:id/details`, `PUT /books/:id/chapters`, `POST/DELETE /books/:id/cover`, `POST /books/:id/rescan`, `GET/POST/DELETE /books/:id/match` |
 | Streaming | `GET /stream/book/:id/:fileIndex`, `GET /stream/episode/:id` (range requests) |
 | Podcasts | `GET/POST /podcasts`, `DELETE /podcasts/:id`, `GET /podcasts/:id/episodes`, `POST /podcasts/:id/refresh`, OPML import and export |
 | Progress | `GET /progress?since=`, `PUT /progress` (batched, newest update wins) |
@@ -219,7 +220,7 @@ Metadata comes from your files first; an optional Match button fills gaps from o
 
 **Layer 2: online match, on demand** (built in phase 3, admin only)
 
-1. On a book page, tap **Match**. The server searches Audible's catalog by title and author, with Google Books as a fallback.
+1. From a book page or a library card's options menu, open **Match metadata**. The server searches Audible's catalog by title and author, with Google Books as a fallback.
 2. You pick the right result from a list with covers.
 3. The match fills only empty or poor fields (missing cover, description, narrator, series, a better chapter list from Audnexus). Fields you don't tick are left alone, and **Undo match** in the book menu returns to the file metadata.
 4. Matched data is stored in the database as an override; your files are never modified, and a rescan never undoes a match.
@@ -249,6 +250,20 @@ Audiobookshelf mostly searched by the raw folder name and trusted the first resu
 7. **Safe merge rules.** A new cover is only suggested when it is larger than the current one. Online chapter lists are only applied when their total length matches the files within 1%, so chapter marks can't drift.
 8. **Remember the result.** The chosen ASIN is stored, so later refreshes are exact lookups.
 9. **Tested where it matters.** Unit tests pin the scoring rules: name forms, title cleaning, the abridged-edition penalty, the author cap, the no-length cap and ASIN trust.
+
+**Layer 3: editing by hand** (admin only, web)
+
+Every book card in the library has an options menu (Play, Add to Up Next, Mark as finished, and for admins Edit details, Change cover, Match metadata, Rescan files), so books can be fixed without opening each one. The edit dialog has five tabs:
+
+| Tab | What it does |
+| --- | --- |
+| Details | Title, author, narrator, series and book number, year, description. A changed field is marked Edited, shows what the files say, and can be reset |
+| Cover | Upload an image (drop or pick), use an image link, or pick a cover from the online results; go back to the files' cover at any time |
+| Chapters | Rename chapters, change start times, add or remove them; or go back to the files' chapters |
+| Match | The online match above, inside the dialog |
+| Files | The book's folder and files with length, size and bitrate; rescan this book; undo every edit and match |
+
+Edits are stored in the same override row as a match, so a rescan keeps them and the files are never touched. An admin-only **Needs attention** view in the library lists books with no cover, no author or missing files, plus unmatched books on request. Bulk editing several books at once is a later idea.
 
 **Podcasts:** show and episode titles, artwork, descriptions and durations come from the RSS feed itself; no lookup needed.
 
