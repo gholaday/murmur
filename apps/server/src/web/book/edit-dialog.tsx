@@ -14,6 +14,7 @@ import {
 import { api } from "../api";
 import { Cover } from "../cover";
 import { CloseIcon, MinusIcon, PlusIcon } from "../icons";
+import { useBackdropClose } from "../sheet";
 import { MatchPanel } from "./match-dialog";
 
 export type EditTab = "details" | "cover" | "chapters" | "match" | "files";
@@ -104,6 +105,7 @@ export function EditBookDialog({
   onChanged: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const backdropClose = useBackdropClose(onClose);
   const [tab, setTab] = useState<EditTab>(initialTab);
   const [info, setInfo] = useState<BookEditInfo | null>(null);
   const [form, setForm] = useState<Form | null>(null);
@@ -186,9 +188,7 @@ export function EditBookDialog({
       className="sheet wide"
       aria-label="Edit book"
       onClose={onClose}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      {...backdropClose}
     >
       {open ? (
         <div className="edit">
@@ -208,6 +208,12 @@ export function EditBookDialog({
                 Edit book
               </div>
               <div className="muted small edit-sub">{info ? [info.book.title, info.book.author].filter(Boolean).join(", ") : "Loading…"}</div>
+              {info ? (
+                <div className="muted small edit-sub">
+                  Your files: {duration(info.book.durationSec)}
+                  {info.book.asin ? `, ASIN ${info.book.asin}` : ""}
+                </div>
+              ) : null}
             </div>
             <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
               <CloseIcon />
@@ -251,9 +257,11 @@ export function EditBookDialog({
           </div>
 
           <div className="edit-foot">
-            <span className="muted small" style={{ flex: 1 }}>
-              {detailsDirty || chaptersDirty ? "Unsaved changes" : "Your files are never changed."}
-            </span>
+            {detailsDirty || chaptersDirty ? (
+              <span className="muted small" style={{ flex: 1 }}>
+                Unsaved changes
+              </span>
+            ) : null}
             <button type="button" className="btn" onClick={onClose}>
               Close
             </button>
@@ -282,19 +290,24 @@ const FIELD_LABELS: Record<keyof Form, string> = {
 function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; setForm: (f: Form) => void }) {
   const field = (f: keyof Form, opts: { wide?: boolean; multiline?: boolean; placeholder?: string } = {}) => {
     const scanned = scannedText(info.scanned, f);
+    const saved = formOf(info)[f];
     const changed = form[f].trim() !== scanned;
+    // Unsaved typing can be undone; a saved edit can be reset to what the files say.
+    const unsaved = form[f] !== saved;
     const id = `edit-${f}`;
     return (
       <div className={`edit-field ${opts.wide ? "wide" : ""}`}>
         <div className="edit-label">
           <label htmlFor={id}>{FIELD_LABELS[f]}</label>
-          {changed ? (
-            <>
-              <span className="edited-pill">Edited</span>
-              <button type="button" className="link-btn" onClick={() => setForm({ ...form, [f]: scanned })}>
-                Reset
-              </button>
-            </>
+          {changed ? <span className="edited-pill">Edited</span> : null}
+          {unsaved ? (
+            <button type="button" className="link-btn" onClick={() => setForm({ ...form, [f]: saved })}>
+              Undo
+            </button>
+          ) : changed ? (
+            <button type="button" className="link-btn" onClick={() => setForm({ ...form, [f]: scanned })}>
+              Reset to files
+            </button>
           ) : null}
         </div>
         {opts.multiline ? (
@@ -590,9 +603,6 @@ function FilesTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
           )
         ) : null}
       </div>
-      <p className="muted small" style={{ margin: 0 }}>
-        Murmur never changes your files. Edits are kept separately and survive rescans.
-      </p>
     </div>
   );
 }

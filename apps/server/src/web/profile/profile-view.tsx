@@ -101,7 +101,7 @@ export function ProfileView({
           </div>
         </div>
         <p className="muted small" style={{ margin: 0 }}>
-          Saved on this device. Playback speed is remembered per book and per show.
+          Saved on this device. Playback speed is remembered per book and per podcast.
         </p>
       </section>
 

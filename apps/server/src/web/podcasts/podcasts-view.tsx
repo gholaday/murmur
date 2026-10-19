@@ -35,7 +35,7 @@ export function PodcastsView({ podcasts, newEpisodes }: { podcasts: PodcastSumma
         <h1 className="page-title">Podcasts</h1>
         <div className="head-actions">
           {podcasts.length > 1 ? (
-            <button type="button" className="icon-btn" aria-label="Sort shows" onClick={() => setSortOpen(true)}>
+            <button type="button" className="icon-btn" aria-label="Sort podcasts" onClick={() => setSortOpen(true)}>
               <FilterIcon />
             </button>
           ) : null}
@@ -48,7 +48,7 @@ export function PodcastsView({ podcasts, newEpisodes }: { podcasts: PodcastSumma
       {podcasts.length === 0 ? (
         <div className="empty">
           <strong>No podcasts yet</strong>
-          Add a show by pasting its RSS feed, or import an OPML file from your old app.
+          Add a podcast by pasting its RSS feed, or import an OPML file from your old app.
           <div style={{ marginTop: 16 }}>
             <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
               Add a podcast
@@ -77,8 +77,8 @@ export function PodcastsView({ podcasts, newEpisodes }: { podcasts: PodcastSumma
 
           <section className="section">
             <div className="section-head">
-              <h2 className="section-title">Your shows</h2>
-              <span className="muted small">{plural(podcasts.length, "show")}</span>
+              <h2 className="section-title">Your podcasts</h2>
+              <span className="muted small">{plural(podcasts.length, "podcast")}</span>
             </div>
             <div className="grid">
               {sortShows(podcasts, sort).map((p) => (
@@ -108,7 +108,7 @@ export function PodcastsView({ podcasts, newEpisodes }: { podcasts: PodcastSumma
         }}
       />
 
-      <Sheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort shows">
+      <Sheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort podcasts">
         {(Object.keys(SORT_LABEL) as Sort[]).map((s) => (
           <SheetItem
             key={s}
@@ -164,7 +164,7 @@ function AddPodcastSheet({
       const data = (await res.json()) as OpmlImportResult | { error: string };
       if (!res.ok || "error" in data) throw new Error("error" in data ? data.error : "Import failed.");
       const failed = data.failed.length ? ` ${data.failed.length} couldn't be loaded.` : "";
-      const text = `Added ${plural(data.added, "show")}, ${data.alreadySubscribed} already followed.${failed}`;
+      const text = `Added ${plural(data.added, "podcast")}, ${data.alreadySubscribed} already followed.${failed}`;
       setMessage(null);
       if (data.failed.length) toast.error(text);
       else toast(text);

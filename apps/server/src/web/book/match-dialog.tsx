@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from "react";
 import { type BookDetail, duration, type MatchCandidate, type MatchField, type MatchPreview, type MatchSearchResult, type MatchValues, seriesLabel } from "@murmur/shared";
 import { api } from "../api";
 import { BackIcon } from "../icons";
-import { Sheet } from "../sheet";
 
 const keyOf = (c: Pick<MatchCandidate, "provider" | "providerId">) => `${c.provider}:${c.providerId}`;
 const PROVIDER_NAME = { audible: "Audible", google: "Google Books" } as const;
@@ -23,24 +22,6 @@ const FIELDS: Array<{ field: MatchField; label: string; show: (v: MatchValues) =
 
 function scoreClass(score: number) {
   return score >= 90 ? "high" : score >= 70 ? "mid" : "";
-}
-
-export function MatchDialog({
-  book,
-  open,
-  onClose,
-  onApplied,
-}: {
-  book: BookDetail;
-  open: boolean;
-  onClose: () => void;
-  onApplied: () => void;
-}) {
-  return (
-    <Sheet open={open} onClose={onClose} title="Match metadata">
-      <MatchPanel book={book} onApplied={onApplied} />
-    </Sheet>
-  );
 }
 
 /** Search, pick a result, review and apply. Starts searching as soon as it's shown. */
@@ -119,14 +100,14 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
   const top = result?.candidates[0];
 
   return (
-    <>
+    <div className="match-panel">
       {preview ? (
         <>
           <button type="button" className="btn" style={{ alignSelf: "flex-start" }} onClick={() => setPreview(null)}>
             <BackIcon size={18} /> Results
           </button>
           <p className="muted small" style={{ margin: 0 }}>
-            Ticked fields replace what your files say. Your files are never changed, a rescan keeps the match, and you can undo it from the book menu.
+            Ticked fields replace what your files say.
           </p>
           <div style={{ overflowX: "auto" }}>
             <table className="compare">
@@ -206,13 +187,11 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
               <p className="muted">No results. Try a shorter title or check the author&apos;s spelling.</p>
             ) : (
               <>
-                <p className="muted small" style={{ margin: 0 }}>
-                  {result.suggested
-                    ? "Confident match pre-selected. Check it, then review the changes."
-                    : top && top.score >= 70
-                      ? "Possible matches below. Nothing is pre-selected; pick the right edition."
-                      : "No confident match. Pick one only if you're sure, or search by hand."}
-                </p>
+                {result.suggested || (top && top.score >= 70) ? null : (
+                  <p className="muted small" style={{ margin: 0 }}>
+                    No confident match. Pick one only if you&apos;re sure, or search by hand.
+                  </p>
+                )}
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: "48dvh", overflowY: "auto" }}>
                   {result.candidates.map((c) => {
                     const k = keyOf(c);
@@ -257,12 +236,8 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
           ) : busy ? (
             <p className="muted">Searching…</p>
           ) : null}
-          <p className="muted small" style={{ margin: 0 }}>
-            Your files: {duration(book.durationSec)}
-            {book.asin ? ` · ASIN ${book.asin}` : ""}
-          </p>
         </>
       )}
-    </>
+    </div>
   );
 }

@@ -18,6 +18,7 @@ export function Sheet({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const backdropClose = useBackdropClose(onClose);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -25,21 +26,30 @@ export function Sheet({
     if (!open && el.open) el.close();
   }, [open]);
   return (
-    <dialog
-      ref={ref}
-      className="sheet"
-      aria-label={title}
-      onClose={onClose}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
+    <dialog ref={ref} className="sheet" aria-label={title} onClose={onClose} {...backdropClose}>
       <div className="sheet-body">
         <div className="sheet-title">{title}</div>
         {open ? children : null}
       </div>
     </dialog>
   );
+}
+
+/**
+ * Handlers that close a <dialog> on a backdrop click. The press has to start on the
+ * backdrop too, so selecting text and letting go outside the dialog doesn't close it.
+ */
+export function useBackdropClose(onClose: () => void) {
+  const downOnBackdrop = useRef(false);
+  return {
+    onPointerDown: (e: React.PointerEvent<HTMLDialogElement>) => {
+      downOnBackdrop.current = e.target === e.currentTarget;
+    },
+    onClick: (e: React.MouseEvent<HTMLDialogElement>) => {
+      if (e.target === e.currentTarget && downOnBackdrop.current) onClose();
+      downOnBackdrop.current = false;
+    },
+  };
 }
 
 /** A full-width row button inside a sheet. */

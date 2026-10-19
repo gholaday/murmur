@@ -63,7 +63,7 @@ export function ShowView({ podcast, episodes }: { podcast: PodcastDetail; episod
           >
             <BackIcon />
           </button>
-          <button type="button" className="icon-btn" aria-label="Show options" onClick={() => setSheet("menu")}>
+          <button type="button" className="icon-btn" aria-label="Podcast options" onClick={() => setSheet("menu")}>
             <MoreIcon />
           </button>
         </div>
@@ -151,7 +151,7 @@ export function ShowView({ podcast, episodes }: { podcast: PodcastDetail; episod
         </SheetItem>
         {podcast.link ? (
           <a className="sheet-item" href={podcast.link} target="_blank" rel="noreferrer">
-            Show website
+            Podcast website
           </a>
         ) : null}
         <SheetItem
@@ -169,7 +169,7 @@ export function ShowView({ podcast, episodes }: { podcast: PodcastDetail; episod
 
       <Sheet open={sheet === "unsubscribe"} onClose={() => setSheet(null)} title={`Unsubscribe from ${podcast.title}?`}>
         <p className="muted" style={{ margin: 0 }}>
-          Your listening history for this show is removed from your lists.
+          Your listening history for this podcast is removed from your lists.
         </p>
         <div className="form-row">
           <button type="button" className="btn" style={{ flex: 1 }} onClick={() => setSheet(null)}>
