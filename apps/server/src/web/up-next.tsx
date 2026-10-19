@@ -1,11 +1,13 @@
 "use client";
 
 import { toast } from "sonner";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { apiPaths, duration, plural, type QueueEntry, type QueueRef, timeLeft } from "@murmur/shared";
 import { Cover } from "./cover";
 import { CloseIcon, DragIcon, PlayIcon } from "./icons";
 import { chapterAt, usePlayer, usePosition } from "./player/engine";
+import { QueueRowsSkeleton } from "./skeletons";
+import { useSortable } from "./sortable";
 
 function entryView(e: QueueEntry) {
   if (e.itemType === "book") {
@@ -38,15 +40,20 @@ const toRef = (e: QueueEntry): QueueRef => ({ itemType: e.itemType, itemId: e.it
 export function UpNextView() {
   const player = usePlayer();
   const position = usePosition();
-  const { item, queue } = player;
-  const [drag, setDrag] = useState<{ from: number; over: number } | null>(null);
-  const listRef = useRef<HTMLDivElement>(null);
+  const { item } = player;
+  // Shown right away while the server saves, so a dropped row doesn't jump back first.
+  const [pending, setPending] = useState<QueueEntry[] | null>(null);
+  const queue = pending ?? player.queue;
 
   const save = (entries: QueueEntry[]) => {
-    player.queueReplace(entries.map(toRef)).catch((err: unknown) => {
-      toast.error(err instanceof Error ? err.message : "Couldn't save the queue.");
-      void player.refreshQueue();
-    });
+    setPending(entries);
+    player
+      .queueReplace(entries.map(toRef))
+      .catch((err: unknown) => {
+        toast.error(err instanceof Error ? err.message : "Couldn't save the queue.");
+        void player.refreshQueue();
+      })
+      .finally(() => setPending(null));
   };
 
   const move = (from: number, to: number) => {
@@ -57,15 +64,7 @@ export function UpNextView() {
     save(next);
   };
 
-  /** Row index under the pointer, for drag-to-reorder with mouse or touch. */
-  const rowAt = (clientY: number): number => {
-    const rows = [...(listRef.current?.querySelectorAll<HTMLElement>("[data-row]") ?? [])];
-    const i = rows.findIndex((r) => {
-      const box = r.getBoundingClientRect();
-      return clientY < box.top + box.height / 2;
-    });
-    return i === -1 ? rows.length - 1 : i;
-  };
+  const sortable = useSortable(move);
 
   const total = queue.reduce((sum, e) => sum + entryView(e).remaining, 0);
   const nowChapter = item ? item.chapters[chapterAt(item.chapters, position)] : undefined;
@@ -74,10 +73,19 @@ export function UpNextView() {
     <>
       <div className="page-head" style={{ alignItems: "flex-end" }}>
         <div>
-          <h1 className="page-title">Up Next</h1>
-          <div className="page-sub">
-            {queue.length ? `${plural(queue.length, "item")} in queue · ${duration(total)} total` : "Nothing queued"}
-          </div>
+          <h1 className="page-title">
+            Up Next
+            {queue.length ? (
+              <span className="count-pill" aria-label={plural(queue.length, "item")}>
+                {queue.length}
+              </span>
+            ) : null}
+          </h1>
+          {!player.queueLoaded ? (
+            <div className="skel skel-line" style={{ width: 110, height: 11, marginTop: 6 }} />
+          ) : queue.length ? (
+            <div className="page-sub">{duration(total)} to listen</div>
+          ) : null}
         </div>
         {queue.length ? (
           <button type="button" className="btn" style={{ background: "none", color: "var(--accent)" }} onClick={() => {
@@ -123,25 +131,20 @@ export function UpNextView() {
       ) : null}
 
       <section className="section">
-        {queue.length ? <div className="eyebrow">Next</div> : null}
-        {queue.length === 0 ? (
+        {queue.length || !player.queueLoaded ? <div className="eyebrow">Next</div> : null}
+        {!player.queueLoaded ? (
+          <QueueRowsSkeleton />
+        ) : queue.length === 0 ? (
           <div className="empty">
             <strong>Your queue is empty</strong>
           </div>
         ) : (
-          <div ref={listRef} className="list">
+          <div ref={sortable.listRef} className={`list ${sortable.sorting ? "sorting" : ""}`}>
             {queue.map((e, i) => {
               const v = entryView(e);
-              const dragging = drag?.from === i;
-              const dropBefore = drag && drag.over === i && drag.from !== i && drag.from > i;
-              const dropAfter = drag && drag.over === i && drag.from !== i && drag.from < i;
+              const row = sortable.rowProps(i);
               return (
-                <div
-                  key={`${e.itemType}:${e.itemId}`}
-                  data-row
-                  className={`queue-row ${dragging ? "dragging" : ""} ${dropBefore ? "drop-before" : ""}`}
-                  style={dropAfter ? { boxShadow: "inset 0 -2px 0 var(--accent)" } : undefined}
-                >
+                <div key={`${e.itemType}:${e.itemId}`} data-row className={`queue-row ${row.className}`} style={row.style}>
                   <Cover className="thumb" src={v.cover} color={v.color} title={v.title} />
                   <button type="button" className="list-row-main" style={{ textAlign: "left" }} onClick={() => void player.playRef(toRef(e))}>
                     <span className="list-row-meta">{v.kind}</span>
@@ -169,18 +172,7 @@ export function UpNextView() {
                         move(i, i + 1);
                       }
                     }}
-                    onPointerDown={(ev) => {
-                      ev.currentTarget.setPointerCapture(ev.pointerId);
-                      setDrag({ from: i, over: i });
-                    }}
-                    onPointerMove={(ev) => {
-                      if (drag) setDrag({ from: drag.from, over: rowAt(ev.clientY) });
-                    }}
-                    onPointerUp={() => {
-                      if (drag) move(drag.from, drag.over);
-                      setDrag(null);
-                    }}
-                    onPointerCancel={() => setDrag(null)}
+                    {...sortable.handleProps(i)}
                   >
                     <DragIcon />
                   </button>

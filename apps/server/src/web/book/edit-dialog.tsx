@@ -236,7 +236,9 @@ export function EditBookDialog({
               </p>
             ) : null}
             {!info || !form ? (
-              <p className="muted">Loading…</p>
+              <div className="loading-center" aria-busy="true" aria-label="Loading">
+                <div className="spinner" />
+              </div>
             ) : tab === "details" ? (
               <DetailsTab info={info} form={form} setForm={setForm} />
             ) : tab === "cover" ? (
@@ -444,9 +446,11 @@ function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
         </form>
         <div className="edit-label">Suggestions</div>
         {suggestions === null ? (
-          <p className="muted small" style={{ margin: 0 }}>
-            Looking for covers…
-          </p>
+          <div className="cover-suggest" aria-busy="true" aria-label="Looking for covers">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="skel skel-cover" />
+            ))}
+          </div>
         ) : covers.length === 0 ? (
           <p className="muted small" style={{ margin: 0 }}>
             No covers found online.

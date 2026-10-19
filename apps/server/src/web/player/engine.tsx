@@ -106,6 +106,8 @@ interface PlayerApi {
   skip: SkipSettings;
   expanded: boolean;
   queue: QueueEntry[];
+  /** False until the queue has been fetched once, so an empty list isn't shown too early. */
+  queueLoaded: boolean;
   isCurrent: (type: ItemType, id: string) => boolean;
   /** Plays an item, resuming where you left off unless `startAt` is given. */
   play: (item: Playable, startAt?: number) => void;
@@ -180,6 +182,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [skip, setSkipState] = useState<SkipSettings>({ back: 10, forward: 30 });
   const [expanded, setExpanded] = useState(false);
   const [queue, setQueueState] = useState<QueueEntry[]>([]);
+  const [queueLoaded, setQueueLoaded] = useState(false);
 
   const setQueue = useCallback((q: QueueEntry[]) => {
     queueRef.current = q;
@@ -264,6 +267,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setQueue(await api<QueueEntry[]>("/api/queue"));
     } catch {
       // keep what we have
+    } finally {
+      setQueueLoaded(true);
     }
   }, [setQueue]);
 
@@ -567,6 +572,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       skip,
       expanded,
       queue,
+      queueLoaded,
       isCurrent,
       play,
       playRef,
@@ -595,6 +601,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       skip,
       expanded,
       queue,
+      queueLoaded,
       isCurrent,
       play,
       playRef,

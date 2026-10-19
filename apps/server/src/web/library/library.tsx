@@ -146,7 +146,9 @@ function LibraryView({ books, emptyReason, isAdmin }: { books: BookSummary[]; em
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(next)) if (v) p.set(k, v);
     const qs = p.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    // Every view is built from the books already here, so skip the server round trip
+    // (and its loading placeholder); Next keeps useSearchParams in step with pushState.
+    window.history.pushState(null, "", qs ? `${pathname}?${qs}` : pathname);
   };
 
   const continuing = useMemo(

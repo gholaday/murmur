@@ -225,7 +225,9 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
               </>
             )
           ) : busy ? (
-            <p className="muted">Searching…</p>
+            <div className="loading-center" aria-busy="true" aria-label="Searching">
+              <div className="spinner" />
+            </div>
           ) : null}
         </>
       )}

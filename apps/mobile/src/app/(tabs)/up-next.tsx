@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { apiPaths, duration, type QueueEntry, type QueueRef, timeLeft } from "@murmur/shared";
 import { Cover } from "@/components/cover";
@@ -7,6 +7,7 @@ import { CloseIcon, DragIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { Empty, PageTitle, useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
+import { DragHandle, SortableList, SortableScrollView } from "@/components/sortable-list";
 import { Bar, IconButton, Text } from "@/components/ui";
 import { chapterAt, playRef, queueReplace, refreshQueue, usePlayer, usePosition } from "@/player/engine";
 import { useTheme } from "@/theme";
@@ -38,6 +39,7 @@ function entryView(e: QueueEntry) {
 }
 
 const toRef = (e: QueueEntry): QueueRef => ({ itemType: e.itemType, itemId: e.itemId });
+const keyOf = (e: QueueEntry) => `${e.itemType}:${e.itemId}`;
 
 export default function UpNext() {
   const t = useTheme();
@@ -68,11 +70,11 @@ export default function UpNext() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: 24 }}>
+      <SortableScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: 24 }}>
         <PageTitle
           title="Up Next"
           count={queue.length || undefined}
-          sub={queue.length ? `${duration(total)} in the queue` : "Nothing queued"}
+          sub={queue.length ? `${duration(total)} to listen` : null}
           right={
             queue.length ? (
               <Pressable onPress={() => save([])} hitSlop={8} style={{ paddingHorizontal: 8, paddingVertical: 10 }}>
@@ -122,41 +124,22 @@ export default function UpNext() {
           {queue.length === 0 ? (
             <Empty title="Your queue is empty" />
           ) : (
-            queue.map((e, i) => {
-              const v = entryView(e);
-              return (
-                <View key={`${e.itemType}:${e.itemId}`} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: t.line }}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Play ${v.title}`}
-                    accessibilityHint="Long press to reorder"
-                    onPress={() => void playRef(toRef(e))}
-                    onLongPress={() => setMenu(i)}
-                    style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12 }}
-                  >
-                    <Cover path={v.cover} title={v.title} color={v.color} size={52} radius={8} />
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text variant="caption" numberOfLines={1} style={{ fontSize: 12 }}>
-                        {v.kind}
-                      </Text>
-                      <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 14 }}>
-                        {v.title}
-                      </Text>
-                      <Text variant="small">{v.length}</Text>
-                    </View>
-                  </Pressable>
-                  <IconButton label={`Reorder ${v.title}`} onPress={() => setMenu(i)}>
-                    <DragIcon size={20} color={t.muted} />
-                  </IconButton>
-                  <IconButton label={`Remove ${v.title}`} onPress={() => save(queue.filter((_, j) => j !== i))}>
-                    <CloseIcon size={20} color={t.muted} />
-                  </IconButton>
-                </View>
-              );
-            })
+            <View style={{ marginHorizontal: -8 }}>
+              <SortableList
+                items={queue}
+                keyOf={keyOf}
+                onReorder={(keys) => {
+                  const byKey = new Map(queue.map((e) => [keyOf(e), e]));
+                  save(keys.flatMap((k) => byKey.get(k) ?? []));
+                }}
+                renderRow={(e, i) => (
+                  <QueueRow entry={e} onMenu={() => setMenu(i)} onRemove={() => save(queue.filter((_, j) => j !== i))} />
+                )}
+              />
+            </View>
           )}
         </View>
-      </ScrollView>
+      </SortableScrollView>
 
       <Sheet open={picked !== undefined} onClose={() => setMenu(null)} title={picked ? entryView(picked).title : undefined}>
         {menu !== null ? (
@@ -176,6 +159,40 @@ export default function UpNext() {
           </>
         ) : null}
       </Sheet>
+    </View>
+  );
+}
+
+function QueueRow({ entry, onMenu, onRemove }: { entry: QueueEntry; onMenu: () => void; onRemove: () => void }) {
+  const t = useTheme();
+  const v = entryView(entry);
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, paddingHorizontal: 8 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Play ${v.title}`}
+        accessibilityHint="Long press for more options"
+        onPress={() => void playRef(toRef(entry))}
+        onLongPress={onMenu}
+        style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12 }}
+      >
+        <Cover path={v.cover} title={v.title} color={v.color} size={52} radius={8} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text variant="caption" numberOfLines={1} style={{ fontSize: 12 }}>
+            {v.kind}
+          </Text>
+          <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 14 }}>
+            {v.title}
+          </Text>
+          <Text variant="small">{v.length}</Text>
+        </View>
+      </Pressable>
+      <IconButton label={`Remove ${v.title}`} onPress={onRemove}>
+        <CloseIcon size={20} color={t.muted} />
+      </IconButton>
+      <DragHandle label={`Drag to reorder ${v.title}`}>
+        <DragIcon size={20} color={t.muted} />
+      </DragHandle>
     </View>
   );
 }
