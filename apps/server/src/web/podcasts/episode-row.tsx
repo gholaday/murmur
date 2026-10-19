@@ -42,13 +42,7 @@ export function EpisodeRow({
   const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
   const queued = player.queue.some((q) => q.itemType === "episode" && q.itemId === episode.id);
 
-  const meta = [
-    showThumb ? episode.podcastTitle : null,
-    shortDate(episode.publishedAt),
-    played ? "Played" : position > 5 && dur ? timeLeft(dur, position) : duration(dur),
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const time = played ? "Played" : position > 5 && dur ? timeLeft(dur, position) : duration(dur);
 
   const run = async (fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
@@ -80,7 +74,11 @@ export function EpisodeRow({
       ) : null}
       <div className="episode-main">
         <button type="button" style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 3 }} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-          <span className={`episode-meta ${current ? "playing" : ""}`}>{current ? `Playing · ${meta}` : meta}</span>
+          <span className="episode-meta">
+            {showThumb ? <span className="episode-show">{episode.podcastTitle}</span> : null}
+            <span>{shortDate(episode.publishedAt)}</span>
+            <span className={`episode-time ${current ? "playing" : ""}`}>{current ? `Playing, ${time}` : time}</span>
+          </span>
           <span className="episode-title">{episode.title}</span>
           {episode.description ? <span className="episode-desc">{episode.description}</span> : null}
         </button>
@@ -108,8 +106,10 @@ export function EpisodeRow({
               disabled={busy}
               onClick={() =>
                 void run(async () => {
-                  if (current) player.markCurrent(!played);
-                  else await setFinished("episode", episode.id, dur, !episode.progress?.finished);
+                  const finished = current ? !played : !episode.progress?.finished;
+                  if (current) player.markCurrent(finished);
+                  // Saved here too (not only by the player) so the refresh after this already sees it.
+                  await setFinished("episode", episode.id, dur, finished);
                 }, episode.progress?.finished ? "Marked as unplayed" : "Marked as played")
               }
             >

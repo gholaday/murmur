@@ -474,8 +474,10 @@ select.input { appearance: none; }
 
 .episode { display: flex; gap: 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .episode-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; text-align: left; }
-.episode-meta { font-size: 11px; font-weight: 700; color: var(--muted); }
-.episode-meta.playing { color: var(--accent); }
+.episode-meta { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: 13px; font-weight: 700; color: var(--text-2); }
+.episode-show { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.episode-time { flex-shrink: 0; font-size: 11px; font-weight: 500; color: var(--muted); }
+.episode-time.playing { color: var(--accent); font-weight: 700; }
 .episode-title { font-size: 15px; font-weight: 700; }
 .episode.played .episode-title { color: var(--muted); }
 .episode-desc { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   apiPaths,
@@ -157,6 +158,7 @@ function readSkip(): SkipSettings {
 const refOf = (item: Playable): QueueRef => ({ itemType: item.type, itemId: item.id });
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const audio = useRef<HTMLAudioElement>(null);
   const itemRef = useRef<Playable | null>(null);
   const fileIndex = useRef(0);
@@ -212,7 +214,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         updatedAt: Date.now(),
       };
       lastSaved.current = Date.now();
-      void flush();
+      return flush();
     },
     [flush],
   );
@@ -425,17 +427,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const markCurrent = useCallback(
     (finished: boolean) => {
+      let saved: Promise<void> | undefined;
       if (finished) {
         // A finished item leaves the player, like reaching its end.
-        save(true);
+        saved = save(true);
         unload();
       } else {
         positionRef.current = 0;
         seek(0);
-        save(false);
+        saved = save(false);
       }
+      // Pages showing played state (book, podcast, library) catch up once the save lands.
+      void saved?.then(() => router.refresh());
     },
-    [save, seek, unload],
+    [save, seek, unload, router],
   );
 
   // ---------- Startup: settings, queue, and whatever was playing last ----------
@@ -667,7 +672,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               load(it, it.files[next]!.startSec, true);
               return;
             }
-            save(true);
+            void save(true)?.then(() => router.refresh());
             void advance();
           }}
           onError={(e) => {

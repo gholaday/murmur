@@ -77,9 +77,9 @@ export function ShowView({ podcast, episodes }: { podcast: PodcastDetail; episod
           <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingBottom: 4, minWidth: 0 }}>
             <h1 className="show-title">{podcast.title}</h1>
             {podcast.author ? <div className="show-by">{podcast.author}</div> : null}
-            <div className="show-by muted">
-              {plural(podcast.episodeCount, "episode")}
-              {podcast.latestPublishedAt ? ` · Latest ${shortDate(podcast.latestPublishedAt)}` : ""}
+            <div className="show-by muted" style={{ display: "flex", flexWrap: "wrap", gap: "2px 14px" }}>
+              <span>{plural(podcast.episodeCount, "episode")}</span>
+              {podcast.latestPublishedAt ? <span>Latest {shortDate(podcast.latestPublishedAt)}</span> : null}
             </div>
           </div>
         </div>
