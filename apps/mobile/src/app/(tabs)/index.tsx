@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import {
   apiPaths,
@@ -17,6 +17,7 @@ import { Cover } from "@/components/cover";
 import { CloseIcon, FilterIcon, SearchIcon } from "@/components/icons";
 import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
+import { CoverGridBones, FadeIn, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { Grid, Group, openGroup, PAD, useGridWidth } from "@/components/library";
 import { Bar, Chip, IconButton, Text } from "@/components/ui";
 import { useBooks } from "@/lib/data";
@@ -54,6 +55,7 @@ export default function Library() {
   const [sortOpen, setSortOpen] = useState(false);
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
+  const fade = useJustLoaded(!books.isPending);
 
   const list = useMemo(() => books.data ?? [], [books.data]);
   const sorted = useMemo(() => sortBooks(list, sort), [list, sort]);
@@ -137,7 +139,10 @@ export default function Library() {
     return (
       <View style={{ flex: 1, backgroundColor: t.bg, paddingHorizontal: PAD }}>
         {header}
-        <ActivityIndicator color={t.accent} style={{ marginTop: 48 }} />
+        <Skeleton>
+          <SectionBone />
+          <CoverGridBones />
+        </Skeleton>
       </View>
     );
   }
@@ -174,26 +179,28 @@ export default function Library() {
           ListHeaderComponent={
             <>
               {header}
-              {continuing.length ? (
-                <>
-                  <SectionTitle title="Continue listening" />
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -PAD }} contentContainerStyle={{ paddingHorizontal: PAD, gap: 14 }}>
-                    {continuing.map((b) => (
-                      <ContinueCard key={b.id} book={b} />
-                    ))}
-                  </ScrollView>
-                </>
-              ) : null}
-              <SectionTitle title="All books" count={list.length} />
+              <FadeIn when={fade}>
+                {continuing.length ? (
+                  <>
+                    <SectionTitle title="Continue listening" />
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -PAD }} contentContainerStyle={{ paddingHorizontal: PAD, gap: 14 }}>
+                      {continuing.map((b) => (
+                        <ContinueCard key={b.id} book={b} />
+                      ))}
+                    </ScrollView>
+                  </>
+                ) : null}
+                <SectionTitle title="All books" count={list.length} />
+              </FadeIn>
             </>
           }
           ItemSeparatorComponent={() => <View style={{ height: 18 }} />}
           renderItem={({ item }) => (
-            <View style={{ flexDirection: "row", columnGap: GAP }}>
+            <FadeIn when={fade} style={{ flexDirection: "row", columnGap: GAP }}>
               {item.map((b) => (
                 <BookCard key={b.id} book={b} width={cardWidth} />
               ))}
-            </View>
+            </FadeIn>
           )}
         />
         <SortSheet open={sortOpen} onClose={() => setSortOpen(false)} sort={sort} onSort={setSort} />
@@ -253,7 +260,7 @@ export default function Library() {
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24 }} refreshControl={refresh} keyboardShouldPersistTaps="handled">
         {header}
-        {body}
+        <FadeIn when={fade}>{body}</FadeIn>
       </ScrollView>
       <SortSheet open={sortOpen} onClose={() => setSortOpen(false)} sort={sort} onSort={setSort} />
     </View>

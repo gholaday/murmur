@@ -7,6 +7,7 @@ import { CloseIcon, DragIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { Empty, PageTitle, useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
+import { Bone, FadeIn, ListRowBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { DragHandle, SortableList, SortableScrollView } from "@/components/sortable-list";
 import { Bar, IconButton, Text } from "@/components/ui";
 import { chapterAt, playRef, queueReplace, refreshQueue, usePlayer, usePosition } from "@/player/engine";
@@ -44,10 +45,11 @@ const keyOf = (e: QueueEntry) => `${e.itemType}:${e.itemId}`;
 export default function UpNext() {
   const t = useTheme();
   const top = useTopInset();
-  const { item, queue } = usePlayer();
+  const { item, queue, queueLoaded } = usePlayer();
   const position = usePosition();
   const [menu, setMenu] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const fade = useJustLoaded(queueLoaded);
 
   const save = (entries: QueueEntry[]) => {
     setError(null);
@@ -75,6 +77,13 @@ export default function UpNext() {
           title="Up Next"
           count={queue.length || undefined}
           sub={queue.length ? `${duration(total)} to listen` : null}
+          below={
+            queueLoaded ? undefined : (
+              <Skeleton>
+                <Bone width={120} height={13} style={{ marginTop: 4 }} />
+              </Skeleton>
+            )
+          }
           right={
             queue.length ? (
               <Pressable onPress={() => save([])} hitSlop={8} style={{ paddingHorizontal: 8, paddingVertical: 10 }}>
@@ -114,7 +123,15 @@ export default function UpNext() {
           </View>
         ) : null}
 
-        <View style={{ marginTop: 24 }}>
+        {!queueLoaded ? (
+          <Skeleton style={{ marginTop: 24 }}>
+            <Eyebrow>Next</Eyebrow>
+            {[0, 1, 2, 3, 4].map((i) => (
+              <ListRowBone key={i} lines={3} buttons={2} />
+            ))}
+          </Skeleton>
+        ) : (
+        <FadeIn when={fade} style={{ marginTop: 24 }}>
           {queue.length ? <Eyebrow>Next</Eyebrow> : null}
           {error ? (
             <Text variant="small" style={{ color: t.danger, marginBottom: 8 }}>
@@ -138,7 +155,8 @@ export default function UpNext() {
               />
             </View>
           )}
-        </View>
+        </FadeIn>
+        )}
       </SortableScrollView>
 
       <Sheet open={picked !== undefined} onClose={() => setMenu(null)} title={picked ? entryView(picked).title : undefined}>

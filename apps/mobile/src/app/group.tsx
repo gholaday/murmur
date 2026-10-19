@@ -27,7 +27,7 @@ export default function GroupScreen() {
         <BackRow />
         <PageTitle title={author ?? series ?? ""} count={list.length} sub={series ? list[0]?.author : null} />
         {list.length === 0 ? (
-          <Empty>{books.isPending ? "Loading…" : "No books here."}</Empty>
+          books.isPending ? null : <Empty>No books here.</Empty>
         ) : series ? (
           <View style={{ marginTop: 12 }}>
             <Grid>

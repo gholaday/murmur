@@ -131,6 +131,8 @@ export interface PlayerState {
   sleep: SleepTimer;
   skip: SkipSettings;
   queue: QueueEntry[];
+  /** False until the queue has come back from the server once, so screens don't flash "empty". */
+  queueLoaded: boolean;
 }
 
 // ---------- Store ----------
@@ -144,6 +146,7 @@ let state: PlayerState = {
   sleep: { mode: "off" },
   skip: getJson<SkipSettings>(SKIP_KEY) ?? { back: 10, forward: 30 },
   queue: [],
+  queueLoaded: false,
 };
 let position = 0;
 const stateListeners = new Set<() => void>();
@@ -359,7 +362,7 @@ AppState.addEventListener("change", (s) => {
 // ---------- Queue ----------
 
 function setQueue(q: QueueEntry[]) {
-  set({ queue: q });
+  set({ queue: q, queueLoaded: true });
   queryClient.setQueryData(keys.queue, q);
 }
 
@@ -367,7 +370,8 @@ export async function refreshQueue() {
   try {
     setQueue(await api<QueueEntry[]>("/api/queue"));
   } catch {
-    // keep what we have
+    // Keep what we have; offline, that's the honest answer rather than a placeholder forever.
+    set({ queueLoaded: true });
   }
 }
 

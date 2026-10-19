@@ -372,23 +372,42 @@ img.cover.pending { opacity: 0; }
 .search .input { padding-left: 42px; }
 .search svg { position: absolute; left: 12px; top: 10px; color: var(--muted); }
 
-.row-scroll { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; margin: 0 -20px; padding: 0 20px; scroll-snap-type: x proximity; scroll-padding-inline: 20px; }
-.row-scroll > * { scroll-snap-align: start; }
+.row-scroll { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; margin: 0 -20px; padding: 0 20px; }
 .continue-card { width: 169px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
 .continue-card .cover { border-radius: 10px; }
 
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 @media (min-width: 600px) { .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; } }
-/* One row of cards that scrolls sideways once it runs out of room: three across on phones, like .grid. */
+/* One row of cards that scrolls sideways once it runs out of room: three across on phones, like .grid. No snapping. */
 .shelf {
   display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 24px) / 3); gap: 12px;
   overflow-x: auto; scrollbar-width: none; margin: 0 -20px; padding: 0 20px;
-  scroll-snap-type: x proximity; scroll-padding-inline: 20px;
 }
-.shelf > * { scroll-snap-align: start; }
 @media (min-width: 600px) { .shelf { grid-auto-columns: 160px; gap: 16px; } }
-/* A mouse can't swipe, so show a thin scrollbar there. */
-@media (hover: hover) and (pointer: fine) { .shelf { scrollbar-width: thin; padding-bottom: 10px; } }
+/*
+ * A mouse can't swipe, so sideways rows get a slim bar there: no arrow buttons, and it only
+ * fades in while the pointer is over the row. The thumb is drawn in currentColor so the
+ * fade can be a colour transition on the row; the cards set their own text colour back.
+ */
+@media (hover: hover) and (pointer: fine) {
+  .shelf, .row-scroll { scrollbar-width: auto; padding-bottom: 10px; color: transparent; transition: color 300ms ease; }
+  .shelf > *, .row-scroll > * { color: var(--text); }
+  .shelf:hover, .row-scroll:hover { color: color-mix(in srgb, var(--text) 22%, transparent); }
+  .shelf::-webkit-scrollbar, .row-scroll::-webkit-scrollbar { height: 5px; }
+  .shelf::-webkit-scrollbar-track, .row-scroll::-webkit-scrollbar-track { background: transparent; }
+  .shelf::-webkit-scrollbar-thumb, .row-scroll::-webkit-scrollbar-thumb { border-radius: 3px; box-shadow: inset 0 0 0 5px; }
+  .shelf::-webkit-scrollbar-button, .row-scroll::-webkit-scrollbar-button { display: none; }
+}
+/* Dragging a row with the mouse (useDragToScroll): no text selection mid-drag. */
+.drag-scrolling { cursor: grabbing; user-select: none; }
+.drag-scrolling * { cursor: grabbing; }
+/* Firefox has no ::-webkit-scrollbar; its thin bar has no arrows already. */
+@supports not selector(::-webkit-scrollbar) {
+  @media (hover: hover) and (pointer: fine) {
+    .shelf, .row-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+    .shelf:hover, .row-scroll:hover { scrollbar-color: color-mix(in srgb, var(--text) 22%, transparent) transparent; }
+  }
+}
 .card { display: flex; flex-direction: column; gap: 6px; min-width: 0; position: relative; }
 .card-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -4px; }

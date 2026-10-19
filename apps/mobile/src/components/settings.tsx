@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { shortDate, type FolderBrowseDto, type FolderCheckDto, type HealthDto, type LibraryFolderDto, type UserDto } from "@murmur/shared";
 import { api } from "@/lib/api";
@@ -7,6 +7,7 @@ import { queryClient } from "@/lib/query";
 import { fonts, useTheme } from "@/theme";
 import { BackIcon, CheckIcon, FolderIcon } from "./icons";
 import { ConfirmSheet, Sheet } from "./sheet";
+import { Bone, FadeIn, Skeleton } from "./skeleton";
 import { toast } from "./toast";
 import { Button, Field, Text } from "./ui";
 
@@ -56,6 +57,30 @@ export function Row({
         ) : null}
       </View>
       {children}
+    </View>
+  );
+}
+
+/** A setting row's placeholder while it loads: title, sub-line and button, in Row's spacing. */
+function RowBone({ last }: { last?: boolean }) {
+  const t = useTheme();
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        paddingVertical: 14,
+        borderBottomWidth: last ? 0 : 1,
+        borderBottomColor: t.line,
+      }}
+    >
+      <View style={{ flex: 1, gap: 8 }}>
+        <Bone width="45%" height={15} />
+        <Bone width="30%" height={12} />
+      </View>
+      <Bone width={84} height={38} radius={19} />
     </View>
   );
 }
@@ -247,28 +272,44 @@ export function LibrarySection() {
   return (
     <>
       <Card>
-        <Row
-          title={h ? `${h.library.books} ${h.library.books === 1 ? "book" : "books"}` : "Library"}
-          sub={h ? scanStatus(h) : health.isError ? health.error.message : "Loading…"}
-          subDanger={!!h?.scan.lastError}
-          last
-        >
-          <SmallButton label="Rescan" onPress={() => void rescan()} disabled={busy || !!h?.scan.running} />
-        </Row>
+        {health.isPending ? (
+          <Skeleton>
+            <RowBone last />
+          </Skeleton>
+        ) : (
+          <FadeIn>
+            <Row
+              title={h ? `${h.library.books} ${h.library.books === 1 ? "book" : "books"}` : "Library"}
+              sub={h ? scanStatus(h) : health.isError ? health.error.message : null}
+              subDanger={!!h?.scan.lastError || health.isError}
+              last
+            >
+              <SmallButton label="Rescan" onPress={() => void rescan()} disabled={busy || !!h?.scan.running} />
+            </Row>
+          </FadeIn>
+        )}
       </Card>
       <View style={{ height: 12 }} />
       <Card>
-        {folders.isPending ? <ActivityIndicator style={{ paddingVertical: 16 }} /> : null}
-        {list.map((f) => (
-          <Row
-            key={f.id}
-            title={f.path}
-            sub={f.reachable ? `${f.books} ${f.books === 1 ? "book" : "books"}` : "The server can't open this folder."}
-            subDanger={!f.reachable}
-          >
-            {list.length > 1 ? <SmallButton label="Remove" danger onPress={() => setRemoving(f)} /> : null}
-          </Row>
-        ))}
+        {folders.isPending ? (
+          <Skeleton>
+            <RowBone />
+          </Skeleton>
+        ) : null}
+        {folders.data ? (
+          <FadeIn>
+            {list.map((f) => (
+              <Row
+                key={f.id}
+                title={f.path}
+                sub={f.reachable ? `${f.books} ${f.books === 1 ? "book" : "books"}` : "The server can't open this folder."}
+                subDanger={!f.reachable}
+              >
+                {list.length > 1 ? <SmallButton label="Remove" danger onPress={() => setRemoving(f)} /> : null}
+              </Row>
+            ))}
+          </FadeIn>
+        ) : null}
         <Row title="Add a folder" last>
           <SmallButton label="Add" onPress={() => setAdding(true)} />
         </Row>
@@ -458,13 +499,21 @@ export function UsersSection({ me }: { me: UserDto }) {
   return (
     <>
       <Card>
-        {users.isPending ? <ActivityIndicator style={{ paddingVertical: 16 }} /> : null}
+        {users.isPending ? (
+          <Skeleton>
+            <RowBone />
+          </Skeleton>
+        ) : null}
         {users.isError ? <Row title="Couldn't load users" sub={users.error.message} subDanger /> : null}
-        {(users.data ?? []).map((u) => (
-          <Row key={u.id} title={u.id === me.id ? `${u.username} (you)` : u.username} sub={u.isAdmin ? "Admin" : "Listener"}>
-            {u.id !== me.id ? <SmallButton label="Remove" danger onPress={() => setRemoving(u)} /> : null}
-          </Row>
-        ))}
+        {users.data ? (
+          <FadeIn>
+            {users.data.map((u) => (
+              <Row key={u.id} title={u.id === me.id ? `${u.username} (you)` : u.username} sub={u.isAdmin ? "Admin" : "Listener"}>
+                {u.id !== me.id ? <SmallButton label="Remove" danger onPress={() => setRemoving(u)} /> : null}
+              </Row>
+            ))}
+          </FadeIn>
+        ) : null}
         <Row title="Add a user" last>
           <SmallButton label="Add" onPress={() => setAdding(true)} />
         </Row>

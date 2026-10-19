@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { Linking, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { apiPaths, type EpisodeWithShow } from "@murmur/shared";
 import { Cover } from "@/components/cover";
@@ -10,6 +10,7 @@ import { MoreIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BackRow, Empty, SectionTitle, useBottomPad, useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
+import { FadeIn } from "@/components/skeleton";
 import { Button, IconButton, Text } from "@/components/ui";
 import { api } from "@/lib/api";
 import { invalidateListening, keys, useEpisodes, usePodcast } from "@/lib/data";
@@ -32,6 +33,9 @@ export default function ShowScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
+  // Only what had to wait fades in; anything already cached shows at once.
+  const [showWaited] = useState(!podcast.data);
+  const [episodesWaited] = useState(!episodes.data);
 
   const show = podcast.data;
   const withShow: EpisodeWithShow[] = useMemo(
@@ -53,7 +57,7 @@ export default function ShowScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: top, paddingHorizontal: PAD }}>
         <BackRow />
-        {podcast.isError ? <Empty title="Couldn't load this podcast">{podcast.error.message}</Empty> : <ActivityIndicator color={t.accent} style={{ marginTop: 48 }} />}
+        {podcast.isError ? <Empty title="Couldn't load this podcast">{podcast.error.message}</Empty> : null}
       </View>
     );
   }
@@ -74,6 +78,7 @@ export default function ShowScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <FadeIn when={showWaited} style={{ flex: 1 }}>
       <ScrollView
         contentContainerStyle={{ paddingTop: top, paddingHorizontal: PAD, paddingBottom: bottomPad }}
         refreshControl={
@@ -139,21 +144,20 @@ export default function ShowScreen() {
           }
         />
 
-        {episodes.isPending ? (
-          <ActivityIndicator color={t.accent} style={{ marginTop: 32 }} />
-        ) : visible.length === 0 ? (
+        {episodes.isPending ? null : visible.length === 0 ? (
           <Empty>No episodes.</Empty>
         ) : (
-          <>
+          <FadeIn when={episodesWaited}>
             {visible.slice(0, limit).map((e) => (
               <EpisodeRow key={e.id} episode={e} />
             ))}
             {visible.length > limit ? (
               <Button label={`Show more (${visible.length - limit} left)`} kind="secondary" onPress={() => setLimit((l) => l + PAGE)} style={{ marginTop: 16 }} />
             ) : null}
-          </>
+          </FadeIn>
         )}
       </ScrollView>
+      </FadeIn>
 
       <BottomMiniPlayer />
       <Sheet open={sheet === "menu"} onClose={() => setSheet(null)} title={show.title}>

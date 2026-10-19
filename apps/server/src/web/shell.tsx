@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useDragToScroll } from "./drag-scroll";
 import { AppIcon, LibraryIcon, PodcastIcon, QueueIcon, SettingsIcon } from "./icons";
 import { FullPlayer } from "./player/full-player";
 import { MiniPlayer } from "./player/mini-player";
@@ -18,6 +19,7 @@ const TABS = [
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { item, queue } = usePlayer();
+  useDragToScroll();
   return (
     <div className={`shell ${item ? "has-player" : ""}`}>
       <nav className="tabs" aria-label="Main">

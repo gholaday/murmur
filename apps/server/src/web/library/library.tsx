@@ -20,6 +20,7 @@ import { BackIcon, FilterIcon, SearchIcon } from "../icons";
 import { EditBookDialog, type EditTab } from "../book/edit-dialog";
 import { Sheet, SheetItem } from "../sheet";
 import { BookActionsContext, BookCard, progressPct } from "./book-card";
+import { continueListening, SHELF_SIZE, SHELF_TITLES, shelfBooks, type ShelfId } from "./shelves";
 
 type Tab = "books" | "authors" | "series" | "finished" | "attention";
 
@@ -48,6 +49,8 @@ const SORTS: Array<{ id: Sort; label: string }> = [
 ];
 
 const SORT_KEY = "murmur.librarySort";
+/** Under a Next in series card: which book it is (series names are too long to fit), else the author. */
+const nextSub = (b: BookSummary) => (b.seriesPosition !== null ? `Book ${b.seriesPosition}` : b.author);
 /** A titled section of book cards, like "All books": the heading opens that author or series. */
 function GroupGrid({
   title,
@@ -99,13 +102,22 @@ function TitleWithCount({ title, count }: { title: string; count: number }) {
   );
 }
 
-export function Library({ books, emptyReason, isAdmin }: { books: BookSummary[]; emptyReason: string; isAdmin: boolean }) {
+interface LibraryProps {
+  books: BookSummary[];
+  emptyReason: string;
+  isAdmin: boolean;
+  /** The server's date (YYYY-MM-DD), which seeds the daily Not started shuffle. */
+  today: string;
+}
+
+export function Library(props: LibraryProps) {
   const router = useRouter();
+  const { isAdmin } = props;
   const [editing, setEditing] = useState<{ id: string; tab: EditTab } | null>(null);
   const actions = useMemo(() => ({ isAdmin, edit: (id: string, tab: EditTab) => setEditing({ id, tab }) }), [isAdmin]);
   return (
     <BookActionsContext.Provider value={actions}>
-      <LibraryView books={books} emptyReason={emptyReason} isAdmin={isAdmin} />
+      <LibraryView {...props} />
       {isAdmin && editing ? (
         <EditBookDialog
           key={`${editing.id}:${editing.tab}`}
@@ -120,7 +132,7 @@ export function Library({ books, emptyReason, isAdmin }: { books: BookSummary[];
   );
 }
 
-function LibraryView({ books, emptyReason, isAdmin }: { books: BookSummary[]; emptyReason: string; isAdmin: boolean }) {
+function LibraryView({ books, emptyReason, isAdmin, today }: LibraryProps) {
   const router = useRouter();
   const [issue, setIssue] = useState<IssueId>("all");
   const pathname = usePathname();
@@ -128,6 +140,8 @@ function LibraryView({ books, emptyReason, isAdmin }: { books: BookSummary[]; em
   const tab = (params.get("tab") as Tab | null) ?? "books";
   const author = params.get("author");
   const series = params.get("series");
+  const shelfParam = params.get("shelf");
+  const shelf = shelfParam && shelfParam in SHELF_TITLES ? (shelfParam as ShelfId) : null;
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [sort, setSort] = useState<Sort>("added");
@@ -149,15 +163,14 @@ function LibraryView({ books, emptyReason, isAdmin }: { books: BookSummary[]; em
     // Every view is built from the books already here, so skip the server round trip
     // (and its loading placeholder); Next keeps useSearchParams in step with pushState.
     window.history.pushState(null, "", qs ? `${pathname}?${qs}` : pathname);
+    // A shelf, author or series opens like a new page, at the top. Tab switches stay put.
+    if (next.shelf || next.author || next.series) window.scrollTo(0, 0);
   };
 
-  const continuing = useMemo(
-    () =>
-      books
-        .filter((b) => b.progress && !b.progress.finished && b.progress.positionSec > 5)
-        .sort((a, b) => b.progress!.updatedAt - a.progress!.updatedAt)
-        .slice(0, 12),
-    [books],
+  const continuing = useMemo(() => continueListening(books), [books]);
+  const shelves = useMemo(
+    () => (["next", "added", "unstarted"] as const).map((id) => ({ id, books: shelfBooks(id, books, today) })),
+    [books, today],
   );
   const sorted = useMemo(() => sortBooks(books, sort), [books, sort]);
   const attentionCount = useMemo(() => books.filter((b) => issuesOf(b).length > 0).length, [books]);
@@ -173,6 +186,34 @@ function LibraryView({ books, emptyReason, isAdmin }: { books: BookSummary[]; em
           <strong>No books yet</strong>
           {emptyReason}
         </div>
+      </>
+    );
+  }
+
+  // A shelf's full list, opened from its heading.
+  if (shelf) {
+    const list = shelfBooks(shelf, books, today);
+    return (
+      <>
+        <div className="back-row">
+          <button type="button" className="icon-btn" onClick={() => router.back()} aria-label="Back">
+            <BackIcon />
+          </button>
+        </div>
+        <div className="page-head">
+          <h1 className="page-title" style={{ fontSize: 26 }}>
+            <TitleWithCount title={SHELF_TITLES[shelf]} count={list.length} />
+          </h1>
+        </div>
+        {list.length ? (
+          <div className="grid">
+            {list.map((b) => (
+              <BookCard key={b.id} book={b} sub={shelf === "next" ? nextSub(b) : undefined} />
+            ))}
+          </div>
+        ) : (
+          <div className="empty">Nothing here right now.</div>
+        )}
       </>
     );
   }
@@ -317,9 +358,16 @@ function LibraryView({ books, emptyReason, isAdmin }: { books: BookSummary[]; em
             <>
               {continuing.length ? (
                 <section className="section">
-                  <h2 className="section-title">Continue listening</h2>
+                  <div className="section-head">
+                    <button type="button" className="section-title group-title" onClick={() => go({ shelf: "continue" })}>
+                      {SHELF_TITLES.continue}
+                      <span className="count-pill" aria-label={plural(continuing.length, "book")}>
+                        {continuing.length}
+                      </span>
+                    </button>
+                  </div>
                   <div className="row-scroll">
-                    {continuing.map((b) => (
+                    {continuing.slice(0, SHELF_SIZE).map((b) => (
                       <Link key={b.id} href={`/book/${b.id}`} className="continue-card">
                         <Cover
                           src={b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 600) : null}
@@ -337,6 +385,15 @@ function LibraryView({ books, emptyReason, isAdmin }: { books: BookSummary[]; em
                   </div>
                 </section>
               ) : null}
+              {shelves.map(({ id, books: list }) =>
+                list.length ? (
+                  <GroupGrid key={id} title={SHELF_TITLES[id]} count={list.length} onOpen={() => go({ shelf: id })}>
+                    {list.slice(0, SHELF_SIZE).map((b) => (
+                      <BookCard key={b.id} book={b} sub={id === "next" ? nextSub(b) : undefined} />
+                    ))}
+                  </GroupGrid>
+                ) : null,
+              )}
               <section className="section">
                 <div className="section-head">
                   <h2 className="section-title">

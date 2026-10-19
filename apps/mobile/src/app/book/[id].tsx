@@ -9,6 +9,7 @@ import { CheckIcon, DownloadIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } 
 import { openGroup, PAD } from "@/components/library";
 import { BackRow, Empty, useBottomPad, SectionTitle, useTopInset } from "@/components/page";
 import { RemoveDownloadSheet, Sheet, SheetItem } from "@/components/sheet";
+import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { Bar, IconButton, Text } from "@/components/ui";
 import { setFinished, useBook } from "@/lib/data";
@@ -35,16 +36,22 @@ export default function BookScreen() {
   // Offline and never opened before: the download keeps its own copy of the details.
   const saved = dl?.type === "book" ? dl.book : undefined;
   const book = query.data ?? saved;
+  // Only a page that had to wait fades in; one already cached shows at once.
+  const [waited] = useState(!book);
 
   if (!book) {
     return (
       <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: top, paddingHorizontal: PAD }}>
         <BackRow />
-        {query.isError ? <Empty title="Couldn't load this book">{query.error.message}</Empty> : <ActivityIndicator color={t.accent} style={{ marginTop: 48 }} />}
+        {query.isError ? <Empty title="Couldn't load this book">{query.error.message}</Empty> : null}
       </View>
     );
   }
-  return <BookView book={book} download={dl} />;
+  return (
+    <FadeIn when={waited} style={{ flex: 1 }}>
+      <BookView book={book} download={dl} />
+    </FadeIn>
+  );
 }
 
 function BookView({ book, download }: { book: BookDetail; download: Download | undefined }) {

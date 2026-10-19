@@ -1,5 +1,6 @@
 import { Image } from "expo-image";
 import { View, type StyleProp, type ViewStyle } from "react-native";
+import { useReducedMotion } from "react-native-reanimated";
 import { absolute, authHeaders } from "@/lib/api";
 import { fonts } from "@/theme";
 import { Text } from "./ui";
@@ -25,6 +26,7 @@ export function Cover({
   radius?: number;
   style?: StyleProp<ViewStyle>;
 }) {
+  const reduced = useReducedMotion();
   const box: ViewStyle = {
     width: size ?? "100%",
     aspectRatio: 1,
@@ -47,7 +49,7 @@ export function Cover({
         source={{ uri: absolute(path), headers: authHeaders(), cacheKey: path }}
         cachePolicy="disk"
         recyclingKey={path}
-        transition={120}
+        transition={reduced ? 0 : 220}
         accessibilityIgnoresInvertColors
         style={{ width: "100%", height: "100%" }}
       />

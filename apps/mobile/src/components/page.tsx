@@ -20,7 +20,20 @@ export function BackRow({ right }: { right?: React.ReactNode }) {
 }
 
 /** Large page title with optional count and actions on the right. */
-export function PageTitle({ title, count, sub, right }: { title: string; count?: number; sub?: string | null; right?: React.ReactNode }) {
+export function PageTitle({
+  title,
+  count,
+  sub,
+  below,
+  right,
+}: {
+  title: string;
+  count?: number;
+  sub?: string | null;
+  /** Shown in place of `sub`, e.g. a loading placeholder. */
+  below?: React.ReactNode;
+  right?: React.ReactNode;
+}) {
   return (
     <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12, paddingVertical: 8 }}>
       <View style={{ flex: 1, gap: 2 }}>
@@ -28,7 +41,7 @@ export function PageTitle({ title, count, sub, right }: { title: string; count?:
           <Text variant="title">{title}</Text>
           {count !== undefined ? <CountPill count={count} /> : null}
         </View>
-        {sub ? <Text variant="small">{sub}</Text> : null}
+        {sub ? <Text variant="small">{sub}</Text> : below}
       </View>
       {right ? <View style={{ flexDirection: "row" }}>{right}</View> : null}
     </View>

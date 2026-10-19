@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { apiPaths, type PodcastSummary } from "@murmur/shared";
 import { Cover } from "@/components/cover";
@@ -8,6 +8,7 @@ import { FilterIcon, PlusIcon } from "@/components/icons";
 import { Grid, PAD, useGridWidth } from "@/components/library";
 import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
+import { CoverGridBones, FadeIn, ListRowBone, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { Button, Chip, Field, IconButton, Text } from "@/components/ui";
 import { api } from "@/lib/api";
 import { keys, useNewEpisodes, usePodcasts } from "@/lib/data";
@@ -37,6 +38,7 @@ export default function Podcasts() {
   const [sortOpen, setSortOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const fade = useJustLoaded(!podcasts.isPending);
 
   const shows = useMemo(() => sortShows(podcasts.data ?? [], sort), [podcasts.data, sort]);
   const fresh = newEpisodes.data ?? [];
@@ -55,7 +57,18 @@ export default function Podcasts() {
   };
 
   let body: React.ReactNode;
-  if (podcasts.isPending) body = <ActivityIndicator color={t.accent} style={{ marginTop: 48 }} />;
+  if (podcasts.isPending) {
+    body = (
+      <Skeleton>
+        <SectionBone />
+        {[0, 1, 2, 3].map((i) => (
+          <ListRowBone key={i} thumb={48} />
+        ))}
+        <SectionBone />
+        <CoverGridBones count={6} />
+      </Skeleton>
+    );
+  }
   else if (view === "downloaded") {
     body = downloaded.length ? (
       <View style={{ marginTop: 8 }}>
@@ -129,7 +142,7 @@ export default function Podcasts() {
           <Chip label="Podcasts" selected={view === "shows"} onPress={() => setView("shows")} />
           <Chip label="Downloaded" selected={view === "downloaded"} onPress={() => setView("downloaded")} />
         </View>
-        {body}
+        {podcasts.isPending ? body : <FadeIn when={fade}>{body}</FadeIn>}
       </ScrollView>
 
       <Sheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort podcasts">
