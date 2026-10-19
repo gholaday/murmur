@@ -78,7 +78,7 @@ function GroupGrid({
         </div>
         {side ? <span className="muted small">{side}</span> : null}
       </div>
-      <div className="grid">{children}</div>
+      <div className="shelf">{children}</div>
     </section>
   );
 }
@@ -213,7 +213,7 @@ function LibraryView({ books, emptyReason, isAdmin }: { books: BookSummary[]; em
                     </span>
                   </button>
                 </div>
-                <div className="grid">
+                <div className="shelf">
                   {[...items].sort(bySeriesOrder).map((b) => (
                     <BookCard key={b.id} book={b} sub={b.seriesPosition !== null ? `Book ${b.seriesPosition}` : null} />
                   ))}
@@ -223,7 +223,7 @@ function LibraryView({ books, emptyReason, isAdmin }: { books: BookSummary[]; em
             {standalone.length ? (
               <section className="section">
                 {groups.length ? <h2 className="section-title">Standalone</h2> : null}
-                <div className="grid">
+                <div className="shelf">
                   {sortBooks(standalone, "title").map((b) => (
                     <BookCard key={b.id} book={b} sub={null} />
                   ))}
@@ -383,7 +383,7 @@ function LibraryView({ books, emptyReason, isAdmin }: { books: BookSummary[]; em
                 );
               })
             ) : (
-              <div className="empty">Books in series folders (Author/Series/Title) show up here.</div>
+              <div className="empty">No series yet.</div>
             )
           ) : null}
 
@@ -432,9 +432,6 @@ function AttentionView({ books, issue, setIssue }: { books: BookSummary[]; issue
           </button>
         ))}
       </div>
-      <p className="muted small" style={{ margin: 0 }}>
-        Use a book&apos;s options menu to edit its details, change the cover or match it.
-      </p>
       {list.length === 0 ? (
         <div className="empty">Nothing to fix here.</div>
       ) : (
@@ -460,7 +457,7 @@ function SearchResults({ books }: { books: BookSummary[] }) {
 }
 
 function FinishedList({ books }: { books: BookSummary[] }) {
-  if (books.length === 0) return <div className="empty">Books you finish show up here.</div>;
+  if (books.length === 0) return <div className="empty">No finished books yet.</div>;
   return (
     <div className="grid section">
       {[...books]

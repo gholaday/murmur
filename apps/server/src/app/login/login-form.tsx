@@ -28,7 +28,6 @@ export function LoginForm({ setup }: { setup: boolean }) {
   return (
     <form className="login" onSubmit={onSubmit}>
       <h1>{setup ? "Create your admin account" : "Sign in to Murmur"}</h1>
-      {setup ? <p className="muted">This is the first account, so it can manage the library and other users.</p> : null}
       <label className="label">
         Username
         <input className="input" name="username" autoComplete="username" required />

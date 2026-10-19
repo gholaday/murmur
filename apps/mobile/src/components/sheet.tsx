@@ -1,9 +1,59 @@
-import { useRef } from "react";
-import { Modal, Pressable, ScrollView, type ScrollViewInstance, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Keyboard, Modal,Pressable, ScrollView, type ScrollViewInstance, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fonts, useTheme } from "@/theme";
 import { CheckIcon } from "./icons";
-import { Text } from "./ui";
+import { Button, InSheet, Text } from "./ui";
+
+/** "Are you sure?" for actions that delete something: a message, then Cancel and the action. */
+export function ConfirmSheet({
+  open,
+  title,
+  message,
+  confirmLabel,
+  onConfirm,
+  onClose,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet open={open} onClose={onClose} title={title}>
+      <View style={{ paddingHorizontal: 12, gap: 14, paddingBottom: 8 }}>
+        <Text>{message}</Text>
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <Button label="Cancel" kind="secondary" onPress={onClose} style={{ flex: 1 }} />
+          <Button
+            label={confirmLabel}
+            onPress={() => {
+              onClose();
+              onConfirm();
+            }}
+            style={{ flex: 1 }}
+          />
+        </View>
+      </View>
+    </Sheet>
+  );
+}
+
+/** Confirmation for removing one download from the phone. */
+export function RemoveDownloadSheet({ open, title, onConfirm, onClose }: { open: boolean; title: string; onConfirm: () => void; onClose: () => void }) {
+  return (
+    <ConfirmSheet
+      open={open}
+      title="Remove download?"
+      message={`${title} will be deleted from this phone. It stays on the server, so you can download it again.`}
+      confirmLabel="Remove"
+      onConfirm={onConfirm}
+      onClose={onClose}
+    />
+  );
+}
 
 /** A bottom sheet for menus and pickers. Tapping outside or Back closes it. */
 export function Sheet({
@@ -23,6 +73,7 @@ export function Sheet({
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const scroll = useRef<ScrollViewInstance>(null);
+  const keyboard = useKeyboardHeight();
   return (
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <Pressable accessibilityLabel="Close" onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }} />
@@ -33,7 +84,7 @@ export function Sheet({
           borderTopLeftRadius: 24,
           borderTopRightRadius: 24,
           paddingTop: 10,
-          paddingBottom: insets.bottom + 12,
+          paddingBottom: Math.max(insets.bottom, keyboard) + 12,
         }}
       >
         <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: t.track, marginBottom: 10 }} />
@@ -46,10 +97,26 @@ export function Sheet({
           contentContainerStyle={{ paddingHorizontal: 8 }}
           onContentSizeChange={() => scrollY && scroll.current?.scrollTo({ y: scrollY, animated: false })}
           ref={scroll}
-        >{children}</ScrollView>
+        >
+          <InSheet.Provider value>{children}</InSheet.Provider>
+        </ScrollView>
       </View>
     </Modal>
   );
+}
+
+/** The sheet draws edge to edge, so Android doesn't resize it for the keyboard; it lifts itself instead. */
+function useKeyboardHeight() {
+  const [height, setHeight] = useState(0);
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", (e) => (console.log("KB", e.endCoordinates.height), setHeight(e.endCoordinates.height)));
+    const hide = Keyboard.addListener("keyboardDidHide", () => setHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  return height;
 }
 
 export function SheetItem({

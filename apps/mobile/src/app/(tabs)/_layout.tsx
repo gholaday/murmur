@@ -2,25 +2,32 @@ import { useEffect } from "react";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Tabs, type BottomTabBarProps } from "expo-router/js-tabs";
-import { LibraryIcon, PodcastIcon, QueueIcon, SettingsIcon } from "@/components/icons";
+import { DownloadIcon, LibraryIcon, PodcastIcon, QueueIcon, SettingsIcon } from "@/components/icons";
 import { MiniPlayer } from "@/components/mini-player";
 import { Text } from "@/components/ui";
 import { restorePlayer } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
-const ICONS = { index: LibraryIcon, podcasts: PodcastIcon, "up-next": QueueIcon, settings: SettingsIcon } as const;
+const ICONS = { index: LibraryIcon, podcasts: PodcastIcon, "up-next": QueueIcon, downloads: DownloadIcon, settings: SettingsIcon } as const;
 
 export default function TabsLayout() {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
   useEffect(() => {
     void restorePlayer();
   }, []);
   return (
-    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
-      <Tabs.Screen name="index" options={{ title: "Library" }} />
-      <Tabs.Screen name="podcasts" options={{ title: "Podcasts" }} />
-      <Tabs.Screen name="up-next" options={{ title: "Up Next" }} />
-      <Tabs.Screen name="settings" options={{ title: "Settings" }} />
-    </Tabs>
+    <View style={{ flex: 1 }}>
+      <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
+        <Tabs.Screen name="index" options={{ title: "Library" }} />
+        <Tabs.Screen name="podcasts" options={{ title: "Podcasts" }} />
+        <Tabs.Screen name="up-next" options={{ title: "Up Next" }} />
+        <Tabs.Screen name="downloads" options={{ title: "Downloads" }} />
+        <Tabs.Screen name="settings" options={{ title: "Settings" }} />
+      </Tabs>
+      {/* Lists scroll under the status bar; this keeps the clock and icons readable. */}
+      <View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0, height: insets.top, backgroundColor: t.bg }} />
+    </View>
   );
 }
 

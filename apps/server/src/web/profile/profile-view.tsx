@@ -100,9 +100,6 @@ export function ProfileView({
             </div>
           </div>
         </div>
-        <p className="muted small" style={{ margin: 0 }}>
-          Saved on this device. Playback speed is remembered per book and per podcast.
-        </p>
       </section>
 
       <section className="section">
@@ -116,9 +113,6 @@ export function ProfileView({
             <h2 className="section-title">Library</h2>
             <LibraryCard server={server} onScanned={() => router.refresh()} />
             <FoldersCard folders={folders} onSaved={() => router.refresh()} />
-            <p className="muted small" style={{ margin: 0 }}>
-              Paths as the server sees them. In Docker, mount a folder into the container before adding it here.
-            </p>
           </section>
           <section className="section">
             <h2 className="section-title">Users</h2>
@@ -133,7 +127,6 @@ export function ProfileView({
           <div className="setting">
             <span className="setting-text">
               <span className="setting-title">Export subscriptions</span>
-              <span className="setting-sub">An OPML file any podcast app can import.</span>
             </span>
             <a className="btn" href="/api/podcasts/opml" download="murmur-podcasts.opml">
               Export
@@ -153,7 +146,6 @@ function ThemePicker() {
       <div className="setting" style={{ flexWrap: "wrap", paddingBlock: 10 }}>
         <span className="setting-text">
           <span className="setting-title">Theme</span>
-          <span className="setting-sub">Saved in this browser.</span>
         </span>
         <div className="chips" role="radiogroup" aria-label="Theme">
           {THEMES.map((t) => (
@@ -187,9 +179,6 @@ function PasswordForm({ username, isAdmin }: { username: string; isAdmin: boolea
       <div className="setting">
         <span className="setting-text">
           <span className="setting-title">{username}</span>
-          <span className="setting-sub">
-            {isAdmin ? "Can manage the library and users." : "Can listen and keep their own progress."}
-          </span>
         </span>
         <span className={`role-pill ${isAdmin ? "admin" : ""}`}>{isAdmin ? "Admin" : "Listener"}</span>
       </div>
@@ -590,7 +579,6 @@ function UsersCard({ me, users, onChanged }: { me: UserDto; users: UserDto[]; on
           <label className="switch">
             <span className="setting-text">
               <span className="setting-title" style={{ fontSize: 14 }}>Admin</span>
-              <span className="setting-sub">Can manage the library and users.</span>
             </span>
             <input type="checkbox" name="isAdmin" />
           </label>

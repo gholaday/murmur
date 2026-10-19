@@ -48,7 +48,6 @@ export function PodcastsView({ podcasts, newEpisodes }: { podcasts: PodcastSumma
       {podcasts.length === 0 ? (
         <div className="empty">
           <strong>No podcasts yet</strong>
-          Add a podcast by pasting its RSS feed, or import an OPML file from your old app.
           <div style={{ marginTop: 16 }}>
             <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
               Add a podcast
@@ -196,9 +195,6 @@ function AddPodcastSheet({
           {busy ? "Adding…" : "Subscribe"}
         </button>
       </form>
-      <div className="muted small" style={{ marginTop: 8 }}>
-        Moving from another app? Import its OPML export.
-      </div>
       <div className="form-row">
         <label className="btn" style={{ flex: 1, cursor: "pointer" }}>
           Import OPML

@@ -8,7 +8,7 @@ import { HeroBackdrop } from "@/components/hero";
 import { CheckIcon, DownloadIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "@/components/icons";
 import { openGroup, PAD } from "@/components/library";
 import { BackRow, Empty, useBottomPad, SectionTitle, useTopInset } from "@/components/page";
-import { Sheet, SheetItem } from "@/components/sheet";
+import { RemoveDownloadSheet, Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
 import { Bar, IconButton, Text } from "@/components/ui";
 import { setFinished, useBook } from "@/lib/data";
@@ -54,6 +54,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
   const player = usePlayer();
   const live = usePosition();
   const [menu, setMenu] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   const current = isCurrent(player, "book", book.id);
@@ -99,7 +100,10 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
 
   const toggleDownload = () => {
     setMenu(false);
-    if (getDownload("book", book.id)) removeDownload("book", book.id);
+    const existing = getDownload("book", book.id);
+    // A finished download is asked about first; cancelling one in progress isn't.
+    if (existing?.status === "done") setConfirmRemove(true);
+    else if (existing) removeDownload("book", book.id);
     else downloadBook(book);
   };
 
@@ -274,6 +278,12 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
         <SheetItem label={book.progress?.finished ? "Mark as not finished" : "Mark as finished"} onPress={() => void mark(!book.progress?.finished)} />
         {book.progress && !book.progress.finished ? <SheetItem label="Reset progress" onPress={() => void mark(false)} /> : null}
       </Sheet>
+      <RemoveDownloadSheet
+        open={confirmRemove}
+        title={book.title}
+        onConfirm={() => removeDownload("book", book.id)}
+        onClose={() => setConfirmRemove(false)}
+      />
     </View>
   );
 }

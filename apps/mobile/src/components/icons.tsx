@@ -128,6 +128,23 @@ export const NextChapterIcon = (p: IconProps) => (
     <Path d="M6 6l9 6-9 6z" />
   </Icon>
 );
+export const FolderIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+  </Icon>
+);
+export const EyeIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+    <Circle cx={12} cy={12} r={3} />
+  </Icon>
+);
+export const EyeOffIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6A17.4 17.4 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6" />
+    <Path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18" />
+  </Icon>
+);
 export const MoonIcon = (p: IconProps) => (
   <Icon {...p}>
     <Path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />

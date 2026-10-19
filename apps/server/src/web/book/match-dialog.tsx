@@ -97,7 +97,6 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
     }
   };
 
-  const top = result?.candidates[0];
 
   return (
     <div className="match-panel">
@@ -106,9 +105,6 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
           <button type="button" className="btn" style={{ alignSelf: "flex-start" }} onClick={() => setPreview(null)}>
             <BackIcon size={18} /> Results
           </button>
-          <p className="muted small" style={{ margin: 0 }}>
-            Ticked fields replace what your files say.
-          </p>
           <div style={{ overflowX: "auto" }}>
             <table className="compare">
               <thead>
@@ -184,14 +180,9 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
 
           {result ? (
             result.candidates.length === 0 ? (
-              <p className="muted">No results. Try a shorter title or check the author&apos;s spelling.</p>
+              <p className="muted">No results.</p>
             ) : (
               <>
-                {result.suggested || (top && top.score >= 70) ? null : (
-                  <p className="muted small" style={{ margin: 0 }}>
-                    No confident match. Pick one only if you&apos;re sure, or search by hand.
-                  </p>
-                )}
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: "48dvh", overflowY: "auto" }}>
                   {result.candidates.map((c) => {
                     const k = keyOf(c);

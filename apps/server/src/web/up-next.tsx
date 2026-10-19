@@ -127,7 +127,6 @@ export function UpNextView() {
         {queue.length === 0 ? (
           <div className="empty">
             <strong>Your queue is empty</strong>
-            Add books and episodes with “Play next” or “Add to Up Next”. When something finishes, the next item starts on its own.
           </div>
         ) : (
           <div ref={listRef} className="list">
@@ -190,7 +189,6 @@ export function UpNextView() {
             })}
           </div>
         )}
-        {queue.length > 1 ? <p className="muted small" style={{ textAlign: "center" }}>Drag the handle to reorder</p> : null}
       </section>
     </>
   );

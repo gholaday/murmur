@@ -14,7 +14,6 @@ const PAGE = 50;
 
 export function ShowView({ podcast, episodes }: { podcast: PodcastDetail; episodes: EpisodeDto[] }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"episodes" | "archived">("episodes");
   const [oldestFirst, setOldestFirst] = useState(false);
   const [limit, setLimit] = useState(PAGE);
   const [sheet, setSheet] = useState<null | "menu" | "unsubscribe">(null);
@@ -32,11 +31,7 @@ export function ShowView({ podcast, episodes }: { podcast: PodcastDetail; episod
       })),
     [episodes, podcast],
   );
-  const visible = useMemo(() => {
-    const list = withShow.filter((e) => (tab === "archived" ? e.archived : !e.archived));
-    return oldestFirst ? [...list].reverse() : list;
-  }, [withShow, tab, oldestFirst]);
-  const archivedCount = withShow.filter((e) => e.archived).length;
+  const visible = useMemo(() => (oldestFirst ? [...withShow].reverse() : withShow), [withShow, oldestFirst]);
 
   const run = async (fn: () => Promise<unknown>, done?: string) => {
     setBusy(true);
@@ -110,20 +105,15 @@ export function ShowView({ podcast, episodes }: { podcast: PodcastDetail; episod
         </>
       ) : null}
 
-      <div className="subtabs" role="tablist">
-        <button type="button" role="tab" className="subtab" aria-selected={tab === "episodes"} onClick={() => setTab("episodes")}>
-          Episodes
-        </button>
-        <button type="button" role="tab" className="subtab" aria-selected={tab === "archived"} onClick={() => setTab("archived")}>
-          Archived{archivedCount ? ` (${archivedCount})` : ""}
-        </button>
+      <div className="subtabs">
+        <h2 className="subtab subtab-static">Episodes</h2>
         <button type="button" className="muted small" onClick={() => setOldestFirst((o) => !o)}>
           {oldestFirst ? "Oldest first" : "Newest first"}
         </button>
       </div>
 
       {visible.length === 0 ? (
-        <div className="empty">{tab === "archived" ? "Episodes you archive show up here." : "No episodes."}</div>
+        <div className="empty">No episodes.</div>
       ) : (
         <div>
           {visible.slice(0, limit).map((e) => (

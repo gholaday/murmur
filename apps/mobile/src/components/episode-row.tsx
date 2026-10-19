@@ -2,12 +2,12 @@ import { useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { apiPaths, duration, type EpisodeWithShow, shortDate, timeLeft } from "@murmur/shared";
-import { api } from "@/lib/api";
-import { invalidateListening, setFinished } from "@/lib/data";
+import { setFinished } from "@/lib/data";
 import { downloadEpisode, removeDownload, useDownload } from "@/lib/downloads";
-import { episodeToPlayable, isCurrent, markCurrent, play, queueAdd, refreshQueue, toggle, usePlayer, usePosition } from "@/player/engine";
+import { episodeToPlayable, isCurrent, markCurrent, play, queueAdd, toggle, usePlayer, usePosition } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
+import { RemoveDownloadSheet } from "./sheet";
 import { toast } from "./toast";
 import { CheckIcon, DownloadIcon, PauseIcon, PlayIcon } from "./icons";
 import { Text } from "./ui";
@@ -30,6 +30,7 @@ export function EpisodeRow({ episode, showThumb = false }: { episode: EpisodeWit
   const dl = useDownload("episode", episode.id);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   const current = isCurrent(player, "episode", episode.id);
   const played = !!episode.progress?.finished && !current;
@@ -148,20 +149,19 @@ export function EpisodeRow({ episode, showThumb = false }: { episode: EpisodeWit
           />
           <Action
             label={dl ? (dl.status === "downloading" ? "Cancel download" : "Remove download") : "Download"}
-            onPress={() => (dl ? removeDownload("episode", episode.id) : downloadEpisode(episode))}
-          />
-          <Action
-            label={episode.archived ? "Unarchive" : "Archive"}
-            disabled={busy}
             onPress={() =>
-              void run(async () => {
-                await api(`/api/episodes/${episode.id}/archive`, { method: "PUT", body: { archived: !episode.archived } });
-                invalidateListening();
-                await refreshQueue();
-              }, episode.archived ? "Unarchived" : "Archived")
+              dl?.status === "done" ? setConfirmRemove(true) : dl ? removeDownload("episode", episode.id) : downloadEpisode(episode)
             }
           />
         </View>
+      ) : null}
+      {confirmRemove ? (
+        <RemoveDownloadSheet
+          open
+          title={episode.title}
+          onConfirm={() => removeDownload("episode", episode.id)}
+          onClose={() => setConfirmRemove(false)}
+        />
       ) : null}
     </View>
   );

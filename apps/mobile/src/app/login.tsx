@@ -2,7 +2,8 @@ import { useRef, useState } from "react";
 import { KeyboardAvoidingView, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Rect } from "react-native-svg";
-import { Button, Field, Text, type TextInputRef } from "@/components/ui";
+import { EyeIcon, EyeOffIcon } from "@/components/icons";
+import { Button, Field, IconButton, Text, type TextInputRef } from "@/components/ui";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/theme";
 
@@ -14,6 +15,7 @@ export default function Login() {
   const [server, setServer] = useState(session.serverUrl ?? "");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const userRef = useRef<TextInputRef>(null);
@@ -74,6 +76,7 @@ export default function Login() {
             onChangeText={setUsername}
             autoCapitalize="none"
             autoCorrect={false}
+            spellCheck={false}
             autoComplete="username"
             textContentType="username"
             returnKeyType="next"
@@ -84,11 +87,21 @@ export default function Login() {
             label="Password"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
+            secureTextEntry={!showPassword}
+            // Without these, Android's default sentence capitalization reaches some keyboards
+            // even in a password field, so the first letter is silently uppercased.
+            autoCapitalize="none"
+            autoCorrect={false}
+            spellCheck={false}
             autoComplete="current-password"
             textContentType="password"
             returnKeyType="go"
             onSubmitEditing={() => void submit()}
+            right={
+              <IconButton label={showPassword ? "Hide password" : "Show password"} onPress={() => setShowPassword((s) => !s)}>
+                {showPassword ? <EyeOffIcon size={22} color={t.muted} /> : <EyeIcon size={22} color={t.muted} />}
+              </IconButton>
+            }
           />
           {error ? (
             <Text variant="small" style={{ color: t.danger }} accessibilityLiveRegion="polite">

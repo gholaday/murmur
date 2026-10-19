@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { apiPaths, type BookSummary } from "@murmur/shared";
 import { api } from "../api";
@@ -54,25 +55,43 @@ export function BookCard({ book, sub }: { book: BookSummary; sub?: string | null
 function CardMenu({ book, isAdmin, edit }: { book: BookSummary; isAdmin: boolean; edit: (bookId: string, tab: EditTab) => void }) {
   const router = useRouter();
   const player = usePlayer();
-  const [open, setOpen] = useState(false);
+  // Where the menu sits on screen. It's rendered into <body> so a scrolling shelf doesn't clip it.
+  const [pos, setPos] = useState<React.CSSProperties | null>(null);
+  const open = pos !== null;
+  const setOpen = (o: boolean) => {
+    const r = wrap.current?.getBoundingClientRect();
+    if (!o || !r) return setPos(null);
+    // Right-aligned to the dots, kept on screen, and opening upward in the lower part of the page.
+    const left = Math.max(8, Math.min(r.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8));
+    const up = r.bottom > window.innerHeight * 0.55;
+    setPos(up ? { left, bottom: window.innerHeight - r.top + 6 } : { left, top: r.bottom + 6 });
+  };
   const wrap = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   const finished = !!book.progress?.finished;
   const current = player.isCurrent("book", book.id);
 
   useEffect(() => {
     if (!open) return;
     const outside = (e: PointerEvent) => {
-      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!wrap.current?.contains(t) && !menu.current?.contains(t)) setOpen(false);
     };
     const esc = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
+    const close = () => setOpen(false);
     document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", esc);
-    wrap.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
+    // The menu is fixed, so it would drift away from its card on scroll.
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    menu.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus({ preventScroll: true });
     return () => {
       document.removeEventListener("pointerdown", outside);
       document.removeEventListener("keydown", esc);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
     };
   }, [open]);
 
@@ -89,12 +108,12 @@ function CardMenu({ book, isAdmin, edit }: { book: BookSummary; isAdmin: boolean
         aria-label={`Options for ${book.title}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setOpen(!open)}
       >
         <MoreIcon size={18} />
       </button>
-      {open ? (
-        <div className="menu" role="menu" aria-label={`${book.title} options`}>
+      {pos ? createPortal(
+        <div ref={menu} className="menu" role="menu" aria-label={`${book.title} options`} style={{ top: "auto", ...pos, position: "fixed", right: "auto", width: MENU_WIDTH }}>
           <button
             type="button"
             role="menuitem"
@@ -150,10 +169,13 @@ function CardMenu({ book, isAdmin, edit }: { book: BookSummary; isAdmin: boolean
               </button>
             </>
           ) : null}
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );
 }
+
+const MENU_WIDTH = 220;
 
 const started = (b: BookSummary) => !!b.progress && !b.progress.finished && b.progress.positionSec > 5;

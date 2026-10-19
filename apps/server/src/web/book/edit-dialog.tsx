@@ -449,7 +449,7 @@ function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
           </p>
         ) : covers.length === 0 ? (
           <p className="muted small" style={{ margin: 0 }}>
-            No covers found online. Try the Match tab with a different search.
+            No covers found online.
           </p>
         ) : (
           <div className="cover-suggest">
@@ -490,7 +490,7 @@ function ChaptersTab({
     <div className="form">
       <div className="chapter-tools">
         <span className="muted small" style={{ flex: 1 }}>
-          {info.chaptersEdited ? "Edited or matched chapters." : `${info.scannedChapters.length} chapters from the files.`} Change names and start times, then Save.
+          {info.chaptersEdited ? "Edited or matched chapters." : `${info.scannedChapters.length} chapters from the files.`}
         </span>
         <button type="button" className="btn" onClick={() => setRows(rows.map((r, i) => ({ ...r, title: `Chapter ${i + 1}` })))}>
           Number them

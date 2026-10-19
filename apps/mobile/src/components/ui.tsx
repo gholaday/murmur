@@ -1,4 +1,4 @@
-import type { ComponentRef, Ref } from "react";
+import { createContext, useContext, type ComponentRef, type Ref } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -100,31 +100,45 @@ export function IconButton({
 
 export type TextInputRef = ComponentRef<typeof TextInput>;
 
-export function Field({ label, style, ref, ...rest }: TextInputProps & { label: string; ref?: Ref<TextInputRef> }) {
+/** True inside a bottom sheet, whose background matches a field's; fields there use a lighter fill. */
+export const InSheet = createContext(false);
+
+export function Field({
+  label,
+  style,
+  ref,
+  right,
+  ...rest
+}: TextInputProps & { label: string; ref?: Ref<TextInputRef>; /** A button inside the field's right edge. */ right?: React.ReactNode }) {
   const t = useTheme();
+  const inSheet = useContext(InSheet);
   return (
     <View style={{ gap: 6 }}>
       <Text variant="caption" style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6 }}>
         {label}
       </Text>
-      <TextInput
-        ref={ref}
-        placeholderTextColor={t.faint}
-        selectionColor={t.accent}
-        {...rest}
-        style={[
-          {
-            height: 52,
-            borderRadius: 14,
-            paddingHorizontal: 16,
-            backgroundColor: t.surface,
-            color: t.text,
-            fontFamily: fonts.medium,
-            fontSize: 16,
-          },
-          style,
-        ]}
-      />
+      <View>
+        <TextInput
+          ref={ref}
+          placeholderTextColor={t.faint}
+          selectionColor={t.accent}
+          {...rest}
+          style={[
+            {
+              height: 52,
+              borderRadius: 14,
+              paddingHorizontal: 16,
+              paddingRight: right ? 52 : 16,
+              backgroundColor: inSheet ? t.surface2 : t.surface,
+              color: t.text,
+              fontFamily: fonts.medium,
+              fontSize: 16,
+            },
+            style,
+          ]}
+        />
+        {right ? <View style={{ position: "absolute", right: 4, top: 4, bottom: 4, justifyContent: "center" }}>{right}</View> : null}
+      </View>
     </View>
   );
 }

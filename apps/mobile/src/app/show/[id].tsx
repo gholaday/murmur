@@ -8,9 +8,9 @@ import { EpisodeRow } from "@/components/episode-row";
 import { HeroBackdrop } from "@/components/hero";
 import { MoreIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
-import { BackRow, Empty, useBottomPad, useTopInset } from "@/components/page";
+import { BackRow, Empty, SectionTitle, useBottomPad, useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
-import { Button, Chip, IconButton, Text } from "@/components/ui";
+import { Button, IconButton, Text } from "@/components/ui";
 import { api } from "@/lib/api";
 import { invalidateListening, keys, useEpisodes, usePodcast } from "@/lib/data";
 import { queryClient } from "@/lib/query";
@@ -26,7 +26,6 @@ export default function ShowScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const podcast = usePodcast(id);
   const episodes = useEpisodes(id);
-  const [tab, setTab] = useState<"episodes" | "archived">("episodes");
   const [oldestFirst, setOldestFirst] = useState(false);
   const [limit, setLimit] = useState(PAGE);
   const [sheet, setSheet] = useState<null | "menu" | "unsubscribe">(null);
@@ -48,11 +47,7 @@ export default function ShowScreen() {
         : [],
     [episodes.data, show],
   );
-  const visible = useMemo(() => {
-    const list = withShow.filter((e) => (tab === "archived" ? e.archived : !e.archived));
-    return oldestFirst ? [...list].reverse() : list;
-  }, [withShow, tab, oldestFirst]);
-  const archivedCount = withShow.filter((e) => e.archived).length;
+  const visible = useMemo(() => (oldestFirst ? [...withShow].reverse() : withShow), [withShow, oldestFirst]);
 
   if (!show) {
     return (
@@ -133,21 +128,21 @@ export default function ShowScreen() {
           </Pressable>
         ) : null}
 
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 20, marginBottom: 4 }}>
-          <Chip label="Episodes" selected={tab === "episodes"} onPress={() => setTab("episodes")} />
-          <Chip label={archivedCount ? `Archived ${archivedCount}` : "Archived"} selected={tab === "archived"} onPress={() => setTab("archived")} />
-          <View style={{ flex: 1 }} />
-          <Pressable onPress={() => setOldestFirst((o) => !o)} hitSlop={8}>
-            <Text variant="small" style={{ fontFamily: fonts.semibold }}>
-              {oldestFirst ? "Oldest first" : "Newest first"}
-            </Text>
-          </Pressable>
-        </View>
+        <SectionTitle
+          title="Episodes"
+          right={
+            <Pressable accessibilityRole="button" onPress={() => setOldestFirst((o) => !o)} hitSlop={8}>
+              <Text variant="small" style={{ fontFamily: fonts.semibold }}>
+                {oldestFirst ? "Oldest first" : "Newest first"}
+              </Text>
+            </Pressable>
+          }
+        />
 
         {episodes.isPending ? (
           <ActivityIndicator color={t.accent} style={{ marginTop: 32 }} />
         ) : visible.length === 0 ? (
-          <Empty>{tab === "archived" ? "Episodes you archive show up here." : "No episodes."}</Empty>
+          <Empty>No episodes.</Empty>
         ) : (
           <>
             {visible.slice(0, limit).map((e) => (

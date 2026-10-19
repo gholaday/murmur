@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { apiPaths, duration, type EpisodeWithShow, shortDate, timeLeft } from "@murmur/shared";
-import { api } from "../api";
 import { Cover } from "../cover";
 import { CheckIcon, PauseIcon, PlayIcon } from "../icons";
 import { episodeToPlayable, usePlayer, usePosition } from "../player/engine";
@@ -27,7 +26,7 @@ export function EpisodeRow({
 }: {
   episode: EpisodeWithShow;
   showThumb?: boolean;
-  /** Called after played/archived changes so the list can refresh. */
+  /** Called after played changes so the list can refresh. */
   onChanged?: () => void;
 }) {
   const player = usePlayer();
@@ -114,19 +113,6 @@ export function EpisodeRow({
               }
             >
               {episode.progress?.finished ? "Mark unplayed" : "Mark played"}
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  await api(`/api/episodes/${episode.id}/archive`, { method: "PUT", body: { archived: !episode.archived } });
-                  await player.refreshQueue();
-                }, episode.archived ? "Unarchived" : "Archived")
-              }
-            >
-              {episode.archived ? "Unarchive" : "Archive"}
             </button>
           </div>
         ) : null}
