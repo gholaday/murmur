@@ -42,21 +42,13 @@ import {
   type SleepTimer,
 } from "@/player/engine";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { fonts, useTheme } from "@/theme";
+import { fonts, mixColor, useTheme } from "@/theme";
 
 const SPEED_STEP = 0.25;
 const SLEEP_MINUTES = [5, 10, 15, 30, 45, 60, 90];
 
 /** 1×, 1.25×, 1.5×, no trailing zeros. */
 const speedText = (v: number) => `${Number(v.toFixed(2))}×`;
-
-/** Blends two #rrggbb colours; `amount` is the share of `a`. */
-function mix(a: string, b: string, amount: number): string {
-  const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16));
-  const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16));
-  if (pa.some(Number.isNaN) || pb.some(Number.isNaN)) return b;
-  return `#${pa.map((v, i) => Math.round(v * amount + pb[i]! * (1 - amount)).toString(16).padStart(2, "0")).join("")}`;
-}
 
 function sleepLabel(sleep: SleepTimer, now: number): string {
   if (sleep.mode === "timer") return clock(Math.max(0, (sleep.endsAt - now) / 1000));
@@ -108,7 +100,7 @@ export default function Player() {
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <LinearGradient
-        colors={[mix(tint, t.bg, t.isDark ? 0.3 : 0.24), mix(tint, t.bg, 0.06)]}
+        colors={[mixColor(tint, t.bg, t.isDark ? 0.3 : 0.24), mixColor(tint, t.bg, 0.06)]}
         style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
       />
       <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: top, paddingBottom: insets.bottom + 16, paddingHorizontal: 24 }}>

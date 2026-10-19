@@ -1,9 +1,10 @@
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { router } from "expo-router";
+import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { timeLeft } from "@murmur/shared/client";
 import { chapterAt, skipBy, toggle, usePlayer, usePosition } from "@/player/engine";
-import { fonts, useTheme } from "@/theme";
+import { fonts, mixColor, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { PauseIcon, PlayIcon, SkipBackIcon, SkipForwardIcon } from "./icons";
 import { Text } from "./ui";
@@ -13,25 +14,30 @@ export function MiniPlayer() {
   const t = useTheme();
   const { item, playing, loading, error, skip } = usePlayer();
   const position = usePosition();
+  // Tinted with what's playing, like the web's Now playing card; eases over when the item changes.
+  const surface = item?.color ? mixColor(item.color, t.surface2, 0.22) : t.surface2;
+  const tint = useAnimatedStyle(() => ({ backgroundColor: withTiming(surface, { duration: 400 }) }));
   if (!item) return null;
   const dur = item.durationSec || 0;
   const chapter = item.chapters.length > 1 ? item.chapters[chapterAt(item.chapters, position)] : undefined;
   const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
 
   return (
-    <View
-      style={{
-        marginHorizontal: 8,
-        marginBottom: 6,
-        borderRadius: 14,
-        backgroundColor: t.surface2,
-        overflow: "hidden",
-        elevation: 6,
-        shadowColor: "#000",
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 4 },
-      }}
+    <Animated.View
+      style={[
+        {
+          marginHorizontal: 8,
+          marginBottom: 6,
+          borderRadius: 14,
+          overflow: "hidden",
+          elevation: 6,
+          shadowColor: "#000",
+          shadowOpacity: 0.3,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 4 },
+        },
+        tint,
+      ]}
     >
       <View style={{ flexDirection: "row", alignItems: "center", paddingLeft: 8, paddingRight: 4, minHeight: 64, paddingVertical: 6, gap: 4 }}>
         <Pressable
@@ -93,7 +99,7 @@ export function MiniPlayer() {
           <View style={{ height: 3, width: `${pct}%`, backgroundColor: t.accent }} />
         </View>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 

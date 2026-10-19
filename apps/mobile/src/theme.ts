@@ -53,6 +53,14 @@ export const fonts = {
   extrabold: "PlusJakartaSans_800ExtraBold",
 };
 
+/** Blends two #rrggbb colours; `amount` is the share of `a`. Falls back to `b` if `a` isn't hex. */
+export function mixColor(a: string, b: string, amount: number): string {
+  const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16));
+  const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16));
+  if (pa.some(Number.isNaN) || pb.some(Number.isNaN)) return b;
+  return `#${pa.map((v, i) => Math.round(v * amount + pb[i]! * (1 - amount)).toString(16).padStart(2, "0")).join("")}`;
+}
+
 const MODE_KEY = "murmur.theme";
 const listeners = new Set<() => void>();
 let mode: ThemeMode = getJson<ThemeMode>(MODE_KEY) ?? "dark";
