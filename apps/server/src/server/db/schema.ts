@@ -6,6 +6,8 @@ export const users = sqliteTable("users", {
   passwordHash: text("password_hash").notNull(),
   isAdmin: integer("is_admin", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at").notNull(),
+  /** Your settings as JSON (UserPrefs), shared by every device you sign in on. */
+  prefs: text("prefs").notNull().default("{}"),
 });
 
 export const sessions = sqliteTable(

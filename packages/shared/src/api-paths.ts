@@ -9,4 +9,6 @@ export const apiPaths = {
     `/api/podcasts/${podcastId}/cover?size=${size}&h=${coverHash}`,
   /** Relays the publisher's audio through the server; supports range requests. */
   episodeUrl: (episodeId: string) => `/api/stream/episode/${episodeId}`,
+  /** GET your settings, PUT the ones that changed. */
+  prefs: "/api/me/prefs",
 };

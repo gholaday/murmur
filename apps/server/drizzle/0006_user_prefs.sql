@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `prefs` text DEFAULT '{}' NOT NULL;

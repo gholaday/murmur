@@ -75,3 +75,28 @@ export function shelfBooks(id: ShelfId, books: BookSummary[], day: string): Book
   if (id === "added") return recentlyAdded(books);
   return notStarted(books, day);
 }
+
+// ---------- Books tab layout ----------
+
+/** Everything on the Books tab that can be moved or hidden: the shelves, then All books. */
+export type BookSectionId = ShelfId | "all";
+
+export const BOOK_SECTION_IDS = [...SHELF_IDS, "all"] as const satisfies readonly BookSectionId[];
+
+export const BOOK_SECTION_TITLES: Record<BookSectionId, string> = { ...SHELF_TITLES, all: "All books" };
+
+export interface BookSection {
+  id: BookSectionId;
+  hidden: boolean;
+}
+
+/**
+ * A saved Books tab layout made whole: sections that no longer exist are dropped and any
+ * the layout doesn't mention yet (added in a later version) go at the end, shown.
+ */
+export function bookSections(saved: readonly BookSection[] | null | undefined): BookSection[] {
+  const known = new Set<string>(BOOK_SECTION_IDS);
+  const out = (saved ?? []).filter((s, i, all) => known.has(s.id) && all.findIndex((o) => o.id === s.id) === i);
+  for (const id of BOOK_SECTION_IDS) if (!out.some((s) => s.id === id)) out.push({ id, hidden: false });
+  return out;
+}

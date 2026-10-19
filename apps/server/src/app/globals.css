@@ -606,6 +606,41 @@ a.episode-show:hover { color: var(--accent); }
 }
 .sorting [data-row].lifted.dropping { box-shadow: none; }
 .drag-handle { cursor: grab; color: var(--faint); touch-action: none; }
+/*
+ * Library Books tab sections. Hiding, showing and Customize animate the grid row between 0fr
+ * and 1fr instead of mounting and unmounting. Spacing is padding inside the row (not margins)
+ * so drag-to-reorder's row heights line up, and the inner box widens by the page gutter so the
+ * sideways shelves still bleed to the edge while it clips.
+ */
+.book-section { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 260ms ease, opacity 260ms ease; }
+.book-section.collapsed { grid-template-rows: 0fr; opacity: 0; }
+.book-section-inner { min-height: 0; overflow: hidden; margin: 0 -20px; padding: 24px 20px 0; display: flex; flex-direction: column; gap: 12px; }
+.book-section .section-head { position: relative; }
+.book-section.is-hidden .section-title { color: var(--faint); transition: color 200ms ease; }
+.section-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 260ms ease, opacity 200ms ease; margin: 0 -20px; }
+.section-body.collapsed { grid-template-rows: 0fr; opacity: 0; }
+.section-body-inner { min-height: 0; overflow: hidden; padding: 0 20px; }
+/* Customize controls sit over the heading's right end, so fading them in moves nothing. */
+.customize-actions {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  display: flex; gap: 4px; align-items: center;
+  transition: opacity 200ms ease;
+}
+.customize-actions.off { opacity: 0; visibility: hidden; transition: opacity 200ms ease, visibility 0s 200ms; }
+.sorting .book-section { background: var(--bg); }
+/* The lifted card is drawn behind the section, wider than it, so the edge-to-edge shelves get
+   room on both sides without changing the section's size mid-drag. */
+.sorting .book-section.lifted { background: none; box-shadow: none; }
+.sorting .book-section.lifted::before {
+  content: ""; position: absolute; inset: 8px -16px -12px; z-index: -1;
+  border-radius: 16px; background: var(--surface); box-shadow: var(--shadow);
+  transition: box-shadow 200ms ease;
+}
+.sorting .book-section.lifted.dropping::before { box-shadow: none; }
+.sorting .book-section.lifted .book-section-inner { margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
+.sorting .book-section.lifted .section-body { margin: 0 -16px; }
+.sorting .book-section.lifted .section-body-inner { padding: 0 16px; }
+.btn-small { height: 32px; padding: 0 14px; font-size: 13px; }
 .sorting .drag-handle { cursor: grabbing; }
 
 /* ---------- Mini player ---------- */

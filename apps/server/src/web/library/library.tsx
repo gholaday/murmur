@@ -3,8 +3,12 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   apiPaths,
+  BOOK_SECTION_TITLES,
+  type BookSection,
+  type BookSectionId,
   type BookSummary,
   bySeriesOrder,
   groupBy,
@@ -15,10 +19,12 @@ import {
   type BookSort as Sort,
   timeLeft,
 } from "@murmur/shared/client";
+import { api } from "../api";
 import { Cover } from "../cover";
-import { BackIcon, FilterIcon, SearchIcon } from "../icons";
+import { BackIcon, CustomizeIcon, DragIcon, FilterIcon, SearchIcon } from "../icons";
 import { EditBookDialog, type EditTab } from "../book/edit-dialog";
 import { Sheet, SheetItem } from "../sheet";
+import { useSortable } from "../sortable";
 import { BookActionsContext, BookCard, progressPct } from "./book-card";
 import { continueListening, SHELF_SIZE, SHELF_TITLES, shelfBooks, type ShelfId } from "./shelves";
 
@@ -108,6 +114,8 @@ interface LibraryProps {
   isAdmin: boolean;
   /** The server's date (YYYY-MM-DD), which seeds the daily Not started shuffle. */
   today: string;
+  /** Your Books tab layout: section order and which are hidden. */
+  sections: BookSection[];
 }
 
 export function Library(props: LibraryProps) {
@@ -132,7 +140,7 @@ export function Library(props: LibraryProps) {
   );
 }
 
-function LibraryView({ books, emptyReason, isAdmin, today }: LibraryProps) {
+function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSections }: LibraryProps) {
   const router = useRouter();
   const [issue, setIssue] = useState<IssueId>("all");
   const pathname = usePathname();
@@ -146,6 +154,18 @@ function LibraryView({ books, emptyReason, isAdmin, today }: LibraryProps) {
   const [searching, setSearching] = useState(false);
   const [sort, setSort] = useState<Sort>("added");
   const [sortOpen, setSortOpen] = useState(false);
+  const [sections, setSections] = useState(savedSections);
+  const [customizing, setCustomizing] = useState(false);
+
+  // Shown at once; put back if the server doesn't take it.
+  const saveSections = (next: BookSection[]) => {
+    const previous = sections;
+    setSections(next);
+    api(apiPaths.prefs, { method: "PUT", body: { bookSections: next } }).catch((err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Couldn't save the layout.");
+      setSections(previous);
+    });
+  };
 
   useEffect(() => {
     try {
@@ -169,9 +189,20 @@ function LibraryView({ books, emptyReason, isAdmin, today }: LibraryProps) {
 
   const continuing = useMemo(() => continueListening(books), [books]);
   const shelves = useMemo(
-    () => (["next", "added", "unstarted"] as const).map((id) => ({ id, books: shelfBooks(id, books, today) })),
+    () => ({
+      next: shelfBooks("next", books, today),
+      added: shelfBooks("added", books, today),
+      unstarted: shelfBooks("unstarted", books, today),
+    }),
     [books, today],
   );
+  const counts: Record<BookSectionId, number> = {
+    continue: continuing.length,
+    next: shelves.next.length,
+    added: shelves.added.length,
+    unstarted: shelves.unstarted.length,
+    all: books.length,
+  };
   const sorted = useMemo(() => sortBooks(books, sort), [books, sort]);
   const attentionCount = useMemo(() => books.filter((b) => issuesOf(b).length > 0).length, [books]);
   const q = query.trim().toLowerCase();
@@ -279,11 +310,68 @@ function LibraryView({ books, emptyReason, isAdmin, today }: LibraryProps) {
     );
   }
 
+  /** A Books tab section's cards, or null when it has none. */
+  const sectionBody = (id: BookSectionId): React.ReactNode => {
+    if (id === "continue") {
+      return continuing.length ? (
+        <div className="row-scroll">
+          {continuing.slice(0, SHELF_SIZE).map((b) => (
+            <Link key={b.id} href={`/book/${b.id}`} className="continue-card">
+              <Cover
+                src={b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 600) : null}
+                color={b.coverColor}
+                title={b.title}
+                subtitle={b.author}
+                large
+              />
+              <div className="bar thick">
+                <div style={{ width: `${progressPct(b)}%` }} />
+              </div>
+              <div className="muted small">{timeLeft(b.durationSec, b.progress!.positionSec)}</div>
+            </Link>
+          ))}
+        </div>
+      ) : null;
+    }
+    if (id === "all") {
+      return (
+        <div className="grid">
+          {sorted.map((b) => (
+            <BookCard key={b.id} book={b} />
+          ))}
+        </div>
+      );
+    }
+    const list = shelves[id];
+    return list.length ? (
+      <div className="shelf">
+        {list.slice(0, SHELF_SIZE).map((b) => (
+          <BookCard key={b.id} book={b} sub={id === "next" ? nextSub(b) : undefined} />
+        ))}
+      </div>
+    ) : null;
+  };
+
   return (
     <>
       <div className="page-head">
         <h1 className="page-title">Library</h1>
         <div className="head-actions">
+          {tab === "books" ? (
+            <button
+              type="button"
+              className={`icon-btn ${customizing ? "accent" : ""}`}
+              aria-label={customizing ? "Done customizing" : "Customize"}
+              aria-pressed={customizing}
+              onClick={() => {
+                setCustomizing((c) => !c);
+                setSearching(false);
+                setQuery("");
+              }}
+            >
+              <CustomizeIcon />
+            </button>
+          ) : null}
           <button
             type="button"
             className="icon-btn"
@@ -292,6 +380,7 @@ function LibraryView({ books, emptyReason, isAdmin, today }: LibraryProps) {
             onClick={() => {
               setSearching((s) => !s);
               setQuery("");
+              setCustomizing(false);
             }}
           >
             <SearchIcon />
@@ -330,7 +419,10 @@ function LibraryView({ books, emptyReason, isAdmin, today }: LibraryProps) {
                 className="chip"
                 aria-selected={tab === t.id}
                 aria-pressed={tab === t.id}
-                onClick={() => go({ tab: t.id === "books" ? null : t.id })}
+                onClick={() => {
+                  setCustomizing(false);
+                  go({ tab: t.id === "books" ? null : t.id });
+                }}
               >
                 {t.label}
               </button>
@@ -342,7 +434,10 @@ function LibraryView({ books, emptyReason, isAdmin, today }: LibraryProps) {
                 className="chip chip-warn"
                 aria-selected={tab === "attention"}
                 aria-pressed={tab === "attention"}
-                onClick={() => go({ tab: "attention" })}
+                onClick={() => {
+                  setCustomizing(false);
+                  go({ tab: "attention" });
+                }}
               >
                 Needs attention
                 <span className="count-pill">{attentionCount}</span>
@@ -356,59 +451,22 @@ function LibraryView({ books, emptyReason, isAdmin, today }: LibraryProps) {
 
           {tab === "books" ? (
             <>
-              {continuing.length ? (
-                <section className="section">
-                  <div className="section-head">
-                    <button type="button" className="section-title group-title" onClick={() => go({ shelf: "continue" })}>
-                      {SHELF_TITLES.continue}
-                      <span className="count-pill" aria-label={plural(continuing.length, "book")}>
-                        {continuing.length}
-                      </span>
-                    </button>
-                  </div>
-                  <div className="row-scroll">
-                    {continuing.slice(0, SHELF_SIZE).map((b) => (
-                      <Link key={b.id} href={`/book/${b.id}`} className="continue-card">
-                        <Cover
-                          src={b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 600) : null}
-                          color={b.coverColor}
-                          title={b.title}
-                          subtitle={b.author}
-                          large
-                        />
-                        <div className="bar thick">
-                          <div style={{ width: `${progressPct(b)}%` }} />
-                        </div>
-                        <div className="muted small">{timeLeft(b.durationSec, b.progress!.positionSec)}</div>
-                      </Link>
-                    ))}
-                  </div>
-                </section>
+              <BookSections
+                sections={sections}
+                counts={counts}
+                customizing={customizing}
+                onChange={saveSections}
+                onOpen={(id) => go({ shelf: id })}
+                body={sectionBody}
+              />
+              {!customizing && sections.every((s) => s.hidden) ? (
+                <div className="empty">
+                  <strong>Everything here is hidden</strong>
+                  <button type="button" className="btn" onClick={() => setCustomizing(true)}>
+                    Customize
+                  </button>
+                </div>
               ) : null}
-              {shelves.map(({ id, books: list }) =>
-                list.length ? (
-                  <GroupGrid key={id} title={SHELF_TITLES[id]} count={list.length} onOpen={() => go({ shelf: id })}>
-                    {list.slice(0, SHELF_SIZE).map((b) => (
-                      <BookCard key={b.id} book={b} sub={id === "next" ? nextSub(b) : undefined} />
-                    ))}
-                  </GroupGrid>
-                ) : null,
-              )}
-              <section className="section">
-                <div className="section-head">
-                  <h2 className="section-title">
-                    All books
-                    <span className="count-pill" aria-label={plural(books.length, "book")}>
-                      {books.length}
-                    </span>
-                  </h2>
-                </div>
-                <div className="grid">
-                  {sorted.map((b) => (
-                    <BookCard key={b.id} book={b} />
-                  ))}
-                </div>
-              </section>
             </>
           ) : null}
 
@@ -472,6 +530,118 @@ function LibraryView({ books, emptyReason, isAdmin, today }: LibraryProps) {
         ))}
       </Sheet>
     </>
+  );
+}
+
+function SectionTitle({ title, count }: { title: string; count: number }) {
+  return (
+    <>
+      {title}
+      <span className="count-pill" aria-label={plural(count, "book")}>
+        {count}
+      </span>
+    </>
+  );
+}
+
+/**
+ * The Books tab's sections in your order. Customizing doesn't swap in another view: the
+ * same sections stay put, hidden and empty ones slide open, and each heading fades in a hide
+ * button and a handle to drag it into order.
+ */
+function BookSections({
+  sections,
+  counts,
+  customizing,
+  onChange,
+  onOpen,
+  body,
+}: {
+  sections: BookSection[];
+  counts: Record<BookSectionId, number>;
+  customizing: boolean;
+  onChange: (next: BookSection[]) => void;
+  onOpen: (id: BookSectionId) => void;
+  body: (id: BookSectionId) => React.ReactNode;
+}) {
+  const move = (from: number, to: number) => {
+    if (from === to || to < 0 || to >= sections.length) return;
+    const next = [...sections];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved!);
+    onChange(next);
+  };
+  const sortable = useSortable(move);
+
+  return (
+    <div ref={sortable.listRef} className={sortable.sorting ? "sorting" : undefined}>
+      {sections.map((s, i) => {
+        const title = BOOK_SECTION_TITLES[s.id];
+        const row = sortable.rowProps(i);
+        // A hidden section's cards are only needed while customizing, where they slide open on Show.
+        const cards = s.hidden && !customizing ? null : body(s.id);
+        const shown = customizing || (!s.hidden && cards !== null);
+        return (
+          <section
+            key={s.id}
+            data-row
+            className={`book-section ${shown ? "" : "collapsed"} ${s.hidden ? "is-hidden" : ""} ${row.className}`}
+            style={row.style}
+            inert={!shown}
+          >
+            <div className="book-section-inner">
+              <div className="section-head">
+                {s.id === "all" ? (
+                  <h2 className="section-title">
+                    <SectionTitle title={title} count={counts[s.id]} />
+                  </h2>
+                ) : (
+                  <button
+                    type="button"
+                    className="section-title group-title"
+                    onClick={() => {
+                      if (!customizing) onOpen(s.id);
+                    }}
+                  >
+                    <SectionTitle title={title} count={counts[s.id]} />
+                  </button>
+                )}
+                <div className={`customize-actions ${customizing ? "" : "off"}`} inert={!customizing}>
+                  <button
+                    type="button"
+                    className="btn btn-small"
+                    aria-label={`${s.hidden ? "Show" : "Hide"} ${title}`}
+                    onClick={() => onChange(sections.map((o) => (o.id === s.id ? { ...o, hidden: !o.hidden } : o)))}
+                  >
+                    {s.hidden ? "Show" : "Hide"}
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn drag-handle"
+                    aria-label={`Reorder ${title}. Use arrow keys to move.`}
+                    onKeyDown={(ev) => {
+                      if (ev.key === "ArrowUp") {
+                        ev.preventDefault();
+                        move(i, i - 1);
+                      } else if (ev.key === "ArrowDown") {
+                        ev.preventDefault();
+                        move(i, i + 1);
+                      }
+                    }}
+                    {...sortable.handleProps(i)}
+                  >
+                    <DragIcon />
+                  </button>
+                </div>
+              </div>
+              <div className={`section-body ${s.hidden ? "collapsed" : ""}`}>
+                <div className="section-body-inner">{cards ?? <div className="muted small">Nothing here right now.</div>}</div>
+              </div>
+            </div>
+          </section>
+        );
+      })}
+    </div>
   );
 }
 

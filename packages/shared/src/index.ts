@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BOOK_SECTION_IDS } from "./shelves";
 
 // ---------- Request schemas (validated on the server, reused by clients) ----------
 
@@ -90,6 +91,17 @@ export const queueAddSchema = queueRefSchema.extend({
 export type QueueAddInput = z.input<typeof queueAddSchema>;
 
 export const archiveSchema = z.object({ archived: z.boolean() });
+
+/** Your own settings, saved on the server so every device shows the same. Send only what changed. */
+export const userPrefsSchema = z.object({
+  /** The Books tab's sections, top to bottom. */
+  bookSections: z
+    .array(z.object({ id: z.enum(BOOK_SECTION_IDS), hidden: z.boolean() }))
+    .max(BOOK_SECTION_IDS.length * 2),
+});
+export type UserPrefs = z.infer<typeof userPrefsSchema>;
+export const userPrefsPatchSchema = userPrefsSchema.partial();
+export type UserPrefsPatch = z.input<typeof userPrefsPatchSchema>;
 
 export const matchFieldSchema = z.enum([
   "title",
