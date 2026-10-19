@@ -1,12 +1,12 @@
 "use client";
 
+import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { apiPaths, type EpisodeWithShow, type OpmlImportResult, type PodcastSummary } from "@murmur/shared";
+import { apiPaths, type EpisodeWithShow, type OpmlImportResult, plural, type PodcastSummary } from "@murmur/shared";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { plural } from "../format";
 import { FilterIcon, PlusIcon } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
@@ -147,6 +147,7 @@ function AddPodcastSheet({
     try {
       const podcast = await api<PodcastSummary>("/api/podcasts", { method: "POST", body: { feedUrl: url.trim() } });
       setUrl("");
+      toast(`Subscribed to ${podcast.title}`);
       onAdded(podcast.id);
     } catch (err) {
       setMessage({ text: err instanceof Error ? err.message : "Couldn't add that feed.", error: true });
@@ -163,7 +164,10 @@ function AddPodcastSheet({
       const data = (await res.json()) as OpmlImportResult | { error: string };
       if (!res.ok || "error" in data) throw new Error("error" in data ? data.error : "Import failed.");
       const failed = data.failed.length ? ` ${data.failed.length} couldn't be loaded.` : "";
-      setMessage({ text: `Added ${plural(data.added, "show")}, ${data.alreadySubscribed} already followed.${failed}`, error: data.failed.length > 0 });
+      const text = `Added ${plural(data.added, "show")}, ${data.alreadySubscribed} already followed.${failed}`;
+      setMessage(null);
+      if (data.failed.length) toast.error(text);
+      else toast(text);
       if (data.added) onAdded(null);
     } catch (err) {
       setMessage({ text: err instanceof Error ? err.message : "Import failed.", error: true });

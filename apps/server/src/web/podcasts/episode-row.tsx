@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { apiPaths, type EpisodeWithShow } from "@murmur/shared";
+import { toast } from "sonner";
+import { apiPaths, duration, type EpisodeWithShow, shortDate, timeLeft } from "@murmur/shared";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { duration, shortDate, timeLeft } from "../format";
 import { CheckIcon, PauseIcon, PlayIcon } from "../icons";
 import { episodeToPlayable, usePlayer, usePosition } from "../player/engine";
 import { setFinished } from "../progress";
@@ -51,11 +51,14 @@ export function EpisodeRow({
     .filter(Boolean)
     .join(" · ");
 
-  const run = async (fn: () => Promise<unknown>) => {
+  const run = async (fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
     try {
       await fn();
+      toast(done);
       onChanged?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setBusy(false);
     }
@@ -88,7 +91,7 @@ export function EpisodeRow({
               type="button"
               className="btn"
               disabled={busy || current}
-              onClick={() => void run(() => player.queueAdd({ itemType: "episode", itemId: episode.id }, "next"))}
+              onClick={() => void run(() => player.queueAdd({ itemType: "episode", itemId: episode.id }, "next"), "Plays next")}
             >
               Play next
             </button>
@@ -96,7 +99,7 @@ export function EpisodeRow({
               type="button"
               className="btn"
               disabled={busy || current || queued}
-              onClick={() => void run(() => player.queueAdd({ itemType: "episode", itemId: episode.id }, "last"))}
+              onClick={() => void run(() => player.queueAdd({ itemType: "episode", itemId: episode.id }, "last"), "Added to Up Next")}
             >
               {queued ? "In Up Next" : "Add to Up Next"}
             </button>
@@ -108,7 +111,7 @@ export function EpisodeRow({
                 void run(async () => {
                   if (current) player.markCurrent(!played);
                   else await setFinished("episode", episode.id, dur, !episode.progress?.finished);
-                })
+                }, episode.progress?.finished ? "Marked as unplayed" : "Marked as played")
               }
             >
               {episode.progress?.finished ? "Mark unplayed" : "Mark played"}
@@ -121,7 +124,7 @@ export function EpisodeRow({
                 void run(async () => {
                   await api(`/api/episodes/${episode.id}/archive`, { method: "PUT", body: { archived: !episode.archived } });
                   await player.refreshQueue();
-                })
+                }, episode.archived ? "Unarchived" : "Archived")
               }
             >
               {episode.archived ? "Unarchive" : "Archive"}

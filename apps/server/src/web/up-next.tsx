@@ -1,9 +1,9 @@
 "use client";
 
+import { toast } from "sonner";
 import { useRef, useState } from "react";
-import { apiPaths, type QueueEntry, type QueueRef } from "@murmur/shared";
+import { apiPaths, duration, plural, type QueueEntry, type QueueRef, timeLeft } from "@murmur/shared";
 import { Cover } from "./cover";
-import { duration, plural, timeLeft } from "./format";
 import { CloseIcon, DragIcon, PlayIcon } from "./icons";
 import { chapterAt, usePlayer, usePosition } from "./player/engine";
 
@@ -40,13 +40,11 @@ export function UpNextView() {
   const position = usePosition();
   const { item, queue } = player;
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const save = (entries: QueueEntry[]) => {
-    setError(null);
     player.queueReplace(entries.map(toRef)).catch((err: unknown) => {
-      setError(err instanceof Error ? err.message : "Couldn't save the queue.");
+      toast.error(err instanceof Error ? err.message : "Couldn't save the queue.");
       void player.refreshQueue();
     });
   };
@@ -82,7 +80,11 @@ export function UpNextView() {
           </div>
         </div>
         {queue.length ? (
-          <button type="button" className="btn" style={{ background: "none", color: "var(--accent)" }} onClick={() => save([])}>
+          <button type="button" className="btn" style={{ background: "none", color: "var(--accent)" }} onClick={() => {
+              const previous = queue;
+              save([]);
+              toast("Up Next cleared", { action: { label: "Undo", onClick: () => save(previous) } });
+            }}>
             Clear
           </button>
         ) : null}
@@ -122,7 +124,6 @@ export function UpNextView() {
 
       <section className="section">
         {queue.length ? <div className="eyebrow">Next</div> : null}
-        {error ? <p className="error small">{error}</p> : null}
         {queue.length === 0 ? (
           <div className="empty">
             <strong>Your queue is empty</strong>

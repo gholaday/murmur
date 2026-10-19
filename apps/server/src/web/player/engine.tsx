@@ -399,30 +399,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const markCurrent = useCallback(
-    (finished: boolean) => {
-      if (finished) {
-        audio.current?.pause();
-        save(true);
-      } else {
-        positionRef.current = 0;
-        seek(0);
-        save(false);
-      }
-    },
-    [save, seek],
-  );
-
-  const stop = useCallback(() => {
+  /** Empties the player without saving anything. */
+  const unload = useCallback(() => {
     const el = audio.current;
-    if (el && !el.paused) {
-      el.pause();
-      save();
-    }
+    // Cleared first so the pause event below doesn't save over what the caller saved.
     itemRef.current = null;
     setItem(null);
     setExpanded(false);
     if (el) {
+      el.pause();
       el.removeAttribute("src");
       el.load();
     }
@@ -431,7 +416,27 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // private mode
     }
-  }, [save]);
+  }, []);
+
+  const stop = useCallback(() => {
+    if (audio.current && !audio.current.paused) save();
+    unload();
+  }, [save, unload]);
+
+  const markCurrent = useCallback(
+    (finished: boolean) => {
+      if (finished) {
+        // A finished item leaves the player, like reaching its end.
+        save(true);
+        unload();
+      } else {
+        positionRef.current = 0;
+        seek(0);
+        save(false);
+      }
+    },
+    [save, seek, unload],
+  );
 
   // ---------- Startup: settings, queue, and whatever was playing last ----------
 

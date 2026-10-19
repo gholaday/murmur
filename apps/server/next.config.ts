@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["better-sqlite3", "sharp", "@node-rs/argon2"],
   poweredByHeader: false,
   images: { unoptimized: true },
+  // Profile was renamed Settings; keep old bookmarks working.
+  redirects: async () => [{ source: "/profile", destination: "/settings", permanent: true }],
 };
 
 export default nextConfig;

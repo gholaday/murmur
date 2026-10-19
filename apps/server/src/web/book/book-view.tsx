@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { apiPaths, type BookDetail } from "@murmur/shared";
+import { toast } from "sonner";
+import { apiPaths, type BookDetail, duration, plural, timeLeft } from "@murmur/shared";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { duration, plural, timeLeft } from "../format";
-import { BackIcon, CheckIcon, MoreIcon, PauseIcon, PlayIcon, QueueIcon } from "../icons";
+import { BackIcon, CheckIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "../icons";
 import { bookToPlayable, chapterAt, usePlayer, usePosition } from "../player/engine";
 import { setFinished } from "../progress";
 import { Sheet, SheetItem } from "../sheet";
@@ -20,7 +20,6 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
   const [menu, setMenu] = useState(false);
   const [matching, setMatching] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
 
   const current = player.isCurrent("book", book.id);
   const finished = !!book.progress?.finished && !current;
@@ -39,19 +38,31 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
   const mark = async (done: boolean) => {
     setMenu(false);
     if (current) player.markCurrent(done);
-    else await setFinished("book", book.id, book.durationSec, done);
+    // Saved here too (not only by the player) so the refresh below already sees it.
+    await setFinished("book", book.id, book.durationSec, done);
+    toast(done ? "Marked as finished" : "Marked as not finished");
     router.refresh();
   };
 
   const queue = async (at: "next" | "last") => {
     setMenu(false);
     await player.queueAdd({ itemType: "book", itemId: book.id }, at);
-    setNotice(at === "next" ? "Plays next." : "Added to Up Next.");
+    toast(at === "next" ? "Plays next" : "Added to Up Next");
+  };
+
+  const unqueue = async () => {
+    await player.queueReplace(
+      player.queue
+        .filter((q) => !(q.itemType === "book" && q.itemId === book.id))
+        .map((q) => ({ itemType: q.itemType, itemId: q.itemId })),
+    );
+    toast("Removed from Up Next");
   };
 
   const revertMatch = async () => {
     setMenu(false);
     await api(`/api/books/${book.id}/match`, { method: "DELETE" });
+    toast("Match undone, using the files' details");
     router.refresh();
   };
 
@@ -59,14 +70,24 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
   const [playLabel, playSub] = current
     ? [player.playing ? "Pause" : "Resume", left]
     : finished
-      ? ["Listen again", duration(book.durationSec)]
+      ? ["Play", duration(book.durationSec)]
       : started
         ? ["Continue", left]
         : ["Play", duration(book.durationSec)];
 
+  const coverSrc = book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 600) : null;
+
   return (
     <>
-      <div className="hero" style={{ "--tint": book.coverColor ?? "#2a3550" } as React.CSSProperties}>
+      <div
+        className="hero"
+        style={
+          {
+            "--tint": book.coverColor ?? "#2a3550",
+            "--art": coverSrc ? `url("${coverSrc}")` : "none",
+          } as React.CSSProperties
+        }
+      >
         <div className="hero-bar">
           <button
             type="button"
@@ -82,7 +103,7 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
         </div>
         <div className="book-hero">
           <Cover
-            src={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 600) : null}
+            src={coverSrc}
             color={book.coverColor}
             title={book.title}
             subtitle={book.author}
@@ -90,21 +111,27 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
           />
           <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
             {book.series ? (
-              <Link href={`/?series=${encodeURIComponent(book.series)}`} className="book-series">
-                {book.series}
-                {book.seriesPosition !== null ? ` · Book ${book.seriesPosition}` : ""}
-              </Link>
+              <div className="book-series">
+                <Link href={`/?series=${encodeURIComponent(book.series)}`}>{book.series}</Link>
+                {book.seriesPosition !== null ? <span className="muted">Book {book.seriesPosition}</span> : null}
+              </div>
             ) : null}
             <h1 className="book-title">{book.title}</h1>
             <div className="book-by">
-              {book.author ? <Link href={`/?author=${encodeURIComponent(book.author)}`}>{book.author}</Link> : "Unknown author"}
-              {book.narrator ? ` · Narrated by ${book.narrator}` : ""}
+              {book.author ? (
+                <Link className="book-author" href={`/?author=${encodeURIComponent(book.author)}`}>
+                  {book.author}
+                </Link>
+              ) : (
+                "Unknown author"
+              )}
             </div>
+            {book.narrator ? <div className="book-narrator">Narrated by {book.narrator}</div> : null}
             <div className="book-meta">
-              {[duration(book.durationSec), book.year, book.chapters.length > 1 ? plural(book.chapters.length, "chapter") : null]
-                .filter(Boolean)
-                .join(" · ")}
-              {book.missingSince ? " · Files missing" : ""}
+              <span>{duration(book.durationSec)}</span>
+              {book.year ? <span>{book.year}</span> : null}
+              {book.chapters.length > 1 ? <span>{plural(book.chapters.length, "chapter")}</span> : null}
+              {book.missingSince ? <span className="error">Files missing</span> : null}
             </div>
           </div>
         </div>
@@ -121,28 +148,23 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
         <button
           type="button"
           className="btn-round"
-          aria-label={queued ? "In Up Next" : "Add to Up Next"}
+          aria-label={queued ? "Remove from Up Next" : "Add to Up Next"}
           aria-pressed={queued}
-          onClick={() => void queue("last")}
+          onClick={() => void (queued ? unqueue() : queue("last"))}
           disabled={current}
         >
-          <QueueIcon />
+          <QueueAddIcon queued={queued} />
         </button>
         <button
           type="button"
           className="btn-round"
-          aria-label={book.progress?.finished ? "Mark as not finished" : "Mark as finished"}
-          aria-pressed={!!book.progress?.finished}
-          onClick={() => void mark(!book.progress?.finished)}
+          aria-label={finished ? "Mark as not finished" : "Mark as finished"}
+          aria-pressed={finished}
+          onClick={() => void mark(!finished)}
         >
           <CheckIcon />
         </button>
       </div>
-      {notice ? (
-        <p className="muted small" role="status">
-          {notice}
-        </p>
-      ) : null}
       {started || current ? (
         <div className="bar thick" style={{ marginTop: 12 }}>
           <div style={{ width: `${pct}%` }} />
@@ -191,8 +213,8 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
         <SheetItem onClick={() => void queue("last")} disabled={current}>
           Add to end of Up Next
         </SheetItem>
-        <SheetItem onClick={() => void mark(!book.progress?.finished)}>
-          {book.progress?.finished ? "Mark as not finished" : "Mark as finished"}
+        <SheetItem onClick={() => void mark(!finished)}>
+          {finished ? "Mark as not finished" : "Mark as finished"}
         </SheetItem>
         {book.progress && !book.progress.finished ? (
           <SheetItem onClick={() => void mark(false)}>Reset progress</SheetItem>
@@ -221,6 +243,7 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
           onClose={() => setMatching(false)}
           onApplied={() => {
             setMatching(false);
+            toast("Match applied");
             router.refresh();
           }}
         />

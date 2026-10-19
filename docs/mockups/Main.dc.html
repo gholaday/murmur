@@ -52,9 +52,9 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 </div>
 
 <div style="display: flex; flex-direction: column; gap: 12px;">
-<div style="display: flex; align-items: baseline; justify-content: space-between;">
+<div style="display: flex; align-items: center; gap: 8px;">
 <h2 style="margin: 0; font-size: 17px; font-weight: 700;">All books</h2>
-<span style="font-size: 12px; color: #A9A7A2;">214 books · Recently added</span>
+<span style="display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 10px; background: #212226; color: #A9A7A2; font-size: 12px; font-weight: 700;">214</span>
 </div>
 <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;">
 <sc-for list="{{books}}" as="b" hint-placeholder-count="9">
@@ -72,22 +72,23 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 </div>
 </div>
 
-<a href="Player.dc.html" style="position: absolute; left: 8px; right: 8px; bottom: 80px; height: 64px; border-radius: 14px; background: #26272C; box-shadow: 0 8px 24px rgba(0,0,0,0.45); display: flex; align-items: center; gap: 12px; padding: 0 8px 0 10px; overflow: hidden;">
+<a href="Player.dc.html" style="position: absolute; left: 8px; right: 8px; bottom: 80px; height: 64px; border-radius: 14px; background: #26272C; box-shadow: 0 8px 24px rgba(0,0,0,0.45); display: flex; align-items: center; gap: 6px; padding: 0 6px 0 10px; overflow: hidden;">
 <div style="width: 44px; height: 44px; border-radius: 6px; background: #3B5B6E; flex-shrink: 0;"></div>
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
 <div style="font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Project Hail Mary</div>
-<div style="font-size: 12px; color: #A9A7A2; white-space: nowrap;">Chapter 23 · 6h 2m left</div>
+<div style="font-size: 12px; color: #A9A7A2; white-space: nowrap;">Chapter 23</div>
 </div>
-<span aria-label="Pause" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"></rect><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"></rect></svg></span>
-<span aria-label="Skip forward 30 seconds" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #D6D4CF;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"></path><path d="M20 4v4h-4"></path></svg></span>
+<span aria-label="Skip back 10 seconds" style="width: 40px; height: 44px; position: relative; display: flex; align-items: center; justify-content: center; color: #F3F1EC;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" style="width: 30px; height: 30px; stroke-width: 1.7;"><path d="M4 12a8 8 0 1 0 2.3-5.6"></path><path d="M4 4v4h4"></path></svg><span style="position: absolute; font-size: 9px; font-weight: 800; padding-top: 2px;">10</span></span>
+<span aria-label="Pause" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"></rect><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"></rect></svg></span>
+<span aria-label="Skip forward 30 seconds" style="width: 40px; height: 44px; position: relative; display: flex; align-items: center; justify-content: center; color: #F3F1EC;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" style="width: 30px; height: 30px; stroke-width: 1.7;"><path d="M20 12a8 8 0 1 1-2.3-5.6"></path><path d="M20 4v4h-4"></path></svg><span style="position: absolute; font-size: 9px; font-weight: 800; padding-top: 2px;">30</span></span>
 <div style="position: absolute; left: 0; bottom: 0; height: 2px; width: 62%; background: #8E9BFF;"></div>
 </a>
 
 <nav style="position: absolute; left: 0; right: 0; bottom: 0; height: 72px; background: #17181B; border-top: 1px solid #26272B; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));">
-<a href="Main.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #8E9BFF; font-size: 11px; font-weight: 700;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="4" height="16" rx="1"></rect><rect x="10" y="4" width="4" height="16" rx="1"></rect><path d="M16.5 5.5l3.4.9-3.6 13.5-3.4-.9z"></path></svg>Library</a>
+<a href="Main.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #8E9BFF; font-size: 11px; font-weight: 700;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v14"></path><path d="M3 5.5A1.5 1.5 0 0 1 4.5 4H9a3 3 0 0 1 3 3 3 3 0 0 1 3-3h4.5A1.5 1.5 0 0 1 21 5.5v11a1.5 1.5 0 0 1-1.5 1.5H15a3 3 0 0 0-3 3 3 3 0 0 0-3-3H4.5A1.5 1.5 0 0 1 3 16.5z"></path></svg>Library</a>
 <a href="Podcasts.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #9A9AA0; font-size: 11px; font-weight: 600;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>Podcasts</a>
 <a href="UpNext.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #9A9AA0; font-size: 11px; font-weight: 600;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>Up Next</a>
-<a href="Main.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #9A9AA0; font-size: 11px; font-weight: 600;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>Profile</a>
+<a href="Main.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #9A9AA0; font-size: 11px; font-weight: 600;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>Settings</a>
 </nav>
 </div>
 </x-dc>

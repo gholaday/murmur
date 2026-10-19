@@ -1,11 +1,11 @@
 "use client";
 
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { apiPaths, type EpisodeDto, type EpisodeWithShow, type PodcastDetail } from "@murmur/shared";
+import { apiPaths, type EpisodeDto, type EpisodeWithShow, plural, type PodcastDetail, shortDate } from "@murmur/shared";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { plural, shortDate } from "../format";
 import { BackIcon, CheckIcon, DownloadIcon, MoreIcon } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
@@ -20,7 +20,6 @@ export function ShowView({ podcast, episodes, isAdmin }: { podcast: PodcastDetai
   const [limit, setLimit] = useState(PAGE);
   const [sheet, setSheet] = useState<null | "menu" | "download" | "unsubscribe">(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
 
   const withShow: EpisodeWithShow[] = useMemo(
@@ -40,14 +39,14 @@ export function ShowView({ podcast, episodes, isAdmin }: { podcast: PodcastDetai
   }, [withShow, tab, oldestFirst]);
   const archivedCount = withShow.filter((e) => e.archived).length;
 
-  const run = async (fn: () => Promise<unknown>) => {
+  const run = async (fn: () => Promise<unknown>, done?: string) => {
     setBusy(true);
-    setError(null);
     try {
       await fn();
+      if (done) toast(done);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setBusy(false);
     }
@@ -112,11 +111,6 @@ export function ShowView({ podcast, episodes, isAdmin }: { podcast: PodcastDetai
           Last feed check failed: {podcast.lastError}
         </p>
       ) : null}
-      {error ? (
-        <p className="error small" role="alert">
-          {error}
-        </p>
-      ) : null}
 
       {podcast.description ? (
         <>
@@ -165,7 +159,7 @@ export function ShowView({ podcast, episodes, isAdmin }: { podcast: PodcastDetai
           disabled={busy}
           onClick={() => {
             setSheet(null);
-            void run(() => api(`/api/podcasts/${podcast.id}/refresh`, { method: "POST" }));
+            void run(() => api(`/api/podcasts/${podcast.id}/refresh`, { method: "POST" }), "Checked for new episodes");
           }}
         >
           {busy ? "Checking…" : "Check for new episodes"}
@@ -177,7 +171,7 @@ export function ShowView({ podcast, episodes, isAdmin }: { podcast: PodcastDetai
         ) : null}
         <SheetItem
           onClick={() => {
-            void navigator.clipboard?.writeText(podcast.feedUrl);
+            void navigator.clipboard?.writeText(podcast.feedUrl).then(() => toast("Feed URL copied"));
             setSheet(null);
           }}
         >
@@ -237,10 +231,11 @@ export function ShowView({ podcast, episodes, isAdmin }: { podcast: PodcastDetai
               setBusy(true);
               try {
                 await api(`/api/podcasts/${podcast.id}`, { method: "DELETE" });
+                toast(`Unsubscribed from ${podcast.title}`);
                 router.push("/podcasts");
                 router.refresh();
               } catch (err) {
-                setError(err instanceof Error ? err.message : "Couldn't unsubscribe.");
+                toast.error(err instanceof Error ? err.message : "Couldn't unsubscribe.");
                 setBusy(false);
                 setSheet(null);
               }

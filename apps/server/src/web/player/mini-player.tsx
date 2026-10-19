@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Cover } from "../cover";
-import { clock, timeLeft } from "../format";
+import { clock, timeLeft } from "@murmur/shared";
 import { PauseIcon, PlayIcon, SkipBackIcon, SkipForwardIcon } from "../icons";
 import { chapterAt, usePlayer, usePosition } from "./engine";
 

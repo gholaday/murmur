@@ -3,15 +3,24 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { apiPaths, type BookSummary } from "@murmur/shared";
+import {
+  apiPaths,
+  type BookSummary,
+  bySeriesOrder,
+  groupBy,
+  matchesBook,
+  plural,
+  seriesLabel,
+  sortBooks,
+  type BookSort as Sort,
+  timeLeft,
+} from "@murmur/shared";
 import { Cover } from "../cover";
-import { plural, seriesLabel, timeLeft } from "../format";
 import { BackIcon, FilterIcon, SearchIcon } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
 import { BookCard, progressPct } from "./book-card";
 
 type Tab = "books" | "authors" | "series" | "finished";
-type Sort = "added" | "title" | "author" | "listened";
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: "books", label: "Books" },
@@ -28,71 +37,54 @@ const SORTS: Array<{ id: Sort; label: string }> = [
 ];
 
 const SORT_KEY = "murmur.librarySort";
-const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
-
-/** "The Martian" files under M. */
-const sortTitle = (t: string) => t.replace(/^(the|a|an)\s+/i, "");
-
-function sortBooks(books: BookSummary[], sort: Sort): BookSummary[] {
-  const out = [...books];
-  switch (sort) {
-    case "title":
-      return out.sort((a, b) => collator.compare(sortTitle(a.title), sortTitle(b.title)));
-    case "author":
-      return out.sort(
-        (a, b) =>
-          collator.compare(a.author ?? "~", b.author ?? "~") ||
-          collator.compare(a.series ?? "", b.series ?? "") ||
-          (a.seriesPosition ?? 0) - (b.seriesPosition ?? 0) ||
-          collator.compare(sortTitle(a.title), sortTitle(b.title)),
-      );
-    case "listened":
-      return out.sort((a, b) => (b.progress?.updatedAt ?? 0) - (a.progress?.updatedAt ?? 0) || b.addedAt - a.addedAt);
-    default:
-      return out.sort((a, b) => b.addedAt - a.addedAt);
-  }
-}
-
-function bySeriesOrder(a: BookSummary, b: BookSummary) {
-  return (a.seriesPosition ?? 9999) - (b.seriesPosition ?? 9999) || collator.compare(a.title, b.title);
-}
-
-function groupBy(books: BookSummary[], key: (b: BookSummary) => string | null) {
-  const map = new Map<string, BookSummary[]>();
-  for (const b of books) {
-    const k = key(b);
-    if (!k) continue;
-    map.set(k, [...(map.get(k) ?? []), b]);
-  }
-  return [...map.entries()].sort(([a], [b]) => collator.compare(sortTitle(a), sortTitle(b)));
-}
-
-function matches(b: BookSummary, q: string) {
-  return [b.title, b.author, b.narrator, b.series].some((v) => v?.toLowerCase().includes(q));
-}
-
 /** A titled section of book cards, like "All books": the heading opens that author or series. */
 function GroupGrid({
   title,
-  meta,
+  count,
+  sub,
+  side,
   onOpen,
   children,
 }: {
   title: string;
-  meta: string;
+  count: number;
+  sub?: string | null;
+  side?: string | null;
   onOpen: () => void;
   children: React.ReactNode;
 }) {
   return (
     <section className="section">
       <div className="section-head">
-        <button type="button" className="section-title group-title" onClick={onOpen}>
-          {title}
-        </button>
-        <span className="muted small">{meta}</span>
+        <div className="group-head">
+          <button type="button" className="section-title group-title" onClick={onOpen}>
+            {title}
+            <span className="count-pill" aria-label={plural(count, "book")}>
+              {count}
+            </span>
+          </button>
+          {sub ? <span className="muted small">{sub}</span> : null}
+        </div>
+        {side ? <span className="muted small">{side}</span> : null}
       </div>
       <div className="grid">{children}</div>
     </section>
+  );
+}
+
+/** Keeps the count pill on the same line as the title's last word when it wraps. */
+function TitleWithCount({ title, count }: { title: string; count: number }) {
+  const cut = title.lastIndexOf(" ") + 1;
+  return (
+    <>
+      {title.slice(0, cut)}
+      <span style={{ whiteSpace: "nowrap" }}>
+        {title.slice(cut)}
+        <span className="count-pill" aria-label={plural(count, "book")}>
+          {count}
+        </span>
+      </span>
+    </>
   );
 }
 
@@ -156,20 +148,17 @@ export function Library({ books, emptyReason }: { books: BookSummary[]; emptyRea
     const standalone = author ? list.filter((b) => !b.series) : [];
     return (
       <>
+        <div className="back-row">
+          <button type="button" className="icon-btn" onClick={() => router.back()} aria-label="Back">
+            <BackIcon />
+          </button>
+        </div>
         <div className="page-head">
-          <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-            <button type="button" className="icon-btn" onClick={() => router.back()} aria-label="Back">
-              <BackIcon />
-            </button>
-            <div style={{ minWidth: 0 }}>
-              <h1 className="page-title" style={{ fontSize: 24 }}>
-                {author ?? series}
-              </h1>
-              <div className="page-sub">
-                {plural(list.length, "book")}
-                {series && list[0]?.author ? ` · ${list[0].author}` : ""}
-              </div>
-            </div>
+          <div style={{ minWidth: 0 }}>
+            <h1 className="page-title" style={{ fontSize: 26 }}>
+              <TitleWithCount title={author ?? series ?? ""} count={list.length} />
+            </h1>
+            {series && list[0]?.author ? <div className="page-sub">{list[0].author}</div> : null}
           </div>
         </div>
         {series ? (
@@ -183,10 +172,12 @@ export function Library({ books, emptyReason }: { books: BookSummary[]; emptyRea
             {groups.map(([name, items]) => (
               <section key={name} className="section">
                 <div className="section-head">
-                  <button type="button" className="section-title" onClick={() => go({ series: name })}>
+                  <button type="button" className="section-title group-title" onClick={() => go({ series: name })}>
                     {name}
+                    <span className="count-pill" aria-label={plural(items.length, "book")}>
+                      {items.length}
+                    </span>
                   </button>
-                  <span className="muted small">{plural(items.length, "book")}</span>
                 </div>
                 <div className="grid">
                   {[...items].sort(bySeriesOrder).map((b) => (
@@ -250,7 +241,7 @@ export function Library({ books, emptyReason }: { books: BookSummary[]; emptyRea
       ) : null}
 
       {q ? (
-        <SearchResults books={sorted.filter((b) => matches(b, q))} />
+        <SearchResults books={sorted.filter((b) => matchesBook(b, q))} />
       ) : (
         <>
           <div className="chips" role="tablist" aria-label="Library view">
@@ -295,10 +286,12 @@ export function Library({ books, emptyReason }: { books: BookSummary[]; emptyRea
               ) : null}
               <section className="section">
                 <div className="section-head">
-                  <h2 className="section-title">All books</h2>
-                  <button type="button" className="muted small" onClick={() => setSortOpen(true)}>
-                    {plural(books.length, "book")} · {SORTS.find((s) => s.id === sort)?.label}
-                  </button>
+                  <h2 className="section-title">
+                    All books
+                    <span className="count-pill" aria-label={plural(books.length, "book")}>
+                      {books.length}
+                    </span>
+                  </h2>
                 </div>
                 <div className="grid">
                   {sorted.map((b) => (
@@ -311,7 +304,7 @@ export function Library({ books, emptyReason }: { books: BookSummary[]; emptyRea
 
           {tab === "authors"
             ? groupBy(books, (b) => b.author).map(([name, items]) => (
-                <GroupGrid key={name} title={name} meta={plural(items.length, "book")} onOpen={() => go({ author: name })}>
+                <GroupGrid key={name} title={name} count={items.length} onOpen={() => go({ author: name })}>
                   {sortBooks(items, "author").map((b) => (
                     <BookCard key={b.id} book={b} sub={seriesLabel(b.series, b.seriesPosition)} />
                   ))}
@@ -324,11 +317,14 @@ export function Library({ books, emptyReason }: { books: BookSummary[]; emptyRea
               groupBy(books, (b) => b.series).map(([name, items]) => {
                 const ordered = [...items].sort(bySeriesOrder);
                 const done = items.filter((b) => b.progress?.finished).length;
-                const meta = [ordered[0]?.author, plural(items.length, "book"), done ? `${done} finished` : null]
-                  .filter(Boolean)
-                  .join(" · ");
                 return (
-                  <GroupGrid key={name} title={name} meta={meta} onOpen={() => go({ series: name })}>
+                  <GroupGrid
+                    key={name}
+                    title={name}
+                    count={items.length}
+                    sub={ordered[0]?.author}
+                    side={done ? `${done} finished` : null}
+                    onOpen={() => go({ series: name })}>
                     {ordered.map((b) => (
                       <BookCard key={b.id} book={b} sub={b.seriesPosition !== null ? `Book ${b.seriesPosition}` : b.author} />
                     ))}

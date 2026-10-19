@@ -2,9 +2,8 @@
 
 /* eslint-disable @next/next/no-img-element -- provider cover thumbnails are remote */
 import { useCallback, useEffect, useState } from "react";
-import type { BookDetail, MatchCandidate, MatchField, MatchPreview, MatchSearchResult, MatchValues } from "@murmur/shared";
+import { type BookDetail, duration, type MatchCandidate, type MatchField, type MatchPreview, type MatchSearchResult, type MatchValues, seriesLabel } from "@murmur/shared";
 import { api } from "../api";
-import { duration, seriesLabel } from "../format";
 import { BackIcon } from "../icons";
 import { Sheet } from "../sheet";
 

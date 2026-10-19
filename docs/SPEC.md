@@ -69,9 +69,9 @@ TypeScript everywhere: Next.js for the server and web UI, SQLite for storage, Ex
 | Auth | Session cookie for web, bearer token for the app; passwords hashed with argon2 | Simple, no external provider |
 | Web styling | Tailwind CSS | Quick to build a Pocket Casts-like look |
 | Android app | Expo (React Native) + Expo Router | React and TypeScript; shares types with the server |
-| App playback | `react-native-track-player` | Background audio, lock-screen and notification controls, Bluetooth buttons |
+| App playback | `expo-audio` | Background audio, lock-screen and notification controls, Bluetooth buttons; maintained with the Expo SDK |
 | App downloads | `expo-file-system` | Offline books and episodes |
-| App data | TanStack Query + local SQLite (`expo-sqlite`) | Caching, offline progress queue |
+| App data | TanStack Query persisted to `expo-sqlite` key-value storage | Cached lists that open offline, offline progress queue |
 | Shared code | `packages/shared`: API types and Zod schemas | One definition used by server, web and app |
 | Repo | pnpm workspace monorepo | `apps/server`, `apps/mobile`, `packages/shared` |
 
@@ -271,7 +271,9 @@ There is no separate Downloads tab: downloads are managed from each book or show
 
 **Look and feel:** dark theme by default with a light option; periwinkle accent (#8E9BFF on dark, #4F5BD5 on light); the player background takes its colour from the cover; large touch targets; the mini player swipes up into the full player.
 
-**Playback:** `react-native-track-player` runs as a foreground service so audio keeps playing with the screen off. Streams use the server's range-request endpoint, and downloaded files play from local storage.
+**Playback:** `expo-audio` runs as a media session service so audio keeps playing with the screen off, with lock-screen and notification controls. One player is shared by the whole app; a multi-file book plays file by file on one continuous timeline. Streams use the server's range-request endpoint with the app's token, and downloaded files play from local storage. Limits of `expo-audio` on Android: speed goes up to 2×, and the lock-screen and headset skip buttons always move 10 seconds (the in-app skip buttons use the lengths set in Profile).
+
+**Offline:** lists and opened pages are cached on the phone, so the app opens and downloaded items play without a connection. Progress is written to a local outbox first and sent to the server when it's reachable.
 
 **First run:** enter the server URL (the Cloudflare hostname), then username and password; the app stores a token and never asks again until it's revoked.
 

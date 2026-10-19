@@ -1,5 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import { cookies } from "next/headers";
+import { THEME_COOKIE, isThemeChoice } from "@/web/theme";
+import { Toaster } from "@/web/toaster";
+import { Tooltips } from "@/web/tooltip";
 import "./globals.css";
 
 const sans = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
@@ -19,10 +23,17 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Rendered on the server from a cookie so a chosen theme never flashes the other one first.
+  const saved = (await cookies()).get(THEME_COOKIE)?.value;
+  const theme = isThemeChoice(saved) && saved !== "system" ? saved : undefined;
   return (
-    <html lang="en" className={sans.variable}>
-      <body>{children}</body>
+    <html lang="en" className={sans.variable} data-theme={theme}>
+      <body>
+        {children}
+        <Toaster />
+        <Tooltips />
+      </body>
     </html>
   );
 }
