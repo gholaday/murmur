@@ -1,13 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
-import type {
-  BookDetail,
-  BookSummary,
-  EpisodeDto,
-  EpisodeWithShow,
-  PodcastDetail,
-  PodcastSummary,
-  QueueEntry,
+import {
+  apiPaths,
+  type BookDetail,
+  type BookSection,
+  bookSections,
+  type BookSummary,
+  type EpisodeDto,
+  type EpisodeWithShow,
+  type PodcastDetail,
+  type PodcastSummary,
+  type QueueEntry,
+  type UserPrefs,
 } from "@murmur/shared/client";
+import { toast } from "@/components/toast";
 import { api } from "./api";
 import { queryClient } from "./query";
 
@@ -20,7 +25,30 @@ export const keys = {
   newEpisodes: ["newEpisodes"] as const,
   continueEpisodes: ["continueEpisodes"] as const,
   queue: ["queue"] as const,
+  prefs: ["prefs"] as const,
 };
+
+/**
+ * Your Books tab layout (section order and which are hidden), saved on the server so the web
+ * and the app share it. Until it loads, or on a server without it, the default order shows.
+ */
+export function useBookSections(): BookSection[] {
+  const prefs = useQuery({ queryKey: keys.prefs, queryFn: () => api<UserPrefs>(apiPaths.prefs) });
+  return bookSections(prefs.data?.bookSections);
+}
+
+/** Saves a new layout, showing it at once; puts the old one back if the server says no. */
+export function saveBookSections(next: BookSection[]) {
+  const previous = queryClient.getQueryData<UserPrefs>(keys.prefs);
+  queryClient.setQueryData<UserPrefs>(keys.prefs, { ...previous, bookSections: next });
+  api<UserPrefs>(apiPaths.prefs, { method: "PUT", body: { bookSections: next } })
+    .then((saved) => queryClient.setQueryData(keys.prefs, saved))
+    .catch((err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Couldn't save the layout.");
+      if (previous) queryClient.setQueryData(keys.prefs, previous);
+      else void queryClient.resetQueries({ queryKey: keys.prefs });
+    });
+}
 
 export const useBooks = () => useQuery({ queryKey: keys.books, queryFn: () => api<BookSummary[]>("/api/books") });
 

@@ -50,23 +50,37 @@ const ScrollContext = createContext<Scroll | null>(null);
 
 /** A scroll view that a SortableList inside can scroll while a row is dragged near its edges. */
 export function SortableScrollView({ children, ...rest }: React.ComponentProps<typeof Animated.ScrollView>) {
-  const ref = useAnimatedRef<Animated.ScrollView>();
-  const offset = useScrollOffset(ref);
-  const viewport = useSharedValue(0);
-  const content = useSharedValue(0);
+  const { scroll, props } = useSortableScroll<Animated.ScrollView>();
   return (
-    <ScrollContext.Provider value={{ ref, offset, viewport, content }}>
-      <Animated.ScrollView
-        {...rest}
-        ref={ref}
-        onLayout={(e) => viewport.set(e.nativeEvent.layout.height)}
-        onContentSizeChange={(_, h) => content.set(h)}
-      >
+    <SortableScrollProvider value={scroll}>
+      <Animated.ScrollView {...rest} {...props}>
         {children}
       </Animated.ScrollView>
-    </ScrollContext.Provider>
+    </SortableScrollProvider>
   );
 }
+
+/**
+ * The same for any other Animated scrollable (e.g. Animated.FlatList): spread `props` on it and
+ * wrap it in `<SortableScrollProvider value={scroll}>`.
+ */
+export function useSortableScroll<T extends object>() {
+  const ref = useAnimatedRef<T>();
+  // Reanimated scrolls FlatLists through the same ref as ScrollViews.
+  const scrollRef = ref as unknown as Scroll["ref"];
+  const offset = useScrollOffset(scrollRef);
+  const viewport = useSharedValue(0);
+  const content = useSharedValue(0);
+  const scroll: Scroll = { ref: scrollRef, offset, viewport, content };
+  const props = {
+    ref,
+    onLayout: (e: { nativeEvent: { layout: { height: number } } }) => viewport.set(e.nativeEvent.layout.height),
+    onContentSizeChange: (_: number, h: number) => content.set(h),
+  };
+  return { scroll, props };
+}
+
+export const SortableScrollProvider = ScrollContext.Provider;
 
 function topOf(order: string[], heights: Record<string, number>, key: string) {
   "worklet";
@@ -83,12 +97,15 @@ export function SortableList<T>({
   keyOf,
   onReorder,
   renderRow,
+  liftInset = 0,
 }: {
   items: T[];
   keyOf: (item: T) => string;
   onReorder: (keys: string[]) => void;
   /** Renders one row; put `<DragHandle>` somewhere inside it. */
   renderRow: (item: T, index: number) => React.ReactNode;
+  /** How far the lifted row's card reaches past the row on each side, clipping what bleeds further. */
+  liftInset?: number;
 }) {
   const scroll = useContext(ScrollContext)!;
   const keys = items.map(keyOf);
@@ -167,7 +184,7 @@ export function SortableList<T>({
       <ReflowContext.Provider value={reflow}>
         <Animated.View style={listStyle}>
           {items.map((item, i) => (
-            <Row key={keys[i]} id={keys[i]!}>
+            <Row key={keys[i]} id={keys[i]!} liftInset={liftInset}>
               {renderRow(item, i)}
             </Row>
           ))}
@@ -180,7 +197,7 @@ export function SortableList<T>({
 const ReflowContext = createContext<(offset: number) => void>(() => undefined);
 const RowKey = createContext("");
 
-function Row({ id, children }: { id: string; children: React.ReactNode }) {
+function Row({ id, liftInset, children }: { id: string; liftInset: number; children: React.ReactNode }) {
   const t = useTheme();
   const drag = useContext(DragContext)!;
   const { order, heights, active, activeTop } = drag;
@@ -189,6 +206,11 @@ function Row({ id, children }: { id: string; children: React.ReactNode }) {
     if (active.value === id) {
       return {
         top: activeTop.value,
+        // Wider by liftInset each side, padded back in, so the content stays put inside a roomier card.
+        left: -liftInset,
+        right: -liftInset,
+        paddingHorizontal: liftInset,
+        overflow: liftInset ? "hidden" : "visible",
         zIndex: 10,
         opacity: 1,
         backgroundColor: t.surface2,
@@ -200,6 +222,10 @@ function Row({ id, children }: { id: string; children: React.ReactNode }) {
     const top = topOf(order.value, heights.value, id);
     return {
       top: active.value === null && !measured ? top : withTiming(top, { duration: active.value === null ? DROP_MS : SLIDE_MS }),
+      left: 0,
+      right: 0,
+      paddingHorizontal: 0,
+      overflow: "visible",
       zIndex: 0,
       opacity: measured ? 1 : 0,
       backgroundColor: "transparent",
@@ -211,7 +237,7 @@ function Row({ id, children }: { id: string; children: React.ReactNode }) {
   return (
     <RowKey.Provider value={id}>
       <Animated.View
-        style={[{ position: "absolute", left: 0, right: 0 }, style]}
+        style={[{ position: "absolute" }, style]}
         onLayout={(e) => {
           const h = e.nativeEvent.layout.height;
           // Rows lay out together; merging on the UI thread keeps one row's write from dropping another's.

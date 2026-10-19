@@ -31,7 +31,7 @@ if (saved) hydrate(queryClient, saved);
  * behind them. Searches, previews and admin screens refetch, which keeps the saved copy (read
  * in full at every launch) small.
  */
-const PERSISTED = new Set(["books", "book", "podcasts", "podcast", "episodes", "episode", "newEpisodes", "continueEpisodes", "queue"]);
+const PERSISTED = new Set(["books", "book", "podcasts", "podcast", "episodes", "episode", "newEpisodes", "continueEpisodes", "queue", "prefs"]);
 const persisted = (key: readonly unknown[]) => PERSISTED.has(key[0] as string);
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
