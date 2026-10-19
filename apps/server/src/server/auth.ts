@@ -117,35 +117,3 @@ export function requireAdmin(ctx: AppContext, req: Request): UserDto {
 export function isSecureRequest(req: Request): boolean {
   return req.headers.get("x-forwarded-proto") === "https" || new URL(req.url).protocol === "https:";
 }
-
-// ---------- Login throttling (per client IP, in memory) ----------
-
-const attempts = new Map<string, { failures: number; resetAt: number }>();
-const MAX_FAILURES = 10;
-const WINDOW_MS = 15 * 60 * 1000;
-
-export function clientIp(req: Request): string {
-  return (
-    req.headers.get("cf-connecting-ip") ??
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "local"
-  );
-}
-
-export function assertLoginAllowed(ip: string) {
-  const entry = attempts.get(ip);
-  if (entry && entry.resetAt > Date.now() && entry.failures >= MAX_FAILURES) {
-    throw new HttpError(429, "Too many failed sign-ins. Try again in 15 minutes.");
-  }
-}
-
-export function recordLoginResult(ip: string, ok: boolean) {
-  if (ok) {
-    attempts.delete(ip);
-    return;
-  }
-  const now = Date.now();
-  const entry = attempts.get(ip);
-  if (!entry || entry.resetAt <= now) attempts.set(ip, { failures: 1, resetAt: now + WINDOW_MS });
-  else entry.failures++;
-}
