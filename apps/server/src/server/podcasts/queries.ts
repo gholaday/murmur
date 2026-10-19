@@ -27,6 +27,9 @@ const IS_NEW = `e.published_at >= s.created_at - ${WEEK_MS}
   AND (pr.finished IS NULL OR pr.finished = 0)
   AND NOT EXISTS (SELECT 1 FROM episode_archives a WHERE a.user_id = s.user_id AND a.episode_id = e.id)`;
 
+/** Listened past the first few seconds and not finished, same rule as books. */
+const IS_STARTED = `COALESCE(pr.finished = 0 AND pr.position_sec > 5, 0)`;
+
 const PODCAST_SELECT = `
   SELECT p.*, s.speed,
     (SELECT COUNT(*) FROM episodes e WHERE e.podcast_id = p.id) AS episode_count,
@@ -152,7 +155,18 @@ export function listNewEpisodes(sqlite: Sqlite, userId: number, limit: number): 
   const rows = sqlite
     .prepare(
       `SELECT ${EPISODE_WITH_SHOW_COLUMNS} FROM episodes e ${EPISODE_JOINS}
-       WHERE ${IS_NEW} ORDER BY e.published_at DESC LIMIT ?`,
+       WHERE ${IS_NEW} AND NOT (${IS_STARTED}) ORDER BY e.published_at DESC LIMIT ?`,
+    )
+    .all(userId, limit) as EpisodeWithShowRow[];
+  return withShow(rows);
+}
+
+/** Started, unfinished episodes, most recently listened first. */
+export function listContinueEpisodes(sqlite: Sqlite, userId: number, limit: number): Promise<EpisodeWithShow[]> {
+  const rows = sqlite
+    .prepare(
+      `SELECT ${EPISODE_WITH_SHOW_COLUMNS} FROM episodes e ${EPISODE_JOINS}
+       WHERE ${IS_STARTED} ORDER BY pr.updated_at DESC LIMIT ?`,
     )
     .all(userId, limit) as EpisodeWithShowRow[];
   return withShow(rows);

@@ -1,28 +1,20 @@
 import { useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
-import Svg, { Circle } from "react-native-svg";
 import { apiPaths, duration, type EpisodeWithShow, shortDate, timeLeft } from "@murmur/shared";
 import { setFinished } from "@/lib/data";
 import { downloadEpisode, removeDownload, useDownload } from "@/lib/downloads";
-import { episodeToPlayable, isCurrent, markCurrent, play, queueAdd, toggle, usePlayer, usePosition } from "@/player/engine";
+import { episodeToPlayable, isCurrent, markCurrent, play, queueAdd, queueReplace, toggle, usePlayer, usePosition } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
+import { DownloadIcon, PauseIcon, PlayedIcon, PlayIcon, PlayNextIcon, QueueAddIcon } from "./icons";
 import { RemoveDownloadSheet } from "./sheet";
 import { toast } from "./toast";
-import { CheckIcon, DownloadIcon, PauseIcon, PlayIcon } from "./icons";
-import { Text } from "./ui";
+import { IconButton, Text } from "./ui";
 
-/** Progress ring drawn around the play button. */
-function Ring({ pct, color }: { pct: number; color: string }) {
-  const r = 21;
-  const c = 2 * Math.PI * r;
-  return (
-    <Svg width={44} height={44} viewBox="0 0 44 44" style={{ position: "absolute", transform: [{ rotate: "-90deg" }] }}>
-      <Circle cx={22} cy={22} r={r} stroke={color} strokeWidth={1.5} fill="none" strokeDasharray={`${(pct / 100) * c} ${c}`} />
-    </Svg>
-  );
-}
-
+/**
+ * One episode: artwork, date and title, a line of description (tap the text for all of it),
+ * and its actions always on show underneath. Matches the web's episode row.
+ */
 export function EpisodeRow({ episode, showThumb = false }: { episode: EpisodeWithShow; showThumb?: boolean }) {
   const t = useTheme();
   const player = usePlayer();
@@ -34,24 +26,20 @@ export function EpisodeRow({ episode, showThumb = false }: { episode: EpisodeWit
 
   const current = isCurrent(player, "episode", episode.id);
   const played = !!episode.progress?.finished && !current;
+  const finished = !!episode.progress?.finished;
   const dur = (current ? player.item?.durationSec : null) || episode.durationSec || 0;
   const position = current ? live : episode.progress && !episode.progress.finished ? episode.progress.positionSec : 0;
   const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
   const queued = player.queue.some((q) => q.itemType === "episode" && q.itemId === episode.id);
-  const playingNow = current && player.playing;
-  const length = played
-    ? "Played"
-    : playingNow && dur
-      ? `Playing, ${timeLeft(dur, position)}`
-      : position > 5 && dur
-        ? timeLeft(dur, position)
-        : duration(dur);
+  const pausing = current && player.playing;
+  const time = played ? "Played" : position > 5 && dur ? timeLeft(dur, position) : duration(dur);
+  const ref = { itemType: "episode" as const, itemId: episode.id };
 
-  const run = async (fn: () => Promise<unknown>, done?: string) => {
+  const run = async (fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
     try {
       await fn();
-      if (done) toast.show(done);
+      toast.show(done);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -64,126 +52,147 @@ export function EpisodeRow({ episode, showThumb = false }: { episode: EpisodeWit
     play(episodeToPlayable(episode), played ? 0 : undefined);
   };
 
+  const toggleQueue = () =>
+    queued
+      ? run(
+          () =>
+            queueReplace(
+              player.queue.filter((q) => !(q.itemType === "episode" && q.itemId === episode.id)).map((q) => ({ itemType: q.itemType, itemId: q.itemId })),
+            ),
+          "Removed from Up Next",
+        )
+      : run(() => queueAdd(ref, "last"), "Added to Up Next");
+
+  const togglePlayed = () =>
+    run(
+      async () => {
+        if (current) markCurrent(!played);
+        else await setFinished("episode", episode.id, dur, !finished);
+      },
+      finished ? "Marked as unplayed" : "Marked as played",
+    );
+
+  const onDownload = () => {
+    if (dl?.status === "done") setConfirmRemove(true);
+    else if (dl) removeDownload("episode", episode.id);
+    else downloadEpisode(episode);
+  };
+
   return (
-    <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.line, opacity: played ? 0.6 : 1 }}>
-      <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
-        {showThumb ? (
-          <Cover
-            path={episode.podcastCoverHash ? apiPaths.podcastCoverUrl(episode.podcastId, episode.podcastCoverHash, 200) : null}
-            title={episode.podcastTitle}
-            color={episode.podcastCoverColor}
-            size={56}
-            radius={8}
-          />
-        ) : null}
+    <View style={{ flexDirection: "row", gap: 14, alignItems: "flex-start", paddingTop: 14, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: t.line }}>
+      {showThumb ? (
+        <Cover
+          path={episode.podcastCoverHash ? apiPaths.podcastCoverUrl(episode.podcastId, episode.podcastCoverHash, 200) : null}
+          title={episode.podcastTitle}
+          color={episode.podcastCoverColor}
+          size={64}
+          radius={8}
+        />
+      ) : null}
+      <View style={{ flex: 1, minWidth: 0 }}>
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ expanded: open }}
+          accessibilityHint={open ? "Shows less of the description" : "Shows the whole description"}
           onPress={() => setOpen((o) => !o)}
-          style={{ flex: 1, gap: 3 }}
+          style={{ gap: 3 }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", columnGap: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "baseline", columnGap: 10 }}>
             {showThumb ? (
-              <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 13, color: t.muted }}>
+              <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.bold, fontSize: 13, color: t.text2 }}>
                 {episode.podcastTitle}
               </Text>
             ) : null}
-            <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.text2 }}>{shortDate(episode.publishedAt)}</Text>
-            <Text style={{ fontFamily: current ? fonts.semibold : fonts.medium, fontSize: 11, color: current ? t.accent : t.muted }}>{length}</Text>
-            {dl?.status === "done" ? <DownloadIcon size={13} color={t.accent} /> : null}
-            {dl?.status === "downloading" ? <Text style={{ fontSize: 11, color: t.accent }}>{Math.round(dl.progress * 100)}%</Text> : null}
+            <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: t.muted }}>{shortDate(episode.publishedAt)}</Text>
           </View>
-          <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 15, lineHeight: 20 }}>
+          <Text variant="bodyStrong" style={{ fontSize: 15, lineHeight: 20, color: played ? t.muted : t.text }}>
             {episode.title}
           </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={current && player.playing ? "Pause" : played ? "Play again" : "Play"}
-          onPress={onPlay}
-          hitSlop={6}
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            borderWidth: pct > 0 && !played ? 0 : 1.5,
-            borderColor: t.track,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {pct > 0 && !played ? (
-            <>
-              <View style={{ position: "absolute", inset: 0, borderRadius: 22, borderWidth: 1.5, borderColor: t.track }} />
-              <Ring pct={pct} color={t.accent} />
-            </>
+          {episode.description ? (
+            <Text numberOfLines={open ? undefined : 1} style={{ fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, color: t.muted }}>
+              {episode.description}
+            </Text>
           ) : null}
-          {current && player.loading ? (
-            <ActivityIndicator size="small" color={t.accent} />
-          ) : current && player.playing ? (
-            <PauseIcon size={18} color={t.text} />
-          ) : played ? (
-            <CheckIcon size={18} color={t.text} />
-          ) : (
-            <PlayIcon size={16} color={t.text} />
-          )}
         </Pressable>
-      </View>
-      {open ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-          <Action label="Play next" disabled={busy || current} onPress={() => void run(() => queueAdd({ itemType: "episode", itemId: episode.id }, "next"), "Plays next")} />
-          <Action
-            label={queued ? "In Up Next" : "Add to Up Next"}
-            disabled={busy || current || queued}
-            onPress={() => void run(() => queueAdd({ itemType: "episode", itemId: episode.id }, "last"), "Added to Up Next")}
-          />
-          <Action
-            label={episode.progress?.finished ? "Mark unplayed" : "Mark played"}
-            disabled={busy}
-            onPress={() =>
-              void run(async () => {
-                if (current) markCurrent(!played);
-                else await setFinished("episode", episode.id, dur, !episode.progress?.finished);
-              }, episode.progress?.finished ? "Marked as unplayed" : "Marked as played")
-            }
-          />
-          <Action
+
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${pausing ? "Pause" : played ? "Play again" : "Play"}, ${time}`}
+            onPress={onPlay}
+            style={({ pressed }) => ({
+              height: 32,
+              borderRadius: 16,
+              paddingLeft: 8,
+              paddingRight: 12,
+              marginRight: 6,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              backgroundColor: t.accent,
+              opacity: pressed ? 0.85 : 1,
+            })}
+          >
+            {current && player.loading ? (
+              <ActivityIndicator size="small" color={t.onAccent} style={{ width: 16, height: 16 }} />
+            ) : pausing ? (
+              <PauseIcon size={16} color={t.onAccent} />
+            ) : (
+              <PlayIcon size={16} color={t.onAccent} />
+            )}
+            <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: t.onAccent }}>{time}</Text>
+          </Pressable>
+          {pct > 0 && !played ? (
+            <View style={{ width: 56, height: 4, borderRadius: 2, backgroundColor: t.line, overflow: "hidden", marginRight: 8 }}>
+              <View style={{ width: `${pct}%`, height: "100%", backgroundColor: t.accent }} />
+            </View>
+          ) : null}
+          <ActionIcon label="Play next" disabled={busy || current} onPress={() => void run(() => queueAdd(ref, "next"), "Plays next")}>
+            <PlayNextIcon size={20} color={t.text2} />
+          </ActionIcon>
+          <ActionIcon label={queued ? "Remove from Up Next" : "Add to Up Next"} selected={queued} disabled={busy || current} onPress={() => void toggleQueue()}>
+            <QueueAddIcon size={20} queued={queued} color={queued ? t.accent : t.text2} />
+          </ActionIcon>
+          <ActionIcon label={finished ? "Mark unplayed" : "Mark played"} selected={finished} disabled={busy} onPress={() => void togglePlayed()}>
+            <PlayedIcon size={20} played={finished} color={finished ? t.accent : t.text2} checkColor={t.onAccent} />
+          </ActionIcon>
+          <ActionIcon
             label={dl ? (dl.status === "downloading" ? "Cancel download" : "Remove download") : "Download"}
-            onPress={() =>
-              dl?.status === "done" ? setConfirmRemove(true) : dl ? removeDownload("episode", episode.id) : downloadEpisode(episode)
-            }
-          />
+            selected={dl?.status === "done"}
+            onPress={onDownload}
+          >
+            {dl?.status === "downloading" ? (
+              <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: t.accent }}>{Math.round(dl.progress * 100)}%</Text>
+            ) : (
+              <DownloadIcon size={20} color={dl?.status === "done" ? t.accent : dl?.status === "error" ? t.danger : t.text2} />
+            )}
+          </ActionIcon>
         </View>
-      ) : null}
+      </View>
       {confirmRemove ? (
-        <RemoveDownloadSheet
-          open
-          title={episode.title}
-          onConfirm={() => removeDownload("episode", episode.id)}
-          onClose={() => setConfirmRemove(false)}
-        />
+        <RemoveDownloadSheet open title={episode.title} onConfirm={() => removeDownload("episode", episode.id)} onClose={() => setConfirmRemove(false)} />
       ) : null}
     </View>
   );
 }
 
-function Action({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
-  const t = useTheme();
+function ActionIcon({
+  label,
+  selected,
+  disabled,
+  onPress,
+  children,
+}: {
+  label: string;
+  selected?: boolean;
+  disabled?: boolean;
+  onPress: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        height: 36,
-        paddingHorizontal: 14,
-        borderRadius: 18,
-        justifyContent: "center",
-        backgroundColor: pressed ? t.surface2 : t.chip,
-        opacity: disabled ? 0.45 : 1,
-      })}
-    >
-      <Text style={{ fontFamily: fonts.semibold, fontSize: 13, color: t.text }}>{label}</Text>
-    </Pressable>
+    // 38 wide so four fit beside the play pill on a phone; IconButton's hit slop keeps the target over 44.
+    <IconButton label={label} accessibilityState={{ selected, disabled }} disabled={disabled} onPress={onPress} style={{ width: 38, opacity: disabled ? 0.4 : 1 }}>
+      {children}
+    </IconButton>
   );
 }

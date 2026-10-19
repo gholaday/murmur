@@ -541,12 +541,29 @@ img.cover.pending { opacity: 0; }
 .episode-meta { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: 13px; font-weight: 700; color: var(--text-2); }
 .episode-show { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .episode-date { flex-shrink: 0; font-weight: 500; color: var(--muted); }
-.episode-text { display: flex; flex-direction: column; gap: 3px; text-align: left; min-width: 0; }
+.episode-info, .episode-text { display: flex; flex-direction: column; gap: 3px; text-align: left; min-width: 0; }
 .episode-title { font-size: 15px; font-weight: 700; }
 .episode.played .episode-title { color: var(--muted); }
-.episode-desc { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.episode-desc { display: block; width: 100%; text-align: left; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+a.episode-show:hover { color: var(--accent); }
+.episode-thumb { flex-shrink: 0; }
 .episode-open .episode-desc { white-space: pre-line; overflow: visible; }
 .episode-actions { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+.more-row { display: flex; justify-content: center; gap: 8px; margin-top: 14px; }
+.episode-main { position: relative; }
+.episode-more {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+.episode-more:hover { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--accent); }
+.episode-more ~ .episode-info .episode-meta { padding-right: 64px; }
 .episode-play {
   height: 32px;
   border-radius: 16px;
@@ -562,8 +579,9 @@ img.cover.pending { opacity: 0; }
   flex-shrink: 0;
 }
 .episode-play:hover { filter: brightness(1.08); }
-.episode-bar { width: 56px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; margin-right: 8px; flex-shrink: 0; }
+.episode-bar { flex: 0 1 56px; min-width: 14px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; margin-right: 6px; }
 .episode-bar > span { display: block; height: 100%; background: var(--accent); }
+.episode-actions { min-width: 0; }
 .episode-icon { width: 36px; height: 36px; border-radius: 18px; display: flex; align-items: center; justify-content: center; color: var(--text-2); flex-shrink: 0; }
 .episode-icon:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 7%, transparent); }
 .episode-icon[aria-pressed="true"] { color: var(--accent); }

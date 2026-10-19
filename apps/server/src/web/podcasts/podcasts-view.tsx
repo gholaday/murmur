@@ -2,8 +2,8 @@
 
 import { toast } from "sonner";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import {
   apiPaths,
   type EpisodeWithShow,
@@ -14,7 +14,7 @@ import {
 } from "@murmur/shared";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { FilterIcon, PlusIcon, SearchIcon } from "../icons";
+import { BackIcon, FilterIcon, PlusIcon, SearchIcon } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
@@ -28,82 +28,87 @@ function sortShows(shows: PodcastSummary[], sort: Sort) {
   return out.sort((a, b) => (b.latestPublishedAt ?? 0) - (a.latestPublishedAt ?? 0));
 }
 
-export function PodcastsView({ podcasts, newEpisodes }: { podcasts: PodcastSummary[]; newEpisodes: EpisodeWithShow[] }) {
+/** How many rows each home section shows before its heading opens the full list. */
+const SECTION_SIZE = 3;
+const NEW_PAGE = 10;
+
+type ListId = "continue" | "new" | "podcasts";
+const LIST_TITLES: Record<ListId, string> = { continue: "Continue listening", new: "New episodes", podcasts: "Your podcasts" };
+
+/** Each show's newest new episode, with how many new ones it has. Input is newest first. */
+function newByShow(episodes: EpisodeWithShow[]) {
+  const groups = new Map<string, { episode: EpisodeWithShow; count: number }>();
+  for (const e of episodes) {
+    const g = groups.get(e.podcastId);
+    if (g) g.count++;
+    else groups.set(e.podcastId, { episode: e, count: 1 });
+  }
+  return [...groups.values()];
+}
+
+function PodcastCard({ podcast: p }: { podcast: PodcastSummary }) {
+  return (
+    <Link href={`/podcasts/${p.id}`} className="card" title={p.title}>
+      <Cover src={p.coverHash ? apiPaths.podcastCoverUrl(p.id, p.coverHash, 200) : null} color={p.coverColor} title={p.title} />
+      {p.unplayedCount > 0 ? <span className="badge-count">{p.unplayedCount > 99 ? "99+" : p.unplayedCount}</span> : null}
+      <div className="card-title">{p.title}</div>
+      {p.lastError ? <div className="card-sub error">Feed problem</div> : null}
+    </Link>
+  );
+}
+
+/** A section heading that opens the full list, with its count. */
+function SectionHead({ title, count, noun, onOpen }: { title: string; count: number; noun: string; onOpen: () => void }) {
+  return (
+    <div className="section-head">
+      <button type="button" className="section-title group-title" onClick={onOpen}>
+        {title}
+        <span className="count-pill" aria-label={plural(count, noun)}>
+          {count}
+        </span>
+      </button>
+    </div>
+  );
+}
+
+export function PodcastsView({
+  podcasts,
+  continueEpisodes,
+  newEpisodes,
+}: {
+  podcasts: PodcastSummary[];
+  continueEpisodes: EpisodeWithShow[];
+  newEpisodes: EpisodeWithShow[];
+}) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
   const [sort, setSort] = useState<Sort>("latest");
-  const [showAll, setShowAll] = useState(false);
+  const [newShown, setNewShown] = useState(NEW_PAGE);
   const refresh = () => router.refresh();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const listParam = params.get("list");
+  const list = listParam && listParam in LIST_TITLES ? (listParam as ListId) : null;
 
-  return (
+  const shows = useMemo(() => sortShows(podcasts, sort), [podcasts, sort]);
+  const groups = useMemo(() => newByShow(newEpisodes), [newEpisodes]);
+
+  // Every list is built from data already here, so skip the server round trip, like the Library shelves.
+  const open = (id: ListId) => {
+    window.history.pushState(null, "", `${pathname}?list=${id}`);
+    window.scrollTo(0, 0);
+  };
+
+  const sortButton =
+    podcasts.length > 1 ? (
+      <button type="button" className="icon-btn" aria-label="Sort podcasts" onClick={() => setSortOpen(true)}>
+        <FilterIcon />
+      </button>
+    ) : null;
+
+  const sheets = (
     <>
-      <div className="page-head">
-        <h1 className="page-title">Podcasts</h1>
-        <div className="head-actions">
-          {podcasts.length > 1 ? (
-            <button type="button" className="icon-btn" aria-label="Sort podcasts" onClick={() => setSortOpen(true)}>
-              <FilterIcon />
-            </button>
-          ) : null}
-          <button type="button" className="icon-btn accent" aria-label="Add podcast" onClick={() => setAdding(true)}>
-            <PlusIcon />
-          </button>
-        </div>
-      </div>
-
-      {podcasts.length === 0 ? (
-        <div className="empty">
-          <strong>No podcasts yet</strong>
-          <div style={{ marginTop: 16 }}>
-            <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
-              Add a podcast
-            </button>
-          </div>
-        </div>
-      ) : (
-        <>
-          {newEpisodes.length ? (
-            <section className="section" style={{ marginTop: 0 }}>
-              <div className="section-head">
-                <h2 className="section-title">New episodes</h2>
-                {newEpisodes.length > 4 ? (
-                  <button type="button" className="section-link" onClick={() => setShowAll((s) => !s)}>
-                    {showAll ? "Show less" : "See all"}
-                  </button>
-                ) : null}
-              </div>
-              <div>
-                {(showAll ? newEpisodes : newEpisodes.slice(0, 4)).map((e) => (
-                  <EpisodeRow key={e.id} episode={e} showThumb onChanged={refresh} />
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          <section className="section">
-            <div className="section-head">
-              <h2 className="section-title">Your podcasts</h2>
-              <span className="muted small">{plural(podcasts.length, "podcast")}</span>
-            </div>
-            <div className="grid">
-              {sortShows(podcasts, sort).map((p) => (
-                <Link key={p.id} href={`/podcasts/${p.id}`} className="card" title={p.title}>
-                  <Cover
-                    src={p.coverHash ? apiPaths.podcastCoverUrl(p.id, p.coverHash, 200) : null}
-                    color={p.coverColor}
-                    title={p.title}
-                  />
-                  {p.unplayedCount > 0 ? <span className="badge-count">{p.unplayedCount > 99 ? "99+" : p.unplayedCount}</span> : null}
-                  <div className="card-title">{p.title}</div>
-                  {p.lastError ? <div className="card-sub error">Feed problem</div> : null}
-                </Link>
-              ))}
-            </div>
-          </section>
-        </>
-      )}
-
       <AddPodcastSheet
         open={adding}
         onClose={() => setAdding(false)}
@@ -130,6 +135,120 @@ export function PodcastsView({ podcasts, newEpisodes }: { podcasts: PodcastSumma
           </SheetItem>
         ))}
       </Sheet>
+    </>
+  );
+
+  // A section's full list, opened from its heading.
+  if (list) {
+    const count = list === "continue" ? continueEpisodes.length : list === "new" ? newEpisodes.length : podcasts.length;
+    return (
+      <>
+        <div className="back-row">
+          <button type="button" className="icon-btn" onClick={() => router.back()} aria-label="Back">
+            <BackIcon />
+          </button>
+        </div>
+        <div className="page-head">
+          <h1 className="page-title" style={{ fontSize: 26 }}>
+            {LIST_TITLES[list]}
+            <span className="count-pill" aria-label={plural(count, list === "podcasts" ? "podcast" : "episode")}>
+              {count}
+            </span>
+          </h1>
+          {list === "podcasts" ? <div className="head-actions">{sortButton}</div> : null}
+        </div>
+        {count === 0 ? (
+          <div className="empty">Nothing here right now.</div>
+        ) : list === "podcasts" ? (
+          <div className="grid">
+            {shows.map((p) => (
+              <PodcastCard key={p.id} podcast={p} />
+            ))}
+          </div>
+        ) : list === "continue" ? (
+          <div>
+            {continueEpisodes.map((e) => (
+              <EpisodeRow key={e.id} episode={e} showThumb onChanged={refresh} />
+            ))}
+          </div>
+        ) : (
+          <>
+            <div>
+              {newEpisodes.slice(0, newShown).map((e) => (
+                <EpisodeRow key={e.id} episode={e} showThumb onChanged={refresh} />
+              ))}
+            </div>
+            {newShown < newEpisodes.length ? (
+              <div className="more-row">
+                <button type="button" className="btn" onClick={() => setNewShown((n) => n + NEW_PAGE)}>
+                  Show more
+                </button>
+              </div>
+            ) : null}
+          </>
+        )}
+        {sheets}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <h1 className="page-title">Podcasts</h1>
+        <div className="head-actions">
+          {sortButton}
+          <button type="button" className="icon-btn accent" aria-label="Add podcast" onClick={() => setAdding(true)}>
+            <PlusIcon />
+          </button>
+        </div>
+      </div>
+
+      {podcasts.length === 0 ? (
+        <div className="empty">
+          <strong>No podcasts yet</strong>
+          <div style={{ marginTop: 16 }}>
+            <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
+              Add a podcast
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <section className="section" style={{ marginTop: 0 }}>
+            <SectionHead title={LIST_TITLES.podcasts} count={podcasts.length} noun="podcast" onOpen={() => open("podcasts")} />
+            <div className="shelf">
+              {shows.map((p) => (
+                <PodcastCard key={p.id} podcast={p} />
+              ))}
+            </div>
+          </section>
+
+          {continueEpisodes.length ? (
+            <section className="section">
+              <SectionHead title={LIST_TITLES.continue} count={continueEpisodes.length} noun="episode" onOpen={() => open("continue")} />
+              <div>
+                {continueEpisodes.slice(0, SECTION_SIZE).map((e) => (
+                  <EpisodeRow key={e.id} episode={e} showThumb onChanged={refresh} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {groups.length ? (
+            <section className="section">
+              <SectionHead title={LIST_TITLES.new} count={newEpisodes.length} noun="episode" onOpen={() => open("new")} />
+              <div>
+                {groups.slice(0, SECTION_SIZE).map((g) => (
+                  <EpisodeRow key={g.episode.id} episode={g.episode} showThumb newCount={g.count} onChanged={refresh} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </>
+      )}
+
+      {sheets}
     </>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { apiPaths, duration, type EpisodeWithShow, shortDate, timeLeft } from "@murmur/shared";
@@ -11,10 +12,13 @@ import { setFinished } from "../progress";
 export function EpisodeRow({
   episode,
   showThumb = false,
+  newCount = 0,
   onChanged,
 }: {
   episode: EpisodeWithShow;
   showThumb?: boolean;
+  /** When this row stands for a show's new episodes, how many there are; links to the show. */
+  newCount?: number;
   /** Called after played changes so the list can refresh. */
   onChanged?: () => void;
 }) {
@@ -30,6 +34,7 @@ export function EpisodeRow({
   const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
   const queued = player.queue.some((q) => q.itemType === "episode" && q.itemId === episode.id);
   const pausing = current && player.playing;
+  const showHref = `/podcasts/${episode.podcastId}`;
 
   const time = played ? "Played" : position > 5 && dur ? timeLeft(dur, position) : duration(dur);
 
@@ -75,22 +80,36 @@ export function EpisodeRow({
   return (
     <div className={`episode ${played ? "played" : ""} ${open ? "episode-open" : ""}`}>
       {showThumb ? (
-        <Cover
-          className="thumb"
-          src={episode.podcastCoverHash ? apiPaths.podcastCoverUrl(episode.podcastId, episode.podcastCoverHash, 200) : null}
-          color={episode.podcastCoverColor}
-          title={episode.podcastTitle}
-        />
+        <Link href={showHref} className="episode-thumb" aria-label={episode.podcastTitle} tabIndex={-1}>
+          <Cover
+            className="thumb"
+            src={episode.podcastCoverHash ? apiPaths.podcastCoverUrl(episode.podcastId, episode.podcastCoverHash, 200) : null}
+            color={episode.podcastCoverColor}
+            title={episode.podcastTitle}
+          />
+        </Link>
       ) : null}
       <div className="episode-main">
-        <button type="button" className="episode-text" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        {newCount > 1 ? (
+          <Link href={showHref} className="episode-more">
+            {newCount} new
+          </Link>
+        ) : null}
+        <div className="episode-info">
           <span className="episode-meta">
-            {showThumb ? <span className="episode-show">{episode.podcastTitle}</span> : null}
+            {showThumb ? (
+              <Link href={showHref} className="episode-show">
+                {episode.podcastTitle}
+              </Link>
+            ) : null}
             <span className="episode-date">{shortDate(episode.publishedAt)}</span>
           </span>
-          <span className="episode-title">{episode.title}</span>
-          {episode.description ? <span className="episode-desc">{episode.description}</span> : null}
-        </button>
+          {/* The title and description expand the notes in place. */}
+          <button type="button" className="episode-text" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+            <span className="episode-title">{episode.title}</span>
+            {episode.description ? <span className="episode-desc">{episode.description}</span> : null}
+          </button>
+        </div>
         <div className="episode-actions">
           <button
             type="button"
@@ -102,7 +121,7 @@ export function EpisodeRow({
             {pausing ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
             <span>{time}</span>
           </button>
-          {pct > 0 && !played ? (
+          {position > 5 && !played ? (
             <span className="episode-bar" aria-hidden="true">
               <span style={{ width: `${pct}%` }} />
             </span>

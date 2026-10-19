@@ -189,6 +189,19 @@ export const QueueAddIcon = ({ queued, ...p }: IconProps & { queued?: boolean })
     {queued ? <Path d="M7 14l2.5 2.5L13 12" /> : <Path d="M10 11v6M7 14h6" />}
   </Icon>
 );
+export const PlayNextIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Path d="M3 6h10M3 12h7M3 18h7" />
+    <Path d="M17 20V9M13 13l4-4 4 4" />
+  </Icon>
+);
+/** A circled check, filled once played; `checkColor` draws the check on the fill. */
+export const PlayedIcon = ({ played, checkColor, ...p }: IconProps & { played?: boolean; checkColor: string }) => (
+  <Icon {...p}>
+    <Circle cx="12" cy="12" r="9" fill={played ? p.color : "none"} />
+    <Path d="M8 12.5l2.7 2.7L16 10" stroke={played ? checkColor : p.color} />
+  </Icon>
+);
 export const SettingsIcon = (p: IconProps) => (
   <Icon {...p}>
     <Circle cx="12" cy="12" r="3" />
