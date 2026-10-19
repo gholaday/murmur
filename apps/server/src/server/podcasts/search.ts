@@ -1,5 +1,6 @@
-import type { PodcastSearchResult } from "@murmur/shared";
+import type { PodcastPreview, PodcastSearchResult } from "@murmur/shared";
 import type { Sqlite } from "../db";
+import type { PodcastService } from "./service";
 import { env } from "../env";
 import { HttpError } from "../http";
 import { createLogger, errorMessage } from "../log";
@@ -64,15 +65,52 @@ async function searchApple(term: string): Promise<Found[]> {
   return found;
 }
 
-/** Search results, each marked with your podcast's id when you already follow it. */
-export async function searchPodcasts(sqlite: Sqlite, userId: number, term: string): Promise<PodcastSearchResult[]> {
-  const found = await searchApple(term);
-  const followed = new Map(
+function followedFeeds(sqlite: Sqlite, userId: number) {
+  return new Map(
     (
       sqlite
         .prepare("SELECT p.id, p.feed_url FROM podcasts p JOIN subscriptions s ON s.podcast_id = p.id AND s.user_id = ?")
         .all(userId) as Array<{ id: string; feed_url: string }>
     ).map((r) => [r.feed_url, r.id]),
   );
+}
+
+/** Search results, each marked with your podcast's id when you already follow it. */
+export async function searchPodcasts(sqlite: Sqlite, userId: number, term: string): Promise<PodcastSearchResult[]> {
+  const found = await searchApple(term);
+  const followed = followedFeeds(sqlite, userId);
   return found.map((f) => ({ ...f, subscribedId: followed.get(f.feedUrl) ?? null }));
+}
+
+const PREVIEW_EPISODES = 100;
+
+/** A feed read live for a look before subscribing, newest episodes first. */
+export async function previewPodcast(
+  sqlite: Sqlite,
+  podcasts: PodcastService,
+  userId: number,
+  feedUrl: string,
+): Promise<PodcastPreview> {
+  const url = feedUrl.trim();
+  const subscribedId = followedFeeds(sqlite, userId).get(url) ?? null;
+  const feed = await podcasts.preview(url);
+  const episodes = [...feed.episodes].sort((a, b) => b.publishedAt - a.publishedAt);
+  return {
+    feedUrl: url,
+    title: feed.title,
+    author: feed.author,
+    description: feed.description,
+    link: feed.link,
+    artworkUrl: feed.imageUrl,
+    episodeCount: episodes.length,
+    latestPublishedAt: episodes[0]?.publishedAt ?? null,
+    episodes: episodes.slice(0, PREVIEW_EPISODES).map((e) => ({
+      guid: e.guid,
+      title: e.title,
+      description: e.description,
+      publishedAt: e.publishedAt,
+      durationSec: e.durationSec,
+    })),
+    subscribedId,
+  };
 }

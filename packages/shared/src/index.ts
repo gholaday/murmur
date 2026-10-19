@@ -234,6 +234,32 @@ export interface PodcastSearchResult {
   subscribedId: string | null;
 }
 
+/** An episode in a feed you're looking at before subscribing. Not saved, so it has no id. */
+export interface PodcastPreviewEpisode {
+  guid: string;
+  title: string;
+  description: string | null;
+  publishedAt: number;
+  durationSec: number | null;
+}
+
+/** A feed read live so you can look before subscribing. */
+export interface PodcastPreview {
+  feedUrl: string;
+  title: string;
+  author: string | null;
+  description: string | null;
+  link: string | null;
+  /** The feed's own artwork URL, shown as-is. */
+  artworkUrl: string | null;
+  episodeCount: number;
+  latestPublishedAt: number | null;
+  /** Newest first, at most the latest 100. */
+  episodes: PodcastPreviewEpisode[];
+  /** Your podcast's id when you already follow this feed. */
+  subscribedId: string | null;
+}
+
 export interface PodcastDetail extends PodcastSummary {
   description: string | null;
   link: string | null;

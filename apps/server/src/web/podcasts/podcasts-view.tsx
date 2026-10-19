@@ -81,13 +81,15 @@ export function PodcastsView({
   newEpisodes: EpisodeWithShow[];
 }) {
   const router = useRouter();
-  const [adding, setAdding] = useState(false);
+  const pathname = usePathname();
+  const params = useSearchParams();
+  // Coming back from a search result reopens Add podcast with the same search.
+  const addQuery = params.get("add");
+  const [adding, setAdding] = useState(addQuery !== null);
   const [sortOpen, setSortOpen] = useState(false);
   const [sort, setSort] = useState<Sort>("latest");
   const [newShown, setNewShown] = useState(NEW_PAGE);
   const refresh = () => router.refresh();
-  const pathname = usePathname();
-  const params = useSearchParams();
   const listParam = params.get("list");
   const list = listParam && listParam in LIST_TITLES ? (listParam as ListId) : null;
 
@@ -111,7 +113,11 @@ export function PodcastsView({
     <>
       <AddPodcastSheet
         open={adding}
-        onClose={() => setAdding(false)}
+        initialQuery={addQuery ?? ""}
+        onClose={() => {
+          setAdding(false);
+          if (addQuery !== null) window.history.replaceState(null, "", pathname);
+        }}
         onAdded={(id) => {
           setAdding(false);
           // Refresh first so going back from the new podcast shows it in the list,
@@ -253,10 +259,19 @@ export function PodcastsView({
   );
 }
 
-/** Find a podcast by name and subscribe in one tap. Searches as you type. */
-function PodcastSearch({ onAdded }: { onAdded: (id: string | null) => void }) {
+/**
+ * Find a podcast by name and subscribe in one tap, or open a result to look first.
+ * Searches as you type. The search is kept in the URL so back from a result returns to it.
+ */
+function PodcastSearch({ initialQuery, onAdded }: { initialQuery: string; onAdded: (id: string | null) => void }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const pathname = usePathname();
+  const [query, setQuery] = useState(initialQuery);
+
+  const openResult = (r: PodcastSearchResult) => {
+    window.history.replaceState(null, "", `${pathname}?add=${encodeURIComponent(query.trim())}`);
+    router.push(r.subscribedId ? `/podcasts/${r.subscribedId}` : `/podcasts/preview?feed=${encodeURIComponent(r.feedUrl)}`);
+  };
   const [results, setResults] = useState<PodcastSearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -336,16 +351,18 @@ function PodcastSearch({ onAdded }: { onAdded: (id: string | null) => void }) {
           <div className="list search-results" aria-busy={searching || undefined}>
             {results.map((r) => (
               <div key={r.feedUrl} className="list-row">
-                <Cover className="thumb" src={r.artworkUrl} color={null} title={r.title} />
-                <div className="list-row-main">
-                  <span className="list-row-title" style={{ fontSize: 14 }}>
-                    {r.title}
+                <button type="button" className="search-result-open" onClick={() => openResult(r)}>
+                  <Cover className="thumb" src={r.artworkUrl} color={null} title={r.title} />
+                  <span className="list-row-main">
+                    <span className="list-row-title" style={{ fontSize: 14 }}>
+                      {r.title}
+                    </span>
+                    {r.author ? <span className="list-row-sub">{r.author}</span> : null}
+                    {r.episodeCount ? <span className="list-row-sub">{plural(r.episodeCount, "episode")}</span> : null}
                   </span>
-                  {r.author ? <span className="list-row-sub">{r.author}</span> : null}
-                  {r.episodeCount ? <span className="list-row-sub">{plural(r.episodeCount, "episode")}</span> : null}
-                </div>
+                </button>
                 {r.subscribedId ? (
-                  <button type="button" className="btn" onClick={() => router.push(`/podcasts/${r.subscribedId}`)}>
+                  <button type="button" className="btn" onClick={() => openResult(r)}>
                     Open
                   </button>
                 ) : (
@@ -364,10 +381,12 @@ function PodcastSearch({ onAdded }: { onAdded: (id: string | null) => void }) {
 
 function AddPodcastSheet({
   open,
+  initialQuery,
   onClose,
   onAdded,
 }: {
   open: boolean;
+  initialQuery: string;
   onClose: () => void;
   /** The new show's id, or null after an OPML import. */
   onAdded: (id: string | null) => void;
@@ -414,7 +433,7 @@ function AddPodcastSheet({
 
   return (
     <Sheet open={open} onClose={onClose} title="Add a podcast">
-      <PodcastSearch onAdded={onAdded} />
+      <PodcastSearch initialQuery={initialQuery} onAdded={onAdded} />
       <form className="form" onSubmit={subscribe}>
         <label className="label">
           Or paste an RSS feed URL

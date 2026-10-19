@@ -17,6 +17,7 @@ interface Deps {
 const FEED_TIMEOUT_MS = 15_000;
 const MAX_FEED_BYTES = 25 * 1024 * 1024;
 const MAX_BACKOFF_MS = 24 * 60 * 60 * 1000;
+const PREVIEW_CACHE_MS = 10 * 60_000;
 
 const newId = () => crypto.randomBytes(9).toString("base64url");
 
@@ -37,6 +38,7 @@ export function createPodcastService(deps: Deps) {
   const { sqlite, log } = deps;
   const feedLimit = createLimiter(3);
   const refreshing = new Map<string, Promise<void>>();
+  const previews = new Map<string, { at: number; feed: ParsedFeed }>();
 
   async function fetchFeed(url: string, etag: string | null, lastModified: string | null): Promise<FetchResult> {
     const headers: Record<string, string> = {
@@ -155,11 +157,16 @@ export function createPodcastService(deps: Deps) {
     let row = sqlite.prepare("SELECT id FROM podcasts WHERE feed_url = ?").get(url) as { id: string } | undefined;
     if (!row) {
       let result: FetchResult;
-      try {
-        result = await fetchFeed(url, null, null);
-      } catch (err) {
-        const reason = err instanceof FeedParseError ? err.message : `Couldn't load the feed: ${errorMessage(err)}`;
-        throw new HttpError(400, reason);
+      const previewed = previews.get(url);
+      if (previewed && Date.now() - previewed.at < PREVIEW_CACHE_MS) {
+        result = { kind: "ok", feed: previewed.feed, etag: null, lastModified: null };
+      } else {
+        try {
+          result = await fetchFeed(url, null, null);
+        } catch (err) {
+          const reason = err instanceof FeedParseError ? err.message : `Couldn't load the feed: ${errorMessage(err)}`;
+          throw new HttpError(400, reason);
+        }
       }
       if (result.kind !== "ok") throw new HttpError(400, "The feed returned no content.");
       const id = newId();
@@ -185,6 +192,27 @@ export function createPodcastService(deps: Deps) {
     return { podcastId: row.id, created: info.changes > 0 };
   }
 
+  /**
+   * Reads a feed without saving it, for a look before subscribing. Cached briefly so
+   * opening the same result again, or subscribing right after, doesn't refetch twice.
+   */
+  async function preview(feedUrl: string): Promise<ParsedFeed> {
+    const url = feedUrl.trim();
+    const hit = previews.get(url);
+    if (hit && Date.now() - hit.at < PREVIEW_CACHE_MS) return hit.feed;
+    let result: FetchResult;
+    try {
+      result = await feedLimit(() => fetchFeed(url, null, null));
+    } catch (err) {
+      const reason = err instanceof FeedParseError ? err.message : `Couldn't load the feed: ${errorMessage(err)}`;
+      throw new HttpError(400, reason);
+    }
+    if (result.kind !== "ok") throw new HttpError(400, "The feed returned no content.");
+    previews.set(url, { at: Date.now(), feed: result.feed });
+    if (previews.size > 50) previews.delete(previews.keys().next().value!);
+    return result.feed;
+  }
+
   /** Removes the user's subscription; a feed nobody follows any more is deleted. */
   function unsubscribe(userId: number, podcastId: string) {
     sqlite.prepare("DELETE FROM subscriptions WHERE user_id = ? AND podcast_id = ?").run(userId, podcastId);
@@ -195,7 +223,7 @@ export function createPodcastService(deps: Deps) {
     }
   }
 
-  return { subscribe, unsubscribe, refresh, checkDue };
+  return { subscribe, unsubscribe, refresh, checkDue, preview };
 }
 
 export type PodcastService = ReturnType<typeof createPodcastService>;
