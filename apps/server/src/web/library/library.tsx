@@ -71,19 +71,28 @@ function matches(b: BookSummary, q: string) {
   return [b.title, b.author, b.narrator, b.series].some((v) => v?.toLowerCase().includes(q));
 }
 
-function CoverStack({ books }: { books: BookSummary[] }) {
+/** A titled section of book cards, like "All books": the heading opens that author or series. */
+function GroupGrid({
+  title,
+  meta,
+  onOpen,
+  children,
+}: {
+  title: string;
+  meta: string;
+  onOpen: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="stack-covers" aria-hidden="true">
-      {books.slice(0, 3).map((b) => (
-        <Cover
-          key={b.id}
-          className="thumb"
-          src={b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 200) : null}
-          color={b.coverColor}
-          title={b.title}
-        />
-      ))}
-    </div>
+    <section className="section">
+      <div className="section-head">
+        <button type="button" className="section-title group-title" onClick={onOpen}>
+          {title}
+        </button>
+        <span className="muted small">{meta}</span>
+      </div>
+      <div className="grid">{children}</div>
+    </section>
   );
 }
 
@@ -300,42 +309,35 @@ export function Library({ books, emptyReason }: { books: BookSummary[]; emptyRea
             </>
           ) : null}
 
-          {tab === "authors" ? (
-            <div className="list section">
-              {groupBy(books, (b) => b.author).map(([name, items]) => (
-                <button key={name} type="button" className="list-row" style={{ textAlign: "left" }} onClick={() => go({ author: name })}>
-                  <CoverStack books={items} />
-                  <span className="list-row-main">
-                    <span className="list-row-title">{name}</span>
-                    <span className="list-row-sub">{plural(items.length, "book")}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : null}
+          {tab === "authors"
+            ? groupBy(books, (b) => b.author).map(([name, items]) => (
+                <GroupGrid key={name} title={name} meta={plural(items.length, "book")} onOpen={() => go({ author: name })}>
+                  {sortBooks(items, "author").map((b) => (
+                    <BookCard key={b.id} book={b} sub={seriesLabel(b.series, b.seriesPosition)} />
+                  ))}
+                </GroupGrid>
+              ))
+            : null}
 
           {tab === "series" ? (
-            <div className="list section">
-              {groupBy(books, (b) => b.series).map(([name, items]) => {
+            books.some((b) => b.series) ? (
+              groupBy(books, (b) => b.series).map(([name, items]) => {
                 const ordered = [...items].sort(bySeriesOrder);
                 const done = items.filter((b) => b.progress?.finished).length;
+                const meta = [ordered[0]?.author, plural(items.length, "book"), done ? `${done} finished` : null]
+                  .filter(Boolean)
+                  .join(" · ");
                 return (
-                  <button key={name} type="button" className="list-row" style={{ textAlign: "left" }} onClick={() => go({ series: name })}>
-                    <CoverStack books={ordered} />
-                    <span className="list-row-main">
-                      <span className="list-row-title">{name}</span>
-                      <span className="list-row-sub">
-                        {ordered[0]?.author ?? ""} · {plural(items.length, "book")}
-                        {done ? ` · ${done} finished` : ""}
-                      </span>
-                    </span>
-                  </button>
+                  <GroupGrid key={name} title={name} meta={meta} onOpen={() => go({ series: name })}>
+                    {ordered.map((b) => (
+                      <BookCard key={b.id} book={b} sub={b.seriesPosition !== null ? `Book ${b.seriesPosition}` : b.author} />
+                    ))}
+                  </GroupGrid>
                 );
-              })}
-              {!books.some((b) => b.series) ? (
-                <div className="empty">Books in series folders (Author/Series/Title) show up here.</div>
-              ) : null}
-            </div>
+              })
+            ) : (
+              <div className="empty">Books in series folders (Author/Series/Title) show up here.</div>
+            )
           ) : null}
 
           {tab === "finished" ? (

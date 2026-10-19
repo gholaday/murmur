@@ -235,6 +235,8 @@ select.input { appearance: none; }
 .section { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; }
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .section-title { font-size: 17px; font-weight: 700; }
+.group-title { text-align: left; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-title:hover { color: var(--accent); }
 .section-link { font-size: 12px; font-weight: 700; color: var(--accent); }
 .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.6px; text-transform: uppercase; }
 
@@ -299,9 +301,6 @@ select.input { appearance: none; }
 .thumb .cover-fallback-title { font-size: 8px; }
 .thumb .cover-fallback-sub { display: none; }
 
-.stack-covers { display: flex; flex-shrink: 0; }
-.stack-covers .thumb { width: 44px; height: 44px; border: 2px solid var(--bg); margin-left: -18px; }
-.stack-covers .thumb:first-child { margin-left: 0; }
 
 /* ---------- Book and show headers ---------- */
 
