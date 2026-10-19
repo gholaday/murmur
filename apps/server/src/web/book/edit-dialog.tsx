@@ -10,7 +10,7 @@ import {
   type ChapterDto,
   duration,
   type MatchSearchResult,
-} from "@murmur/shared";
+} from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { CloseIcon, MinusIcon, PlusIcon } from "../icons";

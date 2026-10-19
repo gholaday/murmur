@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- provider cover thumbnails are remote */
 import { useCallback, useEffect, useState } from "react";
-import { type BookDetail, duration, type MatchCandidate, type MatchField, type MatchPreview, type MatchSearchResult, type MatchValues, seriesLabel } from "@murmur/shared";
+import { type BookDetail, duration, type MatchCandidate, type MatchField, type MatchPreview, type MatchSearchResult, type MatchValues, seriesLabel } from "@murmur/shared/client";
 import { api } from "../api";
 import { BackIcon } from "../icons";
 

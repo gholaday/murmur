@@ -11,7 +11,7 @@ import {
   plural,
   type PodcastSearchResult,
   type PodcastSummary,
-} from "@murmur/shared";
+} from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { BackIcon, FilterIcon, PlusIcon, SearchIcon } from "../icons";
@@ -352,7 +352,7 @@ function PodcastSearch({ initialQuery, onAdded }: { initialQuery: string; onAdde
             {results.map((r) => (
               <div key={r.feedUrl} className="list-row">
                 <button type="button" className="search-result-open" onClick={() => openResult(r)}>
-                  <Cover className="thumb" src={r.artworkUrl} color={null} title={r.title} />
+                  <Cover className="thumb" src={r.thumbUrl}color={null} title={r.title} />
                   <span className="list-row-main">
                     <span className="list-row-title" style={{ fontSize: 14 }}>
                       {r.title}

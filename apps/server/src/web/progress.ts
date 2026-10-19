@@ -1,4 +1,4 @@
-import type { ItemType } from "@murmur/shared";
+import type { ItemType } from "@murmur/shared/client";
 import { api } from "./api";
 
 /** Marks a book or episode finished, or resets it to the start. */

@@ -1,4 +1,4 @@
-import type { ApiError } from "@murmur/shared";
+import type { ApiError } from "@murmur/shared/client";
 
 /** Same-origin JSON call that throws the server's error message on failure. */
 export async function api<T>(path: string, init?: { method?: string; body?: unknown; keepalive?: boolean }): Promise<T> {

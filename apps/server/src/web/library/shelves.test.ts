@@ -1,4 +1,4 @@
-import type { BookSummary } from "@murmur/shared";
+import type { BookSummary } from "@murmur/shared/client";
 import { expect, it } from "vitest";
 import { nextInSeries, notStarted } from "./shelves";
 

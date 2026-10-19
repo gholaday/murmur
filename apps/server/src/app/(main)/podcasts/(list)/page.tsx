@@ -1,5 +1,5 @@
 import { getContext } from "@/server/context";
-import { listContinueEpisodes, listNewEpisodes, listPodcasts } from "@/server/podcasts/queries";
+import { listContinueEpisodes, listNewEpisodes, listPodcasts, shortNotes } from "@/server/podcasts/queries";
 import { requirePageUser } from "@/server/session";
 import { PodcastsView } from "@/web/podcasts/podcasts-view";
 
@@ -11,5 +11,7 @@ export default async function PodcastsPage() {
     listContinueEpisodes(sqlite, user.id, 20),
     listNewEpisodes(sqlite, user.id, 50),
   ]);
-  return <PodcastsView podcasts={podcasts} continueEpisodes={continueEpisodes} newEpisodes={newEpisodes} />;
+  return (
+    <PodcastsView podcasts={podcasts} continueEpisodes={shortNotes(continueEpisodes)} newEpisodes={shortNotes(newEpisodes)} />
+  );
 }

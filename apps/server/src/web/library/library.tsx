@@ -14,7 +14,7 @@ import {
   sortBooks,
   type BookSort as Sort,
   timeLeft,
-} from "@murmur/shared";
+} from "@murmur/shared/client";
 import { Cover } from "../cover";
 import { BackIcon, FilterIcon, SearchIcon } from "../icons";
 import { EditBookDialog, type EditTab } from "../book/edit-dialog";

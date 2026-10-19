@@ -378,6 +378,9 @@ img.cover.pending { opacity: 0; }
 
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 @media (min-width: 600px) { .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; } }
+/* A big library's All books grid has hundreds of cards; skip laying out and painting the ones
+   off screen. "auto" remembers each card's real height once it has been shown. */
+.grid > .card { content-visibility: auto; contain-intrinsic-size: auto 240px; }
 /* One row of cards that scrolls sideways once it runs out of room: three across on phones, like .grid. No snapping. */
 .shelf {
   display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 24px) / 3); gap: 12px;

@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { toast } from "sonner";
-import { apiPaths, type BookDetail, duration, plural, timeLeft } from "@murmur/shared";
+import { apiPaths, type BookDetail, type ChapterDto, duration, plural, timeLeft } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { BackIcon, CheckIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "../icons";
@@ -16,12 +16,13 @@ import { EditBookDialog, type EditTab } from "./edit-dialog";
 export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean }) {
   const router = useRouter();
   const player = usePlayer();
-  const livePosition = usePosition();
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState<EditTab | null>(null);
   const [expanded, setExpanded] = useState(false);
 
   const current = player.isCurrent("book", book.id);
+  // Only follow the playhead while this book is the one playing.
+  const livePosition = usePosition(current);
   const finished = !!book.progress?.finished && !current;
   const position = current ? livePosition : book.progress && !book.progress.finished ? book.progress.positionSec : 0;
   const started = position > 5;
@@ -29,6 +30,8 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
   const currentChapter = started || current ? chapterAt(book.chapters, position) : -1;
   const queued = player.queue.some((q) => q.itemType === "book" && q.itemId === book.id);
   const playable = () => bookToPlayable(book);
+  const { play } = player;
+  const playChapter = useCallback((startSec: number) => play(bookToPlayable(book), startSec), [play, book]);
 
   const onPlay = () => {
     if (current) return player.toggle();
@@ -186,27 +189,7 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
       ) : null}
 
       {book.chapters.length > 1 ? (
-        <section className="section">
-          <div className="section-head">
-            <h2 className="section-title">Chapters</h2>
-            <span className="muted small">{book.chapters.length}</span>
-          </div>
-          <ol className="chapter-list">
-            {book.chapters.map((c, i) => (
-              <li key={c.index} className={i < currentChapter ? "done" : ""}>
-                <button
-                  type="button"
-                  aria-current={i === currentChapter || undefined}
-                  onClick={() => player.play(playable(), c.startSec)}
-                >
-                  <span className="chapter-num">{i + 1}</span>
-                  <span className="chapter-title">{c.title}</span>
-                  <span className="muted small">{duration(c.endSec - c.startSec)}</span>
-                </button>
-              </li>
-            ))}
-          </ol>
-        </section>
+        <ChapterList chapters={book.chapters} currentChapter={currentChapter} onPlay={playChapter} />
       ) : null}
 
       <Sheet open={menu} onClose={() => setMenu(false)} title={book.title}>
@@ -257,11 +240,12 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
         ) : null}
       </Sheet>
 
-      {isAdmin ? (
+      {isAdmin && editing ? (
         <EditBookDialog
+          key={editing}
           bookId={book.id}
-          open={editing !== null}
-          tab={editing ?? "details"}
+          open
+          tab={editing}
           onClose={() => setEditing(null)}
           onChanged={() => router.refresh()}
         />
@@ -269,3 +253,37 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
     </>
   );
 }
+
+/**
+ * Memoized so a long book's chapter list redraws when the chapter changes, not on every
+ * playhead tick while the rest of the page follows the time.
+ */
+const ChapterList = memo(function ChapterList({
+  chapters,
+  currentChapter,
+  onPlay,
+}: {
+  chapters: ChapterDto[];
+  currentChapter: number;
+  onPlay: (startSec: number) => void;
+}) {
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2 className="section-title">Chapters</h2>
+        <span className="muted small">{chapters.length}</span>
+      </div>
+      <ol className="chapter-list">
+        {chapters.map((c, i) => (
+          <li key={c.index} className={i < currentChapter ? "done" : ""}>
+            <button type="button" aria-current={i === currentChapter || undefined} onClick={() => onPlay(c.startSec)}>
+              <span className="chapter-num">{i + 1}</span>
+              <span className="chapter-title">{c.title}</span>
+              <span className="muted small">{duration(c.endSec - c.startSec)}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+});

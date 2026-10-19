@@ -2,10 +2,10 @@
 
 import { toast } from "sonner";
 import { useState } from "react";
-import { apiPaths, duration, plural, type QueueEntry, type QueueRef, timeLeft } from "@murmur/shared";
+import { apiPaths, duration, plural, type QueueEntry, type QueueRef, timeLeft } from "@murmur/shared/client";
 import { Cover } from "./cover";
 import { CloseIcon, DragIcon, PlayIcon } from "./icons";
-import { chapterAt, usePlayer, usePosition } from "./player/engine";
+import { chapterAt, type Playable, usePlayer, usePosition } from "./player/engine";
 import { QueueRowsSkeleton } from "./skeletons";
 import { useSortable } from "./sortable";
 
@@ -37,9 +37,45 @@ function entryView(e: QueueEntry) {
 
 const toRef = (e: QueueEntry): QueueRef => ({ itemType: e.itemType, itemId: e.itemId });
 
+/** Its own component so the playhead ticks redraw this card, not the whole queue below it. */
+function NowPlayingCard({ item, onOpen }: { item: Playable; onOpen: () => void }) {
+  const position = usePosition();
+  const nowChapter = item.chapters[chapterAt(item.chapters, position)];
+  return (
+    <section className="section" style={{ marginTop: 0 }}>
+      <div className="eyebrow">Now playing</div>
+      <button
+        type="button"
+        className="now-card"
+        style={{ "--tint": item.color ?? undefined } as React.CSSProperties}
+        onClick={onOpen}
+      >
+        <Cover src={item.coverUrl} color={item.color} title={item.title} />
+        <span className="list-row-main">
+          <span className="list-row-title">{item.title}</span>
+          <span className="list-row-sub">
+            {[nowChapter?.title ?? item.subtitle, item.durationSec ? timeLeft(item.durationSec, position) : null]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+          <span className="bar" style={{ marginTop: 4 }}>
+            <span
+              style={{
+                display: "block",
+                height: "100%",
+                background: "var(--accent)",
+                width: `${item.durationSec ? Math.min(100, (position / item.durationSec) * 100) : 0}%`,
+              }}
+            />
+          </span>
+        </span>
+      </button>
+    </section>
+  );
+}
+
 export function UpNextView() {
   const player = usePlayer();
-  const position = usePosition();
   const { item } = player;
   // Shown right away while the server saves, so a dropped row doesn't jump back first.
   const [pending, setPending] = useState<QueueEntry[] | null>(null);
@@ -67,7 +103,6 @@ export function UpNextView() {
   const sortable = useSortable(move);
 
   const total = queue.reduce((sum, e) => sum + entryView(e).remaining, 0);
-  const nowChapter = item ? item.chapters[chapterAt(item.chapters, position)] : undefined;
 
   return (
     <>
@@ -98,37 +133,7 @@ export function UpNextView() {
         ) : null}
       </div>
 
-      {item ? (
-        <section className="section" style={{ marginTop: 0 }}>
-          <div className="eyebrow">Now playing</div>
-          <button
-            type="button"
-            className="now-card"
-            style={{ "--tint": item.color ?? undefined } as React.CSSProperties}
-            onClick={() => player.setExpanded(true)}
-          >
-            <Cover src={item.coverUrl} color={item.color} title={item.title} />
-            <span className="list-row-main">
-              <span className="list-row-title">{item.title}</span>
-              <span className="list-row-sub">
-                {[nowChapter?.title ?? item.subtitle, item.durationSec ? timeLeft(item.durationSec, position) : null]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </span>
-              <span className="bar" style={{ marginTop: 4 }}>
-                <span
-                  style={{
-                    display: "block",
-                    height: "100%",
-                    background: "var(--accent)",
-                    width: `${item.durationSec ? Math.min(100, (position / item.durationSec) * 100) : 0}%`,
-                  }}
-                />
-              </span>
-            </span>
-          </button>
-        </section>
-      ) : null}
+      {item ? <NowPlayingCard item={item} onOpen={() => player.setExpanded(true)} /> : null}
 
       <section className="section">
         {queue.length || !player.queueLoaded ? <div className="eyebrow">Next</div> : null}

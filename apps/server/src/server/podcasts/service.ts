@@ -212,7 +212,8 @@ export function createPodcastService(deps: Deps) {
     }
     if (result.kind !== "ok") throw new HttpError(400, "The feed returned no content.");
     previews.set(url, { at: Date.now(), feed: result.feed });
-    if (previews.size > 50) previews.delete(previews.keys().next().value!);
+    // A big feed parses to many megabytes of episode notes, so keep only a handful.
+    if (previews.size > 8) previews.delete(previews.keys().next().value!);
     return result.feed;
   }
 

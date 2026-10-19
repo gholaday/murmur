@@ -226,8 +226,10 @@ export interface PodcastSummary {
 export interface PodcastSearchResult {
   title: string;
   author: string | null;
-  /** Artwork on the directory's CDN, shown as-is in results. */
+  /** Artwork on the directory's CDN, 600px, for a preview page. */
   artworkUrl: string | null;
+  /** The same artwork at 100px, for result rows. */
+  thumbUrl: string | null;
   feedUrl: string;
   episodeCount: number | null;
   /** Your podcast's id when you already follow this feed. */
@@ -273,6 +275,11 @@ export interface EpisodeDto {
   title: string;
   /** Plain text; feed HTML is stripped on the server. */
   description: string | null;
+  /**
+   * Set when lists were asked for short notes (`?short=1`) and `description` was cut;
+   * fetch `GET /api/episodes/:id` for the full text.
+   */
+  descriptionCut?: boolean;
   publishedAt: number;
   durationSec: number | null;
   /** The publisher's URL. Play through `episodeUrl`, which relays it through the server. */
@@ -433,18 +440,7 @@ export interface ApiError {
   error: string;
 }
 
-// ---------- URL helpers shared by web and app ----------
-
-export const apiPaths = {
-  coverUrl: (bookId: string, coverHash: string, size: 200 | 600) =>
-    `/api/books/${bookId}/cover?size=${size}&h=${coverHash}`,
-  bookFileUrl: (bookId: string, fileIndex: number) =>
-    `/api/stream/book/${bookId}/${fileIndex}`,
-  podcastCoverUrl: (podcastId: string, coverHash: string, size: 200 | 600) =>
-    `/api/podcasts/${podcastId}/cover?size=${size}&h=${coverHash}`,
-  /** Relays the publisher's audio through the server; supports range requests. */
-  episodeUrl: (episodeId: string) => `/api/stream/episode/${episodeId}`,
-};
+export * from "./api-paths";
 export * from "./format";
 export * from "./library";
 export * from "./shelves";

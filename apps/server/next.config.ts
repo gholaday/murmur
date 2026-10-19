@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(import.meta.dirname, "../../"),
   transpilePackages: ["@murmur/shared"],
   // Native modules must be loaded from node_modules at runtime, not bundled.
-  serverExternalPackages: ["better-sqlite3", "sharp", "@node-rs/argon2"],
+  serverExternalPackages: ["better-sqlite3", "sharp", "@node-rs/argon2", "music-metadata", "strtok3"],
   poweredByHeader: false,
   images: { unoptimized: true },
   // Profile was renamed Settings; keep old bookmarks working.

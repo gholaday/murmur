@@ -4,6 +4,7 @@ import type { PodcastService } from "./service";
 import { env } from "../env";
 import { HttpError } from "../http";
 import { createLogger, errorMessage } from "../log";
+import { SHORT_NOTES } from "./queries";
 
 const log = createLogger("podcast-search");
 const TIMEOUT_MS = 8_000;
@@ -55,6 +56,7 @@ async function searchApple(term: string): Promise<Found[]> {
       title: r.collectionName,
       author: r.artistName ?? null,
       artworkUrl: r.artworkUrl600 ?? r.artworkUrl100 ?? null,
+      thumbUrl: r.artworkUrl100 ?? r.artworkUrl600 ?? null,
       feedUrl: r.feedUrl,
       episodeCount: r.trackCount ?? null,
     });
@@ -107,7 +109,9 @@ export async function previewPodcast(
     episodes: episodes.slice(0, PREVIEW_EPISODES).map((e) => ({
       guid: e.guid,
       title: e.title,
-      description: e.description,
+      // A preview row shows one line of notes and can't open more; up to 100 full notes
+      // made a preview hundreds of KB.
+      description: e.description?.slice(0, SHORT_NOTES) ?? null,
       publishedAt: e.publishedAt,
       durationSec: e.durationSec,
     })),

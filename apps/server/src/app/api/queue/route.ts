@@ -1,13 +1,13 @@
 import { queueAddSchema, queueReplaceSchema } from "@murmur/shared";
 import { requireUser } from "@/server/auth";
 import { getContext } from "@/server/context";
-import { json, readJson, route } from "@/server/http";
+import { json, jsonWithEtag, readJson, route } from "@/server/http";
 import { addToQueue, getQueue, replaceQueue } from "@/server/queue";
 
 export const GET = route(async (req) => {
   const ctx = await getContext();
   const user = requireUser(ctx, req);
-  return json(await getQueue(ctx, user.id));
+  return jsonWithEtag(req, await getQueue(ctx, user.id));
 });
 
 /** Adds one item, to play next or last. */

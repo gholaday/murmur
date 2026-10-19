@@ -1,7 +1,7 @@
 import type { QueueEntry, QueueRef } from "@murmur/shared";
 import { booksByIds } from "./books";
 import type { AppContext } from "./context";
-import { episodesByIds } from "./podcasts/queries";
+import { episodesByIds, shortNotes } from "./podcasts/queries";
 
 /**
  * The queue with each item's details. Items whose book or episode no longer exists
@@ -15,7 +15,8 @@ export async function getQueue(ctx: AppContext, userId: number): Promise<QueueEn
     (await booksByIds(ctx, refs.filter((r) => r.itemType === "book").map((r) => r.itemId), userId)).map((b) => [b.id, b]),
   );
   const episodes = new Map(
-    (await episodesByIds(ctx.sqlite, refs.filter((r) => r.itemType === "episode").map((r) => r.itemId), userId)).map(
+    // Queue rows never show the notes, and the whole queue is sent back after every change.
+    shortNotes(await episodesByIds(ctx.sqlite, refs.filter((r) => r.itemType === "episode").map((r) => r.itemId), userId)).map(
       (e) => [e.id, e],
     ),
   );

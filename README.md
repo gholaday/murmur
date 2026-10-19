@@ -58,7 +58,7 @@ Health check: `GET /api/health`.
 
 ## Development
 
-Needs Node 24+, pnpm and ffmpeg (with ffprobe) on the PATH.
+Needs Node 24+ and pnpm.
 
 ```bash
 pnpm install

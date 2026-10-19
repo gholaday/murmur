@@ -1,4 +1,4 @@
-import type { BookSummary } from "@murmur/shared";
+import type { BookSummary } from "@murmur/shared/client";
 
 /** The rows at the top of the Books tab. Each heading opens its full list (`?shelf=`). */
 export type ShelfId = "continue" | "next" | "added" | "unstarted";

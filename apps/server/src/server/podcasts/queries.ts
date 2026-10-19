@@ -143,6 +143,22 @@ async function withShow(rows: EpisodeWithShowRow[]): Promise<EpisodeWithShow[]> 
   }));
 }
 
+/** Enough notes for a list row's one-line preview. */
+export const SHORT_NOTES = 200;
+
+/**
+ * Cuts episode notes down for lists, where a row shows one line. Show notes can run to
+ * 20k characters each, so a long show's full list was megabytes; the row fetches the
+ * full text from `GET /api/episodes/:id` when it's expanded.
+ */
+export function shortNotes<T extends EpisodeDto>(episodes: T[]): T[] {
+  return episodes.map((e) =>
+    e.description && e.description.length > SHORT_NOTES
+      ? { ...e, description: e.description.slice(0, SHORT_NOTES), descriptionCut: true }
+      : e,
+  );
+}
+
 export function listEpisodes(sqlite: Sqlite, podcastId: string, userId: number): EpisodeDto[] {
   const rows = sqlite
     .prepare(`SELECT ${EPISODE_COLUMNS} FROM episodes e ${EPISODE_JOINS} WHERE e.podcast_id = ? ORDER BY e.published_at DESC`)

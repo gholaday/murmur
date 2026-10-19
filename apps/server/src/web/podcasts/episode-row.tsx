@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
-import { apiPaths, duration, type EpisodeWithShow, shortDate, timeLeft } from "@murmur/shared";
+import { apiPaths, duration, type EpisodeWithShow, shortDate, timeLeft } from "@murmur/shared/client";
+import { api } from "../api";
 import { Cover } from "../cover";
 import { PauseIcon, PlayedIcon, PlayIcon, PlayNextIcon, QueueAddIcon } from "../icons";
 import { episodeToPlayable, usePlayer, usePosition } from "../player/engine";
@@ -23,11 +24,25 @@ export function EpisodeRow({
   onChanged?: () => void;
 }) {
   const player = usePlayer();
-  const live = usePosition();
+  const current = player.isCurrent("episode", episode.id);
+  const live = usePosition(current);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Lists carry only the start of long notes; the rest loads when the row is expanded.
+  const [fullNotes, setFullNotes] = useState<string | null>(null);
 
-  const current = player.isCurrent("episode", episode.id);
+  const toggleNotes = () => {
+    setOpen((o) => !o);
+    if (!open && episode.descriptionCut && fullNotes === null) {
+      api<EpisodeWithShow>(`/api/episodes/${episode.id}`)
+        .then((e) => setFullNotes(e.description ?? ""))
+        .catch(() => {
+          // The excerpt stays; nothing else to do.
+        });
+    }
+  };
+  const notes = fullNotes ?? episode.description;
+
   const played = !!episode.progress?.finished && !current;
   const dur = (current ? player.item?.durationSec : null) || episode.durationSec || 0;
   const position = current ? live : episode.progress && !episode.progress.finished ? episode.progress.positionSec : 0;
@@ -105,9 +120,9 @@ export function EpisodeRow({
             <span className="episode-date">{shortDate(episode.publishedAt)}</span>
           </span>
           {/* The title and description expand the notes in place. */}
-          <button type="button" className="episode-text" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+          <button type="button" className="episode-text" onClick={toggleNotes} aria-expanded={open}>
             <span className="episode-title">{episode.title}</span>
-            {episode.description ? <span className="episode-desc">{episode.description}</span> : null}
+            {notes ? <span className="episode-desc">{notes}</span> : null}
           </button>
         </div>
         <div className="episode-actions">

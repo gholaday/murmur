@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Cover } from "../cover";
-import { clock, duration, timeLeft } from "@murmur/shared";
+import { clock, duration, timeLeft } from "@murmur/shared/client";
 import {
   DownIcon,
   ListIcon,

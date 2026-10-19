@@ -23,8 +23,6 @@ export interface ScannerDeps {
   /** The library folders to read, looked up at the start of every scan. */
   folders: () => LibraryFolder[];
   coversDir: string;
-  ffprobePath: string;
-  ffmpegPath: string;
   probeConcurrency: number;
   missingGraceMs: number;
   log: Logger;
@@ -180,7 +178,7 @@ export function createScanner(deps: ScannerDeps) {
       }
       const withArt = audio.find((a) => a.probe.hasEmbeddedCover);
       if (withArt) {
-        const bytes = await extractEmbeddedCover(deps.ffmpegPath, path.join(found.root, withArt.relPath));
+        const bytes = await extractEmbeddedCover(path.join(found.root, withArt.relPath));
         if (bytes) return await storeCover(deps.coversDir, bytes);
       }
     } catch (err) {
@@ -195,7 +193,7 @@ export function createScanner(deps: ScannerDeps) {
     try {
       audio = await Promise.all(
         found.audio.map((f) =>
-          limit(async () => ({ ...f, probe: await probeFile(deps.ffprobePath, path.join(found.root, f.relPath)) })),
+          limit(async () => ({ ...f, probe: await probeFile(path.join(found.root, f.relPath)) })),
         ),
       );
     } catch (err) {

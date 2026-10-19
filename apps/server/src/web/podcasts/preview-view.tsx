@@ -10,7 +10,7 @@ import {
   type PodcastPreviewEpisode,
   type PodcastSummary,
   shortDate,
-} from "@murmur/shared";
+} from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { BackIcon, PlusIcon } from "../icons";

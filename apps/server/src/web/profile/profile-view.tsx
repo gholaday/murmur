@@ -3,7 +3,7 @@
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { shortDate, type FolderBrowseDto, type FolderCheckDto, type LibraryFolderDto, type UserDto } from "@murmur/shared";
+import { shortDate, type FolderBrowseDto, type FolderCheckDto, type LibraryFolderDto, type UserDto } from "@murmur/shared/client";
 import { api } from "../api";
 import { BackIcon, FolderIcon, PlusIcon } from "../icons";
 import { usePlayer } from "../player/engine";

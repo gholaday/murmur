@@ -1,10 +1,15 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import sharp from "sharp";
+import sharp, { type OutputInfo } from "sharp";
 
 export const COVER_SIZES = [200, 600] as const;
 export type CoverSize = (typeof COVER_SIZES)[number];
+const LARGEST = Math.max(...COVER_SIZES);
+
+// Covers are written to disk once and served from there, so libvips' in-memory operation
+// cache only holds memory. Keep it off.
+sharp.cache(false);
 
 export function coverFile(coversDir: string, hash: string, size: CoverSize): string {
   return path.join(coversDir, `${hash}-${size}.webp`);
@@ -88,9 +93,26 @@ export async function coverColors(coversDir: string, hashes: Iterable<string | n
 export async function storeCover(coversDir: string, source: Buffer): Promise<string> {
   const hash = crypto.createHash("sha1").update(source).digest("hex").slice(0, 16);
   await fs.mkdir(coversDir, { recursive: true });
+
+  // Decode the source once, straight down to the largest served size; podcast artwork is
+  // often 3000px, and decoding that for every step costs far more memory than the outputs.
+  let base: { data: Buffer; info: OutputInfo } | null = null;
+  const fromBase = async () => {
+    base ??= await sharp(source, { failOn: "none" })
+      .rotate()
+      .resize(LARGEST, LARGEST, { fit: "cover", withoutEnlargement: false })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const { width, height, channels } = base.info;
+    return sharp(base.data, { raw: { width, height, channels } });
+  };
+
   if (!(await coverMeta(coversDir, hash))?.sourceWidth) {
+    // Reads only the header.
     const { width } = await sharp(source, { failOn: "none" }).metadata();
-    const meta: CoverMeta = { color: await dominantColor(source), sourceWidth: width ?? null };
+    const { dominant } = await (await fromBase()).stats();
+    const color = `#${[dominant.r, dominant.g, dominant.b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+    const meta: CoverMeta = { color, sourceWidth: width ?? null };
     await fs.writeFile(metaFile(coversDir, hash), JSON.stringify(meta));
     metaCache.set(hash, meta);
   }
@@ -103,11 +125,8 @@ export async function storeCover(coversDir: string, source: Buffer): Promise<str
       // not cached yet
     }
     const tmp = `${out}.${process.pid}.tmp`;
-    await sharp(source, { failOn: "none" })
-      .rotate()
-      .resize(size, size, { fit: "cover", withoutEnlargement: false })
-      .webp({ quality: 82 })
-      .toFile(tmp);
+    const img = await fromBase();
+    await (size === LARGEST ? img : img.resize(size, size)).webp({ quality: 82 }).toFile(tmp);
     await fs.rename(tmp, out);
   }
   return hash;

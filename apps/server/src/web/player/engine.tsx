@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   apiPaths,
   type BookDetail,
@@ -11,7 +11,7 @@ import {
   type ProgressItem,
   type QueueEntry,
   type QueueRef,
-} from "@murmur/shared";
+} from "@murmur/shared/client";
 import { api } from "../api";
 
 const SAVE_EVERY_MS = 10_000;
@@ -130,7 +130,29 @@ interface PlayerApi {
 }
 
 const PlayerContext = createContext<PlayerApi | null>(null);
-const PositionContext = createContext(0);
+
+/**
+ * The playhead, which changes several times a second. It lives outside React state so a
+ * tick re-renders only the components that ask for it, not everything under the player.
+ */
+const positionStore = (() => {
+  let value = 0;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => value,
+    set(next: number) {
+      if (next === value) return;
+      value = next;
+      for (const l of listeners) l();
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+  };
+})();
+const zero = () => 0;
+const ignore = () => () => {};
 
 export function usePlayer(): PlayerApi {
   const ctx = useContext(PlayerContext);
@@ -138,9 +160,12 @@ export function usePlayer(): PlayerApi {
   return ctx;
 }
 
-/** Current position in seconds; only components that show time should subscribe. */
-export function usePosition(): number {
-  return useContext(PositionContext);
+/**
+ * Current position in seconds. Pass `false` when this component isn't showing the current
+ * item, so long lists don't re-render on every tick; it then reads 0.
+ */
+export function usePosition(enabled = true): number {
+  return useSyncExternalStore(enabled ? positionStore.subscribe : ignore, enabled ? positionStore.get : zero, zero);
 }
 
 export function chapterAt(chapters: ChapterDto[], position: number): number {
@@ -173,7 +198,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const sleepRef = useRef<SleepTimer>({ mode: "off" });
 
   const [item, setItem] = useState<Playable | null>(null);
-  const [position, setPosition] = useState(0);
+  const setPosition = positionStore.set;
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -623,8 +648,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <PlayerContext.Provider value={value}>
-      <PositionContext.Provider value={position}>
-        {children}
+      {children}
         <audio
           ref={audio}
           preload="metadata"
@@ -689,7 +713,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             setError("Couldn't play this. Check your connection and try again.");
           }}
         />
-      </PositionContext.Provider>
     </PlayerContext.Provider>
   );
 }

@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.7
 
-# ---------- runtime-base: Node and ffmpeg (ffprobe reads tags, chapters and durations) ----------
+# ---------- runtime-base: Node (tags, chapters and durations are read in-process, no ffmpeg) ----------
 FROM node:24-alpine AS runtime-base
-RUN apk add --no-cache ffmpeg libc6-compat
+RUN apk add --no-cache libc6-compat
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
 
@@ -24,10 +24,19 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lo
 FROM deps AS build
 COPY . .
 RUN pnpm --filter @murmur/server test && pnpm --filter @murmur/server build
+# The install also pulls the glibc builds of sharp and argon2; on Alpine only the musl ones
+# load. Pruned here, before the copy, since deleting in a later layer wouldn't shrink the image.
+RUN cd apps/server/.next/standalone/node_modules/.pnpm \
+ && rm -rf @img+sharp-linux-* @img+sharp-libvips-linux-* @node-rs+argon2-linux-*-gnu@*
 
-# ---------- runtime ----------
-FROM runtime-base AS runner
-RUN apk add --no-cache tini su-exec
+# ---------- runtime: plain Alpine plus the node binary ----------
+# The Node image also carries npm, yarn and corepack (~25 MB), which nothing runs here.
+# Keep this Alpine version in step with the one node:24-alpine is built on.
+FROM alpine:3.24 AS runner
+RUN apk add --no-cache libc6-compat libstdc++ libgcc tini su-exec
+COPY --from=runtime-base /usr/local/bin/node /usr/local/bin/node
+ENV NEXT_TELEMETRY_DISABLED=1
+WORKDIR /app
 ARG MURMUR_VERSION=dev
 ENV NODE_ENV=production \
     MURMUR_VERSION=$MURMUR_VERSION \

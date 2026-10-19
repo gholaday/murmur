@@ -3,22 +3,45 @@
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { apiPaths, type EpisodeDto, type EpisodeWithShow, plural, type PodcastDetail, shortDate } from "@murmur/shared";
+import { apiPaths, type EpisodeDto, type EpisodeWithShow, plural, type PodcastDetail, shortDate } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { BackIcon, CheckIcon, MoreIcon } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
-const PAGE = 50;
-
-export function ShowView({ podcast, episodes }: { podcast: PodcastDetail; episodes: EpisodeDto[] }) {
+export function ShowView({
+  podcast,
+  pageSize,
+  firstPage,
+}: {
+  podcast: PodcastDetail;
+  /** Episodes shown per page; `firstPage` holds the newest page. */
+  pageSize: number;
+  firstPage: EpisodeDto[];
+}) {
   const router = useRouter();
   const [oldestFirst, setOldestFirst] = useState(false);
-  const [limit, setLimit] = useState(PAGE);
+  const [limit, setLimit] = useState(pageSize);
   const [sheet, setSheet] = useState<null | "menu" | "unsubscribe">(null);
   const [busy, setBusy] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  // Every episode, fetched the first time you need more than the first page.
+  const [all, setAll] = useState<EpisodeDto[] | null>(null);
+  const complete = all !== null || firstPage.length >= podcast.episodeCount;
+  const episodes = all ?? firstPage;
+
+  const loadAll = async () => {
+    try {
+      setAll(await api<EpisodeDto[]>(`/api/podcasts/${podcast.id}/episodes?short=1`));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't load the episodes.");
+    }
+  };
+  const changed = () => {
+    router.refresh();
+    if (all) void loadAll();
+  };
 
   const withShow: EpisodeWithShow[] = useMemo(
     () =>
@@ -31,14 +54,18 @@ export function ShowView({ podcast, episodes }: { podcast: PodcastDetail; episod
       })),
     [episodes, podcast],
   );
-  const visible = useMemo(() => (oldestFirst ? [...withShow].reverse() : withShow), [withShow, oldestFirst]);
+  // Oldest first waits for the full list, so it never shows the first page backwards.
+  const visible = useMemo(
+    () => (oldestFirst && complete ? [...withShow].reverse() : withShow),
+    [withShow, oldestFirst, complete],
+  );
 
   const run = async (fn: () => Promise<unknown>, done?: string) => {
     setBusy(true);
     try {
       await fn();
       if (done) toast(done);
-      router.refresh();
+      changed();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -107,7 +134,14 @@ export function ShowView({ podcast, episodes }: { podcast: PodcastDetail; episod
 
       <div className="subtabs">
         <h2 className="subtab subtab-static">Episodes</h2>
-        <button type="button" className="muted small" onClick={() => setOldestFirst((o) => !o)}>
+        <button
+          type="button"
+          className="muted small"
+          onClick={() => {
+            if (!complete) void loadAll();
+            setOldestFirst((o) => !o);
+          }}
+        >
           {oldestFirst ? "Oldest first" : "Newest first"}
         </button>
       </div>
@@ -117,12 +151,19 @@ export function ShowView({ podcast, episodes }: { podcast: PodcastDetail; episod
       ) : (
         <div>
           {visible.slice(0, limit).map((e) => (
-            <EpisodeRow key={e.id} episode={e} onChanged={() => router.refresh()} />
+            <EpisodeRow key={e.id} episode={e} onChanged={changed} />
           ))}
-          {visible.length > limit ? (
+          {(complete ? visible.length : podcast.episodeCount) > limit ? (
             <div style={{ textAlign: "center", padding: 16 }}>
-              <button type="button" className="btn" onClick={() => setLimit((l) => l + PAGE)}>
-                Show more ({visible.length - limit} left)
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  if (!complete) void loadAll();
+                  setLimit((l) => l + pageSize);
+                }}
+              >
+                Show more ({(complete ? visible.length : podcast.episodeCount) - limit} left)
               </button>
             </div>
           ) : null}

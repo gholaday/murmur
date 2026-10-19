@@ -65,7 +65,7 @@ TypeScript everywhere: Next.js for the server and web UI, SQLite for storage, Ex
 | Server and web UI | Next.js (App Router), self-hosted with `standalone` output | Familiar; route handlers serve the API, pages serve the web player |
 | Database | SQLite via `better-sqlite3` + Drizzle ORM | A single file in `/data`; typed queries and migrations |
 | Background jobs | Started from `instrumentation.ts` with `node-cron` and `chokidar` | Feed checks and library watching inside the same process |
-| Audio metadata | `ffprobe` (bundled in the image) + `music-metadata` | Reads tags, duration and chapters from m4b and mp3 |
+| Audio metadata | `music-metadata` (pure JavaScript, no ffmpeg) | Reads tags, duration, chapters and embedded covers from m4b, mp3, flac and ogg/opus |
 | RSS | `rss-parser` | Parses podcast feeds and iTunes tags |
 | Auth | Session cookie for web, bearer token for the app; passwords hashed with argon2 | Simple, no external provider |
 | Web styling | Tailwind CSS | Quick to build a Pocket Casts-like look |
@@ -141,7 +141,7 @@ The app is small, so the bar is high: every screen opens instantly, playback sta
 | Playback start, LAN / through Cloudflare | under 1 s / under 2 s |
 | Full rescan, nothing changed | under 5 s |
 | Memory at idle | under 200 MB |
-| Docker image size | under 450 MB (Node is 175 MB and ffmpeg 135 MB of that) |
+| Docker image size | under 350 MB (the Node binary is about 125 MB of that) |
 | App: library screen open, cached | under 300 ms, works offline |
 
 **Server speed**
@@ -150,7 +150,7 @@ The app is small, so the bar is high: every screen opens instantly, playback sta
 - No transcoding: audio is streamed byte for byte with range requests, so playback costs almost no CPU.
 - Covers are resized once at scan time (200 px and 600 px WebP) and served with a content hash in the URL and a one-year immutable cache header; Cloudflare and the phone cache them for good.
 - JSON responses carry ETags, so unchanged data returns `304 Not Modified` with no body.
-- Incremental scans: only files whose size or modified time changed are probed again. `ffprobe` runs at most 2 at a time so a big import doesn't swamp the NAS.
+- Incremental scans: only files whose size or modified time changed are probed again. At most 2 files are read at a time so a big import doesn't swamp the NAS.
 - Progress updates are tiny writes, debounced on the client to one every 10 s plus on pause.
 
 **App speed**
@@ -215,7 +215,7 @@ Metadata comes from your files first; an optional Match button fills gaps from o
 | Series and position | Series folder and the leading number in the title folder, then the grouping tag |
 | Description | `desc.txt`, then the comment or description tag |
 | Year | Date tag |
-| Duration and chapters | `ffprobe` on the audio files |
+| Duration and chapters | `music-metadata` on the audio files (constant-bitrate MP3 lengths from size and bitrate) |
 | Cover | `cover.jpg` or `cover.png`, then any image in the folder, then embedded art |
 
 **Layer 2: online match, on demand** (built in phase 3, admin only)
@@ -307,7 +307,7 @@ Deploying is one Portainer stack with two volumes, reached through the existing 
 | `/audiobooks` | The existing audiobook library (`LIBRARY_DIR`, the first library folder) | Read-only: the app never writes to or renames your files. Mount more folders and add them in Settings |
 | `/data` | SQLite database and cover cache | The only thing to back up |
 
-**Image:** a GitHub Actions workflow builds a multi-arch image (amd64 and arm64) with `ffprobe` included and pushes it to GitHub Container Registry on each tagged release.
+**Image:** a GitHub Actions workflow builds a multi-arch image (amd64 and arm64) and pushes it to GitHub Container Registry on each tagged release.
 
 **Cloudflare:** point the tunnel's public hostname at `http://<nas-ip>:3333`. Streaming uses normal HTTP range requests, which work through the tunnel. Cloudflare Access can sit in front of the web UI, but the app needs a bypass rule for `/api/*` because it can't complete the Access login.
 
@@ -319,7 +319,7 @@ Deploying is one Portainer stack with two volumes, reached through the existing 
 
 ## Local development
 
-Run `pnpm install` once, then `pnpm dev` and open http://localhost:3000. `apps/server/.env.development` points the database and covers at the repo's git-ignored `data/` folder and the library at `data/audiobooks`. ffmpeg must be on the PATH. Docker is only used for the production image: on Windows a bind-mounted source folder delivers no file-change events, so hot reload inside a container is unreliable.
+Run `pnpm install` once, then `pnpm dev` and open http://localhost:3000. `apps/server/.env.development` points the database and covers at the repo's git-ignored `data/` folder and the library at `data/audiobooks`. Docker is only used for the production image: on Windows a bind-mounted source folder delivers no file-change events, so hot reload inside a container is unreliable.
 
 ## Non-goals and later ideas
 

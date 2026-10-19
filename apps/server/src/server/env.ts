@@ -34,6 +34,4 @@ export const env = {
   /** Books whose folder is gone stay visible (marked missing) for this long before being hidden. */
   missingGraceMs: intEnv("MISSING_GRACE_DAYS", 7) * 86_400_000,
   probeConcurrency: intEnv("PROBE_CONCURRENCY", 2),
-  ffprobePath: process.env.FFPROBE_PATH ?? "ffprobe",
-  ffmpegPath: process.env.FFMPEG_PATH ?? "ffmpeg",
 };

@@ -62,8 +62,6 @@ async function boot(): Promise<AppContext> {
     db,
     folders: () => listFolders(db),
     coversDir: env.coversDir,
-    ffprobePath: env.ffprobePath,
-    ffmpegPath: env.ffmpegPath,
     probeConcurrency: env.probeConcurrency,
     missingGraceMs: env.missingGraceMs,
     log: createLogger("scanner"),

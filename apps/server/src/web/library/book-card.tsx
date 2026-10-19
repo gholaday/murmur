@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, memo, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { apiPaths, type BookSummary } from "@murmur/shared";
+import { apiPaths, type BookSummary } from "@murmur/shared/client";
 import { api } from "../api";
 import type { EditTab } from "../book/edit-dialog";
 import { Cover } from "../cover";
@@ -21,7 +21,8 @@ export function progressPct(b: BookSummary): number {
 /** Lets cards offer the options menu; the library provides it, with one shared edit dialog. */
 export const BookActionsContext = createContext<{ isAdmin: boolean; edit: (bookId: string, tab: EditTab) => void } | null>(null);
 
-export function BookCard({ book, sub }: { book: BookSummary; sub?: string | null }) {
+/** Memoized: a library has hundreds of cards, and typing in search re-renders the grid. */
+export const BookCard = memo(function BookCard({ book, sub }: { book: BookSummary; sub?: string | null }) {
   const actions = useContext(BookActionsContext);
   const pct = progressPct(book);
   const started = !!book.progress && !book.progress.finished && pct > 0;
@@ -50,11 +51,9 @@ export function BookCard({ book, sub }: { book: BookSummary; sub?: string | null
       {actions ? <CardMenu book={book} isAdmin={actions.isAdmin} edit={actions.edit} /> : null}
     </div>
   );
-}
+});
 
 function CardMenu({ book, isAdmin, edit }: { book: BookSummary; isAdmin: boolean; edit: (bookId: string, tab: EditTab) => void }) {
-  const router = useRouter();
-  const player = usePlayer();
   // Where the menu sits on screen. It's rendered into <body> so a scrolling shelf doesn't clip it.
   const [pos, setPos] = useState<React.CSSProperties | null>(null);
   const open = pos !== null;
@@ -68,8 +67,6 @@ function CardMenu({ book, isAdmin, edit }: { book: BookSummary; isAdmin: boolean
   };
   const wrap = useRef<HTMLDivElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  const finished = !!book.progress?.finished;
-  const current = player.isCurrent("book", book.id);
 
   useEffect(() => {
     if (!open) return;
@@ -95,11 +92,6 @@ function CardMenu({ book, isAdmin, edit }: { book: BookSummary; isAdmin: boolean
     };
   }, [open]);
 
-  const choose = (fn: () => unknown) => () => {
-    setOpen(false);
-    void Promise.resolve(fn()).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Something went wrong."));
-  };
-
   return (
     <div className="card-menu" ref={wrap}>
       <button
@@ -114,65 +106,97 @@ function CardMenu({ book, isAdmin, edit }: { book: BookSummary; isAdmin: boolean
       </button>
       {pos ? createPortal(
         <div ref={menu} className="menu" role="menu" aria-label={`${book.title} options`} style={{ top: "auto", ...pos, position: "fixed", right: "auto", width: MENU_WIDTH }}>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={choose(() => (current ? player.toggle() : player.playRef({ itemType: "book", itemId: book.id }, finished ? 0 : undefined)))}
-          >
-            {current && player.playing ? "Pause" : started(book) ? "Continue" : "Play"}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            disabled={current}
-            onClick={choose(async () => {
-              await player.queueAdd({ itemType: "book", itemId: book.id }, "last");
-              toast("Added to Up Next");
-            })}
-          >
-            Add to Up Next
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={choose(async () => {
-              if (current) player.markCurrent(!finished);
-              await setFinished("book", book.id, book.durationSec, !finished);
-              toast(finished ? "Marked as not finished" : "Marked as finished");
-              router.refresh();
-            })}
-          >
-            {finished ? "Mark as not finished" : "Mark as finished"}
-          </button>
-          {isAdmin ? (
-            <>
-              <div className="menu-sep" role="separator" />
-              <button type="button" role="menuitem" onClick={choose(() => edit(book.id, "details"))}>
-                Edit details…
-              </button>
-              <button type="button" role="menuitem" onClick={choose(() => edit(book.id, "cover"))}>
-                Change cover…
-              </button>
-              <button type="button" role="menuitem" onClick={choose(() => edit(book.id, "match"))}>
-                Match metadata…
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={choose(async () => {
-                  await api(`/api/books/${book.id}/rescan`, { method: "POST" });
-                  toast("Rescanning. Changes show in a moment.");
-                  setTimeout(() => router.refresh(), 3000);
-                })}
-              >
-                Rescan files
-              </button>
-            </>
-          ) : null}
+          <CardMenuItems book={book} isAdmin={isAdmin} edit={edit} close={() => setOpen(false)} />
         </div>,
         document.body,
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The menu's contents, mounted only while it's open, so only an open menu follows the
+ * player; otherwise every card in the library re-rendered on each play, pause and queue change.
+ */
+function CardMenuItems({
+  book,
+  isAdmin,
+  edit,
+  close,
+}: {
+  book: BookSummary;
+  isAdmin: boolean;
+  edit: (bookId: string, tab: EditTab) => void;
+  close: () => void;
+}) {
+  const router = useRouter();
+  const player = usePlayer();
+  const finished = !!book.progress?.finished;
+  const current = player.isCurrent("book", book.id);
+
+  const choose = (fn: () => unknown) => () => {
+    close();
+    void Promise.resolve(fn()).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Something went wrong."));
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={choose(() => (current ? player.toggle() : player.playRef({ itemType: "book", itemId: book.id }, finished ? 0 : undefined)))}
+      >
+        {current && player.playing ? "Pause" : started(book) ? "Continue" : "Play"}
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        disabled={current}
+        onClick={choose(async () => {
+          await player.queueAdd({ itemType: "book", itemId: book.id }, "last");
+          toast("Added to Up Next");
+        })}
+      >
+        Add to Up Next
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={choose(async () => {
+          if (current) player.markCurrent(!finished);
+          await setFinished("book", book.id, book.durationSec, !finished);
+          toast(finished ? "Marked as not finished" : "Marked as finished");
+          router.refresh();
+        })}
+      >
+        {finished ? "Mark as not finished" : "Mark as finished"}
+      </button>
+      {isAdmin ? (
+        <>
+          <div className="menu-sep" role="separator" />
+          <button type="button" role="menuitem" onClick={choose(() => edit(book.id, "details"))}>
+            Edit details…
+          </button>
+          <button type="button" role="menuitem" onClick={choose(() => edit(book.id, "cover"))}>
+            Change cover…
+          </button>
+          <button type="button" role="menuitem" onClick={choose(() => edit(book.id, "match"))}>
+            Match metadata…
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={choose(async () => {
+              await api(`/api/books/${book.id}/rescan`, { method: "POST" });
+              toast("Rescanning. Changes show in a moment.");
+              setTimeout(() => router.refresh(), 3000);
+            })}
+          >
+            Rescan files
+          </button>
+        </>
+      ) : null}
+    </>
   );
 }
 

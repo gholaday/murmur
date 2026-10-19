@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import { getContext } from "@/server/context";
-import { getPodcast, listEpisodes } from "@/server/podcasts/queries";
+import { getPodcast, listEpisodes, shortNotes } from "@/server/podcasts/queries";
 import { requirePageUser } from "@/server/session";
 import { ShowView } from "@/web/podcasts/show-view";
+
+const PAGE = 50;
 
 export default async function ShowPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requirePageUser();
@@ -10,5 +12,7 @@ export default async function ShowPage({ params }: { params: Promise<{ id: strin
   const id = (await params).id;
   const podcast = await getPodcast(sqlite, id, user.id);
   if (!podcast) notFound();
-  return <ShowView podcast={podcast} episodes={listEpisodes(sqlite, id, user.id)} />;
+  // Only the first page goes with the page; long shows have over a thousand episodes, and
+  // the rest load from the API when you ask for more or change the order.
+  return <ShowView podcast={podcast} pageSize={PAGE} firstPage={shortNotes(listEpisodes(sqlite, id, user.id).slice(0, PAGE))} />;
 }
