@@ -95,6 +95,8 @@ export function Sheet({
         ) : null}
         <ScrollView
           contentContainerStyle={{ paddingHorizontal: 8 }}
+          // A tap on a result works straight away instead of first only closing the keyboard.
+          keyboardShouldPersistTaps="handled"
           onContentSizeChange={() => scrollY && scroll.current?.scrollTo({ y: scrollY, animated: false })}
           ref={scroll}
         >

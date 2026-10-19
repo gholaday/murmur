@@ -15,7 +15,8 @@ export function HeroBackdrop({ path, color, height }: { path: string | null; col
       <View style={[StyleSheet.absoluteFill, { backgroundColor: color ?? t.surface2, opacity: 0.18 }]} />
       {path ? (
         <Image
-          source={{ uri: absolute(path), headers: authHeaders(), cacheKey: path }}
+          // A feed's own artwork (a full URL) loads directly, without our sign-in.
+          source={/^https?:\/\//.test(path) ? { uri: path } : { uri: absolute(path), headers: authHeaders(), cacheKey: path }}
           cachePolicy="disk"
           blurRadius={90}
           contentFit="cover"

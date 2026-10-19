@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-native";
-import { router } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { router, useFocusEffect } from "expo-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { PodcastSearchResult, PodcastSummary } from "@murmur/shared";
 import { Cover } from "@/components/cover";
@@ -41,7 +41,18 @@ export default function Podcasts() {
   const [view, setView] = useState<"shows" | "downloaded">("shows");
   const [sortOpen, setSortOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  // Set while a search result's preview is open, so coming back reopens the search.
+  const resumeSearch = useRef(false);
   const fade = useJustLoaded(!podcasts.isPending);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!resumeSearch.current) return;
+      resumeSearch.current = false;
+      setAdding(true);
+    }, []),
+  );
 
   const shows = useMemo(() => sortShows(podcasts.data ?? [], sort), [podcasts.data, sort]);
   const fresh = newEpisodes.data ?? [];
@@ -151,12 +162,37 @@ export default function Podcasts() {
       </ScrollView>
 
       <SortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
-      <AddPodcastSheet open={adding} onClose={() => setAdding(false)} />
+      <AddPodcastSheet
+        open={adding}
+        onClose={() => {
+          setAdding(false);
+          setSearchText("");
+        }}
+        searchText={searchText}
+        onSearchText={setSearchText}
+        onPreview={(feedUrl) => {
+          resumeSearch.current = true;
+          setAdding(false);
+          router.push({ pathname: "/preview", params: { feedUrl } });
+        }}
+      />
     </View>
   );
 }
 
-function AddPodcastSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+function AddPodcastSheet({
+  open,
+  onClose,
+  searchText,
+  onSearchText,
+  onPreview,
+}: {
+  open: boolean;
+  onClose: () => void;
+  searchText: string;
+  onSearchText: (text: string) => void;
+  onPreview: (feedUrl: string) => void;
+}) {
   const t = useTheme();
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
@@ -188,7 +224,7 @@ function AddPodcastSheet({ open, onClose }: { open: boolean; onClose: () => void
   return (
     <Sheet open={open} onClose={onClose} title="Add a podcast">
       <View style={{ paddingHorizontal: 12, paddingBottom: 8, gap: 14 }}>
-        <PodcastSearch onOpen={opened} />
+        <PodcastSearch text={searchText} setText={onSearchText} onOpen={opened} onPreview={onPreview} />
         <Field
           label="Or paste an RSS feed URL"
           value={url}
@@ -211,11 +247,24 @@ function AddPodcastSheet({ open, onClose }: { open: boolean; onClose: () => void
   );
 }
 
-/** Searches the podcast directory as you type; each result subscribes or opens in one tap. */
-function PodcastSearch({ onOpen }: { onOpen: (id: string) => void }) {
+/**
+ * Searches the podcast directory as you type. Tapping a result opens its preview;
+ * its button subscribes, or opens one you already follow.
+ */
+function PodcastSearch({
+  text,
+  setText,
+  onOpen,
+  onPreview,
+}: {
+  /** Kept by the tab, so the search is still there after coming back from a preview. */
+  text: string;
+  setText: (text: string) => void;
+  onOpen: (id: string) => void;
+  onPreview: (feedUrl: string) => void;
+}) {
   const t = useTheme();
-  const [text, setText] = useState("");
-  const [term, setTerm] = useState("");
+  const [term, setTerm] = useState(text.trim());
   const [adding, setAdding] = useState<string | null>(null);
 
   useEffect(() => {
@@ -252,7 +301,7 @@ function PodcastSearch({ onOpen }: { onOpen: (id: string) => void }) {
         value={text}
         onChangeText={setText}
         placeholder="Title or host"
-        autoFocus
+        autoFocus={!text}
         autoCorrect={false}
         returnKeyType="search"
       />
@@ -265,18 +314,25 @@ function PodcastSearch({ onOpen }: { onOpen: (id: string) => void }) {
       {results && results.length === 0 ? <Text variant="small">No podcasts found.</Text> : null}
       {results?.map((r) => (
         <View key={r.feedUrl} style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <Cover path={r.artworkUrl} title={r.title} size={48} radius={8} />
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 14 }}>
-              {r.title}
-            </Text>
-            {r.author ? (
-              <Text variant="small" numberOfLines={1}>
-                {r.author}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityHint={r.subscribedId ? "Opens the podcast" : "Shows its episodes before you subscribe"}
+            onPress={() => (r.subscribedId ? onOpen(r.subscribedId) : onPreview(r.feedUrl))}
+            style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}
+          >
+            <Cover path={r.artworkUrl} title={r.title} size={48} radius={8} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 14 }}>
+                {r.title}
               </Text>
-            ) : null}
-            {r.episodeCount !== null ? <Text variant="small">{r.episodeCount === 1 ? "1 episode" : `${r.episodeCount} episodes`}</Text> : null}
-          </View>
+              {r.author ? (
+                <Text variant="small" numberOfLines={1}>
+                  {r.author}
+                </Text>
+              ) : null}
+              {r.episodeCount !== null ? <Text variant="small">{r.episodeCount === 1 ? "1 episode" : `${r.episodeCount} episodes`}</Text> : null}
+            </View>
+          </Pressable>
           {r.subscribedId ? (
             <SmallButton label="Open" onPress={() => onOpen(r.subscribedId!)} />
           ) : (
