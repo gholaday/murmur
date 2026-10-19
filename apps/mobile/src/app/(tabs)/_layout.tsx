@@ -4,8 +4,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Tabs, type BottomTabBarProps } from "expo-router/js-tabs";
 import { DownloadIcon, LibraryIcon, PodcastIcon, QueueIcon, SettingsIcon } from "@/components/icons";
 import { MiniPlayer } from "@/components/mini-player";
-import { Text } from "@/components/ui";
-import { restorePlayer } from "@/player/engine";
+import { NumberBadge, Text } from "@/components/ui";
+import { restorePlayer, usePlayer } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
 const ICONS = { index: LibraryIcon, podcasts: PodcastIcon, "up-next": QueueIcon, downloads: DownloadIcon, settings: SettingsIcon } as const;
@@ -35,6 +35,7 @@ export default function TabsLayout() {
 function TabBar({ state, descriptors, navigateToTab }: BottomTabBarProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const queued = usePlayer().queue.length;
   return (
     <View style={{ backgroundColor: t.bg }}>
       <MiniPlayer />
@@ -57,11 +58,16 @@ function TabBar({ state, descriptors, navigateToTab }: BottomTabBarProps) {
               key={route.key}
               accessibilityRole="tab"
               accessibilityState={{ selected: focused }}
-              accessibilityLabel={label}
+              accessibilityLabel={route.name === "up-next" && queued > 0 ? `${label}, ${queued} queued` : label}
               onPress={() => navigateToTab(route.key)}
               style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 3, height: 64 }}
             >
-              <Icon size={24} color={color} />
+              <View>
+                <Icon size={24} color={color} />
+                {route.name === "up-next" && queued > 0 ? (
+                  <NumberBadge tone="new" value={queued > 99 ? "99+" : queued} style={{ position: "absolute", top: -6, left: 14 }} />
+                ) : null}
+              </View>
               <Text style={{ fontFamily: focused ? fonts.bold : fonts.semibold, fontSize: 12, color }}>{label}</Text>
             </Pressable>
           );

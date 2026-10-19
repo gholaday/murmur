@@ -33,7 +33,7 @@ export function MiniPlayer() {
         shadowOffset: { width: 0, height: 4 },
       }}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", paddingLeft: 8, paddingRight: 4, height: 64, gap: 4 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", paddingLeft: 8, paddingRight: 4, minHeight: 64, paddingVertical: 6, gap: 4 }}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Open player: ${item.title}`}
@@ -45,9 +45,23 @@ export function MiniPlayer() {
             <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14 }}>
               {item.title}
             </Text>
-            <Text variant="small" numberOfLines={1} style={error ? { color: t.danger } : undefined}>
-              {error ?? chapter?.title ?? (dur ? timeLeft(dur, position) : item.subtitle)}
-            </Text>
+            {/* Title, then the chapter (books with chapters), then time left, each on its own line. */}
+            {error ? (
+              <Text variant="small" numberOfLines={2} style={{ color: t.danger }}>
+                {error}
+              </Text>
+            ) : (
+              <>
+                {chapter ? (
+                  <Text variant="small" numberOfLines={1}>
+                    {chapter.title}
+                  </Text>
+                ) : null}
+                <Text variant="small" numberOfLines={1}>
+                  {dur ? timeLeft(dur, position) : item.subtitle}
+                </Text>
+              </>
+            )}
           </View>
         </Pressable>
         <SkipButton label={`Skip back ${skip.back} seconds`} seconds={skip.back} onPress={() => skipBy(-skip.back)}>

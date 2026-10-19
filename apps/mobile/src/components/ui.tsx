@@ -143,20 +143,54 @@ export function Field({
   );
 }
 
-/** Small rounded count next to a heading, used instead of "4 books · ..." strings. */
-export function CountPill({ count }: { count: number }) {
+/**
+ * Every number badge, like the web's: grey ("count") for how many are in a list, solid accent
+ * ("new") for something new or waiting (Up Next tab, unplayed on covers, "N new").
+ */
+export function NumberBadge({ value, tone = "count", style }: { value: number | string; tone?: "count" | "new"; style?: StyleProp<ViewStyle> }) {
   const t = useTheme();
+  const isNew = tone === "new";
   return (
     // Sized by its text rather than a fixed height, and without Android's font padding, so the
     // number stays centred at any system text size.
     <View
-      style={{ minWidth: 22, minHeight: 20, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, backgroundColor: t.chip, justifyContent: "center" }}
+      style={[
+        {
+          minWidth: 20,
+          minHeight: 20,
+          paddingHorizontal: 7,
+          // Plus Jakarta's digits sit a touch low in their line box; half a point up centres them.
+          paddingTop: 2.5,
+          paddingBottom: 3.5,
+          // Stays a pill when a larger system text size makes it taller than 20.
+          borderRadius: 999,
+          backgroundColor: isNew ? t.accent : t.chip,
+          alignItems: "center",
+          justifyContent: "center",
+        },
+        style,
+      ]}
     >
-      <RNText style={{ fontFamily: fonts.bold, fontSize: 12, lineHeight: 14, includeFontPadding: false, color: t.muted, textAlign: "center" }}>
-        {count}
+      <RNText
+        style={{
+          fontFamily: fonts.extrabold,
+          fontSize: 11,
+          lineHeight: 14,
+          includeFontPadding: false,
+          fontVariant: ["tabular-nums"],
+          color: isNew ? t.onAccent : t.muted,
+          textAlign: "center",
+        }}
+      >
+        {value}
       </RNText>
     </View>
   );
+}
+
+/** Small rounded count next to a heading, used instead of "4 books · ..." strings. */
+export function CountPill({ count }: { count: number }) {
+  return <NumberBadge value={count} />;
 }
 
 export function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {

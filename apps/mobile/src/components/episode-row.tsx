@@ -10,7 +10,7 @@ import { Cover } from "./cover";
 import { DownloadIcon, PauseIcon, PlayedIcon, PlayIcon, PlayNextIcon, QueueAddIcon } from "./icons";
 import { RemoveDownloadSheet } from "./sheet";
 import { toast } from "./toast";
-import { IconButton, Text } from "./ui";
+import { IconButton, NumberBadge, Text } from "./ui";
 
 /**
  * One episode: artwork, date and title, a line of description (tap the text for all of it),
@@ -121,20 +121,9 @@ export const EpisodeRow = memo(function EpisodeRow({
               accessibilityLabel={`${newCount} new episodes of ${episode.podcastTitle}`}
               onPress={openShow}
               hitSlop={8}
-              style={({ pressed }) => ({
-                marginLeft: "auto",
-                minHeight: 22,
-                paddingHorizontal: 9,
-                paddingVertical: 4,
-                borderRadius: 999,
-                justifyContent: "center",
-                backgroundColor: t.accent,
-                opacity: pressed ? 0.85 : 1,
-              })}
+              style={({ pressed }) => ({ marginLeft: "auto", opacity: pressed ? 0.85 : 1 })}
             >
-              <Text style={{ fontFamily: fonts.bold, fontSize: 11, lineHeight: 14, includeFontPadding: false, color: t.onAccent }}>
-                {newCount} new
-              </Text>
+              <NumberBadge tone="new" value={`${newCount} new`} />
             </Pressable>
           ) : null}
         </View>

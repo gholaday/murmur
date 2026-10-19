@@ -5,7 +5,7 @@ import { apiPaths, type EpisodeWithShow, type PodcastSummary } from "@murmur/sha
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { Sheet, SheetItem } from "./sheet";
-import { Text } from "./ui";
+import { NumberBadge, Text } from "./ui";
 
 export type Sort = "latest" | "title" | "unplayed";
 export const SORT_LABEL: Record<Sort, string> = { latest: "Latest episode", title: "Title", unplayed: "Most unplayed" };
@@ -91,23 +91,11 @@ export function ShowCard({ show, width }: { show: PodcastSummary; width: number 
       <View>
         <Cover path={show.coverHash ? apiPaths.podcastCoverUrl(show.id, show.coverHash, 200) : null} title={show.title} color={show.coverColor} />
         {show.unplayedCount > 0 ? (
-          <View
-            style={{
-              position: "absolute",
-              top: 6,
-              right: 6,
-              minWidth: 22,
-              height: 22,
-              paddingHorizontal: 6,
-              borderRadius: 11,
-              backgroundColor: t.accent,
-              justifyContent: "center",
-            }}
-          >
-            <Text variant="caption" style={{ color: t.onAccent, fontSize: 11, textAlign: "center" }}>
-              {show.unplayedCount > 99 ? "99+" : show.unplayedCount}
-            </Text>
-          </View>
+          <NumberBadge
+            tone="new"
+            value={show.unplayedCount > 99 ? "99+" : show.unplayedCount}
+            style={{ position: "absolute", top: 6, right: 6 }}
+          />
         ) : null}
       </View>
       <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 13 }}>
