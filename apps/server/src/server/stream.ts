@@ -1,0 +1,107 @@
+import fs from "node:fs";
+import path from "node:path";
+import { Readable } from "node:stream";
+import { HttpError } from "./http";
+
+export type ByteRange = { start: number; end: number } | "unsatisfiable" | null;
+
+/** Parses a single `bytes=` range. Multi-range requests are served as the whole file. */
+export function parseRange(header: string | null, size: number): ByteRange {
+  if (!header) return null;
+  const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!m) return null;
+  const [, startRaw = "", endRaw = ""] = m;
+  if (startRaw === "" && endRaw === "") return "unsatisfiable";
+  let start: number;
+  let end: number;
+  if (startRaw === "") {
+    // suffix range: last N bytes
+    const suffix = Number(endRaw);
+    if (suffix === 0) return "unsatisfiable";
+    start = Math.max(0, size - suffix);
+    end = size - 1;
+  } else {
+    start = Number(startRaw);
+    end = endRaw === "" ? size - 1 : Math.min(Number(endRaw), size - 1);
+  }
+  if (start >= size || start > end) return "unsatisfiable";
+  return { start, end };
+}
+
+/** Joins a stored relative path onto the library root, refusing anything that escapes it. */
+export function resolveInside(root: string, relPath: string): string {
+  const full = path.resolve(/*turbopackIgnore: true*/ root, relPath);
+  const rel = path.relative(root, full);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) throw new HttpError(400, "Invalid file path.");
+  return full;
+}
+
+/**
+ * Streams a file byte for byte with range support (no transcoding), so seeking in a
+ * 20-hour book is instant and costs almost no CPU.
+ */
+export async function streamFile(req: Request, file: string, mimeType: string): Promise<Response> {
+  let stat: fs.Stats;
+  try {
+    stat = await fs.promises.stat(file);
+  } catch {
+    throw new HttpError(404, "Audio file is missing on the server. A rescan will fix the library.");
+  }
+  const size = stat.size;
+  const range = parseRange(req.headers.get("range"), size);
+  const baseHeaders: Record<string, string> = {
+    "Content-Type": mimeType,
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "private, max-age=3600, no-transform",
+    "Last-Modified": stat.mtime.toUTCString(),
+  };
+
+  if (range === "unsatisfiable") {
+    return new Response(null, { status: 416, headers: { ...baseHeaders, "Content-Range": `bytes */${size}` } });
+  }
+  if (req.method === "HEAD") {
+    return new Response(null, { status: 200, headers: { ...baseHeaders, "Content-Length": String(size) } });
+  }
+
+  const { start, end } = range ?? { start: 0, end: size - 1 };
+  const nodeStream = fs.createReadStream(file, { start, end, highWaterMark: 256 * 1024 });
+  req.signal.addEventListener("abort", () => nodeStream.destroy(), { once: true });
+  const body = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
+  const headers = { ...baseHeaders, "Content-Length": String(end - start + 1) };
+  if (range) {
+    return new Response(body, { status: 206, headers: { ...headers, "Content-Range": `bytes ${start}-${end}/${size}` } });
+  }
+  return new Response(body, { status: 200, headers });
+}
+
+const PASS_THROUGH_HEADERS = ["content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified"];
+
+/**
+ * Relays a publisher's audio with range support. Enclosure URLs usually chain through
+ * tracking redirects that browser blockers refuse, so the server fetches them instead.
+ */
+export async function proxyStream(req: Request, url: string, mimeType: string, userAgent: string): Promise<Response> {
+  // identity keeps Content-Length/Range byte-accurate (fetch would silently decompress).
+  const headers: Record<string, string> = { "User-Agent": userAgent, "Accept-Encoding": "identity" };
+  const range = req.headers.get("range");
+  if (range) headers.Range = range;
+  let upstream: Response;
+  try {
+    upstream = await fetch(url, { method: req.method === "HEAD" ? "HEAD" : "GET", headers, signal: req.signal, redirect: "follow" });
+  } catch {
+    throw new HttpError(502, "Couldn't reach the podcast's audio host.");
+  }
+  if (!upstream.ok && upstream.status !== 416) {
+    await upstream.body?.cancel();
+    throw new HttpError(502, `The podcast's audio host answered ${upstream.status}.`);
+  }
+  const out = new Headers({ "Cache-Control": "private, no-transform" });
+  for (const name of PASS_THROUGH_HEADERS) {
+    const value = upstream.headers.get(name);
+    if (value) out.set(name, value);
+  }
+  // Hosts sometimes label audio as octet-stream, which some players refuse.
+  const type = out.get("content-type");
+  if (!type || !/^audio\//.test(type)) out.set("content-type", mimeType);
+  return new Response(req.method === "HEAD" ? null : upstream.body, { status: upstream.status, headers: out });
+}

@@ -1,0 +1,17 @@
+node_modules/
+.pnpm-store/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Local runtime data (database, covers, backups)
+/data/
+apps/server/data/
+
+.env
+.env.local
+.DS_Store
+Thumbs.db

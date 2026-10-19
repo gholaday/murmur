@@ -1,0 +1,15 @@
+{
+  "name": "murmur",
+  "private": true,
+  "packageManager": "pnpm@10.27.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @murmur/server dev",
+    "build": "pnpm --filter @murmur/server build",
+    "start": "pnpm --filter @murmur/server start",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

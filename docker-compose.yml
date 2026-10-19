@@ -1,0 +1,23 @@
+# Portainer stack for the NAS. Paste this into Stacks > Add stack and adjust the paths.
+services:
+  murmur:
+    # Replace with your GitHub user once the image is published (see .github/workflows/release.yml).
+    image: ghcr.io/your-github-user/murmur:0.1.0
+    container_name: murmur
+    restart: unless-stopped
+    ports:
+      - "3333:3000"
+    environment:
+      - TZ=America/Chicago
+      # Files in /data are owned by this user and group. Use your NAS user's ids (run `id` on the NAS).
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /volume1/Books/Audiobooks:/audiobooks:ro
+      - /volume1/docker/murmur:/data
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

@@ -1,0 +1,10 @@
+**/node_modules
+**/.next
+**/data
+.git
+docs
+*.md
+.env
+.env.*
+docker-compose*.yml
+.pnpm-store

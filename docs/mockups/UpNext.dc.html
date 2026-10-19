@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Murmur up next</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0B0D}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+svg.i{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #111214; color: #F3F1EC; font-family: 'Plus Jakarta Sans', sans-serif;">
+
+<div style="padding: 28px 20px 0 20px; display: flex; flex-direction: column; gap: 18px;">
+<div style="display: flex; align-items: flex-end; justify-content: space-between;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.5px;">Up Next</h1>
+<span style="font-size: 13px; color: #A9A7A2;">4 in queue · 8h 34m total</span>
+</div>
+<button style="height: 44px; padding: 0 4px; font-size: 14px; font-weight: 700; color: #8E9BFF;">Clear</button>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<div style="font-size: 12px; font-weight: 700; color: #A9A7A2; letter-spacing: 0.6px; text-transform: uppercase;">Now playing</div>
+<a href="Player.dc.html" style="display: flex; gap: 14px; align-items: center; padding: 12px; border-radius: 14px; background: #1C2A32;">
+<div style="width: 64px; height: 64px; border-radius: 8px; background: #3B5B6E; flex-shrink: 0;"></div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+<div style="font-size: 15px; font-weight: 800;">Project Hail Mary</div>
+<div style="font-size: 12px; color: #C3CDD2;">Chapter 23 · 6h 2m left</div>
+<div style="height: 3px; border-radius: 2px; background: #33424A; overflow: hidden;"><div style="height: 3px; width: 62%; background: #8E9BFF;"></div></div>
+</div>
+</a>
+</div>
+
+<div style="display: flex; flex-direction: column;">
+<div style="font-size: 12px; font-weight: 700; color: #A9A7A2; letter-spacing: 0.6px; text-transform: uppercase; padding-bottom: 4px;">Next</div>
+<sc-for list="{{queue}}" as="q" hint-placeholder-count="4">
+<div style="display: flex; gap: 12px; align-items: center; height: 72px; border-bottom: 1px solid #222327;">
+<div style="width: 48px; height: 48px; border-radius: 8px; background: {{q.color}}; flex-shrink: 0;"></div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+<div style="font-size: 11px; font-weight: 700; color: #A9A7A2;">{{q.kind}}</div>
+<div style="font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{q.title}}</div>
+<div style="font-size: 12px; color: #A9A7A2;">{{q.sub}}</div>
+</div>
+<button aria-label="Drag to reorder" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #7E7C78;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9h14M5 15h14"></path></svg></button>
+</div>
+</sc-for>
+<div style="padding-top: 14px; font-size: 12px; color: #7E7C78; text-align: center;">Drag to reorder · swipe left to remove</div>
+</div>
+</div>
+
+<a href="Player.dc.html" style="position: absolute; left: 8px; right: 8px; bottom: 80px; height: 64px; border-radius: 14px; background: #26272C; box-shadow: 0 8px 24px rgba(0,0,0,0.45); display: flex; align-items: center; gap: 12px; padding: 0 8px 0 10px; overflow: hidden;">
+<div style="width: 44px; height: 44px; border-radius: 6px; background: #3B5B6E; flex-shrink: 0;"></div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+<div style="font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Project Hail Mary</div>
+<div style="font-size: 12px; color: #A9A7A2; white-space: nowrap;">Chapter 23 · 6h 2m left</div>
+</div>
+<span aria-label="Pause" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"></rect><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"></rect></svg></span>
+<span aria-label="Skip forward 30 seconds" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #D6D4CF;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"></path><path d="M20 4v4h-4"></path></svg></span>
+<div style="position: absolute; left: 0; bottom: 0; height: 2px; width: 62%; background: #8E9BFF;"></div>
+</a>
+
+<nav style="position: absolute; left: 0; right: 0; bottom: 0; height: 72px; background: #17181B; border-top: 1px solid #26272B; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));">
+<a href="Main.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #9A9AA0; font-size: 11px; font-weight: 600;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="4" height="16" rx="1"></rect><rect x="10" y="4" width="4" height="16" rx="1"></rect><path d="M16.5 5.5l3.4.9-3.6 13.5-3.4-.9z"></path></svg>Library</a>
+<a href="Podcasts.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #9A9AA0; font-size: 11px; font-weight: 600;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>Podcasts</a>
+<a href="UpNext.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #8E9BFF; font-size: 11px; font-weight: 700;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>Up Next</a>
+<a href="Main.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #9A9AA0; font-size: 11px; font-weight: 600;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>Profile</a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {
+queue: [
+{ kind: 'PODCAST · 99% INVISIBLE', title: 'The Shape of Sound', sub: '42 min · Downloaded', color: '#2F5F5A' },
+{ kind: 'PODCAST · DARKNET DIARIES', title: 'The Vending Machine Hack', sub: '58 min', color: '#44506B' },
+{ kind: 'AUDIOBOOK', title: 'Piranesi', sub: 'Susanna Clarke · 5h 12m left', color: '#2F5F5A' },
+{ kind: 'PODCAST · THE REST IS HISTORY', title: 'The Fall of Constantinople, Part 1', sub: '1h 2m', color: '#8A6A2E' }
+]
+};
+}
+}
+</script>
+</body>
+</html>
