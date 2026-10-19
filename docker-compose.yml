@@ -2,7 +2,7 @@
 services:
   murmur:
     # Published by .github/workflows/release.yml when a v* tag is pushed.
-    image: ghcr.io/gholaday/murmur:0.1.7
+    image: ghcr.io/gholaday/murmur:0.1.8
     container_name: murmur
     restart: unless-stopped
     ports:
