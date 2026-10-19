@@ -1,0 +1,94 @@
+import type { ApiError, HealthDto } from "@murmur/shared";
+
+// The signed-in server and token live here so non-React code (player, downloads, sync)
+// can call the API too. session.tsx keeps them in step with what's stored.
+
+let serverUrl: string | null = null;
+let token: string | null = null;
+let onUnauthorized: (() => void) | null = null;
+
+export function configureApi(opts: { serverUrl: string | null; token: string | null; onUnauthorized?: () => void }) {
+  serverUrl = opts.serverUrl;
+  token = opts.token;
+  if (opts.onUnauthorized) onUnauthorized = opts.onUnauthorized;
+}
+
+export class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** True for failures that mean "can't reach the server", as opposed to the server saying no. */
+export function isOffline(err: unknown): boolean {
+  return !(err instanceof HttpError) || err.status >= 502;
+}
+
+/** Absolute URL for a server path, e.g. a cover or stream. */
+export function absolute(path: string): string {
+  if (!serverUrl) throw new Error("Not signed in.");
+  return `${serverUrl}${path}`;
+}
+
+/** Headers for requests made outside fetch, like image loads, streams and downloads. */
+export function authHeaders(): Record<string, string> {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+const TIMEOUT_MS = 15_000;
+
+export async function api<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(absolute(path), {
+      method: init?.method ?? "GET",
+      headers: {
+        ...authHeaders(),
+        Accept: "application/json",
+        ...(init?.body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
+      body: init?.body === undefined ? undefined : JSON.stringify(init.body),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch {
+    throw new Error("Can't reach your Murmur server.");
+  }
+  if (res.status === 401) {
+    onUnauthorized?.();
+    throw new HttpError(401, "Signed out. Sign in again.");
+  }
+  const data = (await res.json().catch(() => null)) as T | ApiError | null;
+  if (!res.ok) throw new HttpError(res.status, (data as ApiError | null)?.error ?? `Request failed (${res.status}).`);
+  return data as T;
+}
+
+/** Addresses on the home network, which usually serve plain http. */
+const LOCAL_HOST = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|[^./:]+(\.local)?(:|$))/i;
+
+/**
+ * Turns what someone typed into a server base URL and drops trailing slashes. Without a
+ * scheme, local addresses get http:// and everything else https://.
+ * "murmur.example.com/" -> "https://murmur.example.com", "192.168.1.5:3000" -> "http://192.168.1.5:3000".
+ */
+export function normalizeServerUrl(input: string): string {
+  let url = input.trim().replace(/\/+$/, "");
+  if (!/^https?:\/\//i.test(url)) url = `${LOCAL_HOST.test(url) ? "http" : "https"}://${url}`;
+  return url;
+}
+
+/** Checks that a URL really is a Murmur server before asking for a password. */
+export async function probeServer(url: string): Promise<HealthDto> {
+  let res: Response;
+  try {
+    res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+  } catch {
+    throw new Error("Couldn't reach that address. Check the URL and your connection.");
+  }
+  const body = (await res.json().catch(() => null)) as Partial<HealthDto> | null;
+  if (!res.ok && res.status >= 500) throw new Error(`The server answered with an error (${res.status}). Try again in a moment.`);
+  if (!body || typeof body.version !== "string") throw new Error("That address isn't a Murmur server.");
+  return body as HealthDto;
+}

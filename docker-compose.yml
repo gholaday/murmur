@@ -1,8 +1,8 @@
 # Portainer stack for the NAS. Paste this into Stacks > Add stack and adjust the paths.
 services:
   murmur:
-    # Replace with your GitHub user once the image is published (see .github/workflows/release.yml).
-    image: ghcr.io/your-github-user/murmur:0.1.0
+    # Published by .github/workflows/release.yml when a v* tag is pushed.
+    image: ghcr.io/gholaday/murmur:0.1.0
     container_name: murmur
     restart: unless-stopped
     ports:
