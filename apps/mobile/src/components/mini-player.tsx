@@ -1,7 +1,7 @@
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { timeLeft } from "@murmur/shared";
+import { timeLeft } from "@murmur/shared/client";
 import { chapterAt, skipBy, toggle, usePlayer, usePosition } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";

@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import Slider from "@react-native-community/slider";
-import { clock, duration, timeLeft } from "@murmur/shared";
+import { clock, duration, timeLeft } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import {
   DownIcon,

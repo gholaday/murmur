@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { apiPaths, type BookDetail, duration, plural, timeLeft } from "@murmur/shared";
+import { apiPaths, type BookDetail, duration, plural, timeLeft } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { HeroBackdrop } from "@/components/hero";
@@ -22,8 +22,8 @@ import {
   play,
   queueAdd,
   toggle,
+  useItemPosition,
   usePlayer,
-  usePosition,
 } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
@@ -59,7 +59,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
   const top = useTopInset();
   const bottomPad = useBottomPad();
   const player = usePlayer();
-  const live = usePosition();
+  const live = useItemPosition("book", book.id) ?? 0;
   const [menu, setMenu] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -240,40 +240,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
             </Pressable>
           ) : null}
 
-          {book.chapters.length > 1 ? (
-            <>
-              <SectionTitle title="Chapters" count={book.chapters.length} />
-              {book.chapters.map((c, i) => {
-                const now = i === currentChapter;
-                const done = i < currentChapter;
-                return (
-                  <Pressable
-                    key={c.index}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Play ${c.title}`}
-                    onPress={() => play(bookToPlayable(book), c.startSec)}
-                    style={({ pressed }) => ({
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 14,
-                      minHeight: 52,
-                      borderBottomWidth: 1,
-                      borderBottomColor: t.line,
-                      opacity: pressed ? 0.6 : done ? 0.55 : 1,
-                    })}
-                  >
-                    <Text variant="small" style={{ width: 28, color: now ? t.accent : t.muted }}>
-                      {i + 1}
-                    </Text>
-                    <Text numberOfLines={2} style={{ flex: 1, fontFamily: now ? fonts.bold : fonts.medium, color: now ? t.accent : t.text }}>
-                      {c.title}
-                    </Text>
-                    <Text variant="small">{duration(c.endSec - c.startSec)}</Text>
-                  </Pressable>
-                );
-              })}
-            </>
-          ) : null}
+          {book.chapters.length > 1 ? <ChapterList book={book} currentChapter={currentChapter} /> : null}
         </View>
       </ScrollView>
 
@@ -294,6 +261,45 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
     </View>
   );
 }
+
+/** Memoized so playback ticks only redraw it when the chapter changes, not twice a second. */
+const ChapterList = memo(function ChapterList({ book, currentChapter }: { book: BookDetail; currentChapter: number }) {
+  const t = useTheme();
+  return (
+    <>
+      <SectionTitle title="Chapters" count={book.chapters.length} />
+      {book.chapters.map((c, i) => {
+        const now = i === currentChapter;
+        const done = i < currentChapter;
+        return (
+          <Pressable
+            key={c.index}
+            accessibilityRole="button"
+            accessibilityLabel={`Play ${c.title}`}
+            onPress={() => play(bookToPlayable(book), c.startSec)}
+            style={({ pressed }) => ({
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 14,
+              minHeight: 52,
+              borderBottomWidth: 1,
+              borderBottomColor: t.line,
+              opacity: pressed ? 0.6 : done ? 0.55 : 1,
+            })}
+          >
+            <Text variant="small" style={{ width: 28, color: now ? t.accent : t.muted }}>
+              {i + 1}
+            </Text>
+            <Text numberOfLines={2} style={{ flex: 1, fontFamily: now ? fonts.bold : fonts.medium, color: now ? t.accent : t.text }}>
+              {c.title}
+            </Text>
+            <Text variant="small">{duration(c.endSec - c.startSec)}</Text>
+          </Pressable>
+        );
+      })}
+    </>
+  );
+});
 
 function RoundButton({
   label,

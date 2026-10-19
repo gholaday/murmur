@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { apiPaths, type EpisodeWithShow, type PodcastSummary } from "@murmur/shared";
+import { apiPaths, type EpisodeWithShow, type PodcastSummary } from "@murmur/shared/client";
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { Sheet, SheetItem } from "./sheet";

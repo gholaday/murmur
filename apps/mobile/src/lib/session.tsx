@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { LoginResponse, UserDto } from "@murmur/shared";
+import type { LoginResponse, UserDto } from "@murmur/shared/client";
 import { stop as stopPlayer } from "@/player/engine";
-import { api, configureApi, normalizeServerUrl, probeServer } from "./api";
+import { api, clearEtags, configureApi, normalizeServerUrl, probeServer } from "./api";
 import { queryClient } from "./query";
 import { getJson, removeKey, secrets, setJson } from "./storage";
 
@@ -39,6 +39,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     await secrets.clearToken();
     removeKey(USER_KEY);
     configureApi({ serverUrl: getJson<string>(SERVER_KEY), token: null });
+    clearEtags();
     queryClient.clear();
     setUser(null);
     setStatus("signedOut");

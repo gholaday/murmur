@@ -5,6 +5,7 @@ import { getJson, setJson } from "./storage";
 
 const CACHE_KEY = "murmur.queryCache";
 const SAVE_DELAY_MS = 2_000;
+const SAVED_EPISODES = 50;
 
 /**
  * Server data is cached on the phone, so the library and podcast lists open instantly and
@@ -25,12 +26,28 @@ export const queryClient = new QueryClient({
 const saved = getJson<DehydratedState>(CACHE_KEY);
 if (saved) hydrate(queryClient, saved);
 
+/**
+ * Only what the app needs to open offline is saved: library, podcasts, Up Next and the pages
+ * behind them. Searches, previews and admin screens refetch, which keeps the saved copy (read
+ * in full at every launch) small.
+ */
+const PERSISTED = new Set(["books", "book", "podcasts", "podcast", "episodes", "episode", "newEpisodes", "continueEpisodes", "queue"]);
+const persisted = (key: readonly unknown[]) => PERSISTED.has(key[0] as string);
+
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 queryClient.getQueryCache().subscribe((event) => {
-  if (event.type !== "updated" || event.action.type !== "success") return;
+  if (event.type !== "updated" || event.action.type !== "success" || !persisted(event.query.queryKey)) return;
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    setJson(CACHE_KEY, dehydrate(queryClient, { shouldDehydrateQuery: (q) => q.state.status === "success" }));
+    const state = dehydrate(queryClient, { shouldDehydrateQuery: (q) => q.state.status === "success" && persisted(q.queryKey) });
+    // A long-running show can list over a thousand episodes; offline, the newest ones are enough,
+    // and the full list comes back on the next fetch.
+    for (const q of state.queries) {
+      if (q.queryKey[0] === "episodes" && Array.isArray(q.state.data) && q.state.data.length > SAVED_EPISODES) {
+        q.state = { ...q.state, data: q.state.data.slice(0, SAVED_EPISODES), dataUpdatedAt: 0 };
+      }
+    }
+    setJson(CACHE_KEY, state);
   }, SAVE_DELAY_MS);
 });
 

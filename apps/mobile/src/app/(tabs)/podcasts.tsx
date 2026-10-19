@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import type { PodcastSearchResult, PodcastSummary } from "@murmur/shared";
+import type { PodcastSearchResult, PodcastSummary } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { EpisodeRow } from "@/components/episode-row";
 import { FilterIcon, PlusIcon } from "@/components/icons";
@@ -170,10 +170,10 @@ export default function Podcasts() {
         }}
         searchText={searchText}
         onSearchText={setSearchText}
-        onPreview={(feedUrl) => {
+        onPreview={(feedUrl, artworkUrl) => {
           resumeSearch.current = true;
           setAdding(false);
-          router.push({ pathname: "/preview", params: { feedUrl } });
+          router.push({ pathname: "/preview", params: artworkUrl ? { feedUrl, art: artworkUrl } : { feedUrl } });
         }}
       />
     </View>
@@ -191,7 +191,7 @@ function AddPodcastSheet({
   onClose: () => void;
   searchText: string;
   onSearchText: (text: string) => void;
-  onPreview: (feedUrl: string) => void;
+  onPreview: (feedUrl: string, artworkUrl: string | null) => void;
 }) {
   const t = useTheme();
   const [url, setUrl] = useState("");
@@ -261,7 +261,7 @@ function PodcastSearch({
   text: string;
   setText: (text: string) => void;
   onOpen: (id: string) => void;
-  onPreview: (feedUrl: string) => void;
+  onPreview: (feedUrl: string, artworkUrl: string | null) => void;
 }) {
   const t = useTheme();
   const [term, setTerm] = useState(text.trim());
@@ -317,10 +317,10 @@ function PodcastSearch({
           <Pressable
             accessibilityRole="button"
             accessibilityHint={r.subscribedId ? "Opens the podcast" : "Shows its episodes before you subscribe"}
-            onPress={() => (r.subscribedId ? onOpen(r.subscribedId) : onPreview(r.feedUrl))}
+            onPress={() => (r.subscribedId ? onOpen(r.subscribedId) : onPreview(r.feedUrl, r.artworkUrl))}
             style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}
           >
-            <Cover path={r.artworkUrl} title={r.title} size={48} radius={8} />
+            <Cover path={r.thumbUrl ?? r.artworkUrl} title={r.title} size={48} radius={8} />
             <View style={{ flex: 1, gap: 2 }}>
               <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 14 }}>
                 {r.title}

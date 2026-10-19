@@ -47,7 +47,8 @@ export function Cover({
     <View style={[box, style]}>
       <Image
         source={/^https?:\/\//.test(path) ? { uri: path } : { uri: absolute(path), headers: authHeaders(), cacheKey: path }}
-        cachePolicy="disk"
+        // Memory too, so covers scrolled back into view aren't decoded again; the memory cache is size-capped.
+        cachePolicy="memory-disk"
         recyclingKey={path}
         transition={reduced ? 0 : 220}
         accessibilityIgnoresInvertColors

@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { apiPaths, type BookSummary } from "@murmur/shared";
+import { apiPaths, type BookSummary } from "@murmur/shared/client";
 import { fetchBook, setFinished } from "@/lib/data";
 import { useDownload } from "@/lib/downloads";
 import { bookToPlayable, isCurrent, markCurrent, play, queueAdd, toggle, usePlayer } from "@/player/engine";
@@ -17,8 +17,11 @@ export function progressPct(b: BookSummary): number {
   return Math.min(100, (b.progress.positionSec / b.durationSec) * 100);
 }
 
-/** Cover, title and a line under it; used in every book grid. */
-export function BookCard({ book, sub, width }: { book: BookSummary; sub?: string | null; width: number }) {
+/**
+ * Cover, title and a line under it; used in every book grid. Memoized: grids re-render for
+ * player and download changes that rarely touch an individual card.
+ */
+export const BookCard = memo(function BookCard({ book, sub, width }: { book: BookSummary; sub?: string | null; width: number }) {
   const t = useTheme();
   const dl = useDownload("book", book.id);
   const pct = progressPct(book);
@@ -58,7 +61,7 @@ export function BookCard({ book, sub, width }: { book: BookSummary; sub?: string
       </View>
     </Pressable>
   );
-}
+});
 
 /** Long-press options for a book card: the listener actions from the book page. */
 function BookMenu({ book, started, onClose }: { book: BookSummary; started: boolean; onClose: () => void }) {

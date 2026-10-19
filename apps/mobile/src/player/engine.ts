@@ -12,7 +12,7 @@ import {
   type ProgressItem,
   type QueueEntry,
   type QueueRef,
-} from "@murmur/shared";
+} from "@murmur/shared/client";
 import { absolute, api, authHeaders } from "@/lib/api";
 import { fetchBook, fetchEpisode, invalidateListening, keys } from "@/lib/data";
 import { getDownload, localUri } from "@/lib/downloads";
@@ -157,9 +157,17 @@ function set(change: Partial<PlayerState>) {
   stateListeners.forEach((l) => l());
 }
 
+// With the app in the background (screen off, another app open) nothing on screen shows the
+// position, so ticks skip React entirely; it catches up when the app comes back.
+let appActive = AppState.currentState !== "background";
+AppState.addEventListener("change", (s) => {
+  appActive = s !== "background";
+  if (appActive) positionListeners.forEach((l) => l());
+});
+
 function setPosition(p: number) {
   position = p;
-  positionListeners.forEach((l) => l());
+  if (appActive) positionListeners.forEach((l) => l());
 }
 
 export function usePlayer(): PlayerState {
@@ -180,6 +188,24 @@ export function usePosition(): number {
       return () => positionListeners.delete(l);
     },
     () => position,
+  );
+}
+
+/**
+ * The position while this item is the one loaded, else null. Rows in long lists use this so
+ * only the playing row re-renders on each tick, not every row on screen.
+ */
+export function useItemPosition(type: ItemType, id: string): number | null {
+  return useSyncExternalStore(
+    (l) => {
+      positionListeners.add(l);
+      stateListeners.add(l);
+      return () => {
+        positionListeners.delete(l);
+        stateListeners.delete(l);
+      };
+    },
+    () => (isCurrent(state, type, id) ? position : null),
   );
 }
 
@@ -326,12 +352,14 @@ async function flush(refreshLists = false) {
     return;
   }
   flushing = true;
+  let sent = false;
   try {
     do {
       flushAgain = false;
       const items = Object.values(getJson<Outbox>(OUTBOX_KEY) ?? {});
       if (items.length === 0) break;
       await api("/api/progress", { method: "PUT", body: { items } });
+      sent = true;
       // Drop what was sent unless it changed meanwhile.
       const now = getJson<Outbox>(OUTBOX_KEY) ?? {};
       for (const i of items) {
@@ -340,8 +368,9 @@ async function flush(refreshLists = false) {
       }
       setJson(OUTBOX_KEY, now);
     } while (flushAgain);
-    // Lists showing finished state or progress refresh once the server has it.
-    if (refreshAfterFlush) {
+    // Lists showing finished state or progress refresh once the server has it. With nothing
+    // sent (e.g. just coming back to the app) they're left to React Query's own staleness checks.
+    if (refreshAfterFlush && sent) {
       refreshAfterFlush = false;
       invalidateListening();
     }

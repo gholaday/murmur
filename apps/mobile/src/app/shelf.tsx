@@ -1,6 +1,6 @@
 import { ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { SHELF_IDS, SHELF_TITLES, shelfBooks, type ShelfId } from "@murmur/shared";
+import { SHELF_IDS, SHELF_TITLES, shelfBooks, type ShelfId } from "@murmur/shared/client";
 import { BookCard } from "@/components/book-card";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { Grid, PAD, shelfSub, todayKey, useGridWidth } from "@/components/library";

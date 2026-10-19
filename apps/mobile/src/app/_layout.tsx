@@ -5,32 +5,19 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
 import { QueryClientProvider } from "@tanstack/react-query";
-import {
-  PlusJakartaSans_400Regular,
-  PlusJakartaSans_500Medium,
-  PlusJakartaSans_600SemiBold,
-  PlusJakartaSans_700Bold,
-  PlusJakartaSans_800ExtraBold,
-  useFonts,
-} from "@expo-google-fonts/plus-jakarta-sans";
 import { Toaster } from "@/components/toast";
 import { queryClient } from "@/lib/query";
 import { SessionProvider, useSession } from "@/lib/session";
 import { useTheme } from "@/theme";
 
-
+// The fonts are built into the app (expo-font plugin in app.json), so nothing waits on loading them.
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
-    PlusJakartaSans_400Regular,
-    PlusJakartaSans_500Medium,
-    PlusJakartaSans_600SemiBold,
-    PlusJakartaSans_700Bold,
-    PlusJakartaSans_800ExtraBold,
-  });
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
-        <SessionProvider>{fontsLoaded ? <Navigation /> : <View style={{ flex: 1, backgroundColor: "#111214" }} />}</SessionProvider>
+        <SessionProvider>
+          <Navigation />
+        </SessionProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );

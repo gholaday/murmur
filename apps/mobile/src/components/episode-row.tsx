@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { apiPaths, duration, type EpisodeWithShow, shortDate, timeLeft } from "@murmur/shared";
-import { setFinished } from "@/lib/data";
+import { apiPaths, duration, type EpisodeWithShow, shortDate, timeLeft } from "@murmur/shared/client";
+import { setFinished, useEpisodeNotes } from "@/lib/data";
 import { downloadEpisode, removeDownload, useDownload } from "@/lib/downloads";
-import { episodeToPlayable, isCurrent, markCurrent, play, queueAdd, queueReplace, toggle, usePlayer, usePosition } from "@/player/engine";
+import { episodeToPlayable, isCurrent, markCurrent, play, queueAdd, queueReplace, toggle, useItemPosition, usePlayer } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { DownloadIcon, PauseIcon, PlayedIcon, PlayIcon, PlayNextIcon, QueueAddIcon } from "./icons";
@@ -16,7 +16,7 @@ import { IconButton, Text } from "./ui";
  * One episode: artwork, date and title, a line of description (tap the text for all of it),
  * and its actions always on show underneath. Matches the web's episode row.
  */
-export function EpisodeRow({
+export const EpisodeRow = memo(function EpisodeRow({
   episode,
   showThumb = false,
   newCount = 0,
@@ -29,9 +29,10 @@ export function EpisodeRow({
 }) {
   const t = useTheme();
   const player = usePlayer();
-  const live = usePosition();
+  const live = useItemPosition("episode", episode.id) ?? 0;
   const dl = useDownload("episode", episode.id);
   const [open, setOpen] = useState(false);
+  const notes = useEpisodeNotes(episode, open);
   const [busy, setBusy] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
@@ -144,9 +145,9 @@ export function EpisodeRow({
           <Text variant="bodyStrong" style={{ fontSize: 15, lineHeight: 20, color: played ? t.muted : t.text }}>
             {episode.title}
           </Text>
-          {episode.description ? (
+          {notes ? (
             <Text numberOfLines={open ? undefined : 1} style={{ fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, color: t.muted }}>
-              {episode.description}
+              {notes}
             </Text>
           ) : null}
         </Pressable>
@@ -211,7 +212,7 @@ export function EpisodeRow({
       ) : null}
     </View>
   );
-}
+});
 
 function ActionIcon({
   label,

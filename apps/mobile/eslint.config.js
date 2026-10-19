@@ -7,4 +7,19 @@ module.exports = defineConfig([
   {
     ignores: ['dist/*'],
   },
+  {
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@murmur/shared',
+              message: 'Import from "@murmur/shared/client": the main entry pulls zod (~0.5 MB) into the app bundle.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);

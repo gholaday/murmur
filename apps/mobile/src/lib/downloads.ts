@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { Directory, File, Paths } from "expo-file-system";
-import { apiPaths, type BookDetail, type EpisodeWithShow, type ItemType } from "@murmur/shared";
+import { apiPaths, type BookDetail, type EpisodeWithShow, type ItemType } from "@murmur/shared/client";
 import { absolute, authHeaders } from "./api";
 import { getJson, setJson } from "./storage";
 
@@ -33,9 +33,16 @@ for (const d of Object.values(index)) {
   if (d.status === "downloading") index[keyOf(d.type, d.id)] = { ...d, status: "error", error: "Interrupted." };
 }
 
-function commit(next: Index) {
+// What list screens see. Progress ticks leave it alone, so a running download only redraws its
+// own row (useDownload), not every screen that lists downloads.
+let listed: Index = index;
+
+function commit(next: Index, progressOnly = false) {
   index = next;
-  setJson(INDEX_KEY, next);
+  if (!progressOnly) {
+    listed = next;
+    setJson(INDEX_KEY, next);
+  }
   listeners.forEach((l) => l());
 }
 
@@ -44,13 +51,20 @@ function patch(key: string, change: Partial<Download>) {
   if (cur) commit({ ...index, [key]: { ...cur, ...change } as Download });
 }
 
+/** Progress isn't saved: a download cut off by closing the app restarts from the beginning anyway. */
+function setProgress(key: string, progress: number) {
+  const cur = index[key];
+  if (cur) commit({ ...index, [key]: { ...cur, progress } }, true);
+}
+
 const subscribe = (l: () => void) => {
   listeners.add(l);
   return () => listeners.delete(l);
 };
 
+/** Every download, for lists. Progress here can lag; read a row's live progress with useDownload. */
 export function useDownloads(): Index {
-  return useSyncExternalStore(subscribe, () => index);
+  return useSyncExternalStore(subscribe, () => listed);
 }
 
 export function useDownload(type: ItemType, id: string): Download | undefined {
@@ -107,7 +121,7 @@ async function run(key: string, type: ItemType, id: string, files: Array<{ index
         onProgress: ({ bytesWritten, totalBytes }) => {
           if (Date.now() - lastUpdate < 500 || totalBytes <= 0) return;
           lastUpdate = Date.now();
-          patch(key, { progress: (doneWeight + (bytesWritten / totalBytes) * weight) / total });
+          setProgress(key, (doneWeight + (bytesWritten / totalBytes) * weight) / total);
         },
       });
       abort.signal.addEventListener("abort", () => task.cancel());

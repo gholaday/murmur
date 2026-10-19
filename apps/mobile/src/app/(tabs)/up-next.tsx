@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { apiPaths, duration, type QueueEntry, type QueueRef, timeLeft } from "@murmur/shared";
+import { apiPaths, duration, type QueueEntry, type QueueRef, timeLeft } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { CloseIcon, DragIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
@@ -10,7 +10,7 @@ import { Sheet, SheetItem } from "@/components/sheet";
 import { Bone, FadeIn, ListRowBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { DragHandle, SortableList, SortableScrollView } from "@/components/sortable-list";
 import { Bar, IconButton, Text } from "@/components/ui";
-import { chapterAt, playRef, queueReplace, refreshQueue, usePlayer, usePosition } from "@/player/engine";
+import { chapterAt, type Playable, playRef, queueReplace, refreshQueue, usePlayer, usePosition } from "@/player/engine";
 import { useTheme } from "@/theme";
 
 function entryView(e: QueueEntry) {
@@ -39,6 +39,28 @@ function entryView(e: QueueEntry) {
   };
 }
 
+/** Title, chapter and progress of what's playing; on its own so only this re-renders as it plays. */
+function NowPlayingText({ item }: { item: Playable }) {
+  const position = usePosition();
+  const nowChapter = item.chapters.length > 1 ? item.chapters[chapterAt(item.chapters, position)] : undefined;
+  return (
+    <View style={{ flex: 1, gap: 4 }}>
+      <Text variant="bodyStrong" numberOfLines={2}>
+        {item.title}
+      </Text>
+      <Text variant="small" numberOfLines={1}>
+        {nowChapter?.title ?? item.subtitle}
+      </Text>
+      {item.durationSec ? (
+        <>
+          <Bar pct={(position / item.durationSec) * 100} />
+          <Text variant="small">{timeLeft(item.durationSec, position)}</Text>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
 const toRef = (e: QueueEntry): QueueRef => ({ itemType: e.itemType, itemId: e.itemId });
 const keyOf = (e: QueueEntry) => `${e.itemType}:${e.itemId}`;
 
@@ -46,7 +68,6 @@ export default function UpNext() {
   const t = useTheme();
   const top = useTopInset();
   const { item, queue, queueLoaded } = usePlayer();
-  const position = usePosition();
   const [menu, setMenu] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fade = useJustLoaded(queueLoaded);
@@ -67,7 +88,6 @@ export default function UpNext() {
   };
 
   const total = queue.reduce((sum, e) => sum + entryView(e).remaining, 0);
-  const nowChapter = item && item.chapters.length > 1 ? item.chapters[chapterAt(item.chapters, position)] : undefined;
   const picked = menu !== null ? queue[menu] : undefined;
 
   return (
@@ -105,20 +125,7 @@ export default function UpNext() {
               style={{ flexDirection: "row", gap: 14, alignItems: "center", padding: 12, borderRadius: 14, backgroundColor: t.surface }}
             >
               <Cover path={item.coverPath} title={item.title} color={item.color} size={64} radius={8} />
-              <View style={{ flex: 1, gap: 4 }}>
-                <Text variant="bodyStrong" numberOfLines={2}>
-                  {item.title}
-                </Text>
-                <Text variant="small" numberOfLines={1}>
-                  {nowChapter?.title ?? item.subtitle}
-                </Text>
-                {item.durationSec ? (
-                  <>
-                    <Bar pct={(position / item.durationSec) * 100} />
-                    <Text variant="small">{timeLeft(item.durationSec, position)}</Text>
-                  </>
-                ) : null}
-              </View>
+              <NowPlayingText item={item} />
             </Pressable>
           </View>
         ) : null}

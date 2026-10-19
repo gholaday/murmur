@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Linking, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { apiPaths, type EpisodeWithShow } from "@murmur/shared";
+import { apiPaths, type EpisodeWithShow } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { EpisodeRow } from "@/components/episode-row";

@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
-import type { BookSummary, ShelfId } from "@murmur/shared";
+import type { BookSummary, ShelfId } from "@murmur/shared/client";
 import { useTheme } from "@/theme";
 import { CountPill, Text } from "./ui";
 

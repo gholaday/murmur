@@ -1,4 +1,4 @@
-import type { ApiError, HealthDto } from "@murmur/shared";
+import type { ApiError, HealthDto } from "@murmur/shared/client";
 
 // The signed-in server and token live here so non-React code (player, downloads, sync)
 // can call the API too. session.tsx keeps them in step with what's stored.
@@ -40,15 +40,22 @@ export function authHeaders(): Record<string, string> {
 
 const TIMEOUT_MS = 15_000;
 
+// The last ETag and body per GET path, so refetching an unchanged list (library, podcasts,
+// Up Next) comes back as an empty 304. React Native's fetch has no HTTP cache of its own.
+const etags = new Map<string, { etag: string; data: unknown }>();
+
 export async function api<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+  const method = init?.method ?? "GET";
+  const cached = method === "GET" ? etags.get(path) : undefined;
   let res: Response;
   try {
     res = await fetch(absolute(path), {
-      method: init?.method ?? "GET",
+      method,
       headers: {
         ...authHeaders(),
         Accept: "application/json",
         ...(init?.body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...(cached ? { "If-None-Match": cached.etag } : {}),
       },
       body: init?.body === undefined ? undefined : JSON.stringify(init.body),
       signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -60,9 +67,18 @@ export async function api<T>(path: string, init?: { method?: string; body?: unkn
     onUnauthorized?.();
     throw new HttpError(401, "Signed out. Sign in again.");
   }
+  if (res.status === 304 && cached) return cached.data as T;
   const data = (await res.json().catch(() => null)) as T | ApiError | null;
   if (!res.ok) throw new HttpError(res.status, (data as ApiError | null)?.error ?? `Request failed (${res.status}).`);
+  const etag = method === "GET" ? res.headers.get("etag") : null;
+  if (etag) etags.set(path, { etag, data });
+  else if (method === "GET") etags.delete(path);
   return data as T;
+}
+
+/** Forgets saved ETags, e.g. on sign-out, so another account never gets this one's data. */
+export function clearEtags() {
+  etags.clear();
 }
 
 /** Addresses on the home network, which usually serve plain http. */

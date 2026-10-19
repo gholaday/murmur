@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { router } from "expo-router";
-import { apiPaths } from "@murmur/shared";
+import { apiPaths } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { CloseIcon, PlayIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { ConfirmSheet, RemoveDownloadSheet } from "@/components/sheet";
 import { IconButton, Text } from "@/components/ui";
-import { formatBytes, removeAllDownloads, removeDownload, useDownloads, type Download } from "@/lib/downloads";
+import { formatBytes, removeAllDownloads, removeDownload, useDownload, useDownloads, type Download } from "@/lib/downloads";
 import { bookToPlayable, episodeToPlayable, play } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
@@ -87,8 +87,9 @@ function titleOf(d: Download) {
   return d.type === "book" ? d.book.title : d.episode.title;
 }
 
-function DownloadRow({ download: d, onRemove }: { download: Download; onRemove: () => void }) {
+function DownloadRow({ download, onRemove }: { download: Download; onRemove: () => void }) {
   const t = useTheme();
+  const d = useDownload(download.type, download.id) ?? download;
   const book = d.type === "book" ? d.book : null;
   const episode = d.type === "episode" ? d.episode : null;
   const cover = book

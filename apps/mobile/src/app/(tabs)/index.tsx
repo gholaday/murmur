@@ -15,7 +15,7 @@ import {
   seriesLabel,
   sortBooks,
   timeLeft,
-} from "@murmur/shared";
+} from "@murmur/shared/client";
 import { BookCard, progressPct } from "@/components/book-card";
 import { Cover } from "@/components/cover";
 import { CloseIcon, FilterIcon, SearchIcon } from "@/components/icons";
@@ -201,7 +201,10 @@ export default function Library() {
               </FadeIn>
             </>
           }
-          ItemSeparatorComponent={() => <View style={{ height: 18 }} />}
+          ItemSeparatorComponent={RowGap}
+          // Fewer offscreen rows kept than the default 10 screens each way; covers are cached anyway.
+          windowSize={7}
+          maxToRenderPerBatch={6}
           renderItem={({ item }) => (
             <FadeIn when={fade} style={{ flexDirection: "row", columnGap: GAP }}>
               {item.map((b) => (
@@ -274,6 +277,9 @@ export default function Library() {
   );
 
 }
+
+// Defined once: an inline component here would be a new type each render, remounting every gap.
+const RowGap = () => <View style={{ height: 18 }} />;
 
 function SortSheet({ open, onClose, sort, onSort }: { open: boolean; onClose: () => void; sort: BookSort; onSort: (s: BookSort) => void }) {
   return (

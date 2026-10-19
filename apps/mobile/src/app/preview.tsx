@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { duration, plural, type PodcastPreview, type PodcastPreviewEpisode, type PodcastSummary, shortDate } from "@murmur/shared";
+import { duration, plural, type PodcastPreview, type PodcastPreviewEpisode, type PodcastSummary, shortDate } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { HeroBackdrop } from "@/components/hero";
 import { PlusIcon } from "@/components/icons";
@@ -24,7 +24,8 @@ export default function PreviewScreen() {
   const t = useTheme();
   const top = useTopInset();
   const bottomPad = useBottomPad();
-  const { feedUrl } = useLocalSearchParams<{ feedUrl: string }>();
+  // `art` is the search result's 600px artwork; feeds often link a 3000px original instead.
+  const { feedUrl, art } = useLocalSearchParams<{ feedUrl: string; art?: string }>();
   const [aboutOpen, setAboutOpen] = useState(false);
   const [limit, setLimit] = useState(PAGE);
   const [busy, setBusy] = useState(false);
@@ -75,6 +76,8 @@ export default function PreviewScreen() {
     );
   }
 
+  const artwork = art || preview.artworkUrl;
+
   const subscribe = async () => {
     setBusy(true);
     try {
@@ -96,10 +99,10 @@ export default function PreviewScreen() {
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <FadeIn style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ paddingTop: top, paddingHorizontal: PAD, paddingBottom: bottomPad }}>
-          <HeroBackdrop path={preview.artworkUrl} color={null} height={top + 360} />
+          <HeroBackdrop path={artwork} color={null} height={top + 360} />
           <BackRow />
           <View style={{ flexDirection: "row", gap: 16, alignItems: "flex-end", marginTop: 4 }}>
-            <Cover path={preview.artworkUrl} title={preview.title} size={128} radius={12} />
+            <Cover path={artwork} title={preview.title} size={128} radius={12} />
             <View style={{ flex: 1, gap: 4 }}>
               <Text variant="title" style={{ fontSize: 22, lineHeight: 28 }} numberOfLines={3}>
                 {preview.title}

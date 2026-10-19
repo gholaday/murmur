@@ -1,6 +1,6 @@
 import { ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { bySeriesOrder, groupBy, sortBooks } from "@murmur/shared";
+import { bySeriesOrder, groupBy, sortBooks } from "@murmur/shared/client";
 import { BookCard } from "@/components/book-card";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { Grid, Group, openGroup, PAD, Shelf, useGridWidth } from "@/components/library";

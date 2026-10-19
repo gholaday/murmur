@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
-import { shortDate, type FolderBrowseDto, type FolderCheckDto, type HealthDto, type LibraryFolderDto, type UserDto } from "@murmur/shared";
+import { shortDate, type FolderBrowseDto, type FolderCheckDto, type HealthDto, type LibraryFolderDto, type UserDto } from "@murmur/shared/client";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/query";
 import { fonts, useTheme } from "@/theme";
