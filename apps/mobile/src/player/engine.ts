@@ -220,6 +220,7 @@ void setAudioModeAsync({ shouldPlayInBackground: true, interruptionMode: "doNotM
 let fileIndex = 0;
 let pendingSeek: number | null = null;
 let autoplayAfterLoad = false;
+let seeking = false;
 let lastSaved = 0;
 let lockScreenActive = false;
 
@@ -253,7 +254,12 @@ player.addListener("playbackStatusUpdate", (s: AudioStatus) => {
   if (s.isLoaded && pendingSeek !== null) {
     const to = pendingSeek;
     pendingSeek = null;
+    // Until the seek lands the player still reports the file's start, which would reset the
+    // restored position to 0 (and, paused, nothing would correct it).
+    seeking = true;
     void player.seekTo(to).then(() => {
+      seeking = false;
+      setPosition((it.files[fileIndex]?.startSec ?? 0) + to);
       player.setPlaybackRate(state.speed);
       if (autoplayAfterLoad) player.play();
     });
@@ -268,7 +274,7 @@ player.addListener("playbackStatusUpdate", (s: AudioStatus) => {
     set({ playing: s.playing, loading: s.isBuffering || !s.isLoaded });
     if (wasPlaying && !s.playing && !s.didJustFinish) save();
   }
-  if (pendingSeek === null && s.isLoaded) {
+  if (pendingSeek === null && !seeking && s.isLoaded) {
     const pos = (it.files[fileIndex]?.startSec ?? 0) + s.currentTime;
     setPosition(pos);
     if (s.playing && Date.now() - lastSaved > SAVE_EVERY_MS) save();
@@ -474,6 +480,8 @@ export function seek(sec: number) {
   } else {
     load(it, t, player.playing);
   }
+  // While playing, progress saves every few seconds anyway; paused, nothing else would keep it.
+  if (!state.playing) save();
 }
 
 export const skipBy = (delta: number) => seek(position + delta);

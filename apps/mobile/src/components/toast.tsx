@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Animated, View } from "react-native";
+import { useEffect, useSyncExternalStore } from "react";
+import { View } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { scheduleOnRN } from "react-native-worklets";
 import { fonts, useTheme } from "@/theme";
 import { Text } from "./ui";
 
@@ -35,18 +37,24 @@ export function Toaster() {
     },
     () => current,
   );
-  const [shown, setShown] = useState<Toast | null>(null);
-  const anim = useRef(new Animated.Value(0)).current;
+  // A toast stays current until it has faded out, so it's drawn straight from the store.
+  const shown = item;
+  const anim = useSharedValue(0);
+  const fade = useAnimatedStyle(() => ({ opacity: anim.value, transform: [{ translateY: (anim.value - 1) * 8 }] }));
 
   useEffect(() => {
     if (!item) return;
-    setShown(item);
-    anim.setValue(0);
-    Animated.timing(anim, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+    const clear = () => {
+      if (current?.id === item.id) set(null);
+    };
+    anim.set(0);
+    anim.set(withTiming(1, { duration: 180 }));
     const timer = setTimeout(() => {
-      Animated.timing(anim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
-        if (current?.id === item.id) set(null);
-      });
+      anim.set(
+        withTiming(0, { duration: 200 }, (finished) => {
+          if (finished) scheduleOnRN(clear);
+        }),
+      );
     }, VISIBLE_MS);
     return () => clearTimeout(timer);
   }, [item, anim]);
@@ -56,20 +64,21 @@ export function Toaster() {
     <View pointerEvents="none" style={{ position: "absolute", top: insets.top + 56, left: 0, right: 0, alignItems: "center" }}>
       <Animated.View
         accessibilityLiveRegion="polite"
-        style={{
-          opacity: anim,
-          transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }],
-          maxWidth: "88%",
-          paddingHorizontal: 16,
-          paddingVertical: 10,
-          borderRadius: 20,
-          backgroundColor: t.isDark ? t.surface2 : t.text,
-          elevation: 8,
-          shadowColor: "#000",
-          shadowOpacity: 0.25,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 4 },
-        }}
+        style={[
+          {
+            maxWidth: "88%",
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            borderRadius: 20,
+            backgroundColor: t.isDark ? t.surface2 : t.text,
+            elevation: 8,
+            shadowColor: "#000",
+            shadowOpacity: 0.25,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 4 },
+          },
+          fade,
+        ]}
       >
         <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: shown.error ? t.danger : t.isDark ? t.text : t.bg }}>{shown.message}</Text>
       </Animated.View>

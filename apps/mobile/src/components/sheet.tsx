@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Dimensions, Keyboard, Modal, Pressable, ScrollView, type ScrollViewInstance, View } from "react-native";
+import { Dimensions, Keyboard, Modal, Pressable, type ScrollViewInstance, View } from "react-native";
+import { GestureDetector, GestureHandlerRootView, ScrollView, usePanGesture } from "react-native-gesture-handler";
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { scheduleOnRN } from "react-native-worklets";
 import { fonts, useTheme } from "@/theme";
 import { CheckIcon } from "./icons";
 import { Button, InSheet, Text } from "./ui";
@@ -55,7 +58,15 @@ export function RemoveDownloadSheet({ open, title, onConfirm, onClose }: { open:
   );
 }
 
-/** A bottom sheet for menus and pickers. Tapping outside or Back closes it. */
+/** How far a pull, or how fast a flick, closes the sheet. */
+const CLOSE_DISTANCE = 120;
+const CLOSE_VELOCITY = 900;
+
+/**
+ * A bottom sheet for menus and pickers. Tapping outside, Back, or dragging it down closes it.
+ * The drag works anywhere on the sheet: while its list is scrolled down, pulling scrolls the
+ * list back first, and the sheet follows once it's at the top.
+ */
 export function Sheet({
   open,
   onClose,
@@ -74,35 +85,113 @@ export function Sheet({
   const insets = useSafeAreaInsets();
   const scroll = useRef<ScrollViewInstance>(null);
   const keyboard = useKeyboardHeight();
+  const listY = useSharedValue(0);
+  /** How far the sheet sits below its resting place; starts off screen and slides in. */
+  const drag = useSharedValue(Dimensions.get("window").height);
+  const height = useSharedValue(0);
+  /** The pull already spent scrolling the list back to its top. */
+  const spent = useSharedValue(0);
+  const speed = useSharedValue(0);
+  // The sheet animates itself (the modal's own slide would move the backdrop too), so it stays
+  // mounted after `open` turns false until it has slid away.
+  const [mounted, setMounted] = useState(open);
+  if (open && !mounted) setMounted(true);
+
+  useEffect(() => {
+    if (open) {
+      listY.set(0);
+      drag.set(withTiming(0, { duration: 260, easing: Easing.out(Easing.cubic) }));
+    } else {
+      const off = (height.get() || Dimensions.get("window").height) + 40;
+      drag.set(withTiming(off, { duration: 200, easing: Easing.in(Easing.cubic) }, (finished) => {
+        if (finished) scheduleOnRN(setMounted, false);
+      }));
+    }
+  }, [open, drag, listY, height]);
+
+  const pan = usePanGesture({
+    activeOffsetY: [-12, 12],
+    failOffsetX: [-24, 24],
+    onActivate: () => {
+      spent.set(0);
+    },
+    onUpdate: (e) => {
+      speed.set(e.velocityY);
+      if (listY.get() > 0) {
+        spent.set(e.translationY);
+        drag.set(0);
+        return;
+      }
+      drag.set(Math.max(0, e.translationY - spent.get()));
+    },
+    onFinalize: () => {
+      const pulled = drag.get();
+      if (pulled > 0 && (pulled > CLOSE_DISTANCE || speed.get() > CLOSE_VELOCITY)) {
+        drag.set(withTiming(height.get() + 40, { duration: 180 }, () => scheduleOnRN(onClose)));
+      } else if (pulled > 0) {
+        drag.set(withTiming(0, { duration: 180 }));
+      }
+    },
+  });
+
+  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: drag.value }] }));
+  // The backdrop fades with the sheet: in as it slides up, out as it's dragged or slides away.
+  const screen = Dimensions.get("window").height;
+  const backdropStyle = useAnimatedStyle(() => {
+    const span = height.value || screen;
+    return { opacity: 1 - Math.min(1, drag.value / span) };
+  });
+
   return (
-    <Modal visible={open} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-      <Pressable accessibilityLabel="Close" onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }} />
-      <View
-        style={{
-          maxHeight: "80%",
-          backgroundColor: t.surface,
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-          paddingTop: 10,
-          paddingBottom: Math.max(insets.bottom, keyboard) + 12,
-        }}
-      >
-        <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: t.track, marginBottom: 10 }} />
-        {title ? (
-          <Text variant="heading" numberOfLines={2} style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
-            {title}
-          </Text>
-        ) : null}
-        <ScrollView
-          contentContainerStyle={{ paddingHorizontal: 8 }}
-          // A tap on a result works straight away instead of first only closing the keyboard.
-          keyboardShouldPersistTaps="handled"
-          onContentSizeChange={() => scrollY && scroll.current?.scrollTo({ y: scrollY, animated: false })}
-          ref={scroll}
-        >
-          <InSheet.Provider value>{children}</InSheet.Provider>
-        </ScrollView>
-      </View>
+    <Modal
+      visible={mounted}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+      statusBarTranslucent
+      navigationBarTranslucent
+    >
+      <GestureHandlerRootView style={{ flex: 1, justifyContent: "flex-end" }}>
+        {/* Behind the whole sheet, not just above it, so dragging the sheet down uncovers dimmed screen. */}
+        <Animated.View style={[{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.5)" }, backdropStyle]}>
+          <Pressable accessibilityLabel="Close" onPress={onClose} style={{ flex: 1 }} />
+        </Animated.View>
+        <GestureDetector gesture={pan}>
+          <Animated.View
+            onLayout={(e) => height.set(e.nativeEvent.layout.height)}
+            style={[
+              {
+                maxHeight: "80%",
+                backgroundColor: t.surface,
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                paddingTop: 10,
+                paddingBottom: Math.max(insets.bottom, keyboard) + 12,
+              },
+              sheetStyle,
+            ]}
+          >
+            <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: t.track, marginBottom: 10 }} />
+            {title ? (
+              <Text variant="heading" numberOfLines={2} style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
+                {title}
+              </Text>
+            ) : null}
+            <ScrollView
+              contentContainerStyle={{ paddingHorizontal: 8 }}
+              // A tap on a result works straight away instead of first only closing the keyboard.
+              keyboardShouldPersistTaps="handled"
+              onContentSizeChange={() => scrollY && scroll.current?.scrollTo({ y: scrollY, animated: false })}
+              onScroll={(e) => listY.set(e.nativeEvent.contentOffset.y)}
+              scrollEventThrottle={16}
+              simultaneousWith={pan}
+              ref={scroll}
+            >
+              <InSheet.Provider value>{children}</InSheet.Provider>
+            </ScrollView>
+          </Animated.View>
+        </GestureDetector>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

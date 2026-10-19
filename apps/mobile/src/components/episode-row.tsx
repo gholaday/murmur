@@ -123,15 +123,18 @@ export const EpisodeRow = memo(function EpisodeRow({
               hitSlop={8}
               style={({ pressed }) => ({
                 marginLeft: "auto",
-                height: 22,
+                minHeight: 22,
                 paddingHorizontal: 9,
-                borderRadius: 11,
+                paddingVertical: 4,
+                borderRadius: 999,
                 justifyContent: "center",
                 backgroundColor: t.accent,
                 opacity: pressed ? 0.85 : 1,
               })}
             >
-              <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: t.onAccent }}>{newCount} new</Text>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 11, lineHeight: 14, includeFontPadding: false, color: t.onAccent }}>
+                {newCount} new
+              </Text>
             </Pressable>
           ) : null}
         </View>

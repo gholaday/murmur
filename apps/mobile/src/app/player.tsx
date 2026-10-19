@@ -73,7 +73,7 @@ export default function Player() {
   const [sheet, setSheet] = useState<null | "speed" | "sleep" | "chapters" | "more">(null);
   const [scrub, setScrub] = useState<number | null>(null);
   const [speedDraft, setSpeedDraft] = useState<number | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const { item } = p;
 
   // The sleep countdown ticks once a second.

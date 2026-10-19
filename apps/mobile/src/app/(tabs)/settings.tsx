@@ -9,7 +9,7 @@ import { useSession } from "@/lib/session";
 import { setSkip, usePlayer } from "@/player/engine";
 import { setThemeMode, useTheme, useThemeMode, type ThemeMode } from "@/theme";
 
-const THEMES: Array<{ id: ThemeMode; label: string }> = [
+const THEMES: { id: ThemeMode; label: string }[] = [
   { id: "system", label: "System" },
   { id: "dark", label: "Dark" },
   { id: "light", label: "Light" },

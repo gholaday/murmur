@@ -37,7 +37,7 @@ import { fonts, useTheme } from "@/theme";
 
 type Tab = "books" | "authors" | "series" | "finished" | "downloaded";
 
-const TABS: Array<{ id: Tab; label: string }> = [
+const TABS: { id: Tab; label: string }[] = [
   { id: "books", label: "Books" },
   { id: "authors", label: "Authors" },
   { id: "series", label: "Series" },
@@ -45,7 +45,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: "downloaded", label: "Downloaded" },
 ];
 
-const SORTS: Array<{ id: BookSort; label: string }> = [
+const SORTS: { id: BookSort; label: string }[] = [
   { id: "added", label: "Recently added" },
   { id: "listened", label: "Recently listened" },
   { id: "title", label: "Title" },

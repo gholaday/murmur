@@ -71,7 +71,14 @@ export function MiniPlayer() {
           <SkipForwardIcon size={30} color={t.text} />
         </SkipButton>
       </View>
-      <View style={{ height: 2, width: `${pct}%`, backgroundColor: t.accent }} />
+      {/* A faint track under the fill, so early on (when the fill is tucked into the rounded
+          corner) the bar still reads as progress. */}
+      {dur ? (
+        <View style={{ height: 3 }}>
+          <View style={{ position: "absolute", inset: 0, backgroundColor: t.muted, opacity: 0.18 }} />
+          <View style={{ height: 3, width: `${pct}%`, backgroundColor: t.accent }} />
+        </View>
+      ) : null}
     </View>
   );
 }

@@ -147,8 +147,14 @@ export function Field({
 export function CountPill({ count }: { count: number }) {
   const t = useTheme();
   return (
-    <View style={{ minWidth: 22, height: 20, paddingHorizontal: 7, borderRadius: 10, backgroundColor: t.chip, justifyContent: "center" }}>
-      <RNText style={{ fontFamily: fonts.bold, fontSize: 12, color: t.muted, textAlign: "center" }}>{count}</RNText>
+    // Sized by its text rather than a fixed height, and without Android's font padding, so the
+    // number stays centred at any system text size.
+    <View
+      style={{ minWidth: 22, minHeight: 20, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, backgroundColor: t.chip, justifyContent: "center" }}
+    >
+      <RNText style={{ fontFamily: fonts.bold, fontSize: 12, lineHeight: 14, includeFontPadding: false, color: t.muted, textAlign: "center" }}>
+        {count}
+      </RNText>
     </View>
   );
 }

@@ -100,7 +100,7 @@ function folderFor(type: ItemType, id: string): Directory {
 
 const active = new Map<string, AbortController>();
 
-async function run(key: string, type: ItemType, id: string, files: Array<{ index: number; url: string; mime: string; durationSec: number }>) {
+async function run(key: string, type: ItemType, id: string, files: { index: number; url: string; mime: string; durationSec: number }[]) {
   const folder = folderFor(type, id);
   folder.create({ intermediates: true, idempotent: true });
   const abort = new AbortController();
