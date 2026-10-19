@@ -6,7 +6,11 @@ import {
   type BookSort,
   type BookSummary,
   bySeriesOrder,
+  continueListening,
   groupBy,
+  SHELF_SIZE,
+  SHELF_TITLES,
+  shelfBooks,
   matchesBook,
   seriesLabel,
   sortBooks,
@@ -18,7 +22,7 @@ import { CloseIcon, FilterIcon, SearchIcon } from "@/components/icons";
 import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { CoverGridBones, FadeIn, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
-import { Grid, Group, openGroup, PAD, useGridWidth } from "@/components/library";
+import { Grid, Group, openGroup, openShelf, PAD, shelfSub, todayKey, useGridWidth } from "@/components/library";
 import { Bar, Chip, IconButton, Text } from "@/components/ui";
 import { useBooks } from "@/lib/data";
 import { useDownloads } from "@/lib/downloads";
@@ -43,6 +47,8 @@ const SORTS: Array<{ id: BookSort; label: string }> = [
 ];
 
 const SORT_KEY = "murmur.librarySort";
+/** Shelves under Continue listening on the Books tab, in order. */
+const HOME_SHELVES = ["next", "added", "unstarted"] as const;
 const GAP = 14;
 export default function Library() {
   const t = useTheme();
@@ -59,14 +65,9 @@ export default function Library() {
 
   const list = useMemo(() => books.data ?? [], [books.data]);
   const sorted = useMemo(() => sortBooks(list, sort), [list, sort]);
-  const continuing = useMemo(
-    () =>
-      list
-        .filter((b) => b.progress && !b.progress.finished && b.progress.positionSec > 5)
-        .sort((a, b) => b.progress!.updatedAt - a.progress!.updatedAt)
-        .slice(0, 12),
-    [list],
-  );
+  const continuing = useMemo(() => continueListening(list), [list]);
+  const day = todayKey();
+  const shelves = useMemo(() => HOME_SHELVES.map((id) => ({ id, books: shelfBooks(id, list, day) })), [list, day]);
   const q = query.trim().toLowerCase();
 
   const setSort = (s: BookSort) => {
@@ -181,15 +182,21 @@ export default function Library() {
               {header}
               <FadeIn when={fade}>
                 {continuing.length ? (
-                  <>
-                    <SectionTitle title="Continue listening" />
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -PAD }} contentContainerStyle={{ paddingHorizontal: PAD, gap: 14 }}>
-                      {continuing.map((b) => (
-                        <ContinueCard key={b.id} book={b} />
-                      ))}
-                    </ScrollView>
-                  </>
+                  <Group title={SHELF_TITLES.continue} count={continuing.length} onOpen={() => openShelf("continue")}>
+                    {continuing.slice(0, SHELF_SIZE).map((b) => (
+                      <ContinueCard key={b.id} book={b} />
+                    ))}
+                  </Group>
                 ) : null}
+                {shelves.map(({ id, books: shelf }) =>
+                  shelf.length ? (
+                    <Group key={id} title={SHELF_TITLES[id]} count={shelf.length} onOpen={() => openShelf(id)}>
+                      {shelf.slice(0, SHELF_SIZE).map((b) => (
+                        <BookCard key={b.id} book={b} width={cardWidth} sub={shelfSub(id, b)} />
+                      ))}
+                    </Group>
+                  ) : null,
+                )}
                 <SectionTitle title="All books" count={list.length} />
               </FadeIn>
             </>

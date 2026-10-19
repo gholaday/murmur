@@ -31,7 +31,7 @@ v1 covers listening to audiobooks and podcasts on the phone with progress synced
 
 **Podcasts**
 
-- Subscribe by pasting an RSS feed URL; OPML import and export
+- Find podcasts by name (Apple's public podcast search, no API key needed) or paste an RSS feed URL; OPML import and export
 - Server checks feeds on a schedule (default hourly) and lists new episodes
 - Episodes stream through the server, which relays the publisher's audio; the phone can download an episode on request. The server never stores episode audio.
 - Up Next queue, and played, unplayed and archived states per episode
@@ -121,7 +121,7 @@ The phone and browser reach the server only through the Cloudflare Tunnel. Podca
 | Library | `GET /books`, `GET /books/:id`, `GET /books/:id/cover`, `POST /library/scan` |
 | Book editing (admin) | `GET /books/:id/edit`, `PUT /books/:id/details`, `PUT /books/:id/chapters`, `POST/DELETE /books/:id/cover`, `POST /books/:id/rescan`, `GET/POST/DELETE /books/:id/match` |
 | Streaming | `GET /stream/book/:id/:fileIndex`, `GET /stream/episode/:id` (range requests) |
-| Podcasts | `GET/POST /podcasts`, `DELETE /podcasts/:id`, `GET /podcasts/:id/episodes`, `POST /podcasts/:id/refresh`, OPML import and export |
+| Podcasts | `GET/POST /podcasts`, `GET /podcasts/search?q=` (directory search, marks podcasts you follow), `DELETE /podcasts/:id`, `GET /podcasts/:id/episodes`, `POST /podcasts/:id/refresh`, OPML import and export |
 | Progress | `GET /progress?since=`, `PUT /progress` (batched, newest update wins) |
 | Queue | `GET /queue`, `PUT /queue` |
 | Admin | `GET/POST/DELETE /users`, `GET/PUT /library/folders`, `POST /library/folders/check`, `GET /library/browse?path=` |

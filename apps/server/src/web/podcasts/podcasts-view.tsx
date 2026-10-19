@@ -3,11 +3,18 @@
 import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { apiPaths, type EpisodeWithShow, type OpmlImportResult, plural, type PodcastSummary } from "@murmur/shared";
+import { useEffect, useState } from "react";
+import {
+  apiPaths,
+  type EpisodeWithShow,
+  type OpmlImportResult,
+  plural,
+  type PodcastSearchResult,
+  type PodcastSummary,
+} from "@murmur/shared";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { FilterIcon, PlusIcon } from "../icons";
+import { FilterIcon, PlusIcon, SearchIcon } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
@@ -102,8 +109,10 @@ export function PodcastsView({ podcasts, newEpisodes }: { podcasts: PodcastSumma
         onClose={() => setAdding(false)}
         onAdded={(id) => {
           setAdding(false);
+          // Refresh first so going back from the new podcast shows it in the list,
+          // instead of the cached page from before subscribing.
+          refresh();
           if (id) router.push(`/podcasts/${id}`);
-          else refresh();
         }}
       />
 
@@ -122,6 +131,115 @@ export function PodcastsView({ podcasts, newEpisodes }: { podcasts: PodcastSumma
         ))}
       </Sheet>
     </>
+  );
+}
+
+/** Find a podcast by name and subscribe in one tap. Searches as you type. */
+function PodcastSearch({ onAdded }: { onAdded: (id: string | null) => void }) {
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<PodcastSearchResult[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState<string | null>(null);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults(null);
+      setError(null);
+      return;
+    }
+    let stale = false;
+    const timer = setTimeout(() => {
+      setSearching(true);
+      api<PodcastSearchResult[]>(`/api/podcasts/search?q=${encodeURIComponent(q)}`)
+        .then((r) => {
+          if (stale) return;
+          setResults(r);
+          setError(null);
+        })
+        .catch((err: unknown) => {
+          if (!stale) setError(err instanceof Error ? err.message : "Search failed.");
+        })
+        .finally(() => {
+          if (!stale) setSearching(false);
+        });
+    }, 350);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
+  }, [query]);
+
+  const subscribe = async (r: PodcastSearchResult) => {
+    setAdding(r.feedUrl);
+    try {
+      const podcast = await api<PodcastSummary>("/api/podcasts", { method: "POST", body: { feedUrl: r.feedUrl } });
+      toast(`Subscribed to ${podcast.title}`);
+      onAdded(podcast.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't subscribe.");
+    } finally {
+      setAdding(null);
+    }
+  };
+
+  return (
+    <div className="form">
+      <div className="search">
+        <SearchIcon />
+        <input
+          className="input"
+          type="search"
+          placeholder="Search podcasts"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Search podcasts"
+          autoFocus
+        />
+      </div>
+      {error ? (
+        <p className="error small" role="alert" style={{ margin: 0 }}>
+          {error}
+        </p>
+      ) : null}
+      {searching && !results ? (
+        <div className="loading-center" style={{ padding: 24 }} aria-busy="true" aria-label="Searching">
+          <div className="spinner" />
+        </div>
+      ) : results ? (
+        results.length === 0 ? (
+          <p className="muted" style={{ margin: 0 }}>
+            No podcasts found.
+          </p>
+        ) : (
+          <div className="list search-results" aria-busy={searching || undefined}>
+            {results.map((r) => (
+              <div key={r.feedUrl} className="list-row">
+                <Cover className="thumb" src={r.artworkUrl} color={null} title={r.title} />
+                <div className="list-row-main">
+                  <span className="list-row-title" style={{ fontSize: 14 }}>
+                    {r.title}
+                  </span>
+                  {r.author ? <span className="list-row-sub">{r.author}</span> : null}
+                  {r.episodeCount ? <span className="list-row-sub">{plural(r.episodeCount, "episode")}</span> : null}
+                </div>
+                {r.subscribedId ? (
+                  <button type="button" className="btn" onClick={() => router.push(`/podcasts/${r.subscribedId}`)}>
+                    Open
+                  </button>
+                ) : (
+                  <button type="button" className="btn btn-primary" disabled={adding !== null} onClick={() => void subscribe(r)}>
+                    {adding === r.feedUrl ? "Adding…" : "Subscribe"}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      ) : null}
+    </div>
   );
 }
 
@@ -177,9 +295,10 @@ function AddPodcastSheet({
 
   return (
     <Sheet open={open} onClose={onClose} title="Add a podcast">
+      <PodcastSearch onAdded={onAdded} />
       <form className="form" onSubmit={subscribe}>
         <label className="label">
-          RSS feed URL
+          Or paste an RSS feed URL
           <input
             className="input"
             type="url"
@@ -188,7 +307,6 @@ function AddPodcastSheet({
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             required
-            autoFocus
           />
         </label>
         <button type="submit" className="btn btn-primary" disabled={busy || !url.trim()}>

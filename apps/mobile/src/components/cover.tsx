@@ -17,7 +17,7 @@ export function Cover({
   radius = 10,
   style,
 }: {
-  /** Server path from apiPaths, or null when there's no art. */
+  /** Server path from apiPaths, a full URL (e.g. podcast search artwork), or null when there's no art. */
   path: string | null;
   title: string;
   color?: string | null;
@@ -46,7 +46,7 @@ export function Cover({
   return (
     <View style={[box, style]}>
       <Image
-        source={{ uri: absolute(path), headers: authHeaders(), cacheKey: path }}
+        source={/^https?:\/\//.test(path) ? { uri: path } : { uri: absolute(path), headers: authHeaders(), cacheKey: path }}
         cachePolicy="disk"
         recyclingKey={path}
         transition={reduced ? 0 : 220}

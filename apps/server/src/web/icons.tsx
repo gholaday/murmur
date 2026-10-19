@@ -35,7 +35,21 @@ export const QueueAddIcon = ({ queued, ...p }: IconProps & { queued?: boolean })
     {queued ? <path d="M7 14l2.5 2.5L13 12" /> : <path d="M10 11v6M7 14h6" />}
   </Icon>
 );
-export const SettingsIcon = (p: IconProps) => (
+/** A list with an arrow up: put this at the front of Up Next. */
+export const PlayNextIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M3 6h10M3 12h7M3 18h7" />
+    <path d="M17 20V9M13 13l4-4 4 4" />
+  </Icon>
+);
+/** A circled check, filled once played. */
+export const PlayedIcon = ({ played, ...p }: IconProps & { played?: boolean }) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" fill={played ? "currentColor" : "none"} />
+    <path d="M8 12.5l2.7 2.7L16 10" stroke={played ? "var(--on-accent)" : "currentColor"} />
+  </Icon>
+);
+export const SettingsIcon =(p: IconProps) => (
   <Icon {...p}>
     <circle cx="12" cy="12" r="3" />
     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />

@@ -1,14 +1,17 @@
-import { useMemo, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { router } from "expo-router";
-import { apiPaths, type PodcastSummary } from "@murmur/shared";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { apiPaths, type PodcastSearchResult, type PodcastSummary } from "@murmur/shared";
 import { Cover } from "@/components/cover";
 import { EpisodeRow } from "@/components/episode-row";
 import { FilterIcon, PlusIcon } from "@/components/icons";
 import { Grid, PAD, useGridWidth } from "@/components/library";
 import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
+import { SmallButton } from "@/components/settings";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { CoverGridBones, FadeIn, ListRowBone, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
+import { toast } from "@/components/toast";
 import { Button, Chip, Field, IconButton, Text } from "@/components/ui";
 import { api } from "@/lib/api";
 import { keys, useNewEpisodes, usePodcasts } from "@/lib/data";
@@ -219,10 +222,7 @@ function AddPodcastSheet({ open, onClose }: { open: boolean; onClose: () => void
     try {
       const show = await api<PodcastSummary>("/api/podcasts", { method: "POST", body: { feedUrl: url.trim() } });
       setUrl("");
-      void queryClient.invalidateQueries({ queryKey: keys.podcasts });
-      void queryClient.invalidateQueries({ queryKey: keys.newEpisodes });
-      onClose();
-      router.push(`/show/${show.id}`);
+      opened(show.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't add that feed.");
     } finally {
@@ -230,11 +230,19 @@ function AddPodcastSheet({ open, onClose }: { open: boolean; onClose: () => void
     }
   };
 
+  const opened = (id: string) => {
+    void queryClient.invalidateQueries({ queryKey: keys.podcasts });
+    void queryClient.invalidateQueries({ queryKey: keys.newEpisodes });
+    onClose();
+    router.push(`/show/${id}`);
+  };
+
   return (
     <Sheet open={open} onClose={onClose} title="Add a podcast">
       <View style={{ paddingHorizontal: 12, paddingBottom: 8, gap: 14 }}>
+        <PodcastSearch onOpen={opened} />
         <Field
-          label="RSS feed address"
+          label="Or paste an RSS feed URL"
           value={url}
           onChangeText={setUrl}
           placeholder="https://example.com/feed.xml"
@@ -252,5 +260,82 @@ function AddPodcastSheet({ open, onClose }: { open: boolean; onClose: () => void
         <Button label="Subscribe" onPress={() => void subscribe()} busy={busy} disabled={!url.trim()} />
       </View>
     </Sheet>
+  );
+}
+
+/** Searches the podcast directory as you type; each result subscribes or opens in one tap. */
+function PodcastSearch({ onOpen }: { onOpen: (id: string) => void }) {
+  const t = useTheme();
+  const [text, setText] = useState("");
+  const [term, setTerm] = useState("");
+  const [adding, setAdding] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setTerm(text.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [text]);
+
+  const search = useQuery({
+    queryKey: ["podcast-search", term],
+    queryFn: () => api<PodcastSearchResult[]>(`/api/podcasts/search?q=${encodeURIComponent(term)}`),
+    enabled: term.length >= 2,
+    placeholderData: keepPreviousData,
+    staleTime: 10 * 60_000,
+  });
+
+  const subscribe = async (r: PodcastSearchResult) => {
+    setAdding(r.feedUrl);
+    try {
+      const show = await api<PodcastSummary>("/api/podcasts", { method: "POST", body: { feedUrl: r.feedUrl } });
+      toast.show(`Subscribed to ${show.title}`);
+      onOpen(show.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't add that podcast.");
+    } finally {
+      setAdding(null);
+    }
+  };
+
+  const results = term.length >= 2 ? search.data : undefined;
+  return (
+    <View style={{ gap: 10 }}>
+      <Field
+        label="Search podcasts"
+        value={text}
+        onChangeText={setText}
+        placeholder="Title or host"
+        autoFocus
+        autoCorrect={false}
+        returnKeyType="search"
+      />
+      {term.length >= 2 && search.isPending ? <ActivityIndicator color={t.accent} style={{ paddingVertical: 12 }} /> : null}
+      {term.length >= 2 && search.isError && !results ? (
+        <Text variant="small" style={{ color: t.danger }}>
+          {search.error.message}
+        </Text>
+      ) : null}
+      {results && results.length === 0 ? <Text variant="small">No podcasts found.</Text> : null}
+      {results?.map((r) => (
+        <View key={r.feedUrl} style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <Cover path={r.artworkUrl} title={r.title} size={48} radius={8} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 14 }}>
+              {r.title}
+            </Text>
+            {r.author ? (
+              <Text variant="small" numberOfLines={1}>
+                {r.author}
+              </Text>
+            ) : null}
+            {r.episodeCount !== null ? <Text variant="small">{r.episodeCount === 1 ? "1 episode" : `${r.episodeCount} episodes`}</Text> : null}
+          </View>
+          {r.subscribedId ? (
+            <SmallButton label="Open" onPress={() => onOpen(r.subscribedId!)} />
+          ) : (
+            <SmallButton label={adding === r.feedUrl ? "Adding…" : "Subscribe"} primary disabled={adding !== null} onPress={() => void subscribe(r)} />
+          )}
+        </View>
+      ))}
+    </View>
   );
 }

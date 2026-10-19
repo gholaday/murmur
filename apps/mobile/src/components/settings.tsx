@@ -85,7 +85,19 @@ function RowBone({ last }: { last?: boolean }) {
   );
 }
 
-export function SmallButton({ label, onPress, danger, disabled }: { label: string; onPress: () => void; danger?: boolean; disabled?: boolean }) {
+export function SmallButton({
+  label,
+  onPress,
+  danger,
+  primary,
+  disabled,
+}: {
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+  primary?: boolean;
+  disabled?: boolean;
+}) {
   const t = useTheme();
   return (
     <Pressable
@@ -97,11 +109,11 @@ export function SmallButton({ label, onPress, danger, disabled }: { label: strin
         paddingHorizontal: 16,
         borderRadius: 19,
         justifyContent: "center",
-        backgroundColor: pressed ? t.surface2 : t.chip,
-        opacity: disabled ? 0.45 : 1,
+        backgroundColor: primary ? t.accent : pressed ? t.surface2 : t.chip,
+        opacity: disabled ? 0.45 : primary && pressed ? 0.85 : 1,
       })}
     >
-      <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: danger ? t.danger : t.text }}>{label}</Text>
+      <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: primary ? t.onAccent : danger ? t.danger : t.text }}>{label}</Text>
     </Pressable>
   );
 }

@@ -222,6 +222,18 @@ export interface PodcastSummary {
   lastError: string | null;
 }
 
+/** A podcast found by name in the public directory (Apple Podcasts search). */
+export interface PodcastSearchResult {
+  title: string;
+  author: string | null;
+  /** Artwork on the directory's CDN, shown as-is in results. */
+  artworkUrl: string | null;
+  feedUrl: string;
+  episodeCount: number | null;
+  /** Your podcast's id when you already follow this feed. */
+  subscribedId: string | null;
+}
+
 export interface PodcastDetail extends PodcastSummary {
   description: string | null;
   link: string | null;
@@ -409,3 +421,4 @@ export const apiPaths = {
 };
 export * from "./format";
 export * from "./library";
+export * from "./shelves";

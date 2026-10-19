@@ -7,7 +7,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
  * Any element with `data-tip`, or an icon-only button with an aria-label, gets one, so
  * buttons don't need extra markup.
  */
-const TARGETS = "[data-tip], .icon-btn[aria-label], .btn-round[aria-label], .mini-skip[aria-label], .skip-btn[aria-label], .play-btn[aria-label], .ring-btn[aria-label]";
+const TARGETS = "[data-tip], .icon-btn[aria-label], .btn-round[aria-label], .mini-skip[aria-label], .skip-btn[aria-label], .play-btn[aria-label], .episode-icon[aria-label]";
 const DELAY_MS = 450;
 const GAP = 8;
 const EDGE = 8;

@@ -4,20 +4,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { apiPaths, duration, type EpisodeWithShow, shortDate, timeLeft } from "@murmur/shared";
 import { Cover } from "../cover";
-import { CheckIcon, PauseIcon, PlayIcon } from "../icons";
+import { PauseIcon, PlayedIcon, PlayIcon, PlayNextIcon, QueueAddIcon } from "../icons";
 import { episodeToPlayable, usePlayer, usePosition } from "../player/engine";
 import { setFinished } from "../progress";
-
-/** Progress ring drawn around the play button. */
-function Ring({ pct }: { pct: number }) {
-  const r = 21;
-  const c = 2 * Math.PI * r;
-  return (
-    <svg className="progress-ring" viewBox="0 0 44 44" aria-hidden="true">
-      <circle cx="22" cy="22" r={r} strokeDasharray={`${(pct / 100) * c} ${c}`} />
-    </svg>
-  );
-}
 
 export function EpisodeRow({
   episode,
@@ -40,6 +29,7 @@ export function EpisodeRow({
   const position = current ? live : episode.progress && !episode.progress.finished ? episode.progress.positionSec : 0;
   const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
   const queued = player.queue.some((q) => q.itemType === "episode" && q.itemId === episode.id);
+  const pausing = current && player.playing;
 
   const time = played ? "Played" : position > 5 && dur ? timeLeft(dur, position) : duration(dur);
 
@@ -61,6 +51,27 @@ export function EpisodeRow({
     player.play(episodeToPlayable(episode), played ? 0 : undefined);
   };
 
+  const toggleQueue = () =>
+    queued
+      ? run(
+          () =>
+            player.queueReplace(
+              player.queue
+                .filter((q) => !(q.itemType === "episode" && q.itemId === episode.id))
+                .map((q) => ({ itemType: q.itemType, itemId: q.itemId })),
+            ),
+          "Removed from Up Next",
+        )
+      : run(() => player.queueAdd({ itemType: "episode", itemId: episode.id }, "last"), "Added to Up Next");
+
+  const togglePlayed = () =>
+    run(async () => {
+      const finished = current ? !played : !episode.progress?.finished;
+      if (current) player.markCurrent(finished);
+      // Saved here too (not only by the player) so the refresh after this already sees it.
+      await setFinished("episode", episode.id, dur, finished);
+    }, episode.progress?.finished ? "Marked as unplayed" : "Marked as played");
+
   return (
     <div className={`episode ${played ? "played" : ""} ${open ? "episode-open" : ""}`}>
       {showThumb ? (
@@ -72,61 +83,61 @@ export function EpisodeRow({
         />
       ) : null}
       <div className="episode-main">
-        <button type="button" style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 3 }} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <button type="button" className="episode-text" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
           <span className="episode-meta">
             {showThumb ? <span className="episode-show">{episode.podcastTitle}</span> : null}
-            <span>{shortDate(episode.publishedAt)}</span>
-            <span className={`episode-time ${current ? "playing" : ""}`}>{current ? `Playing, ${time}` : time}</span>
+            <span className="episode-date">{shortDate(episode.publishedAt)}</span>
           </span>
           <span className="episode-title">{episode.title}</span>
           {episode.description ? <span className="episode-desc">{episode.description}</span> : null}
         </button>
-        {open ? (
-          <div className="episode-actions">
-            <button
-              type="button"
-              className="btn"
-              disabled={busy || current}
-              onClick={() => void run(() => player.queueAdd({ itemType: "episode", itemId: episode.id }, "next"), "Plays next")}
-            >
-              Play next
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={busy || current || queued}
-              onClick={() => void run(() => player.queueAdd({ itemType: "episode", itemId: episode.id }, "last"), "Added to Up Next")}
-            >
-              {queued ? "In Up Next" : "Add to Up Next"}
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  const finished = current ? !played : !episode.progress?.finished;
-                  if (current) player.markCurrent(finished);
-                  // Saved here too (not only by the player) so the refresh after this already sees it.
-                  await setFinished("episode", episode.id, dur, finished);
-                }, episode.progress?.finished ? "Marked as unplayed" : "Marked as played")
-              }
-            >
-              {episode.progress?.finished ? "Mark unplayed" : "Mark played"}
-            </button>
-          </div>
-        ) : null}
+        <div className="episode-actions">
+          <button
+            type="button"
+            className="episode-play"
+            onClick={onPlay}
+            aria-label={pausing ? "Pause" : played ? "Play again" : "Play"}
+            data-loading={(current && player.loading) || undefined}
+          >
+            {pausing ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
+            <span>{time}</span>
+          </button>
+          {pct > 0 && !played ? (
+            <span className="episode-bar" aria-hidden="true">
+              <span style={{ width: `${pct}%` }} />
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className="episode-icon"
+            aria-label="Play next"
+            disabled={busy || current}
+            onClick={() => void run(() => player.queueAdd({ itemType: "episode", itemId: episode.id }, "next"), "Plays next")}
+          >
+            <PlayNextIcon size={20} />
+          </button>
+          <button
+            type="button"
+            className="episode-icon"
+            aria-label={queued ? "Remove from Up Next" : "Add to Up Next"}
+            aria-pressed={queued}
+            disabled={busy || current}
+            onClick={() => void toggleQueue()}
+          >
+            <QueueAddIcon size={20} queued={queued} />
+          </button>
+          <button
+            type="button"
+            className="episode-icon"
+            aria-label={episode.progress?.finished ? "Mark unplayed" : "Mark played"}
+            aria-pressed={!!episode.progress?.finished}
+            disabled={busy}
+            onClick={() => void togglePlayed()}
+          >
+            <PlayedIcon size={20} played={!!episode.progress?.finished} />
+          </button>
+        </div>
       </div>
-      <button
-        type="button"
-        className={`ring-btn ${played ? "played" : ""}`}
-        onClick={onPlay}
-        aria-label={current && player.playing ? "Pause" : played ? "Play again" : "Play"}
-        data-loading={(current && player.loading) || undefined}
-      >
-        {pct > 0 && !played ? <Ring pct={pct} /> : null}
-        {current && player.playing ? <PauseIcon size={18} /> : played ? <CheckIcon size={18} /> : <PlayIcon size={16} />}
-      </button>
     </div>
   );
 }
