@@ -116,6 +116,9 @@ export function createPodcastService(deps: Deps) {
         sqlite
           .prepare("UPDATE podcasts SET last_checked_at = ?, last_success_at = ?, last_error = NULL, failure_count = 0 WHERE id = ?")
           .run(Date.now(), Date.now(), podcastId);
+        // A cover that failed to download (say, the network dropped while subscribing) gets
+        // another try on each check, even when the feed itself hasn't changed.
+        if (!row.cover_hash) await cacheArtwork(podcastId, row.image_url, null);
       } else {
         saveFeed(podcastId, result.feed, result.etag, result.lastModified);
         if (result.feed.imageUrl !== row.image_url || !row.cover_hash) {
