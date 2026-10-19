@@ -276,15 +276,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const dur = it.durationSec || el.duration || 0;
       const t = Math.min(Math.max(0, sec), Math.max(0, dur - 0.5));
       const idx = fileAt(it, t);
+      const paused = el.paused;
       if (idx === fileIndex.current && el.src && pendingSeek.current === null) {
         el.currentTime = t - (it.files[idx]?.startSec ?? 0);
         positionRef.current = t;
         setPosition(t);
       } else {
-        load(it, t, !el.paused);
+        load(it, t, !paused);
       }
+      // Playing saves on its own every few seconds; a seek while paused would otherwise be lost
+      // on reload or on another device.
+      if (paused) void save();
     },
-    [load],
+    [load, save],
   );
 
   const refreshQueue = useCallback(async () => {
