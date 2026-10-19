@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
 import { router } from "expo-router";
-import Animated, { FadeIn as EnterFade, FadeOut as ExitFade } from "react-native-reanimated";
+import Animated, { FadeIn as EnterFade, FadeOut as ExitFade, LayoutAnimationConfig } from "react-native-reanimated";
 import {
   apiPaths,
   BOOK_SECTION_TITLES,
+  type BookSection,
   type BookSectionId,
   type BookSort,
   type BookSummary,
@@ -374,51 +375,15 @@ function BooksTab({
     </SortableScrollProvider>
   );
 
-  if (customizing) {
-    return list(
-      [],
-      <SortableList
-        items={sections}
-        keyOf={(s) => s.id}
-        onReorder={reorder}
-        liftInset={16}
-        renderRow={(s) => {
-          const title = BOOK_SECTION_TITLES[s.id];
-          return (
-            <View style={{ paddingTop: 24 }}>
-              <SectionHeading
-                title={title}
-                count={counts[s.id]}
-                faint={s.hidden}
-                actions={
-                  <>
-                    <SmallButton label={s.hidden ? "Show" : "Hide"} onPress={() => toggle(s.id)} />
-                    <DragHandle label={`Reorder ${title}`}>
-                      <DragIcon size={22} color={t.faint} />
-                    </DragHandle>
-                  </>
-                }
-              />
-              {s.hidden ? null : (
-                <Animated.View entering={EnterFade.duration(220)} exiting={ExitFade.duration(150)}>
-                  {cards(s.id) ?? <Text variant="small">Nothing here right now.</Text>}
-                </Animated.View>
-              )}
-            </View>
-          );
-        }}
-      />,
-    );
-  }
-
-  // Long libraries scroll in a virtualised list of rows of three, so All books is the list's data
-  // and the shelves before and after it are its header and footer.
+  // Long libraries scroll in a virtualised list of rows of three, so normally All books is the
+  // list's data and the shelves before and after it are its header and footer. Customizing
+  // draws every section in the header instead, all books as a full grid.
   const shown = sections.filter((s) => !s.hidden && (s.id === "all" ? books.length > 0 : cards(s.id) !== null));
   const allAt = shown.findIndex((s) => s.id === "all");
   const before = allAt < 0 ? shown : shown.slice(0, allAt);
   const after = allAt < 0 ? [] : shown.slice(allAt + 1);
   const rows: BookSummary[][] = [];
-  if (allAt >= 0) for (let i = 0; i < sorted.length; i += 3) rows.push(sorted.slice(i, i + 3));
+  if (allAt >= 0 && !customizing) for (let i = 0; i < sorted.length; i += 3) rows.push(sorted.slice(i, i + 3));
 
   const shelf = (id: BookSectionId) => (
     <View key={id} style={{ paddingTop: 24 }}>
@@ -427,23 +392,64 @@ function BooksTab({
     </View>
   );
 
+  // The shelves above All books are the same rows in both modes, so their covers stay mounted
+  // (and on screen) when customize opens and closes.
+  const section = (s: BookSection) => {
+    const title = BOOK_SECTION_TITLES[s.id];
+    return (
+      <View style={{ paddingTop: 24 }}>
+        <SectionHeading
+          title={title}
+          count={counts[s.id]}
+          faint={customizing && s.hidden}
+          onOpen={customizing || s.id === "all" ? undefined : () => openShelf(s.id as ShelfId)}
+          actions={
+            customizing ? (
+              <>
+                <SmallButton label={s.hidden ? "Show" : "Hide"} onPress={() => toggle(s.id)} />
+                <DragHandle label={`Reorder ${title}`}>
+                  <DragIcon size={22} color={t.faint} />
+                </DragHandle>
+              </>
+            ) : undefined
+          }
+        />
+        {/* Fades only on Hide and Show, not when customize opens or closes. */}
+        <LayoutAnimationConfig skipEntering skipExiting>
+          {s.hidden ? null : (
+            <Animated.View entering={EnterFade.duration(220)} exiting={ExitFade.duration(150)}>
+              {cards(s.id) ?? <Text variant="small">Nothing here right now.</Text>}
+            </Animated.View>
+          )}
+        </LayoutAnimationConfig>
+      </View>
+    );
+  };
+
   return list(
     rows,
     <FadeIn when={fade}>
-      {before.map((s) => shelf(s.id))}
-      {allAt >= 0 ? (
+      <SortableList
+        items={customizing ? sections : before}
+        keyOf={(s) => s.id}
+        onReorder={reorder}
+        liftInset={16}
+        locked={!customizing}
+        renderRow={section}
+      />
+      {allAt >= 0 && !customizing ? (
         <View style={{ paddingTop: 24 }}>
           <SectionHeading title={BOOK_SECTION_TITLES.all} count={counts.all} />
         </View>
       ) : null}
-      {sections.every((s) => s.hidden) ? (
+      {!customizing && sections.every((s) => s.hidden) ? (
         <View style={{ alignItems: "center", paddingVertical: 48, gap: 14 }}>
           <Text variant="bodyStrong">Everything here is hidden</Text>
           <Button label="Customize" kind="secondary" onPress={onCustomize} style={{ paddingHorizontal: 24 }} />
         </View>
       ) : null}
     </FadeIn>,
-    after.length ? <FadeIn when={fade}>{after.map((s) => shelf(s.id))}</FadeIn> : undefined,
+    after.length && !customizing ? <FadeIn when={fade}>{after.map((s) => shelf(s.id))}</FadeIn> : undefined,
   );
 }
 

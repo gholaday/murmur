@@ -3,11 +3,13 @@ import { View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import Animated, {
   scrollTo,
+  useAnimatedReaction,
   useAnimatedRef,
   useAnimatedStyle,
   useFrameCallback,
   useScrollOffset,
   useSharedValue,
+  withDelay,
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
@@ -26,6 +28,10 @@ const EDGE_SPEED = 12;
 type Drag = {
   order: SharedValue<string[]>;
   heights: SharedValue<Record<string, number>>;
+  /** Every row has been measured once, so rows can glide; until then they're hidden and placed directly. */
+  ready: SharedValue<boolean>;
+  /** 1 a moment after ready, once rows are pinned; only then do moves animate. */
+  glide: SharedValue<number>;
   active: SharedValue<string | null>;
   /** The lifted row's top, in list coordinates. */
   activeTop: SharedValue<number>;
@@ -33,6 +39,8 @@ type Drag = {
   pointerY: SharedValue<number>;
   /** The lifted row's top when the drag started, less the scroll offset then. */
   startTop: SharedValue<number>;
+  /** The lifted row's top when the drag started, in list coordinates; tells up from down. */
+  originTop: SharedValue<number>;
   translation: SharedValue<number>;
   scroll: SharedValue<number>;
   commit: (keys: string[]) => void;
@@ -98,6 +106,7 @@ export function SortableList<T>({
   onReorder,
   renderRow,
   liftInset = 0,
+  locked = false,
 }: {
   items: T[];
   keyOf: (item: T) => string;
@@ -106,22 +115,50 @@ export function SortableList<T>({
   renderRow: (item: T, index: number) => React.ReactNode;
   /** How far the lifted row's card reaches past the row on each side, clipping what bleeds further. */
   liftInset?: number;
+  /**
+   * Rows sit in plain flow and can't be dragged. Rendering the same list locked and unlocked
+   * keeps the rows (and their images) mounted when reordering is switched on.
+   */
+  locked?: boolean;
 }) {
   const scroll = useContext(ScrollContext)!;
   const keys = items.map(keyOf);
   const keysId = keys.join("\n");
   const order = useSharedValue(keys);
   const heights = useSharedValue<Record<string, number>>({});
+  const unlocked = useSharedValue(!locked);
+  const ready = useSharedValue(false);
+  const glide = useSharedValue(0);
   const active = useSharedValue<string | null>(null);
   const activeTop = useSharedValue(0);
   const pointerY = useSharedValue(0);
   const startTop = useSharedValue(0);
+  const originTop = useSharedValue(0);
   const translation = useSharedValue(0);
 
-  // Follow the list from outside (server refresh, removals) except mid-drag.
+  // Follow the list from outside (server refresh, removals) except mid-drag. Locking goes in
+  // the same step, so the list never pins itself before new rows are in the order.
   useEffect(() => {
     if (active.get() === null) order.set(keysId ? keysId.split("\n") : []);
-  }, [keysId, order, active]);
+    unlocked.set(!locked);
+    if (locked) {
+      ready.set(false);
+      glide.set(0);
+    }
+  }, [keysId, locked, order, active, unlocked, ready, glide]);
+
+  // Rows measure one by one on mount; animating then would slide each down as the ones above
+  // it arrive. Once all are measured (and placed directly), later moves glide.
+  useAnimatedReaction(
+    () => unlocked.get() && !ready.get() && order.get().every((k) => heights.get()[k] !== undefined),
+    (measured) => {
+      if (measured) {
+        ready.set(true);
+        // Pinned rows start where they were; gliding from their old top would slide them in from 0.
+        glide.set(withDelay(50, withTiming(1, { duration: 0 })));
+      }
+    },
+  );
 
   // Near the top or bottom edge, scroll and keep the lifted row under the finger.
   useFrameCallback(() => {
@@ -139,7 +176,11 @@ export function SortableList<T>({
     reflow(next);
   });
 
-  /** Places the lifted row under the finger and moves it to the slot its centre is over. */
+  /**
+   * Places the lifted row under the finger and moves it past each row whose middle its leading
+   * edge has crossed: its top going up, its bottom going down. Comparing centres instead would
+   * keep a tall row from ever passing a shorter one at the top or bottom of the list.
+   */
   function reflow(offset: number) {
     "worklet";
     const key = active.get();
@@ -147,13 +188,13 @@ export function SortableList<T>({
     const sizes = heights.get();
     const top = startTop.get() + translation.get() + offset;
     activeTop.set(top);
-    const centre = top + (sizes[key] ?? 0) / 2;
+    const edge = top < originTop.get() ? top : top + (sizes[key] ?? 0);
     const others = order.get().filter((k) => k !== key);
     let at = 0;
     let y = 0;
     for (const k of others) {
       const kh = sizes[k] ?? 0;
-      if (centre > y + kh / 2) at++;
+      if (edge > y + kh / 2) at++;
       y += kh;
     }
     if (at !== order.get().indexOf(key)) {
@@ -165,15 +206,20 @@ export function SortableList<T>({
   const drag: Drag = {
     order,
     heights,
+    ready,
+    glide,
     active,
     activeTop,
     pointerY,
     startTop,
+    originTop,
     translation,
     scroll: scroll.offset,
     commit: onReorder,
   };
   const listStyle = useAnimatedStyle(() => {
+    // Rows sit in normal flow until measured, sizing the list themselves.
+    if (!ready.value) return { height: "auto" as const };
     let total = 0;
     for (const k of order.value) total += heights.value[k] ?? 0;
     return { height: total };
@@ -200,11 +246,15 @@ const RowKey = createContext("");
 function Row({ id, liftInset, children }: { id: string; liftInset: number; children: React.ReactNode }) {
   const t = useTheme();
   const drag = useContext(DragContext)!;
-  const { order, heights, active, activeTop } = drag;
+  const { order, heights, ready, glide, active, activeTop } = drag;
   const style = useAnimatedStyle(() => {
     const measured = heights.value[id] !== undefined;
+    // Until every row is measured they lay out in order as plain views, so the list shows at
+    // once; then each is pinned absolutely at the same spot.
+    if (!ready.value) return { position: "relative", top: 0 };
     if (active.value === id) {
       return {
+        position: "absolute",
         top: activeTop.value,
         // Wider by liftInset each side, padded back in, so the content stays put inside a roomier card.
         left: -liftInset,
@@ -221,7 +271,8 @@ function Row({ id, liftInset, children }: { id: string; liftInset: number; child
     }
     const top = topOf(order.value, heights.value, id);
     return {
-      top: active.value === null && !measured ? top : withTiming(top, { duration: active.value === null ? DROP_MS : SLIDE_MS }),
+      position: "absolute",
+      top: measured && glide.value === 1 ? withTiming(top, { duration: active.value === null ? DROP_MS : SLIDE_MS }) : top,
       left: 0,
       right: 0,
       paddingHorizontal: 0,
@@ -237,7 +288,7 @@ function Row({ id, liftInset, children }: { id: string; liftInset: number; child
   return (
     <RowKey.Provider value={id}>
       <Animated.View
-        style={[{ position: "absolute" }, style]}
+        style={[{ left: 0, right: 0 }, style]}
         onLayout={(e) => {
           const h = e.nativeEvent.layout.height;
           // Rows lay out together; merging on the UI thread keeps one row's write from dropping another's.
@@ -259,13 +310,14 @@ export function DragHandle({ label, children }: { label: string; children: React
   const id = useContext(RowKey);
   const drag = useContext(DragContext)!;
   const reflow = useContext(ReflowContext);
-  const { order, heights, active, activeTop, pointerY, startTop, translation, scroll, commit } = drag;
+  const { order, heights, active, activeTop, pointerY, startTop, originTop, translation, scroll, commit } = drag;
 
   const pan = usePanGesture({
     minDistance: 0,
     onActivate: (e) => {
       const top = topOf(order.get(), heights.get(), id);
       startTop.set(top - scroll.get());
+      originTop.set(top);
       translation.set(0);
       activeTop.set(top);
       pointerY.set(e.absoluteY);

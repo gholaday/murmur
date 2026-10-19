@@ -5,6 +5,9 @@ import { absolute, authHeaders } from "@/lib/api";
 import { fonts } from "@/theme";
 import { Text } from "./ui";
 
+/** Covers shown already this session; they come from memory, so fading them in again only flickers. */
+const loaded = new Set<string>();
+
 /**
  * Cover art from the server, cached on disk so it shows offline. Without art, a coloured
  * tile with the title, like the web player.
@@ -50,7 +53,8 @@ export function Cover({
         // Memory too, so covers scrolled back into view aren't decoded again; the memory cache is size-capped.
         cachePolicy="memory-disk"
         recyclingKey={path}
-        transition={reduced ? 0 : 220}
+        transition={reduced || loaded.has(path) ? 0 : 220}
+        onLoad={() => loaded.add(path)}
         accessibilityIgnoresInvertColors
         style={{ width: "100%", height: "100%" }}
       />
