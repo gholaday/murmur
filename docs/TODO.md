@@ -8,8 +8,3 @@ Customize (0.1.6): the Books tab's sections can be dragged into order and hidden
 
 - **Later:** smart shelves (saved filters: author, narrator, length, status), collections (hand-picked lists), genre shelves, Want to listen.
 - **Maybe:** customize the other tabs (order, which one opens first) and display options (cover size, list view, hide finished).
-
-## Cleanup
-
-- The web still has its own copy of the shelf rules in `apps/server/src/web/library/shelves.ts` (and its test); switch it to the shared module and drop the copy.
-- Cover tint: sharp's dominant colour picks white for dark covers with white text (Gators Breakdown), so their header tint comes out grey.

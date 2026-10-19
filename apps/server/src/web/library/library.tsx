@@ -11,10 +11,15 @@ import {
   type BookSectionId,
   type BookSummary,
   bySeriesOrder,
+  continueListening,
   groupBy,
   matchesBook,
   plural,
   seriesLabel,
+  SHELF_SIZE,
+  SHELF_TITLES,
+  shelfBooks,
+  type ShelfId,
   sortBooks,
   type BookSort as Sort,
   timeLeft,
@@ -26,7 +31,6 @@ import { EditBookDialog, type EditTab } from "../book/edit-dialog";
 import { Sheet, SheetItem } from "../sheet";
 import { useSortable } from "../sortable";
 import { BookActionsContext, BookCard, progressPct } from "./book-card";
-import { continueListening, SHELF_SIZE, SHELF_TITLES, shelfBooks, type ShelfId } from "./shelves";
 
 type Tab = "books" | "authors" | "series" | "finished" | "attention";
 

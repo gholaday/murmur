@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import sharp, { type OutputInfo } from "sharp";
+import sharp, { type OutputInfo, type Sharp } from "sharp";
 
 export const COVER_SIZES = [200, 600] as const;
 export type CoverSize = (typeof COVER_SIZES)[number];
@@ -16,11 +16,16 @@ export function coverFile(coversDir: string, hash: string, size: CoverSize): str
 }
 
 export interface CoverMeta {
-  /** Dominant colour as #rrggbb, used to tint page headers. */
+  /** Main colour as #rrggbb, used to tint page headers. */
   color: string;
   /** Width of the original image, when known; Match only replaces a cover with a larger one. */
   sourceWidth: number | null;
+  /** Which colour rule worked out `color`; older ones are worked out again. */
+  v?: number;
 }
+
+/** Bumped whenever coverColor changes, so stored colours are redone on next use. */
+const COLOR_VERSION = 2;
 
 const metaCache = new Map<string, CoverMeta | null>();
 
@@ -28,14 +33,43 @@ function metaFile(coversDir: string, hash: string): string {
   return path.join(coversDir, `${hash}.json`);
 }
 
-async function dominantColor(image: Buffer | string): Promise<string> {
-  const { dominant } = await sharp(image, { failOn: "none" }).stats();
-  return `#${[dominant.r, dominant.g, dominant.b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+const hex = (r: number, g: number, b: number) => `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+
+/**
+ * The colour a cover reads as, for tinting its page header. The biggest histogram bucket
+ * (sharp's "dominant") lands on white for a dark cover with white lettering, so colours are
+ * counted on a small copy with colourful pixels counting for more and near-white for less.
+ */
+export async function coverColor(image: Sharp): Promise<string> {
+  const { data, info } = await image.clone().resize(32, 32, { fit: "fill" }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const buckets = new Map<number, { w: number; r: number; g: number; b: number }>();
+  for (let i = 0; i + 2 < data.length; i += info.channels) {
+    const r = data[i]!;
+    const g = data[i + 1]!;
+    const b = data[i + 2]!;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const lightness = (max + min) / 510;
+    const saturation = max === min ? 0 : (max - min) / (255 - Math.abs(max + min - 255));
+    // Paper and lettering count for a quarter; strong colour counts up to four times.
+    const w = (1 + 3 * saturation) * (lightness > 0.9 ? 0.25 : 1);
+    // 3 bits per channel: 512 buckets, coarse enough that shading lands together.
+    const key = ((r >> 5) << 6) | ((g >> 5) << 3) | (b >> 5);
+    const bucket = buckets.get(key) ?? { w: 0, r: 0, g: 0, b: 0 };
+    bucket.w += w;
+    bucket.r += r * w;
+    bucket.g += g * w;
+    bucket.b += b * w;
+    buckets.set(key, bucket);
+  }
+  let best = { w: 0, r: 0, g: 0, b: 0 };
+  for (const bucket of buckets.values()) if (bucket.w > best.w) best = bucket;
+  return best.w ? hex(best.r / best.w, best.g / best.w, best.b / best.w) : "#000000";
 }
 
 /**
- * Colour and size details for a stored cover. Covers stored before this existed get
- * their colour worked out from the small rendition on first use.
+ * Colour and size details for a stored cover. Covers stored before this existed, or whose
+ * colour came from an older rule, get it worked out from the small rendition on first use.
  */
 export async function coverMeta(coversDir: string, hash: string): Promise<CoverMeta | null> {
   if (metaCache.has(hash)) return metaCache.get(hash) ?? null;
@@ -43,11 +77,15 @@ export async function coverMeta(coversDir: string, hash: string): Promise<CoverM
   try {
     meta = JSON.parse(await fs.readFile(metaFile(coversDir, hash), "utf8")) as CoverMeta;
   } catch {
+    // Not stored yet.
+  }
+  if (meta?.v !== COLOR_VERSION) {
     try {
-      meta = { color: await dominantColor(coverFile(coversDir, hash, 200)), sourceWidth: null };
+      const color = await coverColor(sharp(coverFile(coversDir, hash, 200), { failOn: "none" }));
+      meta = { color, sourceWidth: meta?.sourceWidth ?? null, v: COLOR_VERSION };
       await fs.writeFile(metaFile(coversDir, hash), JSON.stringify(meta));
     } catch {
-      meta = null;
+      // No rendition to read; keep whatever was stored.
     }
   }
   metaCache.set(hash, meta);
@@ -107,12 +145,12 @@ export async function storeCover(coversDir: string, source: Buffer): Promise<str
     return sharp(base.data, { raw: { width, height, channels } });
   };
 
-  if (!(await coverMeta(coversDir, hash))?.sourceWidth) {
+  const known = await coverMeta(coversDir, hash);
+  if (!known?.sourceWidth || known.v !== COLOR_VERSION) {
     // Reads only the header.
     const { width } = await sharp(source, { failOn: "none" }).metadata();
-    const { dominant } = await (await fromBase()).stats();
-    const color = `#${[dominant.r, dominant.g, dominant.b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
-    const meta: CoverMeta = { color, sourceWidth: width ?? null };
+    const color = await coverColor(await fromBase());
+    const meta: CoverMeta = { color, sourceWidth: width ?? null, v: COLOR_VERSION };
     await fs.writeFile(metaFile(coversDir, hash), JSON.stringify(meta));
     metaCache.set(hash, meta);
   }

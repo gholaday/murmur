@@ -1,6 +1,6 @@
-import type { BookSummary } from "@murmur/shared/client";
+// The Books tab's shelf rules and layout, shared by the web and the app (packages/shared).
+import { BOOK_SECTION_IDS, type BookSummary, bookSections, nextInSeries, notStarted } from "@murmur/shared/client";
 import { expect, it } from "vitest";
-import { nextInSeries, notStarted } from "./shelves";
 
 let n = 0;
 function book(series: string | null, position: number | null, progress?: { finished?: boolean; at?: number; pos?: number }): BookSummary {
@@ -68,4 +68,24 @@ it("leaves Next in series books out of Not started", () => {
   const books = [book("F", 1, { finished: true }), next, book("F", 3)];
   expect(notStarted(books, "2026-10-19").map((b) => b.id)).not.toContain(next.id);
   expect(notStarted(books, "2026-10-19")).toHaveLength(1);
+});
+
+it("fills in a missing layout with every section shown, in the default order", () => {
+  expect(bookSections(undefined)).toEqual(BOOK_SECTION_IDS.map((id) => ({ id, hidden: false })));
+});
+
+it("keeps the saved order, drops unknown and repeated sections, and adds new ones at the end", () => {
+  const saved = [
+    { id: "all", hidden: true },
+    { id: "gone", hidden: false },
+    { id: "added", hidden: false },
+    { id: "all", hidden: false },
+  ] as Parameters<typeof bookSections>[0];
+  expect(bookSections(saved)).toEqual([
+    { id: "all", hidden: true },
+    { id: "added", hidden: false },
+    { id: "continue", hidden: false },
+    { id: "next", hidden: false },
+    { id: "unstarted", hidden: false },
+  ]);
 });

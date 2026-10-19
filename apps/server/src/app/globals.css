@@ -635,7 +635,9 @@ a.episode-show:hover { color: var(--accent); }
   bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + 8px);
   height: var(--mini-h);
   border-radius: var(--radius);
-  background: var(--surface-2);
+  /* Tinted by the playing cover, like the Now playing card; plain surface without one. */
+  background: color-mix(in srgb, var(--tint, var(--surface-2)) 22%, var(--surface-2));
+  transition: background-color 400ms ease;
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;

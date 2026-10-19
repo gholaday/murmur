@@ -29,7 +29,12 @@ export function MiniPlayer() {
   };
 
   return (
-    <div className="mini" role="region" aria-label="Now playing">
+    <div
+      className="mini"
+      role="region"
+      aria-label="Now playing"
+      style={item.color ? ({ "--tint": item.color } as React.CSSProperties) : undefined}
+    >
       <div className="mini-row">
         <button type="button" className="mini-open" onClick={() => setExpanded(true)} aria-label={`Open player: ${item.title}`}>
           <Cover src={item.coverUrl} color={item.color} title={item.title} className="mini-cover" />
