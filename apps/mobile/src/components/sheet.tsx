@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Keyboard, Modal,Pressable, ScrollView, type ScrollViewInstance, View } from "react-native";
+import { Dimensions, Keyboard, Modal, Pressable, ScrollView, type ScrollViewInstance, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fonts, useTheme } from "@/theme";
 import { CheckIcon } from "./icons";
@@ -109,7 +109,7 @@ export function Sheet({
 function useKeyboardHeight() {
   const [height, setHeight] = useState(0);
   useEffect(() => {
-    const show = Keyboard.addListener("keyboardDidShow", (e) => (console.log("KB", e.endCoordinates.height), setHeight(e.endCoordinates.height)));
+    const show = Keyboard.addListener("keyboardDidShow", (e) => setHeight(Dimensions.get("screen").height - e.endCoordinates.screenY));
     const hide = Keyboard.addListener("keyboardDidHide", () => setHeight(0));
     return () => {
       show.remove();

@@ -51,9 +51,6 @@ export default function Login() {
         <View style={{ alignItems: "center", gap: 14 }}>
           <Logo color={t.accent} />
           <Text variant="title">Murmur</Text>
-          <Text variant="small" style={{ textAlign: "center" }}>
-            Sign in to your server to get your library and podcasts.
-          </Text>
         </View>
 
         <View style={{ gap: 16 }}>

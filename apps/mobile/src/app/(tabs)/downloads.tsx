@@ -39,7 +39,7 @@ export default function Downloads() {
           }
         />
         {all.length === 0 ? (
-          <Empty title="Nothing downloaded">Download books and episodes from their pages to listen without a connection.</Empty>
+          <Empty title="Nothing downloaded" />
         ) : null}
         {books.length ? (
           <>

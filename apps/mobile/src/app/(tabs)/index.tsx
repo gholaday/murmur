@@ -146,7 +146,7 @@ export default function Library() {
   if (books.isError && list.length === 0) {
     body = <Empty title="Couldn't load your library">{books.error.message}</Empty>;
   } else if (list.length === 0) {
-    body = <Empty title="No books yet">Books added to the server's library folder show up here.</Empty>;
+    body = <Empty title="No books yet" />;
   } else if (q) {
     const found = sorted.filter((b) => matchesBook(b, q));
     body = found.length ? (
@@ -158,7 +158,7 @@ export default function Library() {
         </Grid>
       </View>
     ) : (
-      <Empty>No books match that search.</Empty>
+      <Empty>No results.</Empty>
     );
   } else if (tab === "books") {
     // Long libraries scroll in a virtualised list of rows of three.
@@ -229,7 +229,7 @@ export default function Library() {
         );
       })
     ) : (
-      <Empty>Books in series folders (Author/Series/Title) show up here.</Empty>
+      <Empty>No series yet.</Empty>
     );
   } else {
     const shown =
@@ -245,7 +245,7 @@ export default function Library() {
         </Grid>
       </View>
     ) : (
-      <Empty>{tab === "finished" ? "Books you finish show up here." : "Books you download from their page show up here and play without a connection."}</Empty>
+      <Empty>{tab === "finished" ? "No finished books yet." : "No downloaded books yet."}</Empty>
     );
   }
 

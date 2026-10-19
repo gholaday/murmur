@@ -64,15 +64,13 @@ export default function Podcasts() {
         ))}
       </View>
     ) : (
-      <Empty>Episodes you download play without a connection. Open an episode on a podcast's page to download it.</Empty>
+      <Empty>No downloaded episodes yet.</Empty>
     );
   } else if (podcasts.isError && shows.length === 0) {
     body = <Empty title="Couldn't load podcasts">{podcasts.error.message}</Empty>;
   } else if (shows.length === 0) {
     body = (
-      <Empty title="No podcasts yet">
-        Add a podcast by pasting its RSS feed address. To import a list from another app, use the web player.
-      </Empty>
+      <Empty title="No podcasts yet" />
     );
   } else {
     body = (

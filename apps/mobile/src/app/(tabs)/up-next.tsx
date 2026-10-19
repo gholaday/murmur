@@ -120,9 +120,7 @@ export default function UpNext() {
             </Text>
           ) : null}
           {queue.length === 0 ? (
-            <Empty title="Your queue is empty">
-              Add books and episodes with Play next or Add to Up Next. When something finishes, the next item starts on its own.
-            </Empty>
+            <Empty title="Your queue is empty" />
           ) : (
             queue.map((e, i) => {
               const v = entryView(e);

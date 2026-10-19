@@ -3,7 +3,7 @@ import { useLocalSearchParams } from "expo-router";
 import { bySeriesOrder, groupBy, sortBooks } from "@murmur/shared";
 import { BookCard } from "@/components/book-card";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { Grid, Group, openGroup, PAD, useGridWidth } from "@/components/library";
+import { Grid, Group, openGroup, PAD, Shelf, useGridWidth } from "@/components/library";
 import { BackRow, Empty, useBottomPad, PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { useBooks } from "@/lib/data";
 import { useTheme } from "@/theme";
@@ -19,6 +19,7 @@ export default function GroupScreen() {
   const list = (books.data ?? []).filter((b) => (author ? b.author === author : b.series === series));
   const groups = author ? groupBy(list, (b) => b.series) : [];
   const standalone = author ? list.filter((b) => !b.series) : [];
+  const standaloneCards = sortBooks(standalone, "title").map((b) => <BookCard key={b.id} book={b} width={width} sub={null} />);
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -46,12 +47,16 @@ export default function GroupScreen() {
             ))}
             {standalone.length ? (
               <>
-                {groups.length ? <SectionTitle title="Standalone" count={standalone.length} /> : <View style={{ height: 12 }} />}
-                <Grid>
-                  {sortBooks(standalone, "title").map((b) => (
-                    <BookCard key={b.id} book={b} width={width} sub={null} />
-                  ))}
-                </Grid>
+                {groups.length ? (
+                  <>
+                    <SectionTitle title="Standalone" count={standalone.length} />
+                    <Shelf>{standaloneCards}</Shelf>
+                  </>
+                ) : (
+                  <View style={{ marginTop: 12 }}>
+                    <Grid>{standaloneCards}</Grid>
+                  </View>
+                )}
               </>
             ) : null}
           </>

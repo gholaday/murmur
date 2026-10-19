@@ -286,7 +286,6 @@ export default function Player() {
               <PlusIcon size={20} color={t.text} />
             </StepButton>
           </View>
-          <Text variant="small">Remembered for this {item.type === "book" ? "book" : "podcast"}. Up to 2× on Android.</Text>
         </View>
       </Sheet>
 

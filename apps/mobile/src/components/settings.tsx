@@ -91,7 +91,7 @@ export function RolePill({ admin }: { admin: boolean }) {
 }
 
 /** App-styled checkbox: a rounded square that fills with the accent colour when ticked. */
-function Checkbox({ label, sub, checked, onChange }: { label: string; sub?: string; checked: boolean; onChange: (v: boolean) => void }) {
+function Checkbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   const t = useTheme();
   return (
     <Pressable
@@ -114,12 +114,9 @@ function Checkbox({ label, sub, checked, onChange }: { label: string; sub?: stri
       >
         {checked ? <CheckIcon size={14} color={t.onAccent} /> : null}
       </View>
-      <View style={{ flexShrink: 1 }}>
-        <Text variant="bodyStrong" style={{ fontSize: 15 }}>
-          {label}
-        </Text>
-        {sub ? <Text variant="small">{sub}</Text> : null}
-      </View>
+      <Text variant="bodyStrong" style={{ fontSize: 15, flexShrink: 1 }}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -272,7 +269,7 @@ export function LibrarySection() {
             {list.length > 1 ? <SmallButton label="Remove" danger onPress={() => setRemoving(f)} /> : null}
           </Row>
         ))}
-        <Row title="Add a folder" sub="Paths as the server sees them." last>
+        <Row title="Add a folder" last>
           <SmallButton label="Add" onPress={() => setAdding(true)} />
         </Row>
       </Card>
@@ -311,13 +308,16 @@ function joinPath(dir: string, name: string) {
 /** Type a path or browse the server's folders; the path is checked as you go. */
 function AddFolder({ others, start, busy, onAdd }: { others: string[]; start: string; busy: boolean; onAdd: (path: string) => void }) {
   const t = useTheme();
-  const [path, setPath] = useState("");
+  const [path, setPathState] = useState("");
   const [check, setCheck] = useState<FolderCheckDto | null>(null);
+  const setPath = (next: string) => {
+    setPathState(next);
+    setCheck(null);
+  };
   const [browse, setBrowse] = useState<FolderBrowseDto | null>(null);
   const othersKey = others.join("\n");
 
   useEffect(() => {
-    setCheck(null);
     if (!path.trim()) return;
     let live = true;
     const timer = setTimeout(async () => {
@@ -354,9 +354,11 @@ function AddFolder({ others, start, busy, onAdd }: { others: string[]; start: st
   return (
     <View style={{ paddingHorizontal: 12, gap: 12, paddingBottom: 8 }}>
       <Field label="Folder path" value={path} onChangeText={setPath} placeholder="/audiobooks" autoCapitalize="none" autoCorrect={false} spellCheck={false} />
-      <Text variant="small" style={check ? { color: check.ok ? t.accent : t.danger } : undefined}>
-        {check ? check.message : path.trim() ? "Checking…" : "Type a path or pick a folder below."}
-      </Text>
+      {check || path.trim() ? (
+        <Text variant="small" style={check ? { color: check.ok ? t.accent : t.danger } : undefined}>
+          {check ? check.message : "Checking…"}
+        </Text>
+      ) : null}
       {browse ? (
         <View style={{ backgroundColor: t.surface2, borderRadius: 12, overflow: "hidden" }}>
           {browse.parent ? <FolderLine icon="back" label={browse.parent} onPress={() => void open(browse.parent!)} /> : null}
@@ -480,7 +482,7 @@ export function UsersSection({ me }: { me: UserDto }) {
         <View style={{ paddingHorizontal: 12, gap: 12, paddingBottom: 8 }}>
           <Field label="Username" value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} spellCheck={false} autoComplete="off" />
           <Field label="Password" placeholder="8 or more characters" value={password} onChangeText={setPassword} autoComplete="new-password" {...passwordProps} />
-          <Checkbox label="Admin" sub="Can manage the library and users." checked={isAdmin} onChange={setIsAdmin} />
+          <Checkbox label="Admin" checked={isAdmin} onChange={setIsAdmin} />
           {error ? (
             <Text variant="small" style={{ color: t.danger }} accessibilityLiveRegion="polite">
               {error}

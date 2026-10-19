@@ -1,4 +1,4 @@
-import { Pressable, View, useWindowDimensions } from "react-native";
+import { Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
 import { useTheme } from "@/theme";
 import { CountPill, Text } from "./ui";
@@ -16,11 +16,28 @@ export function Grid({ children }: { children: React.ReactNode }) {
   return <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: GAP, rowGap: 18 }}>{children}</View>;
 }
 
+/** One row of covers that scrolls sideways, bleeding to the screen edge and snapping to cards. */
+export function Shelf({ children }: { children: React.ReactNode }) {
+  const width = useGridWidth();
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      snapToInterval={width + GAP}
+      decelerationRate="fast"
+      style={{ marginHorizontal: -PAD }}
+      contentContainerStyle={{ paddingHorizontal: PAD, columnGap: GAP }}
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
 export function openGroup(params: { author: string } | { series: string }) {
   router.push({ pathname: "/group", params });
 }
 
-/** A titled grid of books; the heading opens that author or series. */
+/** A titled shelf of books; the heading opens that author or series. */
 export function Group({
   title,
   count,
@@ -51,7 +68,7 @@ export function Group({
         </Pressable>
         {side ? <Text variant="small" style={{ color: t.muted }}>{side}</Text> : null}
       </View>
-      <Grid>{children}</Grid>
+      <Shelf>{children}</Shelf>
     </View>
   );
 }

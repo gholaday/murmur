@@ -4,7 +4,7 @@ import { PAD } from "@/components/library";
 import { PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { Card, LibrarySection, PasswordRow, RolePill, Row, SmallButton, UsersSection } from "@/components/settings";
 import { ConfirmSheet } from "@/components/sheet";
-import { Chip, Text } from "@/components/ui";
+import { Chip } from "@/components/ui";
 import { useSession } from "@/lib/session";
 import { setSkip, usePlayer } from "@/player/engine";
 import { setThemeMode, useTheme, useThemeMode, type ThemeMode } from "@/theme";
@@ -37,7 +37,7 @@ export default function Settings() {
             <RolePill admin={!!user?.isAdmin} />
           </Row>
           <PasswordRow />
-          <Row title="Sign out" sub="You'll need your password to sign in again." last>
+          <Row title="Sign out" last>
             <SmallButton label="Sign out" danger onPress={() => setConfirmSignOut(true)} />
           </Row>
         </Card>
@@ -62,9 +62,6 @@ export default function Settings() {
             <ChipRow values={FORWARD_OPTIONS} value={skip.forward} onPick={(v) => setSkip({ ...skip, forward: v })} />
           </Row>
         </Card>
-        <Text variant="small" style={{ marginTop: 8 }}>
-          The lock screen and headset buttons always skip 10 seconds. Speed is remembered per book and per podcast.
-        </Text>
 
         {user?.isAdmin ? (
           <>
