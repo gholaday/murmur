@@ -24,12 +24,22 @@ export const sessions = sqliteTable(
   (t) => [index("sessions_user_idx").on(t.userId)],
 );
 
+/** Folders the scanner reads books from; set by an admin in Settings. */
+export const libraryFolders = sqliteTable("library_folders", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** Absolute path as the server sees it (inside the container when run in Docker). */
+  path: text("path").notNull().unique(),
+  createdAt: integer("created_at").notNull(),
+});
+
 export const books = sqliteTable(
   "books",
   {
     id: text("id").primaryKey(),
-    /** Folder relative to the library root, always with forward slashes. */
-    folderPath: text("folder_path").notNull().unique(),
+    /** The library folder this book was found in; null once that folder is removed. */
+    libraryFolderId: integer("library_folder_id").references(() => libraryFolders.id, { onDelete: "set null" }),
+    /** Folder relative to its library folder, always with forward slashes. */
+    folderPath: text("folder_path").notNull(),
     /** Hash of file names and sizes; used to recognise a book whose folder was moved. */
     contentKey: text("content_key").notNull(),
     /** Hash of names, sizes and modified times of every relevant file; unchanged means no re-probe. */
@@ -49,6 +59,7 @@ export const books = sqliteTable(
     missingSince: integer("missing_since"),
   },
   (t) => [
+    uniqueIndex("books_folder_idx").on(t.libraryFolderId, t.folderPath),
     index("books_content_key_idx").on(t.contentKey),
     index("books_added_idx").on(t.addedAt),
     index("books_author_idx").on(t.author),
@@ -64,7 +75,7 @@ export const bookFiles = sqliteTable(
       .notNull()
       .references(() => books.id, { onDelete: "cascade" }),
     idx: integer("idx").notNull(),
-    /** Relative to the library root, forward slashes. */
+    /** Relative to the book's library folder, forward slashes. */
     relPath: text("rel_path").notNull(),
     size: integer("size").notNull(),
     mtimeMs: integer("mtime_ms").notNull(),
@@ -100,9 +111,6 @@ export const podcasts = sqliteTable("podcasts", {
   link: text("link"),
   imageUrl: text("image_url"),
   coverHash: text("cover_hash"),
-  /** Keep the newest `keepLatest` episodes downloaded to the NAS. */
-  autoDownload: integer("auto_download", { mode: "boolean" }).notNull().default(false),
-  keepLatest: integer("keep_latest").notNull().default(3),
   etag: text("etag"),
   lastModified: text("last_modified"),
   lastCheckedAt: integer("last_checked_at"),
@@ -146,9 +154,6 @@ export const episodes = sqliteTable(
     imageUrl: text("image_url"),
     season: integer("season"),
     episodeNumber: integer("episode_number"),
-    /** Relative to the podcasts data folder, set once downloaded to the NAS. */
-    localPath: text("local_path"),
-    downloadedAt: integer("downloaded_at"),
     firstSeenAt: integer("first_seen_at").notNull(),
   },
   (t) => [

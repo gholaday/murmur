@@ -18,12 +18,10 @@ export async function GET(): Promise<Response> {
   } catch {
     database = false;
   }
-  let reachable = true;
-  try {
-    await fs.access(env.libraryDir);
-  } catch {
-    reachable = false;
-  }
+  // Reachable only when every library folder can be opened.
+  const folders = ctx.library.folders();
+  const access = await Promise.all(folders.map((f) => fs.access(f.path).then(() => true, () => false)));
+  const reachable = folders.length > 0 && access.every(Boolean);
 
   const body: HealthDto = {
     ok: database,

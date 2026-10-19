@@ -1,8 +1,4 @@
 import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
-import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
 import type { Sqlite } from "../db";
 import { HttpError } from "../http";
 import { storeCover } from "../library/covers";
@@ -12,7 +8,6 @@ import { FeedParseError, parseFeed, type ParsedFeed } from "./feed";
 
 interface Deps {
   sqlite: Sqlite;
-  podcastsDir: string;
   coversDir: string;
   feedCheckMs: number;
   version: string;
@@ -21,7 +16,6 @@ interface Deps {
 
 const FEED_TIMEOUT_MS = 15_000;
 const MAX_FEED_BYTES = 25 * 1024 * 1024;
-const DOWNLOAD_STALL_MS = 60_000;
 const MAX_BACKOFF_MS = 24 * 60 * 60 * 1000;
 
 const newId = () => crypto.randomBytes(9).toString("base64url");
@@ -35,8 +29,6 @@ interface PodcastRow {
   last_modified: string | null;
   image_url: string | null;
   cover_hash: string | null;
-  auto_download: number;
-  keep_latest: number;
   failure_count: number;
   last_checked_at: number | null;
 }
@@ -44,7 +36,6 @@ interface PodcastRow {
 export function createPodcastService(deps: Deps) {
   const { sqlite, log } = deps;
   const feedLimit = createLimiter(3);
-  const downloadLimit = createLimiter(1);
   const refreshing = new Map<string, Promise<void>>();
 
   async function fetchFeed(url: string, etag: string | null, lastModified: string | null): Promise<FetchResult> {
@@ -135,9 +126,7 @@ export function createPodcastService(deps: Deps) {
         .prepare("UPDATE podcasts SET last_checked_at = ?, last_error = ?, failure_count = failure_count + 1 WHERE id = ?")
         .run(Date.now(), message, podcastId);
       log.warn("feed check failed", { podcastId, feed: row.feed_url, error: message, failures: row.failure_count + 1 });
-      return;
     }
-    void syncDownloads(podcastId);
   }
 
   /** Refreshes one feed; concurrent calls for the same feed share one request. */
@@ -196,96 +185,17 @@ export function createPodcastService(deps: Deps) {
     return { podcastId: row.id, created: info.changes > 0 };
   }
 
-  /** Removes the user's subscription; a feed nobody follows any more is deleted with its downloads. */
+  /** Removes the user's subscription; a feed nobody follows any more is deleted. */
   function unsubscribe(userId: number, podcastId: string) {
     sqlite.prepare("DELETE FROM subscriptions WHERE user_id = ? AND podcast_id = ?").run(userId, podcastId);
     const left = sqlite.prepare("SELECT COUNT(*) AS n FROM subscriptions WHERE podcast_id = ?").get(podcastId) as { n: number };
     if (left.n === 0) {
       sqlite.prepare("DELETE FROM podcasts WHERE id = ?").run(podcastId);
-      fs.rmSync(path.join(deps.podcastsDir, podcastId), { recursive: true, force: true });
       log.info("podcast removed, no subscribers left", { podcastId });
     }
   }
 
-  function updateSettings(podcastId: string, settings: { autoDownload?: boolean; keepLatest?: number }) {
-    const row = getRow(podcastId);
-    if (!row) throw new HttpError(404, "Podcast not found.");
-    sqlite
-      .prepare("UPDATE podcasts SET auto_download = ?, keep_latest = ? WHERE id = ?")
-      .run(
-        (settings.autoDownload ?? row.auto_download === 1) ? 1 : 0,
-        settings.keepLatest ?? row.keep_latest,
-        podcastId,
-      );
-    void syncDownloads(podcastId);
-  }
-
-  // ---------- Downloads ----------
-
-  function extensionFor(audioUrl: string, mimeType: string | null): string {
-    const fromUrl = path.extname(new URL(audioUrl).pathname).toLowerCase();
-    if ([".mp3", ".m4a", ".aac", ".ogg", ".opus", ".mp4"].includes(fromUrl)) return fromUrl;
-    if (mimeType?.includes("mp4") || mimeType?.includes("m4a")) return ".m4a";
-    if (mimeType?.includes("ogg")) return ".ogg";
-    return ".mp3";
-  }
-
-  async function downloadEpisode(podcastId: string, ep: { id: string; audio_url: string; mime_type: string | null }) {
-    const dir = path.join(deps.podcastsDir, podcastId);
-    fs.mkdirSync(dir, { recursive: true });
-    const name = `${ep.id}${extensionFor(ep.audio_url, ep.mime_type)}`;
-    const target = path.join(dir, name);
-    const tmp = `${target}.part`;
-    const controller = new AbortController();
-    let stall = setTimeout(() => controller.abort(new Error("download stalled")), DOWNLOAD_STALL_MS);
-    try {
-      const res = await fetch(ep.audio_url, {
-        headers: { "User-Agent": `Murmur/${deps.version}` },
-        signal: controller.signal,
-      });
-      if (!res.ok || !res.body) throw new Error(`audio request answered ${res.status}`);
-      const body = Readable.fromWeb(res.body as import("node:stream/web").ReadableStream);
-      body.on("data", () => {
-        clearTimeout(stall);
-        stall = setTimeout(() => controller.abort(new Error("download stalled")), DOWNLOAD_STALL_MS);
-      });
-      await pipeline(body, fs.createWriteStream(tmp));
-      fs.renameSync(tmp, target);
-      sqlite
-        .prepare("UPDATE episodes SET local_path = ?, downloaded_at = ? WHERE id = ?")
-        .run(`${podcastId}/${name}`, Date.now(), ep.id);
-      log.info("episode downloaded", { podcastId, episodeId: ep.id });
-    } catch (err) {
-      fs.rmSync(tmp, { force: true });
-      log.warn("episode download failed", { podcastId, episodeId: ep.id, error: errorMessage(err) });
-    } finally {
-      clearTimeout(stall);
-    }
-  }
-
-  /** Keeps exactly the newest `keepLatest` episodes on the NAS for auto-download shows. */
-  function syncDownloads(podcastId: string): Promise<void> {
-    return downloadLimit(async () => {
-      const row = getRow(podcastId);
-      if (!row) return;
-      const eps = sqlite
-        .prepare("SELECT id, audio_url, mime_type, local_path FROM episodes WHERE podcast_id = ? ORDER BY published_at DESC")
-        .all(podcastId) as Array<{ id: string; audio_url: string; mime_type: string | null; local_path: string | null }>;
-      const keep = row.auto_download === 1 ? eps.slice(0, row.keep_latest) : [];
-      const keepIds = new Set(keep.map((e) => e.id));
-      for (const e of eps) {
-        if (e.local_path && !keepIds.has(e.id)) {
-          fs.rmSync(path.join(deps.podcastsDir, e.local_path), { force: true });
-          sqlite.prepare("UPDATE episodes SET local_path = NULL, downloaded_at = NULL WHERE id = ?").run(e.id);
-        }
-      }
-      for (const e of keep) {
-        if (!e.local_path || !fs.existsSync(path.join(deps.podcastsDir, e.local_path))) await downloadEpisode(podcastId, e);
-      }
-    });
-  }
-
-  return { subscribe, unsubscribe, refresh, checkDue, updateSettings };
+  return { subscribe, unsubscribe, refresh, checkDue };
 }
 
 export type PodcastService = ReturnType<typeof createPodcastService>;

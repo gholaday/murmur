@@ -127,10 +127,16 @@ export function scannedChapters(ctx: AppContext, bookId: string): ChapterDto[] {
   return rows.map((c) => ({ index: c.idx, title: c.title, startSec: c.start_sec, endSec: c.end_sec }));
 }
 
+/** One audio file of a book, with the library folder its path is relative to. */
 export function getBookFile(ctx: AppContext, bookId: string, index: number) {
   return ctx.sqlite
-    .prepare("SELECT rel_path AS relPath, mime_type AS mimeType FROM book_files WHERE book_id = ? AND idx = ?")
-    .get(bookId, index) as { relPath: string; mimeType: string } | undefined;
+    .prepare(
+      `SELECT f.rel_path AS relPath, f.mime_type AS mimeType, lf.path AS root
+       FROM book_files f JOIN books b ON b.id = f.book_id
+       LEFT JOIN library_folders lf ON lf.id = b.library_folder_id
+       WHERE f.book_id = ? AND f.idx = ?`,
+    )
+    .get(bookId, index) as { relPath: string; mimeType: string; root: string | null } | undefined;
 }
 
 /** The cover a book shows, which may come from a match. */

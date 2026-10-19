@@ -26,13 +26,14 @@ v1 covers listening to audiobooks and podcasts on the phone with progress synced
 - Book page: cover, author, narrator, series and position, description, duration, chapter list
 - Single-file `.m4b` and multi-file MP3 books, played as one continuous timeline
 - Automatic rescan when files are added, moved or removed on the NAS
+- One or more library folders, managed by the admin in Settings (seeded from `LIBRARY_DIR` on first start), each checked before it's saved
 - Mark finished, reset progress
 
 **Podcasts**
 
 - Subscribe by pasting an RSS feed URL; OPML import and export
 - Server checks feeds on a schedule (default hourly) and lists new episodes
-- Episodes stream from the publisher by default; per-show option to auto-download to the NAS, keeping the last N
+- Episodes stream through the server, which relays the publisher's audio; the phone can download an episode on request. The server never stores episode audio.
 - Up Next queue, and played, unplayed and archived states per episode
 
 **Player**
@@ -90,12 +91,12 @@ flowchart LR
     next[Next.js server<br/>Web pages and /api route handlers<br/>Audio streaming with range requests]
     jobs[Background jobs<br/>Library scanner and file watcher<br/>Podcast feed checker, hourly]
   end
-  container -- read and write --> data[(/data volume<br/>SQLite, covers, episodes)]
+  container -- read and write --> data[(/data volume<br/>SQLite, covers)]
   container -- read only --> lib[(/audiobooks<br/>Your library)]
   jobs -- fetch feeds --> pub[Podcast publishers<br/>RSS feeds and episode audio]
 ```
 
-The phone and browser reach the server only through the Cloudflare Tunnel. Podcast episodes that aren't auto-downloaded stream straight from the publisher to the phone.
+The phone and browser reach the server only through the Cloudflare Tunnel. Podcast episodes are relayed by the server from the publisher with range requests; downloads for offline listening happen only on the phone.
 
 **Data model** (SQLite)
 
@@ -103,11 +104,12 @@ The phone and browser reach the server only through the Cloudflare Tunnel. Podca
 | --- | --- |
 | `users` | Username, password hash, admin flag |
 | `sessions` | Web sessions and app tokens |
-| `books` | Title, author, narrator, series, position, description, duration, cover path, folder path, file hash |
+| `library_folders` | The folders the library is read from |
+| `books` | Title, author, narrator, series, position, description, duration, cover path, library folder and path inside it, file hash |
 | `book_files` | Each audio file in a book: path, order, duration, start offset |
 | `chapters` | Title, start and end time per book |
-| `podcasts` | Feed URL, title, author, artwork, auto-download setting, last checked |
-| `episodes` | GUID, title, publish date, duration, audio URL, local path if downloaded |
+| `podcasts` | Feed URL, title, author, artwork, last checked |
+| `episodes` | GUID, title, publish date, duration, audio URL |
 | `progress` | Per user and item: position, finished flag, last updated, speed |
 | `queue` | Per user: ordered Up Next items |
 
@@ -121,7 +123,7 @@ The phone and browser reach the server only through the Cloudflare Tunnel. Podca
 | Podcasts | `GET/POST /podcasts`, `DELETE /podcasts/:id`, `GET /podcasts/:id/episodes`, `POST /podcasts/:id/refresh`, OPML import and export |
 | Progress | `GET /progress?since=`, `PUT /progress` (batched, newest update wins) |
 | Queue | `GET /queue`, `PUT /queue` |
-| Admin | `GET/POST/DELETE /users` |
+| Admin | `GET/POST/DELETE /users`, `GET/PUT /library/folders`, `POST /library/folders/check`, `GET /library/browse?path=` |
 
 Conflicts in progress sync resolve to the most recent update by timestamp, so listening offline on the phone and then online in the browser keeps the newer position.
 
@@ -159,7 +161,7 @@ The app is small, so the bar is high: every screen opens instantly, playback sta
 **"Just works" safeguards**
 
 - **Never lose progress.** Progress rows are never deleted when a book disappears; if the book comes back, so does your place.
-- **Survive a NAS hiccup.** If the library folder is empty or unreachable, the scanner stops instead of removing books. Missing books are marked missing and only hidden after 7 days.
+- **Survive a NAS hiccup.** If a library folder is empty or unreachable, the scanner leaves its books alone and reports the problem in Settings; the other folders still scan. Missing books are marked missing and only hidden after 7 days. Removing a folder in Settings removes its books on the next scan, unless they turn up in another folder, which keeps their progress.
 - **Safe updates.** Migrations run in a transaction after copying the database to `/data/backups`; a failed migration rolls back and the old image still works.
 - **Nightly backup** of the database to `/data/backups`, keeping the last 7.
 - **Health check.** `/api/health` reports database, library mount and job status, and Portainer shows it. A fatal error exits the process so the restart policy brings it back.
@@ -287,8 +289,8 @@ Deploying is one Portainer stack with two volumes, reached through the existing 
 
 | Mount | Purpose | Notes |
 | --- | --- | --- |
-| `/audiobooks` | The existing audiobook library | Read-only: the app never writes to or renames your files |
-| `/data` | SQLite database, cover cache, downloaded podcast episodes | The only thing to back up |
+| `/audiobooks` | The existing audiobook library (`LIBRARY_DIR`, the first library folder) | Read-only: the app never writes to or renames your files. Mount more folders and add them in Settings |
+| `/data` | SQLite database and cover cache | The only thing to back up |
 
 **Image:** a GitHub Actions workflow builds a multi-arch image (amd64 and arm64) with `ffprobe` included and pushes it to GitHub Container Registry on each tagged release.
 
@@ -302,7 +304,7 @@ Deploying is one Portainer stack with two volumes, reached through the existing 
 
 ## Local development
 
-Run `pnpm install` once, then `pnpm dev` and open http://localhost:3000. `apps/server/.env.development` points the database, covers and downloads at the repo's git-ignored `data/` folder and the library at `data/audiobooks`. ffmpeg must be on the PATH. Docker is only used for the production image: on Windows a bind-mounted source folder delivers no file-change events, so hot reload inside a container is unreliable.
+Run `pnpm install` once, then `pnpm dev` and open http://localhost:3000. `apps/server/.env.development` points the database and covers at the repo's git-ignored `data/` folder and the library at `data/audiobooks`. ffmpeg must be on the PATH. Docker is only used for the production image: on Windows a bind-mounted source folder delivers no file-change events, so hot reload inside a container is unreliable.
 
 ## Non-goals and later ideas
 
@@ -334,7 +336,7 @@ The build runs in four phases, and each ends when it can take over a piece of Au
 | Phase | Scope | Done when |
 | --- | --- | --- |
 | 1. Server core | Library scanner, streaming and auth, progress sync, Docker image | A book plays from the NAS |
-| 2. Podcasts | Subscribe by RSS URL, scheduled feed checks, auto-download to NAS, OPML import and export | Podcasts move off ABS |
+| 2. Podcasts | Subscribe by RSS URL, scheduled feed checks, streaming through the server, OPML import and export | Podcasts move off ABS |
 | 3. Web player | Library and book pages, player and Up Next, podcast pages, admin and users | Daily use on desktop |
 | 4. Android app | Tabs and mini player, background playback, offline downloads, offline progress sync | Audiobookshelf retired |
 
@@ -346,5 +348,5 @@ Phase 1 included a bare web page for testing playback; phase 3 turned it into th
 - [ ] Which NAS (Synology, Unraid, TrueNAS, other) and CPU architecture? Sets the image build and volume paths.
 - [ ] Is Cloudflare Access in front of Audiobookshelf today? Decides whether the app needs the `/api/*` bypass.
 - [x] Import listening progress from Audiobookshelf? Decided: no, start fresh.
-- [ ] How many podcast subscriptions, and auto-download by default or off?
+- [x] Auto-download podcasts on the server? Decided: no; the server checks feeds and relays streams, and the phone downloads on request.
 - [ ] Default skip intervals and playback speed.

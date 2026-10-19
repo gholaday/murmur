@@ -10,8 +10,6 @@ interface PodcastRow {
   title: string;
   author: string | null;
   cover_hash: string | null;
-  auto_download: number;
-  keep_latest: number;
   last_error: string | null;
   description: string | null;
   link: string | null;
@@ -49,8 +47,6 @@ function toSummary(r: PodcastRow, colors: Map<string, string>): PodcastSummary {
     episodeCount: r.episode_count,
     unplayedCount: r.unplayed_count,
     latestPublishedAt: r.latest_published_at,
-    autoDownload: r.auto_download === 1,
-    keepLatest: r.keep_latest,
     speed: r.speed,
     lastError: r.last_error,
   };
@@ -84,7 +80,6 @@ interface EpisodeRow {
   published_at: number;
   duration_sec: number | null;
   audio_url: string;
-  local_path: string | null;
   image_url: string | null;
   season: number | null;
   episode_number: number | null;
@@ -123,7 +118,6 @@ function toEpisode(e: EpisodeRow): EpisodeDto {
     publishedAt: e.published_at,
     durationSec: e.duration_sec,
     audioUrl: e.audio_url,
-    downloaded: e.local_path !== null,
     archived: e.archived === 1,
     imageUrl: e.image_url,
     season: e.season,
@@ -179,11 +173,11 @@ export async function episodesByIds(sqlite: Sqlite, ids: string[], userId: numbe
 export function getEpisodeForUser(sqlite: Sqlite, episodeId: string, userId: number) {
   return sqlite
     .prepare(
-      `SELECT e.audio_url AS audioUrl, e.local_path AS localPath, e.mime_type AS mimeType
+      `SELECT e.audio_url AS audioUrl, e.mime_type AS mimeType
        FROM episodes e JOIN subscriptions s ON s.podcast_id = e.podcast_id AND s.user_id = ?
        WHERE e.id = ?`,
     )
-    .get(userId, episodeId) as { audioUrl: string; localPath: string | null; mimeType: string | null } | undefined;
+    .get(userId, episodeId) as { audioUrl: string; mimeType: string | null } | undefined;
 }
 
 export function subscribedFeeds(sqlite: Sqlite, userId: number) {

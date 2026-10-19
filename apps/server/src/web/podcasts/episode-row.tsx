@@ -46,7 +46,6 @@ export function EpisodeRow({
     showThumb ? episode.podcastTitle : null,
     shortDate(episode.publishedAt),
     played ? "Played" : position > 5 && dur ? timeLeft(dur, position) : duration(dur),
-    episode.downloaded ? "Downloaded" : null,
   ]
     .filter(Boolean)
     .join(" · ");

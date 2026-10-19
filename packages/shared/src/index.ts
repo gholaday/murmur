@@ -51,9 +51,6 @@ export const subscribeSchema = z.object({
 export type SubscribeInput = z.input<typeof subscribeSchema>;
 
 export const podcastSettingsSchema = z.object({
-  /** Shared by everyone subscribed; admin only. */
-  autoDownload: z.boolean().optional(),
-  keepLatest: z.number().int().min(1).max(50).optional(),
   /** Your own playback speed for the show. */
   speed: z.number().min(0.5).max(3).optional(),
 });
@@ -64,6 +61,17 @@ export const changePasswordSchema = z.object({
   newPassword: z.string().min(8).max(256),
 });
 export type ChangePasswordInput = z.input<typeof changePasswordSchema>;
+
+const folderPathSchema = z.string().trim().min(1).max(1024);
+/** Replaces the library folder list (admin). */
+export const libraryFoldersSchema = z.object({
+  paths: z.array(folderPathSchema).min(1, "Keep at least one library folder.").max(20),
+});
+export const folderCheckSchema = z.object({
+  path: folderPathSchema,
+  /** The other folders in the list, to catch overlaps before saving. */
+  others: z.array(folderPathSchema).max(20).default([]),
+});
 
 export const queueRefSchema = z.object({
   itemType: itemTypeSchema,
@@ -180,8 +188,6 @@ export interface PodcastSummary {
   /** Unfinished episodes published since a week before you subscribed. */
   unplayedCount: number;
   latestPublishedAt: number | null;
-  autoDownload: boolean;
-  keepLatest: number;
   /** Your playback speed for this show. */
   speed: number;
   lastError: string | null;
@@ -202,9 +208,8 @@ export interface EpisodeDto {
   description: string | null;
   publishedAt: number;
   durationSec: number | null;
-  /** The publisher's URL. Play through `episodeUrl`, which uses the server's copy when there is one. */
+  /** The publisher's URL. Play through `episodeUrl`, which relays it through the server. */
   audioUrl: string;
-  downloaded: boolean;
   archived: boolean;
   imageUrl: string | null;
   season: number | null;
@@ -285,6 +290,26 @@ export interface OpmlImportResult {
   failed: Array<{ feedUrl: string; error: string }>;
 }
 
+export interface LibraryFolderDto {
+  id: number;
+  path: string;
+  books: number;
+  reachable: boolean;
+}
+
+export interface FolderCheckDto {
+  path: string;
+  ok: boolean;
+  message: string;
+  subfolders: number;
+}
+
+export interface FolderBrowseDto {
+  path: string;
+  parent: string | null;
+  folders: string[];
+}
+
 export interface HealthDto {
   ok: boolean;
   version: string;
@@ -313,7 +338,7 @@ export const apiPaths = {
     `/api/stream/book/${bookId}/${fileIndex}`,
   podcastCoverUrl: (podcastId: string, coverHash: string, size: 200 | 600) =>
     `/api/podcasts/${podcastId}/cover?size=${size}&h=${coverHash}`,
-  /** Serves the server's copy if downloaded, otherwise relays the publisher's audio. */
+  /** Relays the publisher's audio through the server; supports range requests. */
   episodeUrl: (episodeId: string) => `/api/stream/episode/${episodeId}`,
 };
 export * from "./format";

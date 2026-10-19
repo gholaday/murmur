@@ -1,6 +1,7 @@
 import type { UserDto } from "@murmur/shared";
 import { getContext } from "@/server/context";
 import { env } from "@/server/env";
+import { folderList } from "@/server/library/folders";
 import { requirePageUser } from "@/server/session";
 import { ProfileView } from "@/web/profile/profile-view";
 
@@ -15,10 +16,12 @@ export default async function ProfilePage() {
       }>).map((u) => ({ id: u.id, username: u.username, isAdmin: u.is_admin === 1 }))
     : [];
   const bookCount = (ctx.sqlite.prepare("SELECT COUNT(*) AS n FROM books WHERE missing_since IS NULL").get() as { n: number }).n;
+  const folders = user.isAdmin ? await folderList(ctx.db, ctx.sqlite) : [];
   return (
     <ProfileView
       user={user}
       users={users}
+      folders={folders}
       server={{
         version: env.version,
         books: bookCount,

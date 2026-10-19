@@ -10,5 +10,5 @@ export default async function ShowPage({ params }: { params: Promise<{ id: strin
   const id = (await params).id;
   const podcast = await getPodcast(sqlite, id, user.id);
   if (!podcast) notFound();
-  return <ShowView podcast={podcast} episodes={listEpisodes(sqlite, id, user.id)} isAdmin={user.isAdmin} />;
+  return <ShowView podcast={podcast} episodes={listEpisodes(sqlite, id, user.id)} />;
 }

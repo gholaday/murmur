@@ -5,7 +5,7 @@ import { isIgnoredName } from "./parse";
 export type WatchMode = "events" | "polling" | "periodic-only";
 
 interface WatcherOptions {
-  libraryDir: string;
+  folders: string[];
   polling: boolean;
   debounceMs: number;
   periodicMs: number;
@@ -38,7 +38,7 @@ export function startWatcher(opts: WatcherOptions): LibraryWatcher {
   };
 
   try {
-    watcher = watch(opts.libraryDir, {
+    watcher = watch(opts.folders, {
       ignoreInitial: true,
       persistent: true,
       usePolling: opts.polling,

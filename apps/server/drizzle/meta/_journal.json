@@ -22,6 +22,20 @@
       "when": 1792365450947,
       "tag": "0002_phase3",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792372183432,
+      "tag": "0003_library_folders",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1792372643504,
+      "tag": "0004_drop_server_downloads",
+      "breakpoints": true
     }
   ]
 }

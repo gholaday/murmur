@@ -3,9 +3,9 @@
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { shortDate, type UserDto } from "@murmur/shared";
+import { shortDate, type FolderBrowseDto, type FolderCheckDto, type LibraryFolderDto, type UserDto } from "@murmur/shared";
 import { api } from "../api";
-import { PlusIcon } from "../icons";
+import { BackIcon, FolderIcon, PlusIcon } from "../icons";
 import { usePlayer } from "../player/engine";
 import { Sheet } from "../sheet";
 import { applyTheme, currentTheme, type ThemeChoice } from "../theme";
@@ -31,7 +31,17 @@ function errorText(err: unknown) {
   return err instanceof Error ? err.message : "Something went wrong.";
 }
 
-export function ProfileView({ user, users, server }: { user: UserDto; users: UserDto[]; server: ServerInfo }) {
+export function ProfileView({
+  user,
+  users,
+  folders,
+  server,
+}: {
+  user: UserDto;
+  users: UserDto[];
+  folders: LibraryFolderDto[];
+  server: ServerInfo;
+}) {
   const router = useRouter();
   const player = usePlayer();
 
@@ -105,6 +115,10 @@ export function ProfileView({ user, users, server }: { user: UserDto; users: Use
           <section className="section">
             <h2 className="section-title">Library</h2>
             <LibraryCard server={server} onScanned={() => router.refresh()} />
+            <FoldersCard folders={folders} onSaved={() => router.refresh()} />
+            <p className="muted small" style={{ margin: 0 }}>
+              Paths as the server sees them. In Docker, mount a folder into the container before adding it here.
+            </p>
           </section>
           <section className="section">
             <h2 className="section-title">Users</h2>
@@ -174,7 +188,7 @@ function PasswordForm({ username, isAdmin }: { username: string; isAdmin: boolea
         <span className="setting-text">
           <span className="setting-title">{username}</span>
           <span className="setting-sub">
-            {isAdmin ? "Can manage the library, auto-downloads and users." : "Can listen and keep their own progress."}
+            {isAdmin ? "Can manage the library and users." : "Can listen and keep their own progress."}
           </span>
         </span>
         <span className={`role-pill ${isAdmin ? "admin" : ""}`}>{isAdmin ? "Admin" : "Listener"}</span>
@@ -284,6 +298,199 @@ function LibraryCard({ server, onScanned }: { server: ServerInfo; onScanned: () 
   );
 }
 
+function FoldersCard({ folders, onSaved }: { folders: LibraryFolderDto[]; onSaved: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+
+  const save = async (paths: string[], done: string) => {
+    setBusy(true);
+    try {
+      await api<LibraryFolderDto[]>("/api/library/folders", { method: "PUT", body: { paths } });
+      toast(done);
+      onSaved();
+      setTimeout(onSaved, 3000);
+      return true;
+    } catch (err) {
+      toast.error(errorText(err));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card-box">
+      {folders.map((f) => (
+        <div key={f.id} className="setting" style={{ paddingBlock: 8 }}>
+          <span className="setting-text">
+            <span className="folder-path">{f.path}</span>
+            <span className={`setting-sub ${f.reachable ? "" : "error"}`}>
+              {f.reachable ? `${f.books} ${f.books === 1 ? "book" : "books"}` : "The server can't open this folder."}
+            </span>
+          </span>
+          {folders.length > 1 ? (
+            confirmRemove === f.id ? (
+              <span style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <button type="button" className="btn" onClick={() => setConfirmRemove(null)}>
+                  Keep
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={busy}
+                  onClick={async () => {
+                    await save(
+                      folders.filter((o) => o.id !== f.id).map((o) => o.path),
+                      "Folder removed. Its books leave the library after the rescan.",
+                    );
+                    setConfirmRemove(null);
+                  }}
+                >
+                  Remove
+                </button>
+              </span>
+            ) : (
+              <button type="button" className="btn btn-danger" style={{ flexShrink: 0 }} onClick={() => setConfirmRemove(f.id)}>
+                Remove
+              </button>
+            )
+          ) : null}
+        </div>
+      ))}
+      <div className="setting">
+        <button type="button" className="btn" onClick={() => setAdding(true)}>
+          <PlusIcon size={18} />
+          Add folder
+        </button>
+      </div>
+      <Sheet open={adding} onClose={() => setAdding(false)} title="Add a library folder">
+        {adding ? (
+          <AddFolderForm
+            others={folders.map((f) => f.path)}
+            start={folders[0]?.path ?? ""}
+            busy={busy}
+            onAdd={async (path) => {
+              if (await save([...folders.map((f) => f.path), path], "Folder added. Scanning it now.")) setAdding(false);
+            }}
+          />
+        ) : null}
+      </Sheet>
+    </div>
+  );
+}
+
+function AddFolderForm({
+  others,
+  start,
+  busy,
+  onAdd,
+}: {
+  others: string[];
+  start: string;
+  busy: boolean;
+  onAdd: (path: string) => void;
+}) {
+  const [path, setPath] = useState("");
+  const [check, setCheck] = useState<FolderCheckDto | null>(null);
+  const [browse, setBrowse] = useState<FolderBrowseDto | null>(null);
+  const othersKey = others.join("\n");
+
+  // Checks what's typed after a short pause, so the result follows along without a button.
+  useEffect(() => {
+    setCheck(null);
+    if (!path.trim()) return;
+    let live = true;
+    const timer = setTimeout(async () => {
+      try {
+        const body = { path, others: othersKey ? othersKey.split("\n") : [] };
+        const result = await api<FolderCheckDto>("/api/library/folders/check", { method: "POST", body });
+        if (live) setCheck(result);
+      } catch (err) {
+        if (live) setCheck({ path, ok: false, message: errorText(err), subfolders: 0 });
+      }
+    }, 350);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [path, othersKey]);
+
+  const open = async (dir: string) => {
+    try {
+      setBrowse(await api<FolderBrowseDto>(`/api/library/browse?path=${encodeURIComponent(dir)}`));
+    } catch (err) {
+      toast.error(errorText(err));
+    }
+  };
+  // Start browsing next to the existing folder, where new ones usually live.
+  useEffect(() => {
+    void api<FolderBrowseDto>(`/api/library/browse?path=${encodeURIComponent(start)}`)
+      .then((b) => (b.parent ? api<FolderBrowseDto>(`/api/library/browse?path=${encodeURIComponent(b.parent)}`) : b))
+      .then(setBrowse, () => undefined);
+  }, [start]);
+
+  return (
+    <form
+      className="form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (check?.ok) onAdd(check.path);
+      }}
+    >
+      <input
+        className="input folder-path"
+        value={path}
+        onChange={(e) => setPath(e.target.value)}
+        placeholder="/audiobooks"
+        aria-label="Folder path"
+        autoComplete="off"
+        spellCheck={false}
+        autoFocus
+      />
+      <p className={`folder-check ${check ? (check.ok ? "ok" : "bad") : ""}`} role="status">
+        {check ? check.message : path.trim() ? "Checking…" : "Type a path or pick a folder below."}
+      </p>
+      {browse ? (
+        <div className="folder-browse">
+          {browse.parent ? (
+            <button type="button" onClick={() => void open(browse.parent!)}>
+              <BackIcon size={18} />
+              <span className="folder-path">{browse.parent}</span>
+            </button>
+          ) : null}
+          {browse.folders.map((name) => {
+            const full = joinPath(browse.path, name);
+            return (
+              <button
+                key={name}
+                type="button"
+                aria-pressed={path === full}
+                onClick={() => {
+                  setPath(full);
+                  void open(full);
+                }}
+              >
+                <FolderIcon size={18} />
+                {name}
+              </button>
+            );
+          })}
+          {browse.folders.length === 0 ? <div className="empty">No folders inside {browse.path}</div> : null}
+        </div>
+      ) : null}
+      <button type="submit" className="btn btn-primary" disabled={busy || !check?.ok}>
+        Add folder
+      </button>
+    </form>
+  );
+}
+
+function joinPath(dir: string, name: string) {
+  const sep = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";
+  return dir.endsWith(sep) ? dir + name : dir + sep + name;
+}
+
 function UsersCard({ me, users, onChanged }: { me: UserDto; users: UserDto[]; onChanged: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -383,7 +590,7 @@ function UsersCard({ me, users, onChanged }: { me: UserDto; users: UserDto[]; on
           <label className="switch">
             <span className="setting-text">
               <span className="setting-title" style={{ fontSize: 14 }}>Admin</span>
-              <span className="setting-sub">Can manage the library, auto-downloads and users.</span>
+              <span className="setting-sub">Can manage the library and users.</span>
             </span>
             <input type="checkbox" name="isAdmin" />
           </label>

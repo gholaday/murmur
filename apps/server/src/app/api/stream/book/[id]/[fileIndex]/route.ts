@@ -1,7 +1,6 @@
 import { requireUser } from "@/server/auth";
 import { getBookFile } from "@/server/books";
 import { getContext } from "@/server/context";
-import { env } from "@/server/env";
 import { HttpError, route } from "@/server/http";
 import { resolveInside, streamFile } from "@/server/stream";
 
@@ -15,7 +14,8 @@ const handler = route<Ctx>(async (req, { params }) => {
   if (!Number.isInteger(index) || index < 0) throw new HttpError(400, "Invalid file index.");
   const file = getBookFile(ctx, id, index);
   if (!file) throw new HttpError(404, "File not found.");
-  return streamFile(req, resolveInside(env.libraryDir, file.relPath), file.mimeType);
+  if (!file.root) throw new HttpError(404, "This book's library folder was removed.");
+  return streamFile(req, resolveInside(file.root, file.relPath), file.mimeType);
 });
 
 export const GET = handler;

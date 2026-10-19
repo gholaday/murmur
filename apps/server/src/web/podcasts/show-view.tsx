@@ -6,19 +6,18 @@ import { useMemo, useState } from "react";
 import { apiPaths, type EpisodeDto, type EpisodeWithShow, plural, type PodcastDetail, shortDate } from "@murmur/shared";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { BackIcon, CheckIcon, DownloadIcon, MoreIcon } from "../icons";
+import { BackIcon, CheckIcon, MoreIcon } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
 const PAGE = 50;
-const KEEP_OPTIONS = [1, 2, 3, 5, 10, 20];
 
-export function ShowView({ podcast, episodes, isAdmin }: { podcast: PodcastDetail; episodes: EpisodeDto[]; isAdmin: boolean }) {
+export function ShowView({ podcast, episodes }: { podcast: PodcastDetail; episodes: EpisodeDto[] }) {
   const router = useRouter();
   const [tab, setTab] = useState<"episodes" | "archived">("episodes");
   const [oldestFirst, setOldestFirst] = useState(false);
   const [limit, setLimit] = useState(PAGE);
-  const [sheet, setSheet] = useState<null | "menu" | "download" | "unsubscribe">(null);
+  const [sheet, setSheet] = useState<null | "menu" | "unsubscribe">(null);
   const [busy, setBusy] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
 
@@ -51,9 +50,6 @@ export function ShowView({ podcast, episodes, isAdmin }: { podcast: PodcastDetai
       setBusy(false);
     }
   };
-
-  const updateDownloads = (body: { autoDownload?: boolean; keepLatest?: number }) =>
-    run(() => api(`/api/podcasts/${podcast.id}`, { method: "PATCH", body }));
 
   return (
     <>
@@ -92,17 +88,6 @@ export function ShowView({ podcast, episodes, isAdmin }: { podcast: PodcastDetai
             <CheckIcon size={16} />
             Subscribed
           </button>
-          {isAdmin ? (
-            <button type="button" className="btn btn-tint" onClick={() => setSheet("download")}>
-              <DownloadIcon size={16} />
-              {podcast.autoDownload ? `Auto-download: last ${podcast.keepLatest}` : "Auto-download off"}
-            </button>
-          ) : podcast.autoDownload ? (
-            <span className="btn btn-tint" aria-disabled="true">
-              <DownloadIcon size={16} />
-              Auto-download: last {podcast.keepLatest}
-            </span>
-          ) : null}
         </div>
       </div>
 
@@ -180,38 +165,6 @@ export function ShowView({ podcast, episodes, isAdmin }: { podcast: PodcastDetai
         <SheetItem danger onClick={() => setSheet("unsubscribe")}>
           Unsubscribe
         </SheetItem>
-      </Sheet>
-
-      <Sheet open={sheet === "download"} onClose={() => setSheet(null)} title="Auto-download">
-        <label className="switch">
-          <span className="setting-text">
-            <span className="setting-title">Download new episodes</span>
-            <span className="setting-sub">Plays from the server&apos;s copy, even if the publisher is slow. Applies to everyone.</span>
-          </span>
-          <input
-            type="checkbox"
-            checked={podcast.autoDownload}
-            disabled={busy}
-            onChange={(e) => void updateDownloads({ autoDownload: e.target.checked })}
-          />
-        </label>
-        <div className="label">
-          Keep the newest
-          <div className="chip-grid" style={{ gridTemplateColumns: "repeat(6, minmax(0, 1fr))" }}>
-            {KEEP_OPTIONS.map((n) => (
-              <button
-                key={n}
-                type="button"
-                className="chip"
-                aria-pressed={podcast.keepLatest === n}
-                disabled={busy}
-                onClick={() => void updateDownloads({ keepLatest: n })}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-        </div>
       </Sheet>
 
       <Sheet open={sheet === "unsubscribe"} onClose={() => setSheet(null)} title={`Unsubscribe from ${podcast.title}?`}>

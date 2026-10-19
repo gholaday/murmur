@@ -1,8 +1,11 @@
+import fs from "node:fs";
+import path from "node:path";
 import { backupDatabase, openDatabase, type Db, type Sqlite } from "./db";
 import { env } from "./env";
+import { ensureDefaultFolder, listFolders, saveFolders, type LibraryFolder } from "./library/folders";
 import { createScanState, createScanner, type ScanState, type Scanner } from "./library/scanner";
 import { startWatcher, type LibraryWatcher } from "./library/watcher";
-import { createLogger, errorMessage } from "./log";
+import { createLogger, errorMessage, type Logger } from "./log";
 import { createPodcastService, startFeedScheduler, type PodcastService } from "./podcasts/service";
 
 export interface AppContext {
@@ -11,6 +14,11 @@ export interface AppContext {
   scanner: Scanner;
   scanState: ScanState;
   watcher: LibraryWatcher;
+  library: {
+    folders: () => LibraryFolder[];
+    /** Replaces the folder list, restarts the watcher and starts a rescan. */
+    saveFolders: (paths: string[]) => Promise<LibraryFolder[]>;
+  };
   podcasts: PodcastService;
   startedAt: number;
 }
@@ -48,10 +56,11 @@ async function boot(): Promise<AppContext> {
     log: createLogger("db"),
   });
 
+  ensureDefaultFolder(db, env.libraryDir);
   const scanState = createScanState();
   const scanner = createScanner({
     db,
-    libraryDir: env.libraryDir,
+    folders: () => listFolders(db),
     coversDir: env.coversDir,
     ffprobePath: env.ffprobePath,
     ffmpegPath: env.ffmpegPath,
@@ -61,19 +70,33 @@ async function boot(): Promise<AppContext> {
     state: scanState,
   });
 
-  const watcher = startWatcher({
-    libraryDir: env.libraryDir,
-    polling: env.watchPolling,
-    debounceMs: env.watchDebounceMs,
-    periodicMs: env.periodicScanMs,
-    onChange: () => void scanner.scan(),
-    log: createLogger("watcher"),
-  });
+  const watchLog = createLogger("watcher");
+  const startWatch = () =>
+    startWatcher({
+      folders: listFolders(db).map((f) => f.path),
+      polling: env.watchPolling,
+      debounceMs: env.watchDebounceMs,
+      periodicMs: env.periodicScanMs,
+      onChange: () => void scanner.scan(),
+      log: watchLog,
+    });
+  let currentWatcher = startWatch();
+  const watcher: LibraryWatcher = { mode: () => currentWatcher.mode(), close: () => currentWatcher.close() };
+  const library: AppContext["library"] = {
+    folders: () => listFolders(db),
+    saveFolders: async (paths) => {
+      const saved = saveFolders(db, paths);
+      await currentWatcher.close();
+      currentWatcher = startWatch();
+      void scanner.scan();
+      return saved;
+    },
+  };
 
   const podcastLog = createLogger("podcasts");
+  removeOldEpisodeDownloads(podcastLog);
   const podcasts = createPodcastService({
     sqlite,
-    podcastsDir: env.podcastsDir,
     coversDir: env.coversDir,
     feedCheckMs: env.feedCheckMs,
     version: env.version,
@@ -88,11 +111,23 @@ async function boot(): Promise<AppContext> {
   log.info("murmur started", {
     version: env.version,
     ms: Date.now() - started,
-    library: env.libraryDir,
+    library: listFolders(db).map((f) => f.path),
     data: env.dataDir,
     watcher: watcher.mode(),
   });
-  return { db, sqlite, scanner, scanState, watcher, podcasts, startedAt: started };
+  return { db, sqlite, scanner, scanState, watcher, library, podcasts, startedAt: started };
+}
+
+/** Episodes used to be downloaded to DATA_DIR/podcasts; they now only download to phones. */
+function removeOldEpisodeDownloads(podcastLog: Logger) {
+  const dir = path.join(env.dataDir, "podcasts");
+  if (!fs.existsSync(dir)) return;
+  try {
+    fs.rmSync(dir, { recursive: true, force: true });
+    podcastLog.info("removed old server episode downloads", { dir });
+  } catch (err) {
+    podcastLog.warn("couldn't remove old episode downloads", { dir, error: errorMessage(err) });
+  }
 }
 
 function scheduleNightlyBackup(sqlite: Sqlite) {

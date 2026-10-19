@@ -18,7 +18,6 @@ export const env = {
   dbPath: path.join(dataDir, "murmur.db"),
   coversDir: path.join(dataDir, "covers"),
   backupsDir: path.join(dataDir, "backups"),
-  podcastsDir: path.join(dataDir, "podcasts"),
   /** How often each feed is checked when healthy; failing feeds back off up to 24 hours. */
   feedCheckMs: intEnv("FEED_CHECK_MINUTES", 60) * 60_000,
   libraryDir: path.resolve(/*turbopackIgnore: true*/ process.env.LIBRARY_DIR ?? "/audiobooks"),
