@@ -175,7 +175,11 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
             </button>
           </form>
 
-          {result?.errors.length ? <p className="error small" style={{ margin: 0 }}>{result.errors.join(" · ")}</p> : null}
+          {result?.errors.map((e) => (
+            <p key={e} className="error small" style={{ margin: 0 }}>
+              {e}
+            </p>
+          ))}
           {error ? <p className="error small" style={{ margin: 0 }}>{error}</p> : null}
 
           {result ? (
@@ -195,8 +199,8 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
                             {c.title}
                             {c.subtitle ? <span className="muted">: {c.subtitle}</span> : null}
                           </span>
-                          <span className="small">{[c.author, c.narrator ? `read by ${c.narrator}` : null].filter(Boolean).join(" · ")}</span>
-                          <span className="muted small">
+                          <span className="small">{[c.author, c.narrator ? `read by ${c.narrator}` : null].filter(Boolean).join(", ")}</span>
+                          <span className="candidate-tags">
                             {[
                               seriesLabel(c.series, c.seriesPosition),
                               c.durationSec ? duration(c.durationSec) : null,
@@ -204,7 +208,9 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
                               PROVIDER_NAME[c.provider],
                             ]
                               .filter(Boolean)
-                              .join(" · ")}
+                              .map((tag) => (
+                                <span key={tag}>{tag}</span>
+                              ))}
                           </span>
                           {on ? (
                             <ul className="reasons">

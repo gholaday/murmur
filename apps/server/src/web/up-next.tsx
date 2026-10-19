@@ -14,9 +14,10 @@ function entryView(e: QueueEntry) {
     const b = e.book;
     const pos = b.progress && !b.progress.finished ? b.progress.positionSec : 0;
     return {
-      kind: "Audiobook",
+      // The author sits above the title, as an episode's show does.
+      kind: b.author ?? "Audiobook",
       title: b.title,
-      sub: [b.author, pos > 5 ? timeLeft(b.durationSec, pos) : duration(b.durationSec)].filter(Boolean).join(" · "),
+      sub: pos > 5 ? timeLeft(b.durationSec, pos) : duration(b.durationSec),
       cover: b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 200) : null,
       color: b.coverColor,
       remaining: Math.max(0, b.durationSec - pos),
@@ -40,7 +41,7 @@ const toRef = (e: QueueEntry): QueueRef => ({ itemType: e.itemType, itemId: e.it
 /** Its own component so the playhead ticks redraw this card, not the whole queue below it. */
 function NowPlayingCard({ item, onOpen }: { item: Playable; onOpen: () => void }) {
   const position = usePosition();
-  const nowChapter = item.chapters[chapterAt(item.chapters, position)];
+  const where = item.chapters[chapterAt(item.chapters, position)]?.title ?? item.subtitle;
   return (
     <section className="section" style={{ marginTop: 0 }}>
       <div className="eyebrow">Now playing</div>
@@ -53,11 +54,8 @@ function NowPlayingCard({ item, onOpen }: { item: Playable; onOpen: () => void }
         <Cover src={item.coverUrl} color={item.color} title={item.title} />
         <span className="list-row-main">
           <span className="list-row-title">{item.title}</span>
-          <span className="list-row-sub">
-            {[nowChapter?.title ?? item.subtitle, item.durationSec ? timeLeft(item.durationSec, position) : null]
-              .filter(Boolean)
-              .join(" · ")}
-          </span>
+          {where ? <span className="list-row-sub">{where}</span> : null}
+          {item.durationSec ? <span className="list-row-sub">{timeLeft(item.durationSec, position)}</span> : null}
           <span className="bar" style={{ marginTop: 4 }}>
             <span
               style={{

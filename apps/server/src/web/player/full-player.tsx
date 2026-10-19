@@ -76,7 +76,6 @@ export function FullPlayer() {
   const span = chapter && multiChapter ? { start: chapter.startSec, end: chapter.endSec } : { start: 0, end: item.durationSec || 0 };
   const within = Math.max(0, pos - span.start);
   const spanLen = Math.max(1, span.end - span.start);
-  const pct = item.durationSec ? Math.round((pos / item.durationSec) * 100) : 0;
   const commitScrub = () => {
     if (scrub !== null) p.seek(scrub);
     setScrub(null);
@@ -133,7 +132,7 @@ export function FullPlayer() {
           />
           <div className="player-times">
             <span>{clock(within)}</span>
-            <span>{item.durationSec ? `${pct}% · ${timeLeft(item.durationSec, pos)}` : ""}</span>
+            <span>{item.durationSec ? timeLeft(item.durationSec, pos) : ""}</span>
             <span>-{clock(spanLen - within)}</span>
           </div>
         </div>

@@ -2,11 +2,14 @@
 
 ## Library home shelves
 
-Done on web: Continue listening, Next in series (merged with Continue series), Recently added and Not started above All books, each heading opening a full list. Rules in `apps/server/src/web/library/shelves.ts`. Decided against a New episodes shelf (Library stays books only) and a "New" badge.
+Done on web and app: Continue listening, Next in series, Recently added and Not started above All books, each heading opening a full list. Rules in `packages/shared/src/shelves.ts`. Decided against a New episodes shelf (Library stays books only) and a "New" badge.
 
-- **App:** in progress in the mobile session.
-- **Later:** per-user reorder and hide, genre shelves, Want to listen, collections.
+Customize (0.1.6): the Books tab's sections can be dragged into order and hidden, in place from the header's Customize button, saved per user on the server (`/api/me/prefs`) so web and app match.
 
-## Polish
+- **Later:** smart shelves (saved filters: author, narrator, length, status), collections (hand-picked lists), genre shelves, Want to listen.
+- **Maybe:** customize the other tabs (order, which one opens first) and display options (cover size, list view, hide finished).
 
-- Remaining " · " separators: Up Next row sub-lines, the match result narrator line, and the match error list.
+## Cleanup
+
+- The web still has its own copy of the shelf rules in `apps/server/src/web/library/shelves.ts` (and its test); switch it to the shared module and drop the copy.
+- Cover tint: sharp's dominant colour picks white for dark covers with white text (Gators Breakdown), so their header tint comes out grey.

@@ -236,22 +236,7 @@ select.input { appearance: none; }
   font-weight: 600;
 }
 .tab[aria-current="page"] { color: var(--accent); font-weight: 700; }
-.tab-count {
-  position: absolute;
-  top: 10px;
-  left: calc(50% + 6px);
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 10px;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+.tab-count { position: absolute; top: 8px; left: calc(50% + 6px); }
 
 @media (min-width: 900px) {
   :root { --side-w: 220px; }
@@ -291,19 +276,26 @@ select.input { appearance: none; }
 /* Nested pages: the back arrow sits on its own row above the title. */
 .back-row { margin: -12px 0 4px -8px; }
 .group-head { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.count-pill {
+/*
+ * Number badges share one shape and come in two colours: grey (.count-pill) counts what's in
+ * a list; solid accent (.tab-count, .badge-count, .episode-more) flags something new or waiting.
+ */
+.count-pill, .tab-count, .badge-count, .episode-more {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 20px;
   height: 20px;
-  margin-left: 8px;
   padding: 0 7px;
   border-radius: 10px;
-  background: var(--chip);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-  vertical-align: 3px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
+.count-pill { background: var(--chip); color: var(--muted); margin-left: 8px; vertical-align: 3px; }
+.tab-count, .badge-count, .episode-more { background: var(--accent); color: var(--on-accent); }
 .section-link { font-size: 12px; font-weight: 700; color: var(--accent); }
 .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.6px; text-transform: uppercase; }
 
@@ -556,18 +548,8 @@ a.episode-show:hover { color: var(--accent); }
 .episode-actions { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
 .more-row { display: flex; justify-content: center; gap: 8px; margin-top: 14px; }
 .episode-main { position: relative; }
-.episode-more {
-  position: absolute;
-  top: 0;
-  right: 0;
-  padding: 2px 9px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 700;
-}
-.episode-more:hover { background: color-mix(in srgb, var(--accent) 26%, transparent); color: var(--accent); }
+.episode-more { position: absolute; top: 0; right: 0; }
+.episode-more:hover { filter: brightness(1.08); }
 .episode-more ~ .episode-info .episode-meta { padding-right: 64px; }
 .episode-play {
   height: 32px;
@@ -878,6 +860,9 @@ a.episode-show:hover { color: var(--accent); }
 .candidate[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .candidate img, .candidate .cover { width: 64px; flex-shrink: 0; border-radius: 6px; }
 .candidate-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+/* Series, length, year and source as small tags instead of a dotted string. */
+.candidate-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.candidate-tags > span { font-size: 11px; font-weight: 600; color: var(--muted); background: var(--chip); border-radius: 8px; padding: 1px 7px; }
 .score { font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 10px; background: var(--surface-2); flex-shrink: 0; }
 .score.high { background: color-mix(in srgb, #5ccf8a 25%, transparent); color: #5ccf8a; }
 .score.mid { background: color-mix(in srgb, #f0b45a 22%, transparent); color: #f0b45a; }
@@ -890,22 +875,7 @@ a.episode-show:hover { color: var(--accent); }
 .compare .val { max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .compare img { width: 56px; border-radius: 6px; display: block; }
 
-.badge-count {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 6px;
-  border-radius: 11px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 11px;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+.badge-count { position: absolute; top: 6px; right: 6px; }
 
 /* Speed: a slider with quick − / + buttons, popping up above the Speed tile. */
 .speed-wrap { position: relative; display: grid; }

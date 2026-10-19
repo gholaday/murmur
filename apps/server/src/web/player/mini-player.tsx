@@ -20,9 +20,9 @@ export function MiniPlayer() {
   const dur = item.durationSec || 0;
   const chapter = item.chapters[chapterAt(item.chapters, pos)];
   const pct = dur ? Math.min(100, (pos / dur) * 100) : 0;
-  const detail = error
-    ? error
-    : [item.chapters.length > 1 ? chapter?.title : null, dur ? timeLeft(dur, pos) : item.subtitle].filter(Boolean).join(" · ");
+  // The chapter and time left each get a line rather than one joined string.
+  const chapterLine = item.chapters.length > 1 ? chapter?.title : null;
+  const leftLine = dur ? timeLeft(dur, pos) : item.subtitle;
   const commit = () => {
     if (scrub !== null) seek(scrub);
     setScrub(null);
@@ -35,7 +35,14 @@ export function MiniPlayer() {
           <Cover src={item.coverUrl} color={item.color} title={item.title} className="mini-cover" />
           <span className="mini-text">
             <span className="mini-title">{item.title}</span>
-            <span className={`mini-sub ${error ? "error" : ""}`}>{detail}</span>
+            {error ? (
+              <span className="mini-sub error">{error}</span>
+            ) : (
+              <>
+                {chapterLine ? <span className="mini-sub">{chapterLine}</span> : null}
+                {leftLine ? <span className="mini-sub">{leftLine}</span> : null}
+              </>
+            )}
           </span>
         </button>
         <button type="button" className="mini-skip" onClick={() => skipBy(-skip.back)} aria-label={`Skip back ${skip.back} seconds`}>
