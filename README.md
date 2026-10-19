@@ -11,7 +11,7 @@ Images are published to `ghcr.io/<owner>/murmur` for amd64 and arm64. Use the `d
 ```yaml
 services:
   murmur:
-    image: ghcr.io/<owner>/murmur:0.1.5
+    image: ghcr.io/<owner>/murmur:0.1.6
     restart: unless-stopped
     ports:
       - "3333:3000"
