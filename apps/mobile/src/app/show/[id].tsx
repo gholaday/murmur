@@ -200,6 +200,7 @@ export default function ShowScreen() {
                   setSheet(null);
                   void queryClient.invalidateQueries({ queryKey: keys.podcasts });
                   void queryClient.invalidateQueries({ queryKey: keys.newEpisodes });
+                  void queryClient.invalidateQueries({ queryKey: keys.continueEpisodes });
                   void refreshQueue();
                   router.back();
                 })

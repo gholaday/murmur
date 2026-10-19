@@ -18,6 +18,7 @@ export const keys = {
   podcast: (id: string) => ["podcast", id] as const,
   episodes: (podcastId: string) => ["episodes", podcastId] as const,
   newEpisodes: ["newEpisodes"] as const,
+  continueEpisodes: ["continueEpisodes"] as const,
   queue: ["queue"] as const,
 };
 
@@ -36,7 +37,11 @@ export const useEpisodes = (podcastId: string) =>
   useQuery({ queryKey: keys.episodes(podcastId), queryFn: () => api<EpisodeDto[]>(`/api/podcasts/${podcastId}/episodes`) });
 
 export const useNewEpisodes = () =>
-  useQuery({ queryKey: keys.newEpisodes, queryFn: () => api<EpisodeWithShow[]>("/api/episodes/new?limit=30") });
+  useQuery({ queryKey: keys.newEpisodes, queryFn: () => api<EpisodeWithShow[]>("/api/episodes/new?limit=50") });
+
+/** Started, unfinished episodes, most recently listened first. */
+export const useContinueEpisodes = () =>
+  useQuery({ queryKey: keys.continueEpisodes, queryFn: () => api<EpisodeWithShow[]>("/api/episodes/continue?limit=20") });
 
 export const useQueue = () => useQuery({ queryKey: keys.queue, queryFn: () => api<QueueEntry[]>("/api/queue") });
 
@@ -44,6 +49,7 @@ export const useQueue = () => useQuery({ queryKey: keys.queue, queryFn: () => ap
 export function invalidateListening() {
   void queryClient.invalidateQueries({ queryKey: keys.books });
   void queryClient.invalidateQueries({ queryKey: keys.newEpisodes });
+  void queryClient.invalidateQueries({ queryKey: keys.continueEpisodes });
   void queryClient.invalidateQueries({ queryKey: keys.podcasts });
   void queryClient.invalidateQueries({ queryKey: ["episodes"] });
   void queryClient.invalidateQueries({ queryKey: ["book"] });

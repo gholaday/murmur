@@ -1,33 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { apiPaths, type PodcastSearchResult, type PodcastSummary } from "@murmur/shared";
+import type { PodcastSearchResult, PodcastSummary } from "@murmur/shared";
 import { Cover } from "@/components/cover";
 import { EpisodeRow } from "@/components/episode-row";
 import { FilterIcon, PlusIcon } from "@/components/icons";
-import { Grid, PAD, useGridWidth } from "@/components/library";
-import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
+import { PAD, SectionHead, Shelf, useGridWidth } from "@/components/library";
+import { Empty, PageTitle, useTopInset } from "@/components/page";
+import {
+  newByShow,
+  openPodcastList,
+  PODCAST_LIST_TITLES,
+  SECTION_SIZE,
+  ShowCard,
+  SortSheet,
+  sortShows,
+  useSort,
+} from "@/components/podcasts";
 import { SmallButton } from "@/components/settings";
-import { Sheet, SheetItem } from "@/components/sheet";
+import { Sheet } from "@/components/sheet";
 import { CoverGridBones, FadeIn, ListRowBone, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { Button, Chip, Field, IconButton, Text } from "@/components/ui";
 import { api } from "@/lib/api";
-import { keys, useNewEpisodes, usePodcasts } from "@/lib/data";
+import { keys, useContinueEpisodes, useNewEpisodes, usePodcasts } from "@/lib/data";
 import { useDownloads } from "@/lib/downloads";
 import { queryClient } from "@/lib/query";
 import { useTheme } from "@/theme";
-
-type Sort = "latest" | "title" | "unplayed";
-const SORT_LABEL: Record<Sort, string> = { latest: "Latest episode", title: "Title", unplayed: "Most unplayed" };
-
-function sortShows(shows: PodcastSummary[], sort: Sort) {
-  const out = [...shows];
-  if (sort === "title") return out.sort((a, b) => a.title.localeCompare(b.title));
-  if (sort === "unplayed") return out.sort((a, b) => b.unplayedCount - a.unplayedCount || a.title.localeCompare(b.title));
-  return out.sort((a, b) => (b.latestPublishedAt ?? 0) - (a.latestPublishedAt ?? 0));
-}
 
 export default function Podcasts() {
   const t = useTheme();
@@ -35,16 +35,18 @@ export default function Podcasts() {
   const cardWidth = useGridWidth();
   const podcasts = usePodcasts();
   const newEpisodes = useNewEpisodes();
+  const continueEpisodes = useContinueEpisodes();
   const downloads = useDownloads();
+  const sort = useSort();
   const [view, setView] = useState<"shows" | "downloaded">("shows");
-  const [sort, setSort] = useState<Sort>("latest");
   const [sortOpen, setSortOpen] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [showAll, setShowAll] = useState(false);
   const fade = useJustLoaded(!podcasts.isPending);
 
   const shows = useMemo(() => sortShows(podcasts.data ?? [], sort), [podcasts.data, sort]);
   const fresh = newEpisodes.data ?? [];
+  const groups = useMemo(() => newByShow(newEpisodes.data ?? []), [newEpisodes.data]);
+  const started = continueEpisodes.data ?? [];
   const downloaded = useMemo(
     () =>
       Object.values(downloads)
@@ -53,10 +55,11 @@ export default function Podcasts() {
     [downloads],
   );
 
-  const refreshing = podcasts.isRefetching || newEpisodes.isRefetching;
+  const refreshing = podcasts.isRefetching || newEpisodes.isRefetching || continueEpisodes.isRefetching;
   const onRefresh = () => {
     void podcasts.refetch();
     void newEpisodes.refetch();
+    void continueEpisodes.refetch();
   };
 
   let body: React.ReactNode;
@@ -64,11 +67,11 @@ export default function Podcasts() {
     body = (
       <Skeleton>
         <SectionBone />
-        {[0, 1, 2, 3].map((i) => (
+        <CoverGridBones count={3} />
+        <SectionBone />
+        {[0, 1, 2].map((i) => (
           <ListRowBone key={i} thumb={48} />
         ))}
-        <SectionBone />
-        <CoverGridBones count={6} />
       </Skeleton>
     );
   }
@@ -91,31 +94,30 @@ export default function Podcasts() {
   } else {
     body = (
       <>
-        {fresh.length ? (
-          <>
-            <SectionTitle
-              title="New episodes"
-              right={
-                fresh.length > 4 ? (
-                  <Pressable onPress={() => setShowAll((s) => !s)} hitSlop={8}>
-                    <Text variant="small" style={{ color: t.accent }}>
-                      {showAll ? "Show less" : "See all"}
-                    </Text>
-                  </Pressable>
-                ) : undefined
-              }
-            />
-            {(showAll ? fresh : fresh.slice(0, 4)).map((e) => (
+        <View style={{ marginTop: 24 }}>
+          <SectionHead title={PODCAST_LIST_TITLES.podcasts} count={shows.length} onOpen={() => openPodcastList("podcasts")} />
+          <Shelf>
+            {shows.map((p) => (
+              <ShowCard key={p.id} show={p} width={cardWidth} />
+            ))}
+          </Shelf>
+        </View>
+        {started.length ? (
+          <View style={{ marginTop: 24 }}>
+            <SectionHead title={PODCAST_LIST_TITLES.continue} count={started.length} onOpen={() => openPodcastList("continue")} />
+            {started.slice(0, SECTION_SIZE).map((e) => (
               <EpisodeRow key={e.id} episode={e} showThumb />
             ))}
-          </>
+          </View>
         ) : null}
-        <SectionTitle title="Your podcasts" count={shows.length} />
-        <Grid>
-          {shows.map((p) => (
-            <ShowCard key={p.id} show={p} width={cardWidth} />
-          ))}
-        </Grid>
+        {groups.length ? (
+          <View style={{ marginTop: 24 }}>
+            <SectionHead title={PODCAST_LIST_TITLES.new} count={fresh.length} onOpen={() => openPodcastList("new")} />
+            {groups.slice(0, SECTION_SIZE).map((g) => (
+              <EpisodeRow key={g.episode.id} episode={g.episode} showThumb newCount={g.count} />
+            ))}
+          </View>
+        ) : null}
       </>
     );
   }
@@ -148,64 +150,9 @@ export default function Podcasts() {
         {podcasts.isPending ? body : <FadeIn when={fade}>{body}</FadeIn>}
       </ScrollView>
 
-      <Sheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort podcasts">
-        {(Object.keys(SORT_LABEL) as Sort[]).map((s) => (
-          <SheetItem
-            key={s}
-            label={SORT_LABEL[s]}
-            active={s === sort}
-            onPress={() => {
-              setSort(s);
-              setSortOpen(false);
-            }}
-          />
-        ))}
-      </Sheet>
+      <SortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
       <AddPodcastSheet open={adding} onClose={() => setAdding(false)} />
     </View>
-  );
-}
-
-function ShowCard({ show, width }: { show: PodcastSummary; width: number }) {
-  const t = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={show.unplayedCount ? `${show.title}, ${show.unplayedCount} unplayed` : show.title}
-      onPress={() => router.push(`/show/${show.id}`)}
-      style={({ pressed }) => ({ width, gap: 6, opacity: pressed ? 0.75 : 1 })}
-    >
-      <View>
-        <Cover path={show.coverHash ? apiPaths.podcastCoverUrl(show.id, show.coverHash, 200) : null} title={show.title} color={show.coverColor} />
-        {show.unplayedCount > 0 ? (
-          <View
-            style={{
-              position: "absolute",
-              top: 6,
-              right: 6,
-              minWidth: 22,
-              height: 22,
-              paddingHorizontal: 6,
-              borderRadius: 11,
-              backgroundColor: t.accent,
-              justifyContent: "center",
-            }}
-          >
-            <Text variant="caption" style={{ color: t.onAccent, fontSize: 11, textAlign: "center" }}>
-              {show.unplayedCount > 99 ? "99+" : show.unplayedCount}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-      <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 13 }}>
-        {show.title}
-      </Text>
-      {show.lastError ? (
-        <Text variant="small" style={{ color: t.danger }}>
-          Feed problem
-        </Text>
-      ) : null}
-    </Pressable>
   );
 }
 
@@ -233,6 +180,7 @@ function AddPodcastSheet({ open, onClose }: { open: boolean; onClose: () => void
   const opened = (id: string) => {
     void queryClient.invalidateQueries({ queryKey: keys.podcasts });
     void queryClient.invalidateQueries({ queryKey: keys.newEpisodes });
+    void queryClient.invalidateQueries({ queryKey: keys.continueEpisodes });
     onClose();
     router.push(`/show/${id}`);
   };

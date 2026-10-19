@@ -67,22 +67,41 @@ export function Group({
   onOpen: () => void;
   children: React.ReactNode;
 }) {
-  const t = useTheme();
   return (
     <View style={{ marginTop: 24 }}>
-      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
-        <Pressable accessibilityRole="link" onPress={onOpen} style={{ flexShrink: 1, gap: 2 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text variant="heading" numberOfLines={1} style={{ flexShrink: 1 }}>
-              {title}
-            </Text>
-            <CountPill count={count} />
-          </View>
-          {sub ? <Text variant="small">{sub}</Text> : null}
-        </Pressable>
-        {side ? <Text variant="small" style={{ color: t.muted }}>{side}</Text> : null}
-      </View>
+      <SectionHead title={title} count={count} sub={sub} side={side} onOpen={onOpen} />
       <Shelf>{children}</Shelf>
+    </View>
+  );
+}
+
+/** A section heading with its count that opens the section's full list. */
+export function SectionHead({
+  title,
+  count,
+  sub,
+  side,
+  onOpen,
+}: {
+  title: string;
+  count: number;
+  sub?: string | null;
+  side?: string | null;
+  onOpen: () => void;
+}) {
+  const t = useTheme();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+      <Pressable accessibilityRole="link" onPress={onOpen} style={{ flexShrink: 1, gap: 2 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Text variant="heading" numberOfLines={1} style={{ flexShrink: 1 }}>
+            {title}
+          </Text>
+          <CountPill count={count} />
+        </View>
+        {sub ? <Text variant="small">{sub}</Text> : null}
+      </Pressable>
+      {side ? <Text variant="small" style={{ color: t.muted }}>{side}</Text> : null}
     </View>
   );
 }

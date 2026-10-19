@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
+import { router } from "expo-router";
 import { apiPaths, duration, type EpisodeWithShow, shortDate, timeLeft } from "@murmur/shared";
 import { setFinished } from "@/lib/data";
 import { downloadEpisode, removeDownload, useDownload } from "@/lib/downloads";
@@ -15,7 +16,17 @@ import { IconButton, Text } from "./ui";
  * One episode: artwork, date and title, a line of description (tap the text for all of it),
  * and its actions always on show underneath. Matches the web's episode row.
  */
-export function EpisodeRow({ episode, showThumb = false }: { episode: EpisodeWithShow; showThumb?: boolean }) {
+export function EpisodeRow({
+  episode,
+  showThumb = false,
+  newCount = 0,
+}: {
+  episode: EpisodeWithShow;
+  /** Lists across podcasts show the artwork and podcast name, which open the podcast. */
+  showThumb?: boolean;
+  /** When this row stands for a show's new episodes, how many there are; links to the show. */
+  newCount?: number;
+}) {
   const t = useTheme();
   const player = usePlayer();
   const live = usePosition();
@@ -34,6 +45,8 @@ export function EpisodeRow({ episode, showThumb = false }: { episode: EpisodeWit
   const pausing = current && player.playing;
   const time = played ? "Played" : position > 5 && dur ? timeLeft(dur, position) : duration(dur);
   const ref = { itemType: "episode" as const, itemId: episode.id };
+
+  const openShow = () => router.push(`/show/${episode.podcastId}`);
 
   const run = async (fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
@@ -81,15 +94,46 @@ export function EpisodeRow({ episode, showThumb = false }: { episode: EpisodeWit
   return (
     <View style={{ flexDirection: "row", gap: 14, alignItems: "flex-start", paddingTop: 14, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: t.line }}>
       {showThumb ? (
-        <Cover
-          path={episode.podcastCoverHash ? apiPaths.podcastCoverUrl(episode.podcastId, episode.podcastCoverHash, 200) : null}
-          title={episode.podcastTitle}
-          color={episode.podcastCoverColor}
-          size={64}
-          radius={8}
-        />
+        <Pressable accessibilityRole="link" accessibilityLabel={episode.podcastTitle} onPress={openShow}>
+          <Cover
+            path={episode.podcastCoverHash ? apiPaths.podcastCoverUrl(episode.podcastId, episode.podcastCoverHash, 200) : null}
+            title={episode.podcastTitle}
+            color={episode.podcastCoverColor}
+            size={64}
+            radius={8}
+          />
+        </Pressable>
       ) : null}
       <View style={{ flex: 1, minWidth: 0 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", columnGap: 10, marginBottom: 3 }}>
+          {showThumb ? (
+            <Pressable accessibilityRole="link" onPress={openShow} hitSlop={{ top: 8, bottom: 6 }} style={{ flexShrink: 1 }}>
+              <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize: 13, color: t.text2 }}>
+                {episode.podcastTitle}
+              </Text>
+            </Pressable>
+          ) : null}
+          <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: t.muted }}>{shortDate(episode.publishedAt)}</Text>
+          {newCount > 1 ? (
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={`${newCount} new episodes of ${episode.podcastTitle}`}
+              onPress={openShow}
+              hitSlop={8}
+              style={({ pressed }) => ({
+                marginLeft: "auto",
+                height: 22,
+                paddingHorizontal: 9,
+                borderRadius: 11,
+                justifyContent: "center",
+                backgroundColor: t.accent,
+                opacity: pressed ? 0.85 : 1,
+              })}
+            >
+              <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: t.onAccent }}>{newCount} new</Text>
+            </Pressable>
+          ) : null}
+        </View>
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ expanded: open }}
@@ -97,14 +141,6 @@ export function EpisodeRow({ episode, showThumb = false }: { episode: EpisodeWit
           onPress={() => setOpen((o) => !o)}
           style={{ gap: 3 }}
         >
-          <View style={{ flexDirection: "row", alignItems: "baseline", columnGap: 10 }}>
-            {showThumb ? (
-              <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.bold, fontSize: 13, color: t.text2 }}>
-                {episode.podcastTitle}
-              </Text>
-            ) : null}
-            <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: t.muted }}>{shortDate(episode.publishedAt)}</Text>
-          </View>
           <Text variant="bodyStrong" style={{ fontSize: 15, lineHeight: 20, color: played ? t.muted : t.text }}>
             {episode.title}
           </Text>
@@ -143,7 +179,8 @@ export function EpisodeRow({ episode, showThumb = false }: { episode: EpisodeWit
             <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: t.onAccent }}>{time}</Text>
           </Pressable>
           {pct > 0 && !played ? (
-            <View style={{ width: 56, height: 4, borderRadius: 2, backgroundColor: t.line, overflow: "hidden", marginRight: 8 }}>
+            // Shrinks on narrow phones so the action bar never overflows.
+            <View style={{ flexBasis: 56, flexShrink: 1, minWidth: 14, height: 4, borderRadius: 2, backgroundColor: t.line, overflow: "hidden", marginRight: 6 }}>
               <View style={{ width: `${pct}%`, height: "100%", backgroundColor: t.accent }} />
             </View>
           ) : null}
