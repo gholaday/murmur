@@ -171,7 +171,9 @@ export function retryFailed(sqlite: Sqlite): number {
     .run(Date.now()).changes;
 }
 
-export function saveAddonStatus(sqlite: Sqlite, status: AddonStatus) {
+export function saveAddonStatus(sqlite: Sqlite, { started, ...status }: AddonStatus) {
+  // There's only one add-on, so after a restart nothing is really scanning; the next ask resumes it.
+  if (started) sqlite.prepare("UPDATE ad_scans SET status = 'queued', lease_until = NULL WHERE status = 'scanning'").run();
   writeState(sqlite, "addon", { ...status, seenAt: Date.now() });
 }
 

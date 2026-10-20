@@ -371,7 +371,7 @@ The stack also gives the add-on a CPU limit, and it scans one episode at a time.
 | Bad key, billing problem, model retired (400, 401, 403, 404) | Gemini calls stop and the status shows the error. Checked again hourly and on restart |
 | Unreadable or nonsense answer | That piece is retried once, then marked failed; one bad span never drops the others |
 | Episode file deleted mid-scan | The job is dropped |
-| Add-on crashes | Its lease runs out and the job returns to the queue; saved transcripts mean it resumes where it stopped |
+| Add-on crashes or restarts | On its first report after starting, Murmur puts what it was scanning back in the queue, and saved transcripts mean it resumes where it stopped. If it never comes back, the 30-minute lease runs out instead |
 | Add-on stopped or missing | Episodes simply have no marks. Settings shows "Not connected" after 15 minutes without contact |
 | Murmur unreachable from the add-on | The add-on keeps its results and posts them when Murmur is back |
 | Episode re-downloaded | Ad times belong to one cached file; a new file drops the old times and is scanned again |

@@ -141,6 +141,11 @@ export const addonStatusSchema = z.object({
   geminiRequestsToday: z.number().int().min(0),
   /** Why pieces are going to Vosk instead of Groq right now, and until when (epoch ms) if known. */
   groq: z.object({ problem: z.string().max(300), until: z.number().nullable() }).nullable().optional(),
+  /**
+   * Sent on the add-on's first report after it starts: scans it was holding belong to the old run,
+   * so they go back in the queue at once instead of waiting out their lease.
+   */
+  started: z.boolean().optional(),
 });
 export type AddonStatus = z.infer<typeof addonStatusSchema>;
 

@@ -131,16 +131,19 @@ def murmur(path: str, body: dict | None = None) -> dict:
 
 status = {"state": "ok", "message": None}
 last_beat = 0.0
+# Until Murmur has heard this, it still thinks the previous run is scanning (see `started`).
+announced = False
 
 
 def heartbeat(force: bool = False) -> None:
-    global last_beat
+    global last_beat, announced
     if not force and time.monotonic() - last_beat < 60:
         return
     last_beat = time.monotonic()
     try:
         murmur("/api/addon/status", {"version": VERSION, **status, "geminiRequestsToday": budget.requests_today(),
-                                     "groq": groq_allowance.problem()})
+                                     "groq": groq_allowance.problem(), "started": not announced})
+        announced = True
     except Exception as e:  # a missed heartbeat only makes Settings show "not connected"
         log("heartbeat failed", error=str(e))
 
@@ -652,6 +655,8 @@ def main() -> None:
         transcription="groq, vosk fallback" if GROQ_KEY else "vosk")
     if not GEMINI_KEY:
         set_status("error", "GEMINI_API_KEY isn't set.")
+    # Before asking for work, so an interrupted scan comes straight back to this run.
+    heartbeat(force=True)
     while True:
         heartbeat()
         if not GEMINI_KEY:
