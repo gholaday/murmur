@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { apiPaths, duration, type EpisodeWithShow, shortDate, timeLeft } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { PauseIcon, PlayedIcon, PlayIcon, PlayNextIcon, QueueAddIcon } from "../icons";
+import { AdsCheckedIcon, PauseIcon, PlayedIcon, PlayIcon, PlayNextIcon, QueueAddIcon } from "../icons";
 import { episodeToPlayable, usePlayer, usePosition } from "../player/engine";
 import { setFinished } from "../progress";
 
@@ -118,6 +118,11 @@ export function EpisodeRow({
               </Link>
             ) : null}
             <span className="episode-date">{shortDate(episode.publishedAt)}</span>
+            {episode.adsChecked ? (
+              <span className="ads-checked" data-tip="Checked for ads" aria-label="Checked for ads">
+                <AdsCheckedIcon size={14} />
+              </span>
+            ) : null}
           </span>
           {/* The title and description expand the notes in place. */}
           <button type="button" className="episode-text" onClick={toggleNotes} aria-expanded={open}>

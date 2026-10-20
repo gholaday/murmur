@@ -120,6 +120,21 @@ export const CheckIcon = (p: IconProps) => (
     <path d="M5 12l5 5 9-10" />
   </Icon>
 );
+/** A speaker with 0–2 waves for the volume level, or a cross when muted. */
+export const VolumeIcon = ({ level, ...p }: IconProps & { level: number }) => (
+  <Icon {...p}>
+    <path d="M4 9h3l5-4v14l-5-4H4z" />
+    {level === 0 ? <path d="M16 9l5 6M21 9l-5 6" /> : <path d="M15.5 9.5a3.5 3.5 0 0 1 0 5" />}
+    {level > 0.5 ? <path d="M18 6.5a8 8 0 0 1 0 11" /> : null}
+  </Icon>
+);
+/** A shield with a check: the episode has been checked for ads. */
+export const AdsCheckedIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z" />
+    <path d="M9 12l2 2 4-4" />
+  </Icon>
+);
 export const DownloadIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />

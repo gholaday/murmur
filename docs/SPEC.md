@@ -42,6 +42,7 @@ v1 covers listening to audiobooks and podcasts on the phone with progress synced
 - Skip back and forward (configurable, defaults 10 s and 30 s), chapter skip
 - Playback speed 0.5× to 3×, remembered per book and per show
 - Sleep timer: minutes or end of chapter
+- Volume slider and mute in the web player on desktop, remembered per browser (phones use their own buttons)
 - Lock screen, notification, Bluetooth and headphone controls
 
 **Sync and offline**
@@ -382,14 +383,15 @@ Each episode has a scan status: queued, scanning, done or failed, with the attem
 - **Marks.** Ad spans are drawn on the seek bar in the web player and the app.
 - **Modes,** set per device (each browser and each phone keeps its own), with an optional per-show override on that device. For example, Auto-skip on the phone in the car and Show on the desktop.
   - **Off:** no marks.
-  - **Show** (default): marks, plus a Skip ad button while an ad plays.
+  - **Show** (default): marks, plus a Skip ad button on the cover's corner while an ad plays, so nothing else on the player moves.
   - **Auto-skip:** playback jumps to the end of a span when it reaches the span's start, and a "Skipped ad" toast offers Undo for 5 seconds. Undo goes back to the start and doesn't skip that span again during this listen.
 - **No surprise skips.** If playback starts or lands inside an ad (resuming, or seeking into it), that ad isn't skipped; the Skip ad button shows instead.
 - **Offline.** Phone downloads store the ad spans with the episode, so marks and skipping work offline.
 - **Skipping covers the whole break:** ads less than 3 seconds apart count as one break, for both Skip ad and Auto-skip ("Skipped 3 ads").
-- **Fetching ads.** The player asks `GET /api/episodes/:id/ads` for the current episode and asks again every minute while its scan runs. Asking also marks the episode as playing, which moves its scan to the front. Without the add-on the answer is `enabled: false`, and the ad setting is hidden.
+- **Fetching ads.** The player asks `GET /api/episodes/:id/ads` for the current episode and asks again every minute while its scan runs. Asking also marks the episode as playing, which moves its scan to the front. Without the add-on the answer is `enabled: false`, and the ad setting is hidden. `/api/health` also reports `adDetection`, so the app knows before playing anything.
+- **Checked badge.** Episode rows show a small accent shield once the episode has been checked for ads ("Checked for ads" on hover).
 - **Fewer ads for Murmur.** Hosts that insert ads per download (Simplecast, for one) insert fewer for apps they don't recognise, and Murmur identifies itself honestly. Its copy can have fewer ads than the same episode in Pocket Casts.
-- **Admin settings:** episodes kept ready per show, cache usage against its cap, and the add-on's status (connected or last seen, queue length, today's Gemini requests, paused or error), with Retry for failed episodes.
+- **Admin settings:** episodes kept ready per show, cache usage against its cap, and the add-on's status (connected or last seen, queue length, today's Gemini requests, paused or error, and "Transcribing with Vosk" with the reason when Groq can't be used), with Retry for failed episodes.
 
 **Data model additions**
 

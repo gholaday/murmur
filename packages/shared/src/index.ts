@@ -342,6 +342,8 @@ export interface EpisodeDto {
   season: number | null;
   episodeNumber: number | null;
   progress: Pick<ProgressDto, "positionSec" | "finished" | "speed" | "updatedAt"> | null;
+  /** The server's copy has been checked for ads (always false with ad detection off). */
+  adsChecked?: boolean;
 }
 
 /** An episode listed outside its show page, so it carries the show's details. */

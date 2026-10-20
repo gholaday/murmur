@@ -7,7 +7,7 @@ import { downloadEpisode, removeDownload, useDownload } from "@/lib/downloads";
 import { episodeToPlayable, isCurrent, markCurrent, play, queueAdd, queueReplace, toggle, useItemPosition, usePlayer } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { DownloadIcon, PauseIcon, PlayedIcon, PlayIcon, PlayNextIcon, QueueAddIcon } from "./icons";
+import { AdsCheckedIcon, DownloadIcon, PauseIcon, PlayedIcon, PlayIcon, PlayNextIcon, QueueAddIcon } from "./icons";
 import { RemoveDownloadSheet } from "./sheet";
 import { toast } from "./toast";
 import { IconButton, NumberBadge, Text } from "./ui";
@@ -114,7 +114,14 @@ export const EpisodeRow = memo(function EpisodeRow({
               </Text>
             </Pressable>
           ) : null}
-          <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: t.muted }}>{shortDate(episode.publishedAt)}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: t.muted }}>{shortDate(episode.publishedAt)}</Text>
+            {episode.adsChecked ? (
+              <View accessible accessibilityLabel="Checked for ads">
+                <AdsCheckedIcon size={14} color={t.accent} />
+              </View>
+            ) : null}
+          </View>
           {newCount > 1 ? (
             <Pressable
               accessibilityRole="link"

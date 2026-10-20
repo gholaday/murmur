@@ -147,12 +147,34 @@ export default function Player() {
             }}
           >
             <Cover path={item.coverPathLarge} title={item.title} color={item.color} radius={16} />
+            {inAd ? (
+              // Over the artwork like a video player's skip button, so nothing below moves.
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => seek(inAd.endSec)}
+                style={({ pressed }) => ({
+                  position: "absolute",
+                  right: 12,
+                  bottom: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 4,
+                  paddingLeft: 14,
+                  paddingRight: 10,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  backgroundColor: AD,
+                  opacity: pressed ? 0.8 : 1,
+                })}
+              >
+                <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: ON_AD }}>Skip ad</Text>
+                <NextChapterIcon size={16} color={ON_AD} />
+              </Pressable>
+            ) : null}
           </View>
 
           <View style={{ gap: 4 }}>
-            {inAd ? (
-              <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: AD }}>Ad break</Text>
-            ) : multiChapter ? (
+            {multiChapter ? (
               <Pressable onPress={() => setSheet("chapters")} hitSlop={6} style={{ alignSelf: "flex-start" }}>
                 <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.accent }}>
                   Chapter {ci + 1} of {item.chapters.length}
@@ -168,30 +190,6 @@ export default function Player() {
           </View>
 
           <View>
-            {showAds && adMode !== "off" ? (
-              <View style={{ minHeight: 34, flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
-                {inAd ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => seek(inAd.endSec)}
-                    style={({ pressed }) => ({
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 4,
-                      paddingLeft: 14,
-                      paddingRight: 10,
-                      paddingVertical: 6,
-                      borderRadius: 999,
-                      backgroundColor: AD,
-                      opacity: pressed ? 0.8 : 1,
-                    })}
-                  >
-                    <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: ON_AD }}>Skip ad</Text>
-                    <NextChapterIcon size={16} color={ON_AD} />
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : null}
             <View>
             {marks.length ? (
               // The slider's own track can't show ads, so it draws see-through over this one.

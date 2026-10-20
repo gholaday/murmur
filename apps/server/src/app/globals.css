@@ -538,6 +538,7 @@ img.cover.pending { opacity: 0; }
 .episode-meta { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: 13px; font-weight: 700; color: var(--text-2); }
 .episode-show { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .episode-date { flex-shrink: 0; font-weight: 500; color: var(--muted); }
+.ads-checked { flex-shrink: 0; align-self: center; display: inline-flex; color: var(--accent); }
 .episode-info, .episode-text { display: flex; flex-direction: column; gap: 3px; text-align: left; min-width: 0; }
 .episode-title { font-size: 15px; font-weight: 700; }
 .episode.played .episode-title { color: var(--muted); }
@@ -707,7 +708,9 @@ a.episode-show:hover { color: var(--accent); }
 .player-top { display: flex; align-items: center; justify-content: space-between; padding: 16px 12px 0; }
 .player-from { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.6px; text-transform: uppercase; }
 .player-main { width: 100%; max-width: 440px; margin: 0 auto; padding: 0 32px; display: flex; flex-direction: column; }
-.player-cover { width: 100%; max-width: 340px; margin: 20px auto 0; border-radius: 16px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
+.player-cover-wrap { position: relative; width: 100%; max-width: 340px; margin: 20px auto 0; }
+.player-cover { width: 100%; border-radius: 16px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
+.player-cover-wrap .skip-ad { position: absolute; right: 12px; bottom: 12px; }
 .player-info { padding-top: 26px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .player-chapter { font-size: 13px; font-weight: 700; color: var(--accent); }
 .player-title { font-size: 22px; font-weight: 800; line-height: 1.2; }
@@ -716,6 +719,10 @@ a.episode-show:hover { color: var(--accent); }
 .player-times { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 4px; }
 .player-controls { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; }
 .player-controls .icon-btn.dim { color: var(--muted); }
+.player-volume { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 260px; margin: 20px auto 0; }
+.player-volume .icon-btn.dim { color: var(--muted); flex-shrink: 0; }
+/* Phones and tablets set volume with their own buttons (iOS ignores it from the page). */
+@media (hover: none) and (pointer: coarse) { .player-volume { display: none; } }
 .skip-btn { width: 56px; height: 56px; position: relative; display: flex; align-items: center; justify-content: center; }
 .skip-btn svg { stroke-width: 1.6; }
 .skip-btn span { position: absolute; font-size: 11px; font-weight: 800; padding-top: 3px; }
@@ -752,8 +759,6 @@ a.episode-show:hover { color: var(--accent); }
 .scrubber.over-track { position: relative; }
 .scrubber.over-track::-webkit-slider-runnable-track { background: transparent; }
 .scrubber.over-track::-moz-range-track { background: transparent; }
-.player-ad { color: var(--ad); }
-.player-adrow { min-height: 34px; display: flex; align-items: center; margin-bottom: 6px; }
 .skip-ad { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px 6px 14px; border-radius: 999px; background: var(--ad); color: var(--on-ad); font-size: 13px; font-weight: 700; animation: fade-in 0.15s ease-out; }
 .sheet-note { margin: -6px 0 0; font-size: 13px; color: var(--muted); }
 .sheet-item-text { display: flex; flex-direction: column; gap: 2px; padding-block: 8px; }

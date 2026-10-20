@@ -28,6 +28,12 @@ export const LibraryIcon = (p: IconProps) => (
     <Path d="M3 5.5A1.5 1.5 0 0 1 4.5 4H9a3 3 0 0 1 3 3 3 3 0 0 1 3-3h4.5A1.5 1.5 0 0 1 21 5.5v11a1.5 1.5 0 0 1-1.5 1.5H15a3 3 0 0 0-3 3 3 3 0 0 0-3-3H4.5A1.5 1.5 0 0 1 3 16.5z" />
   </Icon>
 );
+export const AdsCheckedIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z" />
+    <Path d="M9 12l2 2 4-4" />
+  </Icon>
+);
 export const PodcastIcon = (p: IconProps) => (
   <Icon {...p}>
     <Rect x="9" y="3" width="6" height="11" rx="3" />

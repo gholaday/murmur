@@ -18,10 +18,12 @@ import {
   QueueIcon,
   SkipBackIcon,
   SkipForwardIcon,
+  VolumeIcon,
 } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } from "./ad-prefs";
 import { chapterAt, usePlayer, usePosition, type SleepTimer } from "./engine";
+import { effectiveVolume, useVolume, volumeStore } from "./volume";
 
 const MIN_SPEED = 0.5;
 const MAX_SPEED = 3;
@@ -46,6 +48,7 @@ export function FullPlayer() {
   const position = usePosition();
   const [sheet, setSheet] = useState<null | "sleep" | "chapters" | "more" | "ads">(null);
   const adPrefs = useAdPrefs();
+  const volume = useVolume();
   const [speedOpen, setSpeedOpen] = useState(false);
   /** Slider value while dragging; saved once you let go. */
   const [speedDraft, setSpeedDraft] = useState<number | null>(null);
@@ -127,12 +130,19 @@ export function FullPlayer() {
       </div>
 
       <div className="player-main">
-        <Cover src={item.coverUrlLarge} color={item.color} title={item.title} subtitle={item.subtitle} className="player-cover" large />
+        {/* Skip ad sits on the cover so it never moves the controls. */}
+        <div className="player-cover-wrap">
+          <Cover src={item.coverUrlLarge} color={item.color} title={item.title} subtitle={item.subtitle} className="player-cover" large />
+          {inAd ? (
+            <button type="button" className="skip-ad" onClick={() => p.seek(inAd.endSec)}>
+              Skip ad
+              <NextChapterIcon size={16} />
+            </button>
+          ) : null}
+        </div>
 
         <div className="player-info">
-          {inAd ? (
-            <span className="player-chapter player-ad">Ad break</span>
-          ) : multiChapter ? (
+          {multiChapter ? (
             <button type="button" className="player-chapter" onClick={() => setSheet("chapters")}>
               Chapter {ci + 1} of {item.chapters.length}
             </button>
@@ -142,16 +152,6 @@ export function FullPlayer() {
         </div>
 
         <div className="player-scrub">
-          {showAds && adMode !== "off" ? (
-            <div className="player-adrow">
-              {inAd ? (
-                <button type="button" className="skip-ad" onClick={() => p.seek(inAd.endSec)}>
-                  Skip ad
-                  <NextChapterIcon size={16} />
-                </button>
-              ) : null}
-            </div>
-          ) : null}
           <div className="scrub-wrap">
             {marks.length ? (
               <div className="scrub-track" aria-hidden="true">
@@ -231,6 +231,32 @@ export function FullPlayer() {
           >
             <NextChapterIcon />
           </button>
+        </div>
+        <div className="player-volume">
+          <button
+            type="button"
+            className="icon-btn dim"
+            aria-label={volume.muted ? "Unmute" : "Mute"}
+            onClick={() =>
+              volumeStore.set(
+                // Unmuting from zero would stay silent, so it comes back at half.
+                volume.muted || volume.level === 0 ? { level: volume.level || 0.5, muted: false } : { ...volume, muted: true },
+              )
+            }
+          >
+            <VolumeIcon level={effectiveVolume(volume)} size={20} />
+          </button>
+          <input
+            type="range"
+            className="scrubber"
+            aria-label="Volume"
+            min={0}
+            max={1}
+            step={0.01}
+            value={effectiveVolume(volume)}
+            style={{ "--pct": `${effectiveVolume(volume) * 100}%` } as React.CSSProperties}
+            onChange={(e) => volumeStore.set({ level: Number(e.target.value), muted: false })}
+          />
         </div>
         {p.error ? <p className="error player-error">{p.error}</p> : null}
       </div>

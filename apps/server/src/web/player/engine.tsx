@@ -17,6 +17,7 @@ import {
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { adBreak, adModeFor, adPrefsStore } from "./ad-prefs";
+import { effectiveVolume, volumeStore } from "./volume";
 
 const SAVE_EVERY_MS = 10_000;
 /** How often ad times are re-fetched while the current episode is still being scanned. */
@@ -204,6 +205,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const speedRef = useRef(1);
   const lastSaved = useRef(0);
   const unsaved = useRef<ProgressItem | null>(null);
+
+  // The element keeps its volume across sources, so it's set once and on every change.
+  useEffect(() => {
+    const apply = () => {
+      if (audio.current) audio.current.volume = effectiveVolume(volumeStore.get());
+    };
+    apply();
+    return volumeStore.subscribe(apply);
+  }, []);
   const queueRef = useRef<QueueEntry[]>([]);
   const sleepRef = useRef<SleepTimer>({ mode: "off" });
   const adsRef = useRef<AdSpan[]>([]);

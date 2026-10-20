@@ -102,6 +102,7 @@ class BadAnswer(Exception):
 def murmur(path: str, body: dict | None = None) -> dict:
     """POSTs to Murmur. Waits out Murmur being down (results are kept until it's back)."""
     delay = 10
+    failed = False
     while True:
         req = urllib.request.Request(
             MURMUR_URL + path,
@@ -111,6 +112,8 @@ def murmur(path: str, body: dict | None = None) -> dict:
         )
         try:
             with urllib.request.urlopen(req, timeout=30) as res:
+                if failed:
+                    log("reached Murmur")
                 return json.loads(res.read() or b"{}")
         except urllib.error.HTTPError as e:
             if e.code == 404 and path.startswith("/api/addon/ads/") and not path.endswith("/next"):
@@ -121,6 +124,7 @@ def murmur(path: str, body: dict | None = None) -> dict:
                 raise
         except (urllib.error.URLError, OSError) as e:
             log("can't reach Murmur, retrying", error=str(e), in_sec=delay)
+        failed = True
         time.sleep(delay)
         delay = min(300, delay * 2)
 
@@ -571,6 +575,9 @@ def process(job: dict) -> None:
     file_id = job["fileId"]
     audio = CACHE / job["path"]
     if not audio.exists():
+        # Almost always the cache folder isn't mounted here, or not the same folder as Murmur's.
+        log("episode file not found; is Murmur's cache folder mounted at /cache?", episode=job["title"], path=str(audio))
+        set_status("error", f"Can't find episodes in {CACHE}. Mount Murmur's cache folder there, read-only.")
         murmur(f"/api/addon/ads/{file_id}", {"status": "failed", "error": "The episode file isn't in the cache folder."})
         return
     work = STATE / str(file_id)

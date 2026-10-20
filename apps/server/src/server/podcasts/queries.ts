@@ -1,4 +1,5 @@
 import type { EpisodeDto, EpisodeWithShow, PodcastDetail, PodcastSummary } from "@murmur/shared";
+import { adsEnabled } from "../ads";
 import type { Sqlite } from "../db";
 import { env } from "../env";
 import { coverColors } from "../library/covers";
@@ -91,6 +92,7 @@ interface EpisodeRow {
   p_finished: number | null;
   p_updated: number | null;
   p_speed: number | null;
+  ads_checked: number;
 }
 
 interface EpisodeWithShowRow extends EpisodeRow {
@@ -101,7 +103,9 @@ interface EpisodeWithShowRow extends EpisodeRow {
 
 const EPISODE_COLUMNS = `e.*,
   EXISTS (SELECT 1 FROM episode_archives a WHERE a.user_id = s.user_id AND a.episode_id = e.id) AS archived,
-  pr.position_sec AS p_position, pr.finished AS p_finished, pr.updated_at AS p_updated, pr.speed AS p_speed`;
+  pr.position_sec AS p_position, pr.finished AS p_finished, pr.updated_at AS p_updated, pr.speed AS p_speed,
+  EXISTS (SELECT 1 FROM episode_files f JOIN ad_scans sc ON sc.file_id = f.id AND sc.status = 'done'
+          WHERE f.episode_id = e.id) AS ads_checked`;
 
 const EPISODE_WITH_SHOW_COLUMNS = `${EPISODE_COLUMNS},
   p.title AS podcast_title, p.cover_hash AS podcast_cover_hash, s.speed`;
@@ -129,6 +133,7 @@ function toEpisode(e: EpisodeRow): EpisodeDto {
       e.p_updated === null
         ? null
         : { positionSec: e.p_position ?? 0, finished: e.p_finished === 1, speed: e.p_speed ?? 1, updatedAt: e.p_updated },
+    adsChecked: adsEnabled() && e.ads_checked === 1,
   };
 }
 
