@@ -7,8 +7,10 @@ export const apiPaths = {
     `/api/stream/book/${bookId}/${fileIndex}`,
   podcastCoverUrl: (podcastId: string, coverHash: string, size: 200 | 600) =>
     `/api/podcasts/${podcastId}/cover?size=${size}&h=${coverHash}`,
-  /** Relays the publisher's audio through the server; supports range requests. */
+  /** The server's copy of an episode, or the publisher's audio relayed; supports range requests. */
   episodeUrl: (episodeId: string) => `/api/stream/episode/${episodeId}`,
+  /** Ad times for an episode (EpisodeAdsDto). */
+  episodeAds: (episodeId: string) => `/api/episodes/${episodeId}/ads`,
   /** GET your settings, PUT the ones that changed. */
   prefs: "/api/me/prefs",
 };

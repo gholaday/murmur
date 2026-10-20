@@ -23,7 +23,8 @@ import {
 import { useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
-import { IconButton, Text } from "@/components/ui";
+import { Chip, IconButton, Text } from "@/components/ui";
+import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdDetection, useAdPrefs, type AdMode } from "@/player/ad-prefs";
 import {
   chapterAt,
   chapterStep,
@@ -45,6 +46,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fonts, mixColor, useTheme } from "@/theme";
 
 const SPEED_STEP = 0.25;
+// Ad marks, the same in light and dark like the web's --ad colours.
+const AD = "#ef9f27";
+const AD_HEARD = "#ba7517";
+const ON_AD = "#412402";
 const SLEEP_MINUTES = [5, 10, 15, 30, 45, 60, 90];
 
 /** 1×, 1.25×, 1.5×, no trailing zeros. */
@@ -62,7 +67,9 @@ export default function Player() {
   const insets = useSafeAreaInsets();
   const p = usePlayer();
   const position = usePosition();
-  const [sheet, setSheet] = useState<null | "speed" | "sleep" | "chapters" | "more">(null);
+  const adPrefs = useAdPrefs();
+  const adDetection = useAdDetection();
+  const [sheet, setSheet] = useState<null | "speed" | "sleep" | "chapters" | "ads" | "more">(null);
   const [scrub, setScrub] = useState<number | null>(null);
   const [speedDraft, setSpeedDraft] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -92,6 +99,15 @@ export default function Player() {
   const within = Math.min(spanLen, Math.max(0, pos - span.start));
   const speed = speedDraft ?? p.speed;
   const tint = item.color ?? "#3b4a6e";
+  const showAds = item.type === "episode" && adDetection;
+  const adMode = adModeFor(adPrefs, item.podcastId);
+  const marks = showAds && adMode !== "off" && p.ads?.enabled ? p.ads.ads : [];
+  const adIndex = marks.findIndex((a) => pos >= a.startSec && pos < a.endSec);
+  const inAd = adIndex >= 0 ? adBreak(marks, adIndex) : null;
+  /** Where a time falls on the bar, 0 to 1. */
+  const frac = (sec: number) => Math.min(Math.max(sec - span.start, 0), spanLen) / spanLen;
+  const trackColor = t.isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)";
+  const showOverride: AdMode | null = item.podcastId ? (adPrefs.shows[item.podcastId] ?? null) : null;
   const choose = (fn: () => void) => () => {
     fn();
     setSheet(null);
@@ -134,7 +150,9 @@ export default function Player() {
           </View>
 
           <View style={{ gap: 4 }}>
-            {multiChapter ? (
+            {inAd ? (
+              <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: AD }}>Ad break</Text>
+            ) : multiChapter ? (
               <Pressable onPress={() => setSheet("chapters")} hitSlop={6} style={{ alignSelf: "flex-start" }}>
                 <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.accent }}>
                   Chapter {ci + 1} of {item.chapters.length}
@@ -150,14 +168,62 @@ export default function Player() {
           </View>
 
           <View>
+            {showAds && adMode !== "off" ? (
+              <View style={{ minHeight: 34, flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
+                {inAd ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => seek(inAd.endSec)}
+                    style={({ pressed }) => ({
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
+                      paddingLeft: 14,
+                      paddingRight: 10,
+                      paddingVertical: 6,
+                      borderRadius: 999,
+                      backgroundColor: AD,
+                      opacity: pressed ? 0.8 : 1,
+                    })}
+                  >
+                    <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: ON_AD }}>Skip ad</Text>
+                    <NextChapterIcon size={16} color={ON_AD} />
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+            <View>
+            {marks.length ? (
+              // The slider's own track can't show ads, so it draws see-through over this one.
+              <View
+                pointerEvents="none"
+                style={{ position: "absolute", left: 0, right: 0, top: 14, height: 4, borderRadius: 2, overflow: "hidden", backgroundColor: trackColor }}
+              >
+                <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${frac(pos) * 100}%`, backgroundColor: t.text }} />
+                {marks.map((a) => {
+                  const left = frac(a.startSec);
+                  const width = frac(a.endSec) - left;
+                  if (width <= 0) return null;
+                  const heard = Math.min(1, Math.max(0, (pos - a.startSec) / (a.endSec - a.startSec)));
+                  return (
+                    <View
+                      key={a.startSec}
+                      style={{ position: "absolute", top: 0, bottom: 0, left: `${left * 100}%`, width: `${width * 100}%`, minWidth: 2, backgroundColor: AD }}
+                    >
+                      <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${heard * 100}%`, backgroundColor: AD_HEARD }} />
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
             <Slider
               accessibilityLabel="Position"
               style={{ marginHorizontal: -12, height: 32 }}
               minimumValue={0}
               maximumValue={spanLen}
               value={within}
-              minimumTrackTintColor={t.text}
-              maximumTrackTintColor={t.isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)"}
+              minimumTrackTintColor={marks.length ? "transparent" : t.text}
+              maximumTrackTintColor={marks.length ? "transparent" : trackColor}
               thumbTintColor={t.text}
               onSlidingStart={(v) => setScrub(span.start + v)}
               onValueChange={(v) => scrub !== null && setScrub(span.start + v)}
@@ -166,6 +232,7 @@ export default function Player() {
                 setScrub(null);
               }}
             />
+            </View>
             <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
               <Text variant="small" style={{ fontVariant: ["tabular-nums"] }}>
                 {clock(within)}
@@ -229,9 +296,15 @@ export default function Player() {
           <Tile label={sleepLabel(p.sleep, now)} onPress={() => setSheet("sleep")} active={p.sleep.mode !== "off"}>
             <MoonIcon size={20} color={p.sleep.mode !== "off" ? t.accent : t.text} />
           </Tile>
-          <Tile label="Chapters" onPress={() => setSheet("chapters")} disabled={!multiChapter}>
-            <ListIcon size={20} color={t.text} />
-          </Tile>
+          {showAds ? (
+            <Tile label="Ads" onPress={() => setSheet("ads")}>
+              <Text style={{ fontFamily: fonts.extrabold, fontSize: 16, color: t.text }}>{AD_MODES.find((m) => m.id === adMode)?.short}</Text>
+            </Tile>
+          ) : (
+            <Tile label="Chapters" onPress={() => setSheet("chapters")} disabled={!multiChapter}>
+              <ListIcon size={20} color={t.text} />
+            </Tile>
+          )}
           <Tile
             label={p.queue.length ? `Up Next ${p.queue.length}` : "Up Next"}
             onPress={() => {
@@ -319,6 +392,32 @@ export default function Player() {
             <Text variant="small">{duration(c.endSec - c.startSec)}</Text>
           </Pressable>
         ))}
+      </Sheet>
+
+      <Sheet open={sheet === "ads"} onClose={() => setSheet(null)} title="Ads">
+        <Text variant="small" style={{ paddingHorizontal: 12, marginTop: -4, marginBottom: 4 }}>
+          This device only
+        </Text>
+        {AD_MODES.map((m) => (
+          <SheetItem key={m.id} label={m.label} hint={m.hint} active={adPrefs.mode === m.id} onPress={() => adPrefsStore.set({ ...adPrefs, mode: m.id })} />
+        ))}
+        {item.podcastId ? (
+          <View style={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8, gap: 10 }}>
+            <Text variant="bodyStrong" numberOfLines={1}>
+              {item.subtitle ?? "This show"}
+            </Text>
+            <View accessibilityRole="radiogroup" accessibilityLabel="Ads for this show" style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {[{ id: null, label: "Default" }, ...AD_MODES].map((m) => (
+                <Chip
+                  key={m.id ?? "default"}
+                  label={m.label}
+                  selected={showOverride === m.id}
+                  onPress={() => adPrefsStore.set(setShowMode(adPrefs, item.podcastId!, m.id))}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
       </Sheet>
 
       <Sheet open={sheet === "more"} onClose={() => setSheet(null)} title={item.title}>

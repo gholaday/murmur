@@ -103,6 +103,47 @@ export type UserPrefs = z.infer<typeof userPrefsSchema>;
 export const userPrefsPatchSchema = userPrefsSchema.partial();
 export type UserPrefsPatch = z.input<typeof userPrefsPatchSchema>;
 
+/** Server-wide settings, admin only. */
+export const serverSettingsSchema = z.object({
+  /** Newest episodes of each followed show kept on the server; 0 turns prefetching off. */
+  episodesPerShow: z.number().int().min(0).max(20),
+});
+export type ServerSettings = z.infer<typeof serverSettingsSchema>;
+export const serverSettingsPatchSchema = serverSettingsSchema.partial();
+
+export const AD_KINDS = ["inserted", "host_read", "promo"] as const;
+export type AdKind = (typeof AD_KINDS)[number];
+
+export const adSpanSchema = z.object({
+  startSec: z.number().min(0),
+  endSec: z.number().min(0),
+  kind: z.enum(AD_KINDS).catch("inserted"),
+  advertiser: z.string().max(200).nullable().optional(),
+  firstWords: z.string().max(300).nullable().optional(),
+});
+export type AdSpan = z.infer<typeof adSpanSchema>;
+
+/** What the ad detection add-on sends back about a file it is scanning. */
+export const addonReportSchema = z.discriminatedUnion("status", [
+  /** Ads so far (the whole list each time) and how many pieces are done; extends the lease. */
+  z.object({ status: z.literal("progress"), piecesDone: z.number().int().min(0), ads: z.array(adSpanSchema).max(500) }),
+  z.object({ status: z.literal("done"), piecesDone: z.number().int().min(0), ads: z.array(adSpanSchema).max(500) }),
+  /** Can't finish now (Gemini paused or misconfigured); hand it out again after `retryAfterSec`. */
+  z.object({ status: z.literal("deferred"), retryAfterSec: z.number().int().min(0).max(86_400 * 2), reason: z.string().max(500) }),
+  z.object({ status: z.literal("failed"), error: z.string().max(500) }),
+]);
+export type AddonReport = z.infer<typeof addonReportSchema>;
+
+export const addonStatusSchema = z.object({
+  version: z.string().max(50),
+  state: z.enum(["ok", "paused", "error"]),
+  message: z.string().max(500).nullable(),
+  geminiRequestsToday: z.number().int().min(0),
+  /** Why pieces are going to Vosk instead of Groq right now, and until when (epoch ms) if known. */
+  groq: z.object({ problem: z.string().max(300), until: z.number().nullable() }).nullable().optional(),
+});
+export type AddonStatus = z.infer<typeof addonStatusSchema>;
+
 export const matchFieldSchema = z.enum([
   "title",
   "author",
@@ -439,6 +480,8 @@ export interface HealthDto {
   uptimeSec: number;
   database: boolean;
   library: { reachable: boolean; books: number };
+  /** ADDON_SECRET is set, so players can offer ad marks and skipping. */
+  adDetection: boolean;
   scan: {
     running: boolean;
     lastFinishedAt: number | null;
@@ -450,6 +493,47 @@ export interface HealthDto {
 
 export interface ApiError {
   error: string;
+}
+
+/** `GET /api/episodes/:id/ads`. With `enabled` false the server has no ad detection; show nothing. */
+export interface EpisodeAdsDto {
+  enabled: boolean;
+  /** none: not on the server yet, or not scanned. */
+  status: "none" | "queued" | "scanning" | "done" | "failed";
+  ads: AdSpan[];
+}
+
+/** A scan handed to the add-on by `POST /api/addon/ads/next`. */
+export interface AddonJob {
+  fileId: number;
+  episodeId: string;
+  /** Relative to the shared cache folder. */
+  path: string;
+  durationSec: number | null;
+  title: string;
+  podcastTitle: string;
+  piecesDone: number;
+}
+
+/** The episode cache and ad detection, for the admin part of Settings. */
+export interface EpisodeCacheStatusDto {
+  available: boolean;
+  /** Why the cache can't be used, when it can't. */
+  error: string | null;
+  usedBytes: number;
+  maxBytes: number;
+  episodes: number;
+  downloading: number;
+  settings: ServerSettings;
+  ads: {
+    /** ADDON_SECRET is set. */
+    enabled: boolean;
+    /** Last report from the add-on, if any. */
+    addon: (AddonStatus & { seenAt: number }) | null;
+    queued: number;
+    done: number;
+    failed: number;
+  };
 }
 
 export * from "./api-paths";

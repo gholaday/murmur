@@ -702,6 +702,8 @@ a.episode-show:hover { color: var(--accent); }
   animation: rise 0.22s ease-out;
 }
 @keyframes rise { from { transform: translateY(24px); opacity: 0; } }
+.player.closing { animation: sink 0.2s ease-in forwards; pointer-events: none; }
+@keyframes sink { to { transform: translateY(24px); opacity: 0; } }
 .player-top { display: flex; align-items: center; justify-content: space-between; padding: 16px 12px 0; }
 .player-from { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.6px; text-transform: uppercase; }
 .player-main { width: 100%; max-width: 440px; margin: 0 auto; padding: 0 32px; display: flex; flex-direction: column; }
@@ -740,6 +742,24 @@ a.episode-show:hover { color: var(--accent); }
 .scrubber::-moz-range-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--text) var(--pct), color-mix(in srgb, var(--text) 18%, transparent) var(--pct)); }
 .scrubber::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 8px; background: var(--text); }
 .scrubber::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 8px; background: var(--text); }
+
+/* Ad breaks on the seek bar: the bar is drawn underneath and the range input only adds the thumb. */
+.player { --ad: #ef9f27; --ad-heard: #ba7517; --on-ad: #412402; }
+.scrub-wrap { position: relative; }
+.scrub-track { position: absolute; left: 0; right: 0; top: 8px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 18%, transparent); overflow: hidden; pointer-events: none; }
+.scrub-played { position: absolute; left: 0; top: 0; bottom: 0; background: var(--text); }
+.scrub-ad { position: absolute; top: 0; bottom: 0; min-width: 2px; background: linear-gradient(to right, var(--ad-heard) var(--heard), var(--ad) var(--heard)); }
+.scrubber.over-track { position: relative; }
+.scrubber.over-track::-webkit-slider-runnable-track { background: transparent; }
+.scrubber.over-track::-moz-range-track { background: transparent; }
+.player-ad { color: var(--ad); }
+.player-adrow { min-height: 34px; display: flex; align-items: center; margin-bottom: 6px; }
+.skip-ad { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px 6px 14px; border-radius: 999px; background: var(--ad); color: var(--on-ad); font-size: 13px; font-weight: 700; animation: fade-in 0.15s ease-out; }
+.sheet-note { margin: -6px 0 0; font-size: 13px; color: var(--muted); }
+.sheet-item-text { display: flex; flex-direction: column; gap: 2px; padding-block: 8px; }
+.sheet-item-sub { font-size: 13px; font-weight: 400; color: var(--muted); }
+.sheet-group { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
+.sheet-group-title { font-size: 14px; font-weight: 700; }
 
 /* ---------- Sheets ---------- */
 

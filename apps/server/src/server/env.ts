@@ -19,7 +19,7 @@ export const env = {
   coversDir: path.join(dataDir, "covers"),
   backupsDir: path.join(dataDir, "backups"),
   /** How often each feed is checked when healthy; failing feeds back off up to 24 hours. */
-  feedCheckMs: intEnv("FEED_CHECK_MINUTES", 60) * 60_000,
+  feedCheckMs: intEnv("FEED_CHECK_MINUTES", 30) * 60_000,
   libraryDir: path.resolve(/*turbopackIgnore: true*/ process.env.LIBRARY_DIR ?? "/audiobooks"),
   migrationsDir: path.resolve(/*turbopackIgnore: true*/ process.env.MIGRATIONS_DIR ?? "./drizzle"),
   /** Use polling instead of filesystem events (for network mounts that don't emit events). */
@@ -34,4 +34,9 @@ export const env = {
   /** Books whose folder is gone stay visible (marked missing) for this long before being hidden. */
   missingGraceMs: intEnv("MISSING_GRACE_DAYS", 7) * 86_400_000,
   probeConcurrency: intEnv("PROBE_CONCURRENCY", 2),
+  /** Where podcast episodes are kept; without a writable folder, episodes are relayed instead. */
+  episodeCacheDir: path.resolve(/*turbopackIgnore: true*/ process.env.EPISODE_CACHE_DIR ?? "/cache"),
+  episodeCacheMaxBytes: intEnv("EPISODE_CACHE_MAX_GB", 20) * 1024 ** 3,
+  /** Shared with the ad detection add-on; its endpoints are off unless this is set. */
+  addonSecret: process.env.ADDON_SECRET ?? "",
 };

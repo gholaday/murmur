@@ -20,6 +20,7 @@ import {
   SkipForwardIcon,
 } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
+import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } from "./ad-prefs";
 import { chapterAt, usePlayer, usePosition, type SleepTimer } from "./engine";
 
 const MIN_SPEED = 0.5;
@@ -31,6 +32,8 @@ const clampSpeed = (v: number) => Math.min(MAX_SPEED, Math.max(MIN_SPEED, Math.r
 /** 1×, 1.25×, 1.5× — no trailing zeros. */
 const speedText = (v: number) => `${Number(v.toFixed(2))}×`;
 const SLEEP_MINUTES = [5, 10, 15, 30, 45, 60, 90];
+/** Matches the `sink` animation in globals.css. */
+const CLOSE_MS = 200;
 
 function sleepLabel(sleep: SleepTimer, now: number): string {
   if (sleep.mode === "timer") return clock(Math.max(0, (sleep.endsAt - now) / 1000));
@@ -41,7 +44,8 @@ function sleepLabel(sleep: SleepTimer, now: number): string {
 export function FullPlayer() {
   const p = usePlayer();
   const position = usePosition();
-  const [sheet, setSheet] = useState<null | "sleep" | "chapters" | "more">(null);
+  const [sheet, setSheet] = useState<null | "sleep" | "chapters" | "more" | "ads">(null);
+  const adPrefs = useAdPrefs();
   const [speedOpen, setSpeedOpen] = useState(false);
   /** Slider value while dragging; saved once you let go. */
   const [speedDraft, setSpeedDraft] = useState<number | null>(null);
@@ -49,6 +53,18 @@ export function FullPlayer() {
   const { item, expanded, setExpanded } = p;
   const speedOpenRef = useRef(false);
   speedOpenRef.current = speedOpen;
+  // Minimizing plays the opening animation in reverse before the player unmounts.
+  const [closing, setClosing] = useState(false);
+  const [wasExpanded, setWasExpanded] = useState(expanded);
+  if (wasExpanded !== expanded) {
+    setWasExpanded(expanded);
+    setClosing(!expanded);
+  }
+  useEffect(() => {
+    if (!closing) return;
+    const t = setTimeout(() => setClosing(false), CLOSE_MS);
+    return () => clearTimeout(t);
+  }, [closing]);
 
   // Close with Escape and stop the page behind from scrolling.
   useEffect(() => {
@@ -66,7 +82,7 @@ export function FullPlayer() {
     };
   }, [expanded, setExpanded]);
 
-  if (!item || !expanded) return null;
+  if (!item || (!expanded && !closing)) return null;
 
   const pos = scrub ?? position;
   const ci = chapterAt(item.chapters, pos);
@@ -84,10 +100,17 @@ export function FullPlayer() {
     fn();
     setSheet(null);
   };
+  // Ads only ever exist for episodes; books keep the Chapters tile.
+  const showAds = item.type === "episode" && p.adsEnabled;
+  const adMode = adModeFor(adPrefs, item.podcastId);
+  const marks = showAds && adMode !== "off" ? p.ads : [];
+  const adIndex = marks.findIndex((a) => pos >= a.startSec && pos < a.endSec);
+  const inAd = adIndex >= 0 ? adBreak(marks, adIndex) : null;
+  const pct = (sec: number) => `${(Math.min(Math.max(sec - span.start, 0), spanLen) / spanLen) * 100}%`;
 
   return (
     <div
-      className="player"
+      className={`player${closing ? " closing" : ""}`}
       role="dialog"
       aria-modal="true"
       aria-label="Player"
@@ -107,7 +130,9 @@ export function FullPlayer() {
         <Cover src={item.coverUrlLarge} color={item.color} title={item.title} subtitle={item.subtitle} className="player-cover" large />
 
         <div className="player-info">
-          {multiChapter ? (
+          {inAd ? (
+            <span className="player-chapter player-ad">Ad break</span>
+          ) : multiChapter ? (
             <button type="button" className="player-chapter" onClick={() => setSheet("chapters")}>
               Chapter {ci + 1} of {item.chapters.length}
             </button>
@@ -117,9 +142,38 @@ export function FullPlayer() {
         </div>
 
         <div className="player-scrub">
+          {showAds && adMode !== "off" ? (
+            <div className="player-adrow">
+              {inAd ? (
+                <button type="button" className="skip-ad" onClick={() => p.seek(inAd.endSec)}>
+                  Skip ad
+                  <NextChapterIcon size={16} />
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="scrub-wrap">
+            {marks.length ? (
+              <div className="scrub-track" aria-hidden="true">
+                <div className="scrub-played" style={{ width: pct(pos) }} />
+                {marks.map((a) => (
+                  <div
+                    key={a.startSec}
+                    className="scrub-ad"
+                    style={
+                      {
+                        left: pct(a.startSec),
+                        width: `calc(${pct(a.endSec)} - ${pct(a.startSec)})`,
+                        "--heard": `${Math.min(100, Math.max(0, ((pos - a.startSec) / (a.endSec - a.startSec)) * 100))}%`,
+                      } as React.CSSProperties
+                    }
+                  />
+                ))}
+              </div>
+            ) : null}
           <input
             type="range"
-            className="scrubber"
+            className={`scrubber${marks.length ? " over-track" : ""}`}
             aria-label="Position"
             min={0}
             max={Math.floor(spanLen)}
@@ -130,6 +184,7 @@ export function FullPlayer() {
             onPointerUp={commitScrub}
             onKeyUp={commitScrub}
           />
+          </div>
           <div className="player-times">
             <span>{clock(within)}</span>
             <span>{item.durationSec ? timeLeft(item.durationSec, pos) : ""}</span>
@@ -245,10 +300,17 @@ export function FullPlayer() {
           <MoonIcon size={20} />
           <span>{sleepLabel(p.sleep, Date.now())}</span>
         </button>
-        <button type="button" className="tile" onClick={() => setSheet("chapters")} disabled={!multiChapter}>
-          <ListIcon size={20} />
-          <span>Chapters</span>
-        </button>
+        {showAds ? (
+          <button type="button" className="tile" onClick={() => setSheet("ads")}>
+            <strong>{AD_MODES.find((m) => m.id === adMode)?.short}</strong>
+            <span>Ads</span>
+          </button>
+        ) : (
+          <button type="button" className="tile" onClick={() => setSheet("chapters")} disabled={!multiChapter}>
+            <ListIcon size={20} />
+            <span>Chapters</span>
+          </button>
+        )}
         <Link href="/up-next" className="tile" onClick={() => setExpanded(false)}>
           <QueueIcon size={20} />
           <span>Up Next{p.queue.length ? ` (${p.queue.length})` : ""}</span>
@@ -287,6 +349,41 @@ export function FullPlayer() {
             </li>
           ))}
         </ol>
+      </Sheet>
+
+      <Sheet open={sheet === "ads"} onClose={() => setSheet(null)} title="Ads">
+        <p className="sheet-note">This device only</p>
+        {AD_MODES.map((m) => (
+          <SheetItem key={m.id} active={adPrefs.mode === m.id} onClick={() => adPrefsStore.set({ ...adPrefs, mode: m.id })}>
+            <span className="sheet-item-text">
+              <span>{m.label}</span>
+              <span className="sheet-item-sub">{m.hint}</span>
+            </span>
+          </SheetItem>
+        ))}
+        {item.podcastId ? (
+          <div className="sheet-group">
+            <div className="sheet-group-title">{item.subtitle ?? "This show"}</div>
+            <div className="chips" role="radiogroup" aria-label="Ads for this show">
+              {[{ id: null, label: "Default" }, ...AD_MODES].map((m) => {
+                const current = adPrefs.shows[item.podcastId!] ?? null;
+                return (
+                  <button
+                    key={m.id ?? "default"}
+                    type="button"
+                    role="radio"
+                    className="chip"
+                    aria-checked={current === m.id}
+                    aria-pressed={current === m.id}
+                    onClick={() => adPrefsStore.set(setShowMode(adPrefs, item.podcastId!, m.id))}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </Sheet>
 
       <Sheet open={sheet === "more"} onClose={() => setSheet(null)} title={item.title}>

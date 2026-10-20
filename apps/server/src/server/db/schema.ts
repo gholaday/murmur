@@ -242,6 +242,76 @@ export const bookOverrides = sqliteTable("book_overrides", {
   editedAt: integer("edited_at"),
 });
 
+/** Server-wide settings an admin can change, as JSON values by key. */
+export const serverSettings = sqliteTable("server_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
+/**
+ * The server's copy of an episode. Dynamically inserted ads differ per download, so one
+ * copy is shared by everyone and its ad times belong to this file, not to the episode.
+ */
+export const episodeFiles = sqliteTable(
+  "episode_files",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    episodeId: text("episode_id")
+      .notNull()
+      .unique()
+      .references(() => episodes.id, { onDelete: "cascade" }),
+    /** Relative to the cache folder, forward slashes. */
+    relPath: text("rel_path").notNull(),
+    mimeType: text("mime_type").notNull(),
+    /** Full size once known (from the download's Content-Length or when it finishes). */
+    size: integer("size"),
+    status: text("status", { enum: ["downloading", "ready", "failed"] }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    error: text("error"),
+    createdAt: integer("created_at").notNull(),
+    readyAt: integer("ready_at"),
+    lastPlayedAt: integer("last_played_at"),
+  },
+  (t) => [index("episode_files_status_idx").on(t.status)],
+);
+
+export const episodeAds = sqliteTable(
+  "episode_ads",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    fileId: integer("file_id")
+      .notNull()
+      .references(() => episodeFiles.id, { onDelete: "cascade" }),
+    startSec: real("start_sec").notNull(),
+    endSec: real("end_sec").notNull(),
+    kind: text("kind").notNull(),
+    advertiser: text("advertiser"),
+    firstWords: text("first_words"),
+  },
+  (t) => [index("episode_ads_file_idx").on(t.fileId)],
+);
+
+/** Where the ad detection add-on is with each cached file. */
+export const adScans = sqliteTable(
+  "ad_scans",
+  {
+    fileId: integer("file_id")
+      .primaryKey()
+      .references(() => episodeFiles.id, { onDelete: "cascade" }),
+    status: text("status", { enum: ["queued", "scanning", "done", "failed"] }).notNull(),
+    piecesDone: integer("pieces_done").notNull().default(0),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    leaseUntil: integer("lease_until"),
+    /** A queued scan isn't handed out before this (after a failure or a deferral). */
+    notBefore: integer("not_before"),
+    /** Last time someone was playing this episode, which moves it to the front. */
+    wantedAt: integer("wanted_at"),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [index("ad_scans_status_idx").on(t.status)],
+);
+
 /** Raw provider responses, kept for 30 days so repeat lookups are instant and polite. */
 export const providerCache = sqliteTable("provider_cache", {
   url: text("url").primaryKey(),

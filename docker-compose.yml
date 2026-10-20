@@ -2,7 +2,7 @@
 services:
   murmur:
     # Published by .github/workflows/release.yml when a v* tag is pushed.
-    image: ghcr.io/gholaday/murmur:0.1.9
+    image: ghcr.io/gholaday/murmur:0.2.0
     container_name: murmur
     restart: unless-stopped
     ports:
@@ -12,12 +12,42 @@ services:
       # Files in /data are owned by this user and group. Use your NAS user's ids (run `id` on the NAS).
       - PUID=1000
       - PGID=1000
+      # Space for cached podcast episodes, in GB.
+      - EPISODE_CACHE_MAX_GB=20
+      # Ad detection (optional): uncomment, set any long random value, and add the same value to
+      # murmur-adscan below. Leaving it out turns ad detection off.
+      # - ADDON_SECRET=change-me-to-a-long-random-string
     volumes:
       - /volume1/Books/Audiobooks:/audiobooks:ro
       - /volume1/docker/murmur:/data
+      # Cached podcast episodes. Not worth backing up.
+      - /volume1/docker/murmur-cache:/cache
     stop_grace_period: 30s
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "5"
+
+  # Optional ad detection add-on. Uncomment to use; needs ADDON_SECRET above and a Gemini API key
+  # from aistudio.google.com. Without it Murmur works the same, just without ad marks.
+  # murmur-adscan:
+  #   image: ghcr.io/gholaday/murmur-adscan:0.2.0
+  #   container_name: murmur-adscan
+  #   restart: unless-stopped
+  #   environment:
+  #     - MURMUR_URL=http://murmur:3000
+  #     - ADDON_SECRET=change-me-to-a-long-random-string
+  #     - GEMINI_API_KEY=your-gemini-key
+  #     # Optional, much better transcripts; without it the add-on uses Vosk on this machine.
+  #     - GROQ_API_KEY=your-groq-key
+  #   volumes:
+  #     - /volume1/docker/murmur-cache:/cache:ro
+  #     - /volume1/docker/murmur-adscan:/state
+  #   # Keeps transcription from crowding out Murmur on a small NAS.
+  #   cpus: "2"
+  #   logging:
+  #     driver: json-file
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"

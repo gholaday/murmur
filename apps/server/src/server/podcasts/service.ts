@@ -232,9 +232,13 @@ export function createPodcastService(deps: Deps) {
 
 export type PodcastService = ReturnType<typeof createPodcastService>;
 
-/** Checks due feeds shortly after start, then every five minutes. */
-export function startFeedScheduler(service: PodcastService, log: Logger) {
-  const tick = () => service.checkDue().catch((err) => log.error("feed check round failed", { error: errorMessage(err) }));
+/** Checks due feeds shortly after start, then every five minutes, running `after` once each round ends. */
+export function startFeedScheduler(service: PodcastService, log: Logger, after?: () => Promise<void>) {
+  const tick = () =>
+    service
+      .checkDue()
+      .catch((err) => log.error("feed check round failed", { error: errorMessage(err) }))
+      .then(() => after?.());
   const first = setTimeout(tick, 30_000);
   const every = setInterval(tick, 5 * 60_000);
   first.unref();

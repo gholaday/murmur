@@ -1,0 +1,88 @@
+"use client";
+
+import { useSyncExternalStore } from "react";
+import type { AdSpan } from "@murmur/shared/client";
+
+export type AdMode = "off" | "show" | "auto";
+
+/** `short` fits the player's Ads tile. */
+export const AD_MODES: Array<{ id: AdMode; label: string; short: string; hint: string }> = [
+  { id: "off", label: "Off", short: "Off", hint: "Ads play as usual" },
+  { id: "show", label: "Show", short: "Show", hint: "Mark ads on the seek bar" },
+  { id: "auto", label: "Auto-skip", short: "Auto", hint: "Skip ads, with Undo" },
+];
+
+/** How this device handles ads, with optional per-show overrides. Kept on the device, not synced. */
+export interface AdPrefs {
+  mode: AdMode;
+  shows: Record<string, AdMode>;
+}
+
+const KEY = "murmur.ads";
+const DEFAULT: AdPrefs = { mode: "show", shows: {} };
+const isMode = (v: unknown): v is AdMode => v === "off" || v === "show" || v === "auto";
+
+function read(): AdPrefs {
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEY) ?? "null") as Partial<AdPrefs> | null;
+    if (!raw) return DEFAULT;
+    const shows = Object.fromEntries(Object.entries(raw.shows ?? {}).filter(([, m]) => isMode(m))) as Record<string, AdMode>;
+    return { mode: isMode(raw.mode) ? raw.mode : DEFAULT.mode, shows };
+  } catch {
+    return DEFAULT;
+  }
+}
+
+export const adPrefsStore = (() => {
+  let value: AdPrefs | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    get: (): AdPrefs => (value ??= read()),
+    set(next: AdPrefs) {
+      value = next;
+      try {
+        localStorage.setItem(KEY, JSON.stringify(next));
+      } catch {
+        // private mode: kept for this visit only
+      }
+      for (const l of listeners) l();
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+  };
+})();
+
+const serverSnapshot = () => DEFAULT;
+
+export function useAdPrefs(): AdPrefs {
+  return useSyncExternalStore(adPrefsStore.subscribe, adPrefsStore.get, serverSnapshot);
+}
+
+/** The mode for a show on this device: its override, else the device's mode. */
+export function adModeFor(prefs: AdPrefs, podcastId: string | null): AdMode {
+  return (podcastId && prefs.shows[podcastId]) || prefs.mode;
+}
+
+/**
+ * The run of back-to-back ads that starts with `spans[i]` (gaps under 3 seconds count as back
+ * to back), so skipping jumps the whole break instead of one ad at a time. Spans are sorted.
+ */
+export function adBreak(spans: AdSpan[], i: number): { endSec: number; indexes: number[] } {
+  let endSec = spans[i]!.endSec;
+  const indexes = [i];
+  for (let j = i + 1; j < spans.length && spans[j]!.startSec - endSec < 3; j++) {
+    endSec = Math.max(endSec, spans[j]!.endSec);
+    indexes.push(j);
+  }
+  return { endSec, indexes };
+}
+
+/** Sets or clears (null) a show's override. */
+export function setShowMode(prefs: AdPrefs, podcastId: string, mode: AdMode | null): AdPrefs {
+  const shows = { ...prefs.shows };
+  if (mode) shows[podcastId] = mode;
+  else delete shows[podcastId];
+  return { ...prefs, shows };
+}

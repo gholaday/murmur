@@ -2,9 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { toast } from "sonner";
 import {
   apiPaths,
+  type AdSpan,
   type BookDetail,
+  type EpisodeAdsDto,
   type ChapterDto,
   type EpisodeWithShow,
   type ItemType,
@@ -13,8 +16,11 @@ import {
   type QueueRef,
 } from "@murmur/shared/client";
 import { api } from "../api";
+import { adBreak, adModeFor, adPrefsStore } from "./ad-prefs";
 
 const SAVE_EVERY_MS = 10_000;
+/** How often ad times are re-fetched while the current episode is still being scanned. */
+const ADS_POLL_MS = 60_000;
 const NOW_PLAYING_KEY = "murmur.nowPlaying";
 const SKIP_KEY = "murmur.skip";
 
@@ -105,6 +111,10 @@ interface PlayerApi {
   sleep: SleepTimer;
   skip: SkipSettings;
   expanded: boolean;
+  /** The server finds ads (the ad detection add-on is set up). */
+  adsEnabled: boolean;
+  /** Ad times for the current episode, empty until it's scanned. */
+  ads: AdSpan[];
   queue: QueueEntry[];
   /** False until the queue has been fetched once, so an empty list isn't shown too early. */
   queueLoaded: boolean;
@@ -196,6 +206,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const unsaved = useRef<ProgressItem | null>(null);
   const queueRef = useRef<QueueEntry[]>([]);
   const sleepRef = useRef<SleepTimer>({ mode: "off" });
+  const adsRef = useRef<AdSpan[]>([]);
+  /** Ads you chose to hear with Undo; not skipped again while this item stays loaded. */
+  const adsAllowed = useRef(new Set<number>());
+  const lastTick = useRef(0);
 
   const [item, setItem] = useState<Playable | null>(null);
   const setPosition = positionStore.set;
@@ -208,6 +222,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [expanded, setExpanded] = useState(false);
   const [queue, setQueueState] = useState<QueueEntry[]>([]);
   const [queueLoaded, setQueueLoaded] = useState(false);
+  const [adsInfo, setAdsInfo] = useState<EpisodeAdsDto | null>(null);
 
   const setQueue = useCallback((q: QueueEntry[]) => {
     queueRef.current = q;
@@ -259,6 +274,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     fileIndex.current = idx;
     pendingSeek.current = at - (it.files[idx]?.startSec ?? 0);
     positionRef.current = at;
+    lastTick.current = at;
     setPosition(at);
     setError(null);
     setLoading(true);
@@ -534,6 +550,61 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(t);
   }, [sleep, setSleep]);
 
+  // ---------- Ads ----------
+
+  // Ad times for the current episode. Re-asked while its scan is still running; any failure
+  // just means no marks, never a playback problem.
+  const itemKey = item ? `${item.type}:${item.id}` : null;
+  useEffect(() => {
+    adsRef.current = [];
+    adsAllowed.current = new Set();
+    setAdsInfo(null);
+    const it = itemRef.current;
+    if (!it || it.type !== "episode") return;
+    let live = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const fetchAds = async () => {
+      try {
+        const info = await api<EpisodeAdsDto>(apiPaths.episodeAds(it.id));
+        if (!live) return;
+        adsRef.current = info.ads;
+        setAdsInfo(info);
+        if (!info.enabled || info.status === "done" || info.status === "failed") return;
+      } catch {
+        if (!live) return;
+      }
+      timer = setTimeout(fetchAds, ADS_POLL_MS);
+    };
+    void fetchAds();
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [itemKey]);
+
+  /** Auto-skip: jumps past an ad when playback runs into its start, never when you seek into one. */
+  const maybeSkipAd = (prev: number, pos: number) => {
+    const spans = adsRef.current;
+    const it = itemRef.current;
+    if (!spans.length || !it || pos <= prev || pos - prev > 3) return;
+    if (adModeFor(adPrefsStore.get(), it.podcastId) !== "auto") return;
+    const i = spans.findIndex((s, idx) => prev < s.startSec && pos >= s.startSec && pos < s.endSec && !adsAllowed.current.has(idx));
+    if (i < 0) return;
+    const start = spans[i]!.startSec;
+    const brk = adBreak(spans, i);
+    seek(brk.endSec);
+    toast(brk.indexes.length > 1 ? `Skipped ${brk.indexes.length} ads` : "Skipped ad", {
+      duration: 5000,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          for (const idx of brk.indexes) adsAllowed.current.add(idx);
+          seek(start);
+        },
+      },
+    });
+  };
+
   // ---------- Lock screen, notification and headset controls ----------
 
   const handlers = useRef({ toggle, skipBy, chapterStep, seek, skip });
@@ -600,6 +671,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       sleep,
       skip,
       expanded,
+      adsEnabled: adsInfo?.enabled ?? false,
+      ads: adsInfo?.ads ?? [],
       queue,
       queueLoaded,
       isCurrent,
@@ -629,6 +702,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       sleep,
       skip,
       expanded,
+      adsInfo,
       queue,
       queueLoaded,
       isCurrent,
@@ -678,6 +752,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             const it = itemRef.current;
             if (!it || pendingSeek.current !== null) return;
             const pos = (it.files[fileIndex.current]?.startSec ?? 0) + e.currentTarget.currentTime;
+            const prev = lastTick.current;
+            lastTick.current = pos;
+            if (!e.currentTarget.paused) maybeSkipAd(prev, pos);
             positionRef.current = pos;
             setPosition(pos);
             updatePositionState(pos);

@@ -5,10 +5,13 @@ set -e
 mkdir -p "$DATA_DIR"
 
 if [ "$(id -u)" = "0" ]; then
-  if [ "$(stat -c %u "$DATA_DIR")" != "$PUID" ] || [ "$(stat -c %g "$DATA_DIR")" != "$PGID" ]; then
-    echo "Setting owner of $DATA_DIR to $PUID:$PGID"
-    chown -R "$PUID:$PGID" "$DATA_DIR"
-  fi
+  for dir in "$DATA_DIR" "$EPISODE_CACHE_DIR"; do
+    [ -d "$dir" ] || continue
+    if [ "$(stat -c %u "$dir")" != "$PUID" ] || [ "$(stat -c %g "$dir")" != "$PGID" ]; then
+      echo "Setting owner of $dir to $PUID:$PGID"
+      chown -R "$PUID:$PGID" "$dir"
+    fi
+  done
   exec su-exec "$PUID:$PGID" "$@"
 fi
 

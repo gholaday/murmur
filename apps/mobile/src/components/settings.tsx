@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
-import { shortDate, type FolderBrowseDto, type FolderCheckDto, type HealthDto, type LibraryFolderDto, type UserDto } from "@murmur/shared/client";
+import { shortDate, type EpisodeCacheStatusDto, type FolderBrowseDto, type FolderCheckDto, type HealthDto, type LibraryFolderDto, type UserDto } from "@murmur/shared/client";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/query";
 import { fonts, useTheme } from "@/theme";
@@ -9,7 +9,7 @@ import { BackIcon, CheckIcon, FolderIcon } from "./icons";
 import { ConfirmSheet, Sheet } from "./sheet";
 import { Bone, FadeIn, Skeleton } from "./skeleton";
 import { toast } from "./toast";
-import { Button, Field, Text } from "./ui";
+import { Button, Chip, Field, Text } from "./ui";
 
 // Building blocks for the Settings tab, and the sections that talk to the server:
 // changing your password, and for admins the library and users.
@@ -222,7 +222,121 @@ export function PasswordRow() {
 
 // ---------- Admin: library ----------
 
-const libraryKeys = { health: ["health"], folders: ["library-folders"], users: ["users"] } as const;
+const libraryKeys = { health: ["health"], folders: ["library-folders"], users: ["users"], cache: ["episode-cache"] } as const;
+
+const PER_SHOW_OPTIONS = [0, 1, 3, 5, 10];
+/** The add-on reports every minute or so; this long without a word counts as not connected. */
+const ADDON_SILENT_MS = 15 * 60_000;
+
+const gb = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(bytes < 10 * 1024 ** 3 ? 1 : 0)} GB`;
+
+/** Admin: how many recent episodes the server keeps ready per show, and how ad detection is doing. */
+export function EpisodeCacheSection() {
+  const t = useTheme();
+  const cache = useQuery({ queryKey: libraryKeys.cache, queryFn: () => api<EpisodeCacheStatusDto>("/api/server/cache") });
+  const [busy, setBusy] = useState(false);
+  const refresh = () => void queryClient.invalidateQueries({ queryKey: libraryKeys.cache });
+
+  const run = async (fn: () => Promise<unknown>, done?: string) => {
+    setBusy(true);
+    try {
+      await fn();
+      if (done) toast.show(done);
+      refresh();
+    } catch (err) {
+      toast.error(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const c = cache.data;
+  if (!c) {
+    return (
+      <Card>
+        {cache.isError ? (
+          <Row title="Episodes kept ready per show" sub={cache.error.message} subDanger last />
+        ) : (
+          <Skeleton>
+            <RowBone last />
+          </Skeleton>
+        )}
+      </Card>
+    );
+  }
+  const { ads } = c;
+  // Measured from when this status was fetched.
+  const addonState = !ads.addon || cache.dataUpdatedAt - ads.addon.seenAt > ADDON_SILENT_MS ? "missing" : ads.addon.state;
+  const addonText =
+    addonState === "missing"
+      ? "Not connected. Check the add-on container is running."
+      : addonState === "ok"
+        ? "Working"
+        : (ads.addon?.message ?? (addonState === "paused" ? "Paused" : "Stopped by an error"));
+  const groq = addonState === "missing" ? null : ads.addon?.groq;
+  const groqText = groq
+    ? `Transcribing with Vosk${
+        groq.until ? ` until ${new Date(groq.until).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : ""
+      }. ${groq.problem}.`
+    : null;
+  const counts = [`${ads.done} scanned`, ads.queued ? `${ads.queued} waiting` : null, ads.failed ? `${ads.failed} failed` : null]
+    .filter(Boolean)
+    .join(", ");
+
+  return (
+    <FadeIn>
+      <Card>
+        <Row
+          title="Episodes kept ready per show"
+          sub={c.available ? `${gb(c.usedBytes)} of ${gb(c.maxBytes)} used` : c.error}
+          subDanger={!c.available}
+          stacked
+          last={!ads.enabled}
+        >
+          <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+            {PER_SHOW_OPTIONS.map((n) => (
+              <Chip
+                key={n}
+                label={n === 0 ? "Off" : String(n)}
+                selected={c.settings.episodesPerShow === n}
+                onPress={() => {
+                  if (busy || c.settings.episodesPerShow === n) return;
+                  void run(() => api("/api/server/cache", { method: "PUT", body: { episodesPerShow: n } }));
+                }}
+              />
+            ))}
+          </View>
+        </Row>
+        {ads.enabled ? (
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingVertical: 14 }}>
+            <View style={{ flexShrink: 1, gap: 2 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: addonState === "ok" ? "#5ccf8a" : "#f0b45a" }} />
+                <Text variant="bodyStrong">Ad detection</Text>
+              </View>
+              <Text variant="small" style={addonState === "error" ? { color: t.danger } : undefined}>
+                {addonText}
+              </Text>
+              {groqText ? (
+                <Text variant="small" style={groq?.until ? undefined : { color: t.danger }}>
+                  {groqText}
+                </Text>
+              ) : null}
+              <Text variant="small">{counts}</Text>
+            </View>
+            {ads.failed ? (
+              <SmallButton
+                label="Retry"
+                disabled={busy}
+                onPress={() => void run(() => api("/api/server/ads/retry", { method: "POST" }), "Failed scans will run again.")}
+              />
+            ) : null}
+          </View>
+        ) : null}
+      </Card>
+    </FadeIn>
+  );
+}
 
 function scanStatus(h: HealthDto) {
   if (h.scan.running) return "Scanning now…";

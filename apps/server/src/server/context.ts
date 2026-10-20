@@ -6,6 +6,8 @@ import { ensureDefaultFolder, listFolders, saveFolders, type LibraryFolder } fro
 import { createScanState, createScanner, type ScanState, type Scanner } from "./library/scanner";
 import { startWatcher, type LibraryWatcher } from "./library/watcher";
 import { createLogger, errorMessage, type Logger } from "./log";
+import { queueScan, queueUnscanned } from "./ads";
+import { createEpisodeCache, type EpisodeCache } from "./podcasts/episode-cache";
 import { createPodcastService, startFeedScheduler, type PodcastService } from "./podcasts/service";
 
 export interface AppContext {
@@ -20,6 +22,7 @@ export interface AppContext {
     saveFolders: (paths: string[]) => Promise<LibraryFolder[]>;
   };
   podcasts: PodcastService;
+  episodeCache: EpisodeCache;
   startedAt: number;
 }
 
@@ -100,7 +103,18 @@ async function boot(): Promise<AppContext> {
     version: env.version,
     log: podcastLog,
   });
-  startFeedScheduler(podcasts, podcastLog);
+  const episodeCache = createEpisodeCache({
+    sqlite,
+    dir: env.episodeCacheDir,
+    maxBytes: env.episodeCacheMaxBytes,
+    version: env.version,
+    log: createLogger("episode-cache"),
+    onReady: (fileId) => queueScan(sqlite, fileId),
+  });
+  episodeCache.init();
+  queueUnscanned(sqlite);
+  // New episodes are downloaded right after each round of feed checks, including the one at startup.
+  startFeedScheduler(podcasts, podcastLog, () => episodeCache.prefetch());
 
   scheduleNightlyBackup(sqlite);
   registerShutdown(sqlite, watcher);
@@ -113,10 +127,10 @@ async function boot(): Promise<AppContext> {
     data: env.dataDir,
     watcher: watcher.mode(),
   });
-  return { db, sqlite, scanner, scanState, watcher, library, podcasts, startedAt: started };
+  return { db, sqlite, scanner, scanState, watcher, library, podcasts, episodeCache, startedAt: started };
 }
 
-/** Episodes used to be downloaded to DATA_DIR/podcasts; they now only download to phones. */
+/** Episodes used to be downloaded to DATA_DIR/podcasts; the episode cache has its own folder now. */
 function removeOldEpisodeDownloads(podcastLog: Logger) {
   const dir = path.join(env.dataDir, "podcasts");
   if (!fs.existsSync(dir)) return;

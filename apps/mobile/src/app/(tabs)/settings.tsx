@@ -2,10 +2,11 @@ import { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { PAD } from "@/components/library";
 import { PageTitle, SectionTitle, useTopInset } from "@/components/page";
-import { Card, LibrarySection, PasswordRow, RolePill, Row, SmallButton, UsersSection } from "@/components/settings";
+import { Card, EpisodeCacheSection, LibrarySection, PasswordRow, RolePill, Row, SmallButton, UsersSection } from "@/components/settings";
 import { ConfirmSheet } from "@/components/sheet";
 import { Chip } from "@/components/ui";
 import { useSession } from "@/lib/session";
+import { AD_MODES, adPrefsStore, useAdDetection, useAdPrefs } from "@/player/ad-prefs";
 import { setSkip, usePlayer } from "@/player/engine";
 import { setThemeMode, useTheme, useThemeMode, type ThemeMode } from "@/theme";
 
@@ -23,6 +24,8 @@ export default function Settings() {
   const session = useSession();
   const mode = useThemeMode();
   const { skip } = usePlayer();
+  const adPrefs = useAdPrefs();
+  const adDetection = useAdDetection();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const user = session.user;
 
@@ -58,15 +61,26 @@ export default function Settings() {
           <Row title="Skip back" stacked>
             <ChipRow values={BACK_OPTIONS} value={skip.back} onPick={(v) => setSkip({ ...skip, back: v })} />
           </Row>
-          <Row title="Skip forward" stacked last>
+          <Row title="Skip forward" stacked last={!adDetection}>
             <ChipRow values={FORWARD_OPTIONS} value={skip.forward} onPick={(v) => setSkip({ ...skip, forward: v })} />
           </Row>
+          {adDetection ? (
+            <Row title="Ads" sub={`This device only. ${AD_MODES.find((m) => m.id === adPrefs.mode)?.hint}.`} stacked last>
+              <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+                {AD_MODES.map((m) => (
+                  <Chip key={m.id} label={m.label} selected={adPrefs.mode === m.id} onPress={() => adPrefsStore.set({ ...adPrefs, mode: m.id })} />
+                ))}
+              </View>
+            </Row>
+          ) : null}
         </Card>
 
         {user?.isAdmin ? (
           <>
             <SectionTitle title="Library" />
             <LibrarySection />
+            <SectionTitle title="Episode cache" />
+            <EpisodeCacheSection />
             <SectionTitle title="Users" />
             <UsersSection me={user} />
           </>

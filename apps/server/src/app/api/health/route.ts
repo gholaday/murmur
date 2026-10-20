@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import type { HealthDto } from "@murmur/shared";
+import { adsEnabled } from "@/server/ads";
 import { getContext } from "@/server/context";
 import { env } from "@/server/env";
 
@@ -29,6 +30,7 @@ export async function GET(): Promise<Response> {
     uptimeSec: Math.round((Date.now() - ctx.startedAt) / 1000),
     database,
     library: { reachable, books },
+    adDetection: adsEnabled(),
     scan: {
       running: ctx.scanState.running,
       lastFinishedAt: ctx.scanState.lastFinishedAt,

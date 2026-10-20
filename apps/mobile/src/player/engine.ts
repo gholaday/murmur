@@ -7,6 +7,7 @@ import {
   apiPaths,
   type BookDetail,
   type ChapterDto,
+  type EpisodeAdsDto,
   type EpisodeWithShow,
   type ItemType,
   type ProgressItem,
@@ -18,6 +19,8 @@ import { fetchBook, fetchEpisode, invalidateListening, keys } from "@/lib/data";
 import { getDownload, localUri } from "@/lib/downloads";
 import { queryClient } from "@/lib/query";
 import { getJson, removeKey, setJson } from "@/lib/storage";
+import { toast } from "@/components/toast";
+import { adBreak, adModeFor, adPrefsStore } from "./ad-prefs";
 
 // One audio player for the whole app, kept outside React so playback, the lock screen and
 // progress saving carry on whatever screen is showing (or with the screen off).
@@ -27,6 +30,7 @@ const SAVE_EVERY_MS = 10_000;
 const NOW_PLAYING_KEY = "murmur.nowPlaying";
 const OUTBOX_KEY = "murmur.progressOutbox";
 const SKIP_KEY = "murmur.skip";
+const ADS_POLL_MS = 60_000;
 /** Android's player tops out at 2x. */
 export const MAX_SPEED = 2;
 export const MIN_SPEED = 0.5;
@@ -133,6 +137,8 @@ export interface PlayerState {
   queue: QueueEntry[];
   /** False until the queue has come back from the server once, so screens don't flash "empty". */
   queueLoaded: boolean;
+  /** Ad detection for the current episode; null for books and until the server answers. */
+  ads: EpisodeAdsDto | null;
 }
 
 // ---------- Store ----------
@@ -147,6 +153,7 @@ let state: PlayerState = {
   skip: getJson<SkipSettings>(SKIP_KEY) ?? { back: 10, forward: 30 },
   queue: [],
   queueLoaded: false,
+  ads: null,
 };
 let position = 0;
 const stateListeners = new Set<() => void>();
@@ -154,6 +161,7 @@ const positionListeners = new Set<() => void>();
 
 function set(change: Partial<PlayerState>) {
   state = { ...state, ...change };
+  if ("item" in change) watchAds();
   stateListeners.forEach((l) => l());
 }
 
@@ -207,6 +215,63 @@ export function useItemPosition(type: ItemType, id: string): number | null {
     },
     () => (isCurrent(state, type, id) ? position : null),
   );
+}
+
+// ---------- Ads ----------
+
+let adsFor: string | null = null;
+let adsTimer: ReturnType<typeof setTimeout> | undefined;
+/** Ads (by index) the listener chose to hear with Undo, so auto-skip leaves them alone. */
+let adsAllowed = new Set<number>();
+
+/**
+ * Asks for the current episode's ad times when the item changes, and again every minute while
+ * its scan is still running. Any failure just means no marks, never a playback problem.
+ */
+function watchAds() {
+  const it = state.item;
+  const key = it ? `${it.type}:${it.id}` : null;
+  if (key === adsFor) return;
+  adsFor = key;
+  clearTimeout(adsTimer);
+  adsAllowed = new Set();
+  state = { ...state, ads: null };
+  if (!it || it.type !== "episode") return;
+  const fetchAds = async () => {
+    try {
+      const info = await api<EpisodeAdsDto>(apiPaths.episodeAds(it.id));
+      if (adsFor !== key) return;
+      set({ ads: info });
+      if (!info.enabled || info.status === "done" || info.status === "failed") return;
+    } catch {
+      if (adsFor !== key) return;
+    }
+    adsTimer = setTimeout(() => void fetchAds(), ADS_POLL_MS);
+  };
+  void fetchAds();
+}
+
+/** Auto-skip: jumps past an ad break when playback runs into it, never when you seek into one. */
+function maybeSkipAd(prev: number, pos: number) {
+  const spans = state.ads?.enabled ? state.ads.ads : [];
+  const it = state.item;
+  if (!spans.length || !it || pos <= prev || pos - prev > 3) return;
+  if (adModeFor(adPrefsStore.get(), it.podcastId) !== "auto") return;
+  const i = spans.findIndex((s, idx) => prev < s.startSec && pos >= s.startSec && pos < s.endSec && !adsAllowed.has(idx));
+  if (i < 0) return;
+  const start = spans[i]!.startSec;
+  const brk = adBreak(spans, i);
+  seek(brk.endSec);
+  toast.show(brk.indexes.length > 1 ? `Skipped ${brk.indexes.length} ads` : "Skipped ad", {
+    duration: 5000,
+    action: {
+      label: "Undo",
+      onPress: () => {
+        for (const idx of brk.indexes) adsAllowed.add(idx);
+        seek(start);
+      },
+    },
+  });
 }
 
 export const getPosition = () => position;
@@ -276,7 +341,9 @@ player.addListener("playbackStatusUpdate", (s: AudioStatus) => {
   }
   if (pendingSeek === null && !seeking && s.isLoaded) {
     const pos = (it.files[fileIndex]?.startSec ?? 0) + s.currentTime;
+    const prev = position;
     setPosition(pos);
+    if (s.playing) maybeSkipAd(prev, pos);
     if (s.playing && Date.now() - lastSaved > SAVE_EVERY_MS) save();
     const sl = state.sleep;
     if (sl.mode === "chapter" && pos >= sl.endSec - 0.3) {

@@ -216,12 +216,15 @@ export function SheetItem({
   active,
   danger,
   disabled,
+  hint,
 }: {
   label: string;
   onPress: () => void;
   active?: boolean;
   danger?: boolean;
   disabled?: boolean;
+  /** A short line under the label. */
+  hint?: string;
 }) {
   const t = useTheme();
   return (
@@ -233,6 +236,8 @@ export function SheetItem({
       style={({ pressed }) => ({
         minHeight: 52,
         paddingHorizontal: 12,
+        paddingVertical: hint ? 8 : 0,
+        gap: 12,
         borderRadius: 12,
         flexDirection: "row",
         alignItems: "center",
@@ -241,9 +246,12 @@ export function SheetItem({
         opacity: disabled ? 0.4 : 1,
       })}
     >
-      <Text style={{ fontFamily: active ? fonts.bold : fonts.medium, fontSize: 16, color: danger ? t.danger : active ? t.accent : t.text }}>
-        {label}
-      </Text>
+      <View style={{ flexShrink: 1, gap: 2 }}>
+        <Text style={{ fontFamily: active ? fonts.bold : fonts.medium, fontSize: 16, color: danger ? t.danger : active ? t.accent : t.text }}>
+          {label}
+        </Text>
+        {hint ? <Text variant="small">{hint}</Text> : null}
+      </View>
       {active ? <CheckIcon size={20} color={t.accent} /> : null}
     </Pressable>
   );

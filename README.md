@@ -11,7 +11,7 @@ Images are published to `ghcr.io/<owner>/murmur` for amd64 and arm64. Use the `d
 ```yaml
 services:
   murmur:
-    image: ghcr.io/<owner>/murmur:0.1.9
+    image: ghcr.io/<owner>/murmur:0.2.0
     restart: unless-stopped
     ports:
       - "3333:3000"
@@ -46,13 +46,16 @@ All optional.
 | `LIBRARY_DIR` | `/audiobooks` | First library folder; more can be added in Settings |
 | `DATA_DIR` | `/data` | Database, covers and backups |
 | `AUDIBLE_REGION` | `us` | Store used by Match: `us`, `uk`, `ca`, `au`, `de`, `fr`, `it`, `es`, `in`, `jp` |
-| `FEED_CHECK_MINUTES` | `60` | How often each podcast feed is checked |
+| `FEED_CHECK_MINUTES` | `30` | How often each podcast feed is checked; new episodes are downloaded right after |
 | `WATCH_POLLING` | `false` | Set `true` for network mounts that don't report file changes |
 | `WATCH_DEBOUNCE_SECONDS` | `30` | Wait after the last file change before rescanning |
 | `PERIODIC_SCAN_MINUTES` | `360` | Safety-net rescan interval |
 | `MISSING_GRACE_DAYS` | `7` | Books whose files disappear are hidden after this long |
 | `BACKUP_HOUR` / `BACKUP_KEEP` | `3` / `7` | Nightly database backup hour and how many to keep |
 | `PROBE_CONCURRENCY` | `2` | Files read at once during a scan |
+| `EPISODE_CACHE_DIR` | `/cache` | Where podcast episodes are kept; mount a volume here |
+| `EPISODE_CACHE_MAX_GB` | `20` | Space for cached episodes |
+| `ADDON_SECRET` | | Turns on ad detection; the same value goes on the `murmur-adscan` add-on (see `addons/adscan`) |
 
 Health check: `GET /api/health`.
 

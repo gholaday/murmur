@@ -1,7 +1,9 @@
 import type { UserDto } from "@murmur/shared";
 import { getContext } from "@/server/context";
 import { env } from "@/server/env";
+import { adsEnabled } from "@/server/ads";
 import { folderList } from "@/server/library/folders";
+import { cacheStatus } from "@/server/podcasts/cache-status";
 import { requirePageUser } from "@/server/session";
 import { ProfileView } from "@/web/profile/profile-view";
 
@@ -22,6 +24,8 @@ export default async function ProfilePage() {
       user={user}
       users={users}
       folders={folders}
+      adsEnabled={adsEnabled()}
+      cache={user.isAdmin ? cacheStatus(ctx) : null}
       server={{
         version: env.version,
         books: bookCount,

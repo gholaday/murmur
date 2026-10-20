@@ -44,6 +44,7 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     DATA_DIR=/data \
     LIBRARY_DIR=/audiobooks \
+    EPISODE_CACHE_DIR=/cache \
     MIGRATIONS_DIR=/app/apps/server/drizzle \
     PUID=1000 \
     PGID=1000
@@ -51,7 +52,8 @@ COPY --from=build /app/apps/server/.next/standalone ./
 COPY --from=build /app/apps/server/.next/static ./apps/server/.next/static
 COPY --from=build /app/apps/server/drizzle ./apps/server/drizzle
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# /cache works unmounted too, but its episodes are then lost when the container is recreated.
+RUN chmod +x /entrypoint.sh && mkdir -p /cache
 EXPOSE 3000
 VOLUME ["/data"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \

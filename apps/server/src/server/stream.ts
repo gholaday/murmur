@@ -74,7 +74,75 @@ export async function streamFile(req: Request, file: string, mimeType: string): 
   return new Response(body, { status: 200, headers });
 }
 
-const PASS_THROUGH_HEADERS = ["content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified"];
+/** What a growing-file stream needs from a download in progress. */
+export interface GrowingFile {
+  size: number | null;
+  done: number;
+  finished: boolean;
+  failed: string | null;
+  wait: (ms: number) => Promise<void>;
+}
+
+/** Give up on a growing file if it gains nothing for this long. */
+const GROWING_STALL_MS = 60_000;
+
+/**
+ * Streams a file that is still downloading, so playback can start at once and everyone
+ * hears the same copy. A range past what's on disk waits for the download to get there
+ * (it runs far faster than playback) rather than fetching that part from the publisher,
+ * whose copy may carry different ads.
+ */
+export function streamGrowing(req: Request, file: string, download: GrowingFile, mimeType: string): Response {
+  const size = download.size!;
+  const range = parseRange(req.headers.get("range"), size);
+  const baseHeaders: Record<string, string> = { "Content-Type": mimeType, "Accept-Ranges": "bytes", "Cache-Control": "private, no-transform" };
+  if (range === "unsatisfiable") {
+    return new Response(null, { status: 416, headers: { ...baseHeaders, "Content-Range": `bytes */${size}` } });
+  }
+  if (req.method === "HEAD") {
+    return new Response(null, { status: 200, headers: { ...baseHeaders, "Content-Length": String(size) } });
+  }
+  const { start, end } = range ?? { start: 0, end: size - 1 };
+  const nodeStream = Readable.from(readGrowing(file, download, start, end, req.signal));
+  req.signal.addEventListener("abort", () => nodeStream.destroy(), { once: true });
+  const body = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
+  const headers = { ...baseHeaders, "Content-Length": String(end - start + 1) };
+  if (range) {
+    return new Response(body, { status: 206, headers: { ...headers, "Content-Range": `bytes ${start}-${end}/${size}` } });
+  }
+  return new Response(body, { status: 200, headers });
+}
+
+async function* readGrowing(file: string, download: GrowingFile, start: number, end: number, signal: AbortSignal) {
+  const handle = await fs.promises.open(file, "r");
+  try {
+    const buf = Buffer.alloc(256 * 1024);
+    let pos = start;
+    let lastProgress = Date.now();
+    while (pos <= end && !signal.aborted) {
+      const onDisk = download.finished ? (download.size ?? download.done) : download.done;
+      if (pos >= onDisk) {
+        if (download.failed) throw new Error(download.failed);
+        if (Date.now() - lastProgress > GROWING_STALL_MS) throw new Error("The download stalled.");
+        await download.wait(5_000);
+        continue;
+      }
+      const want = Math.min(buf.length, Math.min(end + 1, onDisk) - pos);
+      const { bytesRead } = await handle.read(buf, 0, want, pos);
+      if (bytesRead === 0) {
+        await download.wait(1_000);
+        continue;
+      }
+      pos += bytesRead;
+      lastProgress = Date.now();
+      yield Buffer.from(buf.subarray(0, bytesRead));
+    }
+  } finally {
+    await handle.close();
+  }
+}
+
+const PASS_THROUGH_HEADERS =["content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified"];
 
 /**
  * Relays a publisher's audio with range support. Enclosure URLs usually chain through
