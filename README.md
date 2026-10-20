@@ -4,18 +4,20 @@ A self-hosted audiobook and podcast server with a web player and an Android app.
 
 Murmur reads your audiobook folders (the Audiobookshelf layout, `Author/[Series]/Title/`), follows podcasts by RSS, and keeps your listening position in sync across devices. It runs as one Docker container, and your library is mounted read-only: Murmur never changes your files.
 
+Murmur is inspired by [Audiobookshelf](https://www.audiobookshelf.org/), and reads the same library layout, so an existing Audiobookshelf library works without moving anything. It aims for a smaller feature set that's simple to run.
+
 - **Audiobooks:** single-file `.m4b` and multi-file books, chapters, series, home shelves, and optional metadata matching from Audible (always confirmed by you).
 - **Podcasts:** search or add by RSS URL, OPML import and export, Up Next, and the newest episodes kept on the server.
 - **Players:** a web player and an Android app with background playback, offline downloads, speed control and a sleep timer.
 - **Multiple users,** each with their own progress, subscriptions and queue.
-- **Optional ad detection:** a separate add-on finds ads in podcast episodes so the players can mark or skip them.
+- **Optional podcast ad skipping:** a separate add-on finds the ads in episodes. Each device then chooses to play them as usual, mark them on the seek bar with a Skip ad button, or skip them automatically with Undo. Set up in [addons/adscan](addons/adscan/README.md).
 
 ## Get started
 
 ```yaml
 services:
   murmur:
-    image: ghcr.io/gholaday/murmur:0.2.2
+    image: ghcr.io/gholaday/murmur:0.2.3
     container_name: murmur
     restart: unless-stopped
     ports:

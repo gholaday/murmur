@@ -251,15 +251,36 @@ function watchAds() {
   void fetchAds();
 }
 
-/** Auto-skip: jumps past an ad break when playback runs into it, never when you seek into one. */
+let lastTickAt = 0;
+
+/**
+ * Auto-skip: jumps past an ad break when playback runs into it, never when you seek into one.
+ * Normal play means the position moved forward by about as much as the clock did; with the
+ * screen off Android spaces out status updates, so this isn't a fixed few seconds. An ad right
+ * at the start (a pre-roll) counts as run into when playback starts there.
+ */
 function maybeSkipAd(prev: number, pos: number) {
+  const now = Date.now();
+  const elapsed = lastTickAt ? (now - lastTickAt) / 1000 : 0;
+  lastTickAt = now;
+  if (pos <= prev || pos - prev > Math.max(3, elapsed * state.speed + 2)) return;
+  skipAdCrossed(prev, pos);
+}
+
+/**
+ * Skips the break when a move forward from `prev` to `pos` crossed an ad's start and landed
+ * inside it, in Auto-skip mode. Undo goes back to `undoTo` (or the ad's start) and lets it play.
+ */
+function skipAdCrossed(prev: number, pos: number, undoTo?: number) {
   const spans = state.ads?.enabled ? state.ads.ads : [];
   const it = state.item;
-  if (!spans.length || !it || pos <= prev || pos - prev > 3) return;
+  if (!spans.length || !it || pos <= prev) return;
   if (adModeFor(adPrefsStore.get(), it.podcastId) !== "auto") return;
-  const i = spans.findIndex((s, idx) => prev < s.startSec && pos >= s.startSec && pos < s.endSec && !adsAllowed.has(idx));
+  const i = spans.findIndex(
+    (s, idx) => (prev < s.startSec || (s.startSec < 1 && prev < 1)) && pos >= s.startSec && pos < s.endSec && !adsAllowed.has(idx),
+  );
   if (i < 0) return;
-  const start = spans[i]!.startSec;
+  const start = Math.max(spans[i]!.startSec, undoTo ?? 0);
   const brk = adBreak(spans, i);
   seek(brk.endSec);
   toast.show(brk.indexes.length > 1 ? `Skipped ${brk.indexes.length} ads` : "Skipped ad", {
@@ -344,6 +365,7 @@ player.addListener("playbackStatusUpdate", (s: AudioStatus) => {
     const prev = position;
     setPosition(pos);
     if (s.playing) maybeSkipAd(prev, pos);
+    else lastTickAt = 0;
     if (s.playing && Date.now() - lastSaved > SAVE_EVERY_MS) save();
     const sl = state.sleep;
     if (sl.mode === "chapter" && pos >= sl.endSec - 0.3) {
@@ -551,7 +573,15 @@ export function seek(sec: number) {
   if (!state.playing) save();
 }
 
-export const skipBy = (delta: number) => seek(position + delta);
+/**
+ * The skip buttons. Skipping forward into an ad counts as running into it, so Auto-skip jumps
+ * the break; Undo comes back to where the skip landed.
+ */
+export function skipBy(delta: number) {
+  const from = position;
+  seek(from + delta);
+  if (delta > 0) skipAdCrossed(from, position, position);
+}
 
 export function chapterStep(dir: -1 | 1) {
   const it = state.item;

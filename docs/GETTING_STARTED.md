@@ -41,6 +41,8 @@ Set `PUID` and `PGID` to your user's ids (run `id` on the server) so the files M
 docker compose up -d
 ```
 
+**Using Portainer instead:** go to **Stacks > Add stack**, name it `murmur`, paste the contents of `docker-compose.yml` into the web editor, change the paths, and press **Deploy the stack**. To update later, open the stack, change the image tag (or tick **Re-pull image**), and press **Update the stack**. Portainer shows the container as healthy once Murmur's health check passes.
+
 Open `http://<server>:3333` and create an account. The first account becomes the admin, and a library scan starts right away; a large library takes a few minutes the first time.
 
 Other users can be added in **Settings > Users**. Each has their own progress, podcasts and Up Next.
@@ -92,7 +94,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Database changes run on start, after a copy of the database is saved to `data/backups`.
+In Portainer, use **Update the stack** as described in step 2. Database changes run on start, after a copy of the database is saved to `data/backups`.
 
 ## When something's wrong
 

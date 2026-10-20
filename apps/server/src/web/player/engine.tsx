@@ -220,6 +220,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   /** Ads you chose to hear with Undo; not skipped again while this item stays loaded. */
   const adsAllowed = useRef(new Set<number>());
   const lastTick = useRef(0);
+  const lastTickAt = useRef(0);
+  // skipBy is memoized but needs the current ads and prefs, so it calls through this.
+  const skipAdCrossedRef = useRef<(prev: number, pos: number, undoTo?: number) => void>(() => {});
 
   const [item, setItem] = useState<Playable | null>(null);
   const setPosition = positionStore.set;
@@ -408,7 +411,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const pause = useCallback(() => audio.current?.pause(), []);
 
-  const skipBy = useCallback((delta: number) => seek(positionRef.current + delta), [seek]);
+  // Skipping forward into an ad block still auto-skips it; scrubbing and skipping back never do.
+  const skipBy = useCallback(
+    (delta: number) => {
+      const from = positionRef.current;
+      seek(from + delta);
+      if (delta > 0) skipAdCrossedRef.current(from, from + delta, from + delta);
+    },
+    [seek],
+  );
 
   const chapterStep = useCallback(
     (dir: -1 | 1) => {
@@ -592,15 +603,29 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     };
   }, [itemKey]);
 
-  /** Auto-skip: jumps past an ad when playback runs into its start, never when you seek into one. */
-  const maybeSkipAd = (prev: number, pos: number) => {
+  /**
+   * Auto-skip: jumps past an ad when playback runs into its start, never when you seek into one.
+   * `elapsedSec` is wall time since the last tick: a background tab can space ticks out, so
+   * normal play may move further than 3 s between them, while a seek moves far in no time.
+   */
+  const maybeSkipAd = (prev: number, pos: number, elapsedSec: number) => {
+    if (pos <= prev || pos - prev > Math.max(3, elapsedSec * speedRef.current + 2)) return;
+    skipAdCrossed(prev, pos);
+  };
+
+  /**
+   * In Auto mode, skips the break when going from `prev` to `pos` crossed an ad's start and
+   * landed inside it. Undo returns to `undoTo` (the ad's start by default) and lets the break play.
+   */
+  const skipAdCrossed = (prev: number, pos: number, undoTo?: number) => {
     const spans = adsRef.current;
     const it = itemRef.current;
-    if (!spans.length || !it || pos <= prev || pos - prev > 3) return;
-    if (adModeFor(adPrefsStore.get(), it.podcastId) !== "auto") return;
-    const i = spans.findIndex((s, idx) => prev < s.startSec && pos >= s.startSec && pos < s.endSec && !adsAllowed.current.has(idx));
+    if (!spans.length || !it || adModeFor(adPrefsStore.get(), it.podcastId) !== "auto") return;
+    // An ad at 0:00 is never crossed into, so playing from the start counts as running into it.
+    const ranInto = (s: AdSpan) => prev < s.startSec || (s.startSec < 1 && prev < 1);
+    const i = spans.findIndex((s, idx) => ranInto(s) && pos >= s.startSec && pos < s.endSec && !adsAllowed.current.has(idx));
     if (i < 0) return;
-    const start = spans[i]!.startSec;
+    const back = undoTo ?? spans[i]!.startSec;
     const brk = adBreak(spans, i);
     seek(brk.endSec);
     toast(brk.indexes.length > 1 ? `Skipped ${brk.indexes.length} ads` : "Skipped ad", {
@@ -609,11 +634,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         label: "Undo",
         onClick: () => {
           for (const idx of brk.indexes) adsAllowed.current.add(idx);
-          seek(start);
+          seek(back);
         },
       },
     });
   };
+  skipAdCrossedRef.current = skipAdCrossed;
 
   // ---------- Lock screen, notification and headset controls ----------
 
@@ -763,8 +789,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             if (!it || pendingSeek.current !== null) return;
             const pos = (it.files[fileIndex.current]?.startSec ?? 0) + e.currentTarget.currentTime;
             const prev = lastTick.current;
+            const elapsedSec = (performance.now() - lastTickAt.current) / 1000;
             lastTick.current = pos;
-            if (!e.currentTarget.paused) maybeSkipAd(prev, pos);
+            lastTickAt.current = performance.now();
+            if (!e.currentTarget.paused) maybeSkipAd(prev, pos, elapsedSec);
             positionRef.current = pos;
             setPosition(pos);
             updatePositionState(pos);
