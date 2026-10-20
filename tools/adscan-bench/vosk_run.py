@@ -24,6 +24,7 @@ with wave.open(wav_path, "rb") as wf:
                     "start": words[0]["start"],
                     "end": words[-1]["end"],
                     "text": " ".join(w["word"] for w in words),
+                    "words": [[round(w["start"], 2), w["word"]] for w in words],
                 }
             )
 

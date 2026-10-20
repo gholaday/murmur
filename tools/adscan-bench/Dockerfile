@@ -22,12 +22,17 @@ FROM python:3.12-slim-bookworm
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ffmpeg time \
   && rm -rf /var/lib/apt/lists/*
-RUN pip install --no-cache-dir vosk==0.3.45 google-genai==1.21.1
+RUN pip install --no-cache-dir vosk==0.3.45 google-genai==1.21.1 sherpa-onnx==1.13.6 numpy==2.3.4
 COPY --from=whisper /src/build/bin/whisper-cli /usr/local/bin/whisper-cli
 ADD https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin /models/ggml-tiny.en.bin
 ADD https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin /models/ggml-base.en.bin
 ADD https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip /tmp/vosk.zip
 RUN python -m zipfile -e /tmp/vosk.zip /models && rm /tmp/vosk.zip
-COPY bench.py vosk_run.py /app/
+# NVIDIA Parakeet TDT 0.6B (English, int8) for sherpa-onnx, and Silero VAD to cut audio at pauses.
+ADD https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2 /tmp/parakeet.tar.bz2
+RUN python -c "import tarfile; tarfile.open('/tmp/parakeet.tar.bz2').extractall('/tmp/p')" \
+  && mv /tmp/p/* /models/parakeet && rm -rf /tmp/p /tmp/parakeet.tar.bz2
+ADD https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx /models/silero_vad.onnx
+COPY bench.py vosk_run.py parakeet_run.py /app/
 ENV PYTHONUNBUFFERED=1
 CMD ["python", "/app/bench.py"]

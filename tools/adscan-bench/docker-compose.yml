@@ -6,7 +6,8 @@ services:
     restart: "no"
     environment:
       EPISODE_URL: "https://pscrb.fm/rss/p/traffic.megaphone.fm/ONESD2909368717.mp3"
-      CLIP_MINUTES: "10"
+      CLIP_MINUTES: "30"
       # GEMINI_API_KEY: "your key from aistudio.google.com"
+      # GROQ_API_KEY: "your key from console.groq.com"
     volumes:
       - ./adscan-bench-out:/out

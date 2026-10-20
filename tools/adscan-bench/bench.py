@@ -1,24 +1,35 @@
 """Ad detection benchmark for Murmur's planned add-on.
 
 Downloads one podcast episode, then:
-  1. transcribes the first CLIP_MINUTES with each local engine (Whisper tiny, Whisper base,
-     Vosk small), timing each and measuring its peak memory;
+  1. transcribes the first CLIP_MINUTES with each transcription engine, timing each and
+     measuring the local ones' peak memory: Groq's hosted Whisper large-v3-turbo, Parakeet TDT
+     0.6B (local, sherpa-onnx), and the older Whisper tiny, Whisper base and Vosk small;
   2. looks for ads in each transcript with keyword rules;
-  3. if GEMINI_API_KEY is set, sends the whole episode to Gemini and asks it for the ads.
+  3. if GEMINI_API_KEY is set, asks Gemini for the ads: from a transcript as text (gemini-text,
+     in pieces; gemini-text-whole, in one go) and from the whole episode's audio (gemini).
 Prints a report to the log and writes it, with every transcript, to /out.
 
 Settings (environment variables):
   EPISODE_URL     audio URL of an episode (or EPISODE_FILE, a path to a mounted file)
-  CLIP_MINUTES    how much of the episode the local engines transcribe (default 10)
-  ENGINES         comma list of whisper-tiny, whisper-base, vosk, gemini (default all)
+  CLIP_MINUTES    how much of the episode is transcribed (default 10)
+  ENGINES         comma list of groq, parakeet, whisper-tiny, whisper-base, vosk, gemini-text,
+                  gemini-text-whole, gemini (default groq,parakeet,gemini-text)
+  TEXT_FROM       the transcript gemini-text reads (default: the first engine in ENGINES that
+                  produced one)
+  GROQ_API_KEY    enables the groq engine
+  GROQ_MODEL      default whisper-large-v3-turbo
+  CHUNK_MINUTES   gemini-text sends the transcript in pieces this long (default 30), each
+                  running CHUNK_OVERLAP_MINUTES (default 2) into the next; gemini-text-whole
+                  sends it in one piece
   THREADS         CPU threads for the local engines (default: every core)
-  GEMINI_API_KEY  enables the Gemini run
-  GEMINI_MODEL    default gemini-2.5-flash-lite
+  GEMINI_API_KEY  enables the Gemini runs
+  GEMINI_MODEL    default gemini-flash-lite-latest, which follows Google's newest Flash-Lite
   GEMINI_PRICE_IN / GEMINI_PRICE_OUT   USD per million tokens, for the cost line
-                  (defaults 0.30 audio in and 0.40 out, Gemini 2.5 Flash-Lite)
+                  (defaults 0.30 in and 2.50 out, Gemini 3.5 Flash-Lite)
 """
 
 import json
+import math
 import os
 import re
 import subprocess
@@ -31,10 +42,15 @@ OUT = Path(os.environ.get("OUT_DIR", "/out"))
 WORK = Path("/work")
 CLIP_MINUTES = float(os.environ.get("CLIP_MINUTES", "10"))
 THREADS = int(os.environ.get("THREADS") or os.cpu_count() or 4)
-ENGINES = [e.strip() for e in os.environ.get("ENGINES", "whisper-tiny,whisper-base,vosk,gemini").split(",") if e.strip()]
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
+ENGINES = [e.strip() for e in os.environ.get("ENGINES", "groq,parakeet,gemini-text").split(",") if e.strip()]
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "whisper-large-v3-turbo")
+# Uploads stay well under the free tier's 25 MB file limit.
+GROQ_PIECE_SEC = 600
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
 PRICE_IN = float(os.environ.get("GEMINI_PRICE_IN", "0.30"))
-PRICE_OUT = float(os.environ.get("GEMINI_PRICE_OUT", "0.40"))
+PRICE_OUT = float(os.environ.get("GEMINI_PRICE_OUT", "2.50"))
+CHUNK_MINUTES = float(os.environ.get("CHUNK_MINUTES", "30"))
+CHUNK_OVERLAP = float(os.environ.get("CHUNK_OVERLAP_MINUTES", "2"))
 
 # Phrases that turn up in ad reads, including the sports-betting small print.
 AD_PHRASES = [
@@ -148,6 +164,56 @@ def vosk(wav: Path) -> tuple[dict, list[dict]]:
     return run, segments
 
 
+def parakeet(wav: Path) -> tuple[dict, list[dict]]:
+    out = OUT / "parakeet.json"
+    run = run_measured([
+        "python", "/app/parakeet_run.py", "/models/parakeet", "/models/silero_vad.onnx", str(wav), str(out), str(THREADS),
+    ])
+    segments = [] if run["error"] else json.loads(out.read_text())
+    return run, segments
+
+
+def groq(wav: Path, clip_sec: float) -> tuple[dict, list[dict]]:
+    """Groq's hosted Whisper, in 10-minute uploads with word times."""
+    import httpx
+
+    key = os.environ.get("GROQ_API_KEY")
+    if not key:
+        return {"wall": 0, "rss_mb": None, "error": "set GROQ_API_KEY to include it"}, []
+    started = time.monotonic()
+    segments: list[dict] = []
+    try:
+        for i in range(math.ceil(clip_sec / GROQ_PIECE_SEC)):
+            offset = i * GROQ_PIECE_SEC
+            mp3 = WORK / f"groq-{i}.mp3"
+            subprocess.run(
+                ["ffmpeg", "-v", "error", "-y", "-ss", str(offset), "-t", str(GROQ_PIECE_SEC), "-i", str(wav),
+                 "-ac", "1", "-ar", "16000", "-b:a", "32k", str(mp3)],
+                check=True,
+            )
+            with open(mp3, "rb") as f:
+                res = httpx.post(
+                    "https://api.groq.com/openai/v1/audio/transcriptions",
+                    headers={"Authorization": f"Bearer {key}"},
+                    files={"file": (mp3.name, f, "audio/mpeg")},
+                    data={"model": GROQ_MODEL, "response_format": "verbose_json", "language": "en",
+                          "timestamp_granularities[]": ["word", "segment"]},
+                    timeout=300,
+                )
+            if res.status_code != 200:
+                raise RuntimeError(f"Groq answered {res.status_code}: {res.text[:200]}")
+            data = res.json()
+            words = [[round(offset + w["start"], 2), w["word"].strip()] for w in data.get("words", [])]
+            for s in data.get("segments", []):
+                start, end = offset + s["start"], offset + s["end"]
+                segments.append({"start": start, "end": end, "text": s["text"].strip(),
+                                 "words": [w for w in words if start <= w[0] < end]})
+    except Exception as e:  # report it; the other engines still run
+        return {"wall": time.monotonic() - started, "rss_mb": None, "error": str(e)[:300]}, segments
+    (OUT / "groq.json").write_text(json.dumps(segments))
+    return {"wall": time.monotonic() - started, "rss_mb": None, "error": None}, segments
+
+
 def keyword_ads(segments: list[dict]) -> list[dict]:
     """Spans of transcript with ad phrases, joining hits less than 45s apart."""
     spans: list[dict] = []
@@ -169,9 +235,17 @@ def save_transcript(name: str, segments: list[dict]) -> None:
     (OUT / f"{name}.txt").write_text("\n".join(lines) + "\n")
 
 
-def gemini(episode: Path) -> dict:
-    from google import genai
-    from google.genai import types
+AD_RULES = (
+    "List every advertisement in it: ads inserted by the host platform, sponsor reads by the "
+    "hosts, and promos for other podcasts or products. Leave out the show's own intro and outro "
+    "and requests to rate or subscribe. kind is one of inserted, host_read or promo. advertiser "
+    "is the brand, or empty if none is named. first_words is the first few words of the ad."
+)
+
+
+def gemini_ask(client, contents: list, name: str) -> dict:
+    """Asks Gemini for the ads; writes /out/<name>.json and returns the ads, tokens and cost."""
+    from google.genai import errors, types
     from pydantic import BaseModel
 
     class Ad(BaseModel):
@@ -184,34 +258,22 @@ def gemini(episode: Path) -> dict:
     class Ads(BaseModel):
         ads: list[Ad]
 
-    prompt = (
-        "This is a podcast episode. List every advertisement in it: ads inserted by the host "
-        "platform, sponsor reads by the hosts, and promos for other podcasts or products. Leave "
-        "out the show's own intro and outro and requests to rate or subscribe. For each ad give "
-        "start and end as MM:SS (or H:MM:SS) from the start of the audio, as exactly as you can: "
-        "start at the first word of the ad, end after its last word. kind is one of inserted, "
-        "host_read or promo. advertiser is the brand, or empty if none is named. first_words is "
-        "the first few words of the ad."
-    )
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-    started = time.monotonic()
-    log("  uploading...")
-    file = client.files.upload(file=str(episode))
-    while file.state and file.state.name == "PROCESSING":
-        time.sleep(2)
-        file = client.files.get(name=file.name)
-    upload = time.monotonic() - started
     log(f"  asking {GEMINI_MODEL}...")
-    res = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=[file, prompt],
-        config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=Ads, temperature=0),
-    )
-    total = time.monotonic() - started
-    try:
-        client.files.delete(name=file.name)
-    except Exception:
-        pass
+    for attempt in range(4):
+        try:
+            res = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=contents,
+                config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=Ads, temperature=0),
+            )
+            break
+        except errors.APIError as e:
+            # Rate limited or briefly unavailable: wait and try again, longer each time.
+            if e.code not in (429, 500, 503) or attempt == 3:
+                raise
+            wait = 15 * 2 ** attempt
+            log(f"  {e.code}, retrying in {wait}s")
+            time.sleep(wait)
     usage = res.usage_metadata
     tokens_in = usage.prompt_token_count or 0
     tokens_out = (usage.candidates_token_count or 0) + (getattr(usage, "thoughts_token_count", 0) or 0)
@@ -219,10 +281,103 @@ def gemini(episode: Path) -> dict:
         {"start": parse_clock(a.start), "end": parse_clock(a.end), "kind": a.kind, "advertiser": a.advertiser, "first_words": a.first_words}
         for a in Ads.model_validate_json(res.text).ads
     ]
-    (OUT / "gemini.json").write_text(json.dumps({"model": GEMINI_MODEL, "ads": ads, "tokens_in": tokens_in, "tokens_out": tokens_out}, indent=2))
+    (OUT / f"{name}.json").write_text(json.dumps({"model": GEMINI_MODEL, "ads": ads, "tokens_in": tokens_in, "tokens_out": tokens_out}, indent=2))
     return {
-        "upload": upload, "total": total, "tokens_in": tokens_in, "tokens_out": tokens_out,
+        "tokens_in": tokens_in, "tokens_out": tokens_out,
         "cost": tokens_in / 1e6 * PRICE_IN + tokens_out / 1e6 * PRICE_OUT, "ads": ads,
+    }
+
+
+def gemini_client():
+    from google import genai
+
+    return genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+
+def gemini_audio(episode: Path) -> dict:
+    client = gemini_client()
+    started = time.monotonic()
+    log("  uploading...")
+    file = client.files.upload(file=str(episode))
+    while file.state and file.state.name == "PROCESSING":
+        time.sleep(2)
+        file = client.files.get(name=file.name)
+    upload = time.monotonic() - started
+    prompt = (
+        "This is a podcast episode. " + AD_RULES + " Give start and end as MM:SS (or H:MM:SS) "
+        "from the start of the audio, as exactly as you can: start at the first word of the ad, "
+        "end after its last word."
+    )
+    result = gemini_ask(client, [file, prompt], "gemini")
+    try:
+        client.files.delete(name=file.name)
+    except Exception:
+        pass
+    return {**result, "upload": upload, "total": time.monotonic() - started}
+
+
+def timed_lines(segments: list[dict]) -> list[tuple[float, str]]:
+    """The transcript as short timed lines (10 words each where word times are known), so an
+    ad's edges can be placed within a few seconds."""
+    lines = []
+    for s in segments:
+        words = s.get("words")
+        if not words:
+            lines.append((s["start"], s["text"]))
+            continue
+        for i in range(0, len(words), 10):
+            chunk = words[i:i + 10]
+            lines.append((chunk[0][0], " ".join(w for _, w in chunk)))
+    return lines
+
+
+def merge_ads(ads: list[dict]) -> list[dict]:
+    """Joins the copies of an ad that two overlapping chunks both found. Ads that only touch
+    (one ends where the next starts) stay apart."""
+    merged: list[dict] = []
+    for ad in sorted(ads, key=lambda a: a["start"]):
+        if merged and ad["start"] < merged[-1]["end"] - 3:
+            merged[-1]["end"] = max(merged[-1]["end"], ad["end"])
+        else:
+            merged.append(dict(ad))
+    return merged
+
+
+def gemini_text(segments: list[dict], chunk_minutes: float, name: str) -> dict:
+    """Asks about the transcript in pieces of chunk_minutes (0 for one piece), each running
+    CHUNK_OVERLAP_MINUTES into the next so an ad break on a cut is seen whole once."""
+    lines = timed_lines(segments)
+    (OUT / "gemini-text-input.txt").write_text("".join(f"[{clock(t)}] {text}\n" for t, text in lines))
+    end = lines[-1][0] + 1 if lines else 0
+    step = chunk_minutes * 60 or end
+    client = gemini_client()
+    started = time.monotonic()
+    ads: list[dict] = []
+    tokens_in = tokens_out = 0
+    cost = 0.0
+    chunks = 0
+    at = 0.0
+    while at < end:
+        piece = [f"[{clock(t)}] {text}" for t, text in lines if at <= t < at + step + CHUNK_OVERLAP * 60]
+        at += step
+        if not piece:
+            continue
+        chunks += 1
+        prompt = (
+            "Below is a machine transcript of part of a podcast episode, each line starting with the "
+            "time it begins. It has recognition errors, so read past misheard words. " + AD_RULES +
+            " Give start as the time of the line where the ad begins and end as the time of the first "
+            "line after it ends, both as M:SS or H:MM:SS. If an ad runs past the last line, end it "
+            "at the last line.\n\n" + "\n".join(piece)
+        )
+        result = gemini_ask(client, [prompt], f"{name}-{chunks}")
+        ads += result["ads"]
+        tokens_in += result["tokens_in"]
+        tokens_out += result["tokens_out"]
+        cost += result["cost"]
+    return {
+        "ads": merge_ads(ads), "tokens_in": tokens_in, "tokens_out": tokens_out, "cost": cost,
+        "chunks": chunks, "upload": 0.0, "total": time.monotonic() - started,
     }
 
 
@@ -247,10 +402,10 @@ def main() -> None:
         ["ffmpeg", "-v", "error", "-y", "-i", str(episode), "-t", str(clip_sec), "-ac", "1", "-ar", "16000", str(wav)],
         check=True,
     )
-    say(f"Episode: {clock(full)} long. Local engines transcribe the first {clock(clip_sec)}.")
+    say(f"Episode: {clock(full)} long. Transcribing the first {clock(clip_sec)}.")
     say()
 
-    local = [e for e in ENGINES if e != "gemini"]
+    local = [e for e in ENGINES if not e.startswith("gemini")]
     results = {}
     for engine in local:
         log(f"Running {engine}...")
@@ -258,6 +413,10 @@ def main() -> None:
             run, segments = whisper(engine.removeprefix("whisper-"), wav)
         elif engine == "vosk":
             run, segments = vosk(wav)
+        elif engine == "parakeet":
+            run, segments = parakeet(wav)
+        elif engine == "groq":
+            run, segments = groq(wav, clip_sec)
         else:
             log(f"  unknown engine {engine}, skipped")
             continue
@@ -266,7 +425,7 @@ def main() -> None:
             save_transcript(engine, segments)
         log(f"  {'failed: ' + run['error'] if run['error'] else f'done in {run['wall']:.0f}s'}")
 
-    say("## Speed and memory (local)")
+    say("## Speed and memory")
     say()
     say("| Engine | Time | Speed | Peak memory | Words |")
     say("| --- | --- | --- | --- | --- |")
@@ -276,7 +435,8 @@ def main() -> None:
             continue
         speed = clip_sec / run["wall"] if run["wall"] else 0
         words = sum(len(s["text"].split()) for s in segments)
-        say(f"| {engine} | {run['wall']:.0f}s | {speed:.1f}x real time | {run['rss_mb']:.0f} MB | {words} |")
+        memory = f"{run['rss_mb']:.0f} MB" if run["rss_mb"] is not None else "none here (cloud)"
+        say(f"| {engine} | {run['wall']:.0f}s | {speed:.1f}x real time | {memory} | {words} |")
     say()
     say("Speed above 1x keeps up with listening. A 1-hour episode takes about 60 / speed minutes.")
     say()
@@ -290,25 +450,41 @@ def main() -> None:
             say(f"- {clock(s['start'])} to {clock(s['end'])}: {', '.join(sorted(s['hits']))}")
         say()
 
-    if "gemini" in ENGINES:
-        say(f"## Gemini ({GEMINI_MODEL}, whole episode)")
+    source = os.environ.get("TEXT_FROM") or next((e for e, (_, segs) in results.items() if segs), "")
+    text_segments = results.get(source, (None, []))[1]
+    transcript = f"{source or 'no'} transcript of the first {clock(clip_sec)}"
+    for engine, what in (
+        ("gemini", "whole episode audio"),
+        ("gemini-text", f"{transcript}, in {CHUNK_MINUTES:g} minute pieces"),
+        ("gemini-text-whole", f"{transcript}, in one piece"),
+    ):
+        if engine not in ENGINES:
+            continue
+        say(f"## {engine} ({GEMINI_MODEL}, {what})")
         say()
         if not os.environ.get("GEMINI_API_KEY"):
             say("Skipped: set GEMINI_API_KEY to include it.")
+        elif engine != "gemini" and not text_segments:
+            say("Skipped: needs a transcript, so add a transcription engine to ENGINES.")
         else:
-            log("Running gemini...")
+            log(f"Running {engine}...")
             try:
-                g = gemini(episode)
-                say(f"Took {g['total']:.0f}s (upload {g['upload']:.0f}s). Tokens: {g['tokens_in']:,} in, {g['tokens_out']:,} out. "
-                    f"Cost about ${g['cost']:.3f} at ${PRICE_IN} / ${PRICE_OUT} per million.")
+                if engine == "gemini":
+                    g = gemini_audio(episode)
+                else:
+                    g = gemini_text(text_segments, CHUNK_MINUTES if engine == "gemini-text" else 0, engine)
+                upload = f" (upload {g['upload']:.0f}s)" if g["upload"] else ""
+                pieces = f" in {g['chunks']} requests" if g.get("chunks", 1) > 1 else ""
+                say(f"Took {g['total']:.0f}s{upload}{pieces}. Tokens: {g['tokens_in']:,} in, {g['tokens_out']:,} out. "
+                    f"Cost about ${g['cost']:.4f} at ${PRICE_IN} / ${PRICE_OUT} per million.")
                 say()
                 for a in g["ads"]:
-                    mark = "" if a["start"] < clip_sec else " (after the local clip)"
+                    mark = " (after the local clip)" if engine == "gemini" and a["start"] >= clip_sec else ""
                     who = f" {a['advertiser']}" if a["advertiser"] else ""
                     say(f"- {clock(a['start'])} to {clock(a['end'])}: {a['kind']}{who}, \"{a['first_words']}\"{mark}")
                 if not g["ads"]:
                     say("No ads found.")
-            except Exception as e:  # report and carry on; the local results still stand
+            except Exception as e:  # report and carry on; the other results still stand
                 say(f"Failed: {e}")
         say()
 
