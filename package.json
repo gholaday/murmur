@@ -1,6 +1,7 @@
 {
   "name": "murmur",
   "private": true,
+  "license": "GPL-3.0-only",
   "packageManager": "pnpm@10.27.0",
   "engines": {
     "node": ">=24"

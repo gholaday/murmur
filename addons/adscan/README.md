@@ -9,13 +9,21 @@ If this container is stopped or broken, Murmur plays everything as usual, withou
 
 ## Set up
 
-1. Get a Gemini API key at aistudio.google.com. Normal use fits the free tier; on the free tier,
-   Google may use what's sent (the transcripts) to improve its products.
-2. Optional, recommended: get a Groq API key at console.groq.com. Its free tier transcribes
-   about 2 hours of audio per hour and 8 per day; anything past that uses Vosk.
-3. In the stack, set `ADDON_SECRET` on Murmur to a long random value, and uncomment the
-   `murmur-adscan` service in `docker-compose.yml` with the same secret and your keys.
-4. Redeploy. Settings > Podcasts shows "Ad detection: Working" within a minute.
+1. Get a Gemini API key at [aistudio.google.com](https://aistudio.google.com). Normal use fits
+   the free tier.
+2. Optional, recommended: get a Groq API key at [console.groq.com](https://console.groq.com). Its
+   free tier transcribes about 2 hours of audio per hour and 8 per day; anything past that uses
+   Vosk on your server.
+3. In your stack, set `ADDON_SECRET` on Murmur to a long random value (for example the output of
+   `openssl rand -hex 32`), and uncomment the `murmur-adscan` service in `docker-compose.yml`
+   with the same secret and your keys.
+4. Mount the **same** host folder at `/cache` on both services (Murmur read-write, the add-on
+   read-only). Paths are case-sensitive.
+5. Redeploy. Within a minute, the Podcasts section of Settings shows "Ad detection: Working".
+
+**Privacy:** episode audio goes to Groq for transcription, and transcripts go to Google for ad
+finding. On free tiers, these providers may use what's sent to improve their products. Without a
+Groq key, transcription stays on your server and only text leaves it.
 
 ## Settings
 
@@ -41,3 +49,15 @@ Mount Murmur's cache folder read-only at `/cache`, and a folder for the add-on's
 - **Daily limit reached:** Gemini calls pause until midnight Pacific; transcription carries on.
 - **Bad key or retired model:** Settings shows the error; checked again hourly.
 - **Murmur down:** the add-on waits and sends its results when Murmur is back.
+- **Episodes stay "waiting" and nothing is scanned:** the add-on can't find the files. Check the
+  `/cache` mounts point at the same folder; the add-on log and Settings say so too.
+- **Restarted mid-scan:** the scan resumes where it stopped.
+
+## Build
+
+```bash
+docker build -t murmur-adscan addons/adscan
+```
+
+How it works and why it was built this way: the "Podcast episode cache and ad detection"
+section of [docs/SPEC.md](../../docs/SPEC.md).

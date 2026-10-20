@@ -1,4 +1,5 @@
-# Portainer stack for the NAS. Paste this into Stacks > Add stack and adjust the paths.
+# Example stack for Murmur. Change the /path/to/... folders, then run `docker compose up -d`.
+# See docs/GETTING_STARTED.md.
 services:
   murmur:
     # Published by .github/workflows/release.yml when a v* tag is pushed.
@@ -8,8 +9,8 @@ services:
     ports:
       - "3333:3000"
     environment:
-      - TZ=America/Chicago
-      # Files in /data are owned by this user and group. Use your NAS user's ids (run `id` on the NAS).
+      - TZ=UTC
+      # Files in /data and /cache are owned by this user and group. Use your own ids (run `id`).
       - PUID=1000
       - PGID=1000
       # Space for cached podcast episodes, in GB.
@@ -18,10 +19,10 @@ services:
       # murmur-adscan below. Leaving it out turns ad detection off.
       # - ADDON_SECRET=change-me-to-a-long-random-string
     volumes:
-      - /volume1/Books/Audiobooks:/audiobooks:ro
-      - /volume1/docker/murmur:/data
+      - /path/to/audiobooks:/audiobooks:ro
+      - /path/to/murmur/data:/data
       # Cached podcast episodes. Not worth backing up.
-      - /volume1/docker/murmur-cache:/cache
+      - /path/to/murmur/cache:/cache
     stop_grace_period: 30s
     logging:
       driver: json-file
@@ -45,9 +46,10 @@ services:
   #     # Optional, much better transcripts; without it the add-on uses Vosk on this machine.
   #     - GROQ_API_KEY=your-groq-key
   #   volumes:
-  #     - /volume1/docker/murmur-cache:/cache:ro
-  #     - /volume1/docker/murmur-adscan:/state
-  #   # Keeps transcription from crowding out Murmur on a small NAS.
+  #     # The same folder as Murmur's /cache above, read-only.
+  #     - /path/to/murmur/cache:/cache:ro
+  #     - /path/to/murmur/adscan:/state
+  #   # Keeps transcription from crowding out Murmur on a small server.
   #   cpus: "2"
   #   logging:
   #     driver: json-file

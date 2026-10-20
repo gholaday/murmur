@@ -1,5 +1,5 @@
 #!/bin/sh
-# Runs Murmur as PUID:PGID so files in /data are owned by your NAS user, not root.
+# Runs Murmur as PUID:PGID so files in /data are owned by your user on the host, not root.
 set -e
 
 mkdir -p "$DATA_DIR"
