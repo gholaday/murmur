@@ -8,7 +8,7 @@ Murmur is inspired by [Audiobookshelf](https://www.audiobookshelf.org/), and rea
 
 - **Audiobooks:** single-file `.m4b` and multi-file books, chapters, series, home shelves, and optional metadata matching from Audible (always confirmed by you).
 - **Podcasts:** search or add by RSS URL, OPML import and export, Up Next, and the newest episodes kept on the server.
-- **Players:** a web player and an Android app with background playback, offline downloads, speed control and a sleep timer.
+- **Players:** a web player and an Android app with background playback, offline downloads, speed control and a sleep timer. On an iPhone, the web player can be added to the home screen to open like an app.
 - **Multiple users,** each with their own progress, subscriptions and queue.
 - **Optional podcast ad skipping:** a separate add-on finds the ads in episodes. Each device then chooses to play them as usual, mark them on the seek bar with a Skip ad button, or skip them automatically with Undo. Set up in [addons/adscan](addons/adscan/README.md).
 
@@ -17,7 +17,7 @@ Murmur is inspired by [Audiobookshelf](https://www.audiobookshelf.org/), and rea
 ```yaml
 services:
   murmur:
-    image: ghcr.io/gholaday/murmur:0.2.3
+    image: ghcr.io/gholaday/murmur:0.2.4
     container_name: murmur
     restart: unless-stopped
     ports:
@@ -33,7 +33,7 @@ services:
 
 Run `docker compose up -d`, open `http://<host>:3333`, and create the first account, which becomes the admin.
 
-[Getting started](docs/GETTING_STARTED.md) covers the rest: folder layout, remote access, the Android app, ad detection and updating. The full example stack is [`docker-compose.yml`](docker-compose.yml).
+[Getting started](docs/GETTING_STARTED.md) covers the rest: folder layout, remote access, the Android app, adding the web player to a phone's home screen, ad detection and updating. The full example stack is [`docker-compose.yml`](docker-compose.yml).
 
 ## Settings
 

@@ -53,7 +53,7 @@ To listen away from home, put Murmur behind a reverse proxy (Caddy, Nginx, Traef
 
 If you use a login gateway such as Cloudflare Access, add a bypass for `/api/*`. The Android app signs in with its own token and can't complete a browser login.
 
-## 4. Install the Android app
+## 4. Put Murmur on your phone
 
 The app isn't on the Play Store; you install the APK directly. To build it yourself (needs Node, pnpm and the Android SDK):
 
@@ -68,6 +68,13 @@ cd android
 The APK is written to `apps/mobile/android/app/build/outputs/apk/release/`. Copy it to your phone and open it to install (Android asks you to allow installs from that source).
 
 On first launch, enter your server's address (the same one you open in the browser) and sign in.
+
+**On an iPhone, or without the APK:** add the web player to your home screen. It then opens full screen with its own icon, like an app.
+
+- **iPhone and iPad:** open Murmur in Safari, tap **Share**, then **Add to Home Screen**.
+- **Android:** open Murmur in Chrome, open the **⋮** menu, then **Add to home screen** (or **Install app**).
+
+Chrome only offers a full-screen install when Murmur is served over HTTPS, so set up step 3 first. Over plain HTTP you get a shortcut that opens in a browser tab. The web player needs a connection to the server: offline downloads, and playback controls on the lock screen, come with the Android app.
 
 ## 5. Add podcasts
 

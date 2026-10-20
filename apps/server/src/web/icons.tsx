@@ -210,14 +210,18 @@ export const SparkIcon = (p: IconProps) => (
   </Icon>
 );
 
-/** The app icon: the waveform on deep navy, same as the Android launcher icon. */
-export const AppIcon = ({ size = 28 }: { size?: number }) => (
-  <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" style={{ flexShrink: 0 }}>
-    <rect width="24" height="24" rx="6" fill="#141833" />
-    <rect x="4.0" y="10.2" width="2.4" height="3.5" rx="1.2" fill="#8E9BFF" />
-    <rect x="7.4" y="8.1" width="2.4" height="7.8" rx="1.2" fill="#8E9BFF" />
-    <rect x="10.8" y="6.0" width="2.4" height="12" rx="1.2" fill="#8E9BFF" />
-    <rect x="14.2" y="8.1" width="2.4" height="7.8" rx="1.2" fill="#8E9BFF" />
-    <rect x="17.6" y="9.5" width="2.4" height="5" rx="1.2" fill="#8E9BFF" />
+/**
+ * The app icon: audio bars whose tops trace an M, on deep navy, same as the Android launcher icon.
+ * Drawn on a 29 px grid so every bar edge lands on a whole pixel at its usual size; the 24-unit
+ * icon.svg proportions blur at small sizes.
+ */
+export const AppIcon = ({ size = 29 }: { size?: number }) => (
+  <svg viewBox="0 0 29 29" width={size} height={size} aria-hidden="true" style={{ flexShrink: 0 }}>
+    <rect width="29" height="29" rx="7" fill="#141833" />
+    <rect x="3" y="7" width="3" height="15" rx="1.5" fill="#8E9BFF" />
+    <rect x="8" y="11" width="3" height="11" rx="1.5" fill="#8E9BFF" />
+    <rect x="13" y="14" width="3" height="8" rx="1.5" fill="#8E9BFF" />
+    <rect x="18" y="11" width="3" height="11" rx="1.5" fill="#8E9BFF" />
+    <rect x="23" y="7" width="3" height="15" rx="1.5" fill="#8E9BFF" />
   </svg>
 );

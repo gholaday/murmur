@@ -50,6 +50,7 @@ ENV NODE_ENV=production \
     PGID=1000
 COPY --from=build /app/apps/server/.next/standalone ./
 COPY --from=build /app/apps/server/.next/static ./apps/server/.next/static
+COPY --from=build /app/apps/server/public ./apps/server/public
 COPY --from=build /app/apps/server/drizzle ./apps/server/drizzle
 COPY docker/entrypoint.sh /entrypoint.sh
 # /cache works unmounted too, but its episodes are then lost when the container is recreated.

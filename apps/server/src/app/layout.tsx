@@ -11,6 +11,9 @@ const sans = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-sans", di
 export const metadata: Metadata = {
   title: "Murmur",
   description: "Your audiobooks and podcasts",
+  // Added to an iPhone's home screen, it opens full screen like an app. The default status bar
+  // keeps pages below it, since only the player pads for the notch.
+  appleWebApp: { capable: true, title: "Murmur", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
