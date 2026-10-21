@@ -28,6 +28,9 @@ const FORWARD_OPTIONS = [10, 15, 30, 45, 60];
 
 interface ServerInfo {
   version: string;
+  devBuild: boolean;
+  /** For admins: whether GitHub has been asked yet, and any newer release it has. */
+  updates: { checked: boolean; update: { latest: string; url: string } | null } | null;
   books: number;
   scanRunning: boolean;
   lastScanAt: number | null;
@@ -145,6 +148,10 @@ export function ProfileView({
 
       {user.isAdmin ? (
         <>
+          <section className="section">
+            <h2 className="section-title">Server</h2>
+            <VersionCard version={server.version} devBuild={server.devBuild} updates={server.updates} />
+          </section>
           <section className="section">
             <h2 className="section-title">Library</h2>
             <LibraryCard server={server} onScanned={() => router.refresh()} />
@@ -277,6 +284,30 @@ function PasswordForm({ username, isAdmin }: { username: string; isAdmin: boolea
           ) : null}
         </form>
       </Sheet>
+    </div>
+  );
+}
+
+function VersionCard({ version, devBuild, updates }: { version: string; devBuild: boolean; updates: ServerInfo["updates"] }) {
+  const update = updates?.update;
+  const status = update ? `Version ${update.latest} is available` : updates?.checked ? "Up to date" : null;
+  const sub = status ?? (devBuild ? "Development build" : null);
+  return (
+    <div className="card-box">
+      <div className="setting">
+        <span className="setting-text">
+          <span className="setting-title">
+            {status ? <span className={`status-dot ${update ? "warn" : ""}`} /> : null}
+            Murmur {version}
+          </span>
+          {sub ? <span className="setting-sub">{sub}</span> : null}
+        </span>
+        {update ? (
+          <a className="btn" href={update.url} target="_blank" rel="noreferrer">
+            What&apos;s new
+          </a>
+        ) : null}
+      </div>
     </div>
   );
 }

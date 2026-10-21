@@ -5,6 +5,7 @@ import { adsEnabled } from "@/server/ads";
 import { folderList } from "@/server/library/folders";
 import { cacheStatus } from "@/server/podcasts/cache-status";
 import { requirePageUser } from "@/server/session";
+import { updateStatus } from "@/server/updates";
 import { ProfileView } from "@/web/profile/profile-view";
 
 export default async function ProfilePage() {
@@ -28,6 +29,8 @@ export default async function ProfilePage() {
       cache={user.isAdmin ? cacheStatus(ctx) : null}
       server={{
         version: env.version,
+        devBuild: env.devBuild,
+        updates: user.isAdmin ? updateStatus() : null,
         books: bookCount,
         scanRunning: ctx.scanState.running,
         lastScanAt: ctx.scanState.lastFinishedAt,

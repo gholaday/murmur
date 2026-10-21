@@ -57,6 +57,7 @@ All optional.
 | `PROBE_CONCURRENCY` | `2` | Files read at once during a scan |
 | `EPISODE_CACHE_DIR` | `/cache` | Where podcast episodes are kept |
 | `EPISODE_CACHE_MAX_GB` | `20` | Space for cached episodes |
+| `UPDATE_CHECK` | `true` | Ask GitHub every 6 hours for the newest release, so Settings tells admins when an update is out. `false` turns it off |
 | `ADDON_SECRET` | | Turns on ad detection; the same value goes on the `murmur-adscan` add-on ([addons/adscan](addons/adscan/README.md)) |
 
 Health check: `GET /api/health`.

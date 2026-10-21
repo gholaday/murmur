@@ -1,4 +1,5 @@
 import path from "node:path";
+import pkg from "../../package.json";
 
 function intEnv(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -11,7 +12,12 @@ function intEnv(name: string, fallback: number): number {
 const dataDir = path.resolve(/*turbopackIgnore: true*/ process.env.DATA_DIR ?? "./data");
 
 export const env = {
-  version: process.env.MURMUR_VERSION ?? "dev",
+  /** Set by the Docker image. Without it (pnpm dev), the version in package.json. */
+  version: process.env.MURMUR_VERSION ?? pkg.version,
+  /** Not a released image: no MURMUR_VERSION, or the image's own "dev" default. */
+  devBuild: !process.env.MURMUR_VERSION || process.env.MURMUR_VERSION === "dev",
+  /** Ask GitHub every 6 hours whether a newer release is out, to tell admins in Settings. */
+  updateCheck: process.env.UPDATE_CHECK !== "false",
   /** Audible store used by Match: us, uk, ca, au, de, fr, it, es, in or jp. */
   audibleRegion: (process.env.AUDIBLE_REGION ?? "us").toLowerCase(),
   dataDir,

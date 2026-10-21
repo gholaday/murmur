@@ -9,6 +9,7 @@ import { createLogger, errorMessage, type Logger } from "./log";
 import { queueScan, queueUnscanned } from "./ads";
 import { createEpisodeCache, type EpisodeCache } from "./podcasts/episode-cache";
 import { createPodcastService, startFeedScheduler, type PodcastService } from "./podcasts/service";
+import { startUpdateChecks } from "./updates";
 
 export interface AppContext {
   db: Db;
@@ -118,6 +119,7 @@ async function boot(): Promise<AppContext> {
 
   scheduleNightlyBackup(sqlite);
   registerShutdown(sqlite, watcher);
+  startUpdateChecks();
 
   void scanner.scan(); // initial scan runs in the background; the server is usable meanwhile
   log.info("murmur started", {
