@@ -17,7 +17,9 @@ import {
   type FolderBrowseDto,
   type FolderCheckDto,
   type LibraryFolderDto,
+  type ServerVersionDto,
   type ThemeChoice,
+  versionStatus,
   type UserDto,
 } from "@murmur/shared/client";
 import { api } from "../api";
@@ -285,16 +287,15 @@ function PasswordForm({ username, isAdmin }: { username: string; isAdmin: boolea
   );
 }
 
-function VersionCard({ version, devBuild, updates }: { version: string; devBuild: boolean; updates: ServerInfo["updates"] }) {
+function VersionCard({ version, devBuild, updates }: ServerVersionDto) {
   const update = updates?.update;
-  const status = update ? `Version ${update.latest} is available` : updates?.checked ? "Up to date" : null;
-  const sub = status ?? (devBuild ? "Development build" : null);
+  const { sub, dot } = versionStatus({ version, devBuild, updates });
   return (
     <div className="card-box">
       <div className="setting">
         <span className="setting-text">
           <span className="setting-title">
-            {status ? <span className={`status-dot ${update ? "warn" : ""}`} /> : null}
+            {dot ? <span className={`status-dot ${dot === "warn" ? "warn" : ""}`} /> : null}
             Murmur {version}
           </span>
           {sub ? <span className="setting-sub">{sub}</span> : null}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Pressable, View } from "react-native";
+import { Linking, Pressable, View } from "react-native";
+import Constants from "expo-constants";
 import { useQuery } from "@tanstack/react-query";
 import {
   adScanStatus,
@@ -12,8 +13,10 @@ import {
   joinPath,
   KEEP_PER_SHOW_OPTIONS,
   type LibraryFolderDto,
+  type ServerVersionDto,
   shortDate,
   type UserDto,
+  versionStatus,
 } from "@murmur/shared/client";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/query";
@@ -38,12 +41,15 @@ export function Row({
   subDanger,
   stacked,
   last,
+  dot,
   children,
 }: {
   title: string;
   sub?: string | null;
   subDanger?: boolean;
   stacked?: boolean;
+  /** A status dot's colour, shown before the title. */
+  dot?: string | null;
   /** The last row in a card has no divider under it. */
   last?: boolean;
   children?: React.ReactNode;
@@ -62,7 +68,10 @@ export function Row({
       }}
     >
       <View style={{ flexShrink: 1, gap: 2 }}>
-        <Text variant="bodyStrong">{title}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {dot ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dot }} /> : null}
+          <Text variant="bodyStrong">{title}</Text>
+        </View>
         {sub ? (
           <Text variant="small" style={subDanger ? { color: t.danger } : undefined}>
             {sub}
@@ -229,6 +238,39 @@ export function PasswordRow() {
   );
 }
 
+// ---------- Server ----------
+
+// Status dots, the same in light and dark.
+const OK_DOT = "#5ccf8a";
+const WARN_DOT = "#f0b45a";
+
+/**
+ * The server's version, and for admins whether a newer release is out; then this app's own
+ * version, so an old APK is easy to spot.
+ */
+export function ServerSection() {
+  const query = useQuery({ queryKey: ["server-version"], queryFn: () => api<ServerVersionDto>("/api/server/version") });
+  const v = query.data;
+  const status = v ? versionStatus(v) : null;
+  const update = v?.updates?.update;
+  return (
+    <Card>
+      {v && status ? (
+        <Row title={`Murmur ${v.version}`} sub={status.sub} dot={status.dot === "warn" ? WARN_DOT : status.dot === "ok" ? OK_DOT : null}>
+          {update ? <SmallButton label="What's new" onPress={() => void Linking.openURL(update.url)} /> : null}
+        </Row>
+      ) : query.isError ? (
+        <Row title="Server version" sub={query.error.message} subDanger />
+      ) : (
+        <Skeleton>
+          <RowBone />
+        </Skeleton>
+      )}
+      <Row title="Android app" sub={`Version ${Constants.expoConfig?.version ?? "unknown"}`} last />
+    </Card>
+  );
+}
+
 // ---------- Admin: library ----------
 
 const libraryKeys = { health: ["health"], folders: ["library-folders"], users: ["users"], cache: ["episode-cache"] } as const;
@@ -299,7 +341,7 @@ export function EpisodeCacheSection() {
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingVertical: 14 }}>
             <View style={{ flexShrink: 1, gap: 2 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: scan.state === "ok" ? "#5ccf8a" : "#f0b45a" }} />
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: scan.state === "ok" ? OK_DOT : WARN_DOT }} />
                 <Text variant="bodyStrong">Ad detection</Text>
               </View>
               <Text variant="small" style={scan.state === "error" ? { color: t.danger } : undefined}>

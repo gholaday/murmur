@@ -3,7 +3,7 @@ import { ScrollView, View } from "react-native";
 import { SKIP_BACK_OPTIONS, SKIP_FORWARD_OPTIONS, THEME_CHOICES } from "@murmur/shared/client";
 import { PAD } from "@/components/library";
 import { PageTitle, SectionTitle, useTopInset } from "@/components/page";
-import { Card, EpisodeCacheSection, LibrarySection, PasswordRow, RolePill, Row, SmallButton, UsersSection } from "@/components/settings";
+import { Card, EpisodeCacheSection, LibrarySection, PasswordRow, RolePill, Row, ServerSection, SmallButton, UsersSection } from "@/components/settings";
 import { ConfirmSheet } from "@/components/sheet";
 import { Chip } from "@/components/ui";
 import { useSession } from "@/lib/session";
@@ -67,6 +67,9 @@ export default function Settings() {
             </Row>
           ) : null}
         </Card>
+
+        <SectionTitle title="Server" />
+        <ServerSection />
 
         {user?.isAdmin ? (
           <>

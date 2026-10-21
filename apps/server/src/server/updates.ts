@@ -16,9 +16,14 @@ export interface UpdateInfo {
 }
 
 const log = createLogger("updates");
-let available: UpdateInfo | null = null;
-let checked = false;
-let started = false;
+
+// The checks start from the app's boot, but Settings reads them from its own bundle. Next
+// gives each bundle its own copy of this module, so the results live on globalThis, as the
+// app context does.
+declare global {
+  var __murmurUpdates: { available: UpdateInfo | null; checked: boolean; started: boolean } | undefined;
+}
+const state = (globalThis.__murmurUpdates ??= { available: null, checked: false, started: false });
 
 /** True when version a is newer than b. Both are "x.y.z", with or without a leading v. */
 export function isNewer(a: string, b: string): boolean {
@@ -41,9 +46,9 @@ async function check() {
     const release = (await res.json()) as { tag_name?: string; html_url?: string };
     const latest = release.tag_name?.replace(/^v/, "");
     if (!latest || !release.html_url) throw new Error("GitHub's answer had no release");
-    available = isNewer(latest, env.version) ? { latest, url: release.html_url } : null;
-    checked = true;
-    if (available) log.info("update available", { current: env.version, latest });
+    state.available = isNewer(latest, env.version) ? { latest, url: release.html_url } : null;
+    state.checked = true;
+    if (state.available) log.info("update available", { current: env.version, latest });
   } catch (err) {
     // Kept as it was: a failed check says nothing about whether an update is out.
     log.warn("update check failed", { error: errorMessage(err) });
@@ -52,13 +57,13 @@ async function check() {
 
 /** Starts the checks: now and every 6 hours. Development builds aren't a release to compare. */
 export function startUpdateChecks() {
-  if (started || !env.updateCheck || env.devBuild) return;
-  started = true;
+  if (state.started || !env.updateCheck || env.devBuild) return;
+  state.started = true;
   void check();
   setInterval(() => void check(), CHECK_MS).unref();
 }
 
 /** What the checks found: checked is false until one succeeds, or when checks are off. */
 export function updateStatus(): { checked: boolean; update: UpdateInfo | null } {
-  return { checked, update: available };
+  return { checked: state.checked, update: state.available };
 }

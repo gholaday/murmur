@@ -485,6 +485,15 @@ export interface FolderBrowseDto {
   folders: string[];
 }
 
+/** The running version and, for admins, whether a newer release is out. */
+export interface ServerVersionDto {
+  version: string;
+  /** Built without a release version, as in development. */
+  devBuild: boolean;
+  /** For admins only: whether GitHub has been asked yet, and any newer release it has. */
+  updates: { checked: boolean; update: { latest: string; url: string } | null } | null;
+}
+
 export interface HealthDto {
   ok: boolean;
   version: string;
