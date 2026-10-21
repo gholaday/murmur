@@ -29,10 +29,11 @@ export function shortDate(ms: number, now = Date.now()): string {
   const d = new Date(ms);
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
-  const diff = today.getTime() - new Date(d).setHours(0, 0, 0, 0);
-  if (diff <= 0) return "Today";
-  if (diff <= DAY) return "Yesterday";
-  if (diff < 6 * DAY) return d.toLocaleDateString(undefined, { weekday: "short" });
+  // Rounded, since a day with a daylight saving change is 23 or 25 hours long.
+  const days = Math.round((today.getTime() - new Date(d).setHours(0, 0, 0, 0)) / DAY);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 6) return d.toLocaleDateString(undefined, { weekday: "short" });
   const sameYear = d.getFullYear() === today.getFullYear();
   return d.toLocaleDateString(undefined, { day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }) });
 }

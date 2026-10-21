@@ -60,7 +60,7 @@ interface FoundFile {
   mtimeMs: number;
 }
 
-interface FoundBook {
+export interface FoundBook {
   folderId: number;
   root: string;
   relDir: string;
@@ -80,85 +80,98 @@ const SCAN_RULES_VERSION = 2;
 
 /** "CD 1", "Disc 2", "Part 03" subfolders belong to the book above them. */
 const DISC_FOLDER = /^(?:cd|disc|disk|part)\s*\d+$/i;
+/** Folder listings and file stats in flight at once while walking a library. */
+const WALK_CONCURRENCY = 16;
 
 const toPosix = (p: string) => p.split(path.sep).join("/");
 const sha1 = (s: string) => crypto.createHash("sha1").update(s).digest("hex");
 
 export class LibraryUnavailableError extends Error {}
 
+// Folder listings and file stats run a few at a time: one by one, a large library on a
+// network share spends most of a scan waiting on round trips.
+const fsLimit = createLimiter(WALK_CONCURRENCY);
+
+async function listDir(abs: string) {
+  return (await fsLimit(() => fs.readdir(abs, { withFileTypes: true }))).filter((e) => !isIgnoredName(e.name));
+}
+
+async function fileInfo(absDir: string, relDir: string, prefix: string, name: string): Promise<FoundFile> {
+  const st = await fsLimit(() => fs.stat(path.join(absDir, name)));
+  const inBook = prefix ? `${prefix}/${name}` : name;
+  return { name: inBook, relPath: relDir ? `${relDir}/${inBook}` : inBook, size: st.size, mtimeMs: Math.floor(st.mtimeMs) };
+}
+
+/** Walks one library folder and returns every folder in it that holds audio files directly. */
+export async function walkFolder(folder: LibraryFolder, log: Logger): Promise<FoundBook[]> {
+  const libraryDir = folder.path;
+
+  /** The book in `relDir`, if it holds audio, then those in its subfolders, in folder order. */
+  async function visit(relDir: string): Promise<FoundBook[]> {
+    const absDir = path.join(libraryDir, relDir);
+    let entries;
+    try {
+      entries = await listDir(absDir);
+    } catch (err) {
+      log.warn("cannot read folder, skipping", { folder: relDir, error: errorMessage(err) });
+      return [];
+    }
+    const book: Omit<FoundBook, "signature" | "contentKey" | "folderId" | "root"> = { relDir, audio: [], images: [], descTxt: null, readerTxt: null };
+    const subdirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+    const discDirs = subdirs.filter((d) => DISC_FOLDER.test(d)).sort(naturalCompare);
+    const [files, discs] = await Promise.all([
+      Promise.all(entries.filter((e) => e.isFile()).map((e) => classify(absDir, relDir, "", e.name))),
+      Promise.all(
+        discDirs.map(async (disc) => {
+          const absDisc = path.join(absDir, disc);
+          const audio = (await listDir(absDisc)).filter((e) => e.isFile() && AUDIO_EXTENSIONS.has(extname(e.name)));
+          return Promise.all(audio.map((e) => fileInfo(absDisc, relDir, disc, e.name)));
+        }),
+      ),
+    ]);
+    for (const f of files) {
+      if (f?.kind === "audio") book.audio.push(f.file);
+      else if (f?.kind === "image") book.images.push(f.file);
+      else if (f?.kind === "desc") book.descTxt = f.file;
+      else if (f?.kind === "reader") book.readerTxt = f.file;
+    }
+    book.audio.push(...discs.flat());
+    const nested = await Promise.all(
+      subdirs.filter((d) => !(discDirs.length > 0 && DISC_FOLDER.test(d))).map((d) => visit(relDir ? `${relDir}/${d}` : d)),
+    );
+    return [...(book.audio.length > 0 && relDir ? [finish(book)] : []), ...nested.flat()];
+  }
+
+  async function classify(absDir: string, relDir: string, prefix: string, name: string) {
+    const ext = extname(name);
+    const lower = name.toLowerCase();
+    const kind = AUDIO_EXTENSIONS.has(ext)
+      ? "audio"
+      : IMAGE_EXTENSIONS.has(ext)
+        ? "image"
+        : lower === "desc.txt" || lower === "description.txt"
+          ? "desc"
+          : lower === "reader.txt" || lower === "narrator.txt"
+            ? "reader"
+            : null;
+    return kind ? { kind, file: await fileInfo(absDir, relDir, prefix, name) } : null;
+  }
+
+  function finish(book: Omit<FoundBook, "signature" | "contentKey" | "folderId" | "root">): FoundBook {
+    const all = [...book.audio, ...book.images, book.descTxt, book.readerTxt].filter((f): f is FoundFile => f !== null);
+    const signature = sha1(
+      `rules:${SCAN_RULES_VERSION}\n` + all.map((f) => `${f.name}|${f.size}|${f.mtimeMs}`).sort().join("\n"),
+    );
+    const contentKey = sha1(book.audio.map((f) => `${path.posix.basename(f.name)}|${f.size}`).sort().join("\n"));
+    return { ...book, folderId: folder.id, root: libraryDir, signature, contentKey };
+  }
+
+  return visit("");
+}
+
 export function createScanner(deps: ScannerDeps) {
   const { db, log, state } = deps;
   const limit = createLimiter(Math.max(1, deps.probeConcurrency));
-
-  async function listDir(abs: string) {
-    return (await fs.readdir(abs, { withFileTypes: true })).filter((e) => !isIgnoredName(e.name));
-  }
-
-  async function fileInfo(absDir: string, relDir: string, prefix: string, name: string): Promise<FoundFile> {
-    const st = await fs.stat(path.join(absDir, name));
-    const inBook = prefix ? `${prefix}/${name}` : name;
-    return { name: inBook, relPath: relDir ? `${relDir}/${inBook}` : inBook, size: st.size, mtimeMs: Math.floor(st.mtimeMs) };
-  }
-
-  /** Walks one library folder and returns every folder in it that holds audio files directly. */
-  async function walk(folder: LibraryFolder): Promise<FoundBook[]> {
-    const found: FoundBook[] = [];
-    const libraryDir = folder.path;
-
-    async function visit(relDir: string) {
-      const absDir = path.join(libraryDir, relDir);
-      let entries;
-      try {
-        entries = await listDir(absDir);
-      } catch (err) {
-        log.warn("cannot read folder, skipping", { folder: relDir, error: errorMessage(err) });
-        return;
-      }
-      const book: Omit<FoundBook, "signature" | "contentKey" | "folderId" | "root"> = { relDir, audio: [], images: [], descTxt: null, readerTxt: null };
-      const subdirs: string[] = [];
-      for (const e of entries) {
-        if (e.isDirectory()) subdirs.push(e.name);
-        else if (e.isFile()) await classify(book, absDir, relDir, "", e.name);
-      }
-      const discDirs = subdirs.filter((d) => DISC_FOLDER.test(d)).sort(naturalCompare);
-      if (discDirs.length > 0) {
-        for (const disc of discDirs) {
-          const absDisc = path.join(absDir, disc);
-          for (const e of await listDir(absDisc)) {
-            if (e.isFile() && AUDIO_EXTENSIONS.has(extname(e.name))) {
-              book.audio.push(await fileInfo(absDisc, relDir, disc, e.name));
-            }
-          }
-        }
-      }
-      if (book.audio.length > 0 && relDir) found.push(finish(book));
-      for (const d of subdirs) {
-        if (discDirs.length > 0 && DISC_FOLDER.test(d)) continue;
-        await visit(relDir ? `${relDir}/${d}` : d);
-      }
-    }
-
-    async function classify(book: Omit<FoundBook, "signature" | "contentKey" | "folderId" | "root">, absDir: string, relDir: string, prefix: string, name: string) {
-      const ext = extname(name);
-      const lower = name.toLowerCase();
-      if (AUDIO_EXTENSIONS.has(ext)) book.audio.push(await fileInfo(absDir, relDir, prefix, name));
-      else if (IMAGE_EXTENSIONS.has(ext)) book.images.push(await fileInfo(absDir, relDir, prefix, name));
-      else if (lower === "desc.txt" || lower === "description.txt") book.descTxt = await fileInfo(absDir, relDir, prefix, name);
-      else if (lower === "reader.txt" || lower === "narrator.txt") book.readerTxt = await fileInfo(absDir, relDir, prefix, name);
-    }
-
-    function finish(book: Omit<FoundBook, "signature" | "contentKey" | "folderId" | "root">): FoundBook {
-      const all = [...book.audio, ...book.images, book.descTxt, book.readerTxt].filter((f): f is FoundFile => f !== null);
-      const signature = sha1(
-        `rules:${SCAN_RULES_VERSION}\n` + all.map((f) => `${f.name}|${f.size}|${f.mtimeMs}`).sort().join("\n"),
-      );
-      const contentKey = sha1(book.audio.map((f) => `${path.posix.basename(f.name)}|${f.size}`).sort().join("\n"));
-      return { ...book, folderId: folder.id, root: libraryDir, signature, contentKey };
-    }
-
-    await visit("");
-    return found;
-  }
 
   async function readText(root: string, file: FoundFile | null): Promise<string | null> {
     if (!file) return null;
@@ -271,7 +284,7 @@ export function createScanner(deps: ScannerDeps) {
         problems.push(`${folder.path} is not reachable; its books were left as they were.`);
         continue;
       }
-      const inFolder = await walk(folder);
+      const inFolder = await walkFolder(folder, log);
       const known = existing.filter((b) => b.folderId === folder.id && b.missingSince === null).length;
       if (inFolder.length === 0 && known > 0) {
         unavailable.add(folder.id);

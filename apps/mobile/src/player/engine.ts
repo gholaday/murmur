@@ -20,7 +20,7 @@ import { getDownload, localUri, saveDownloadAds } from "@/lib/downloads";
 import { queryClient } from "@/lib/query";
 import { getJson, removeKey, setJson } from "@/lib/storage";
 import { toast } from "@/components/toast";
-import { adBreak, adModeFor, adPrefsStore } from "./ad-prefs";
+import { adModeFor, adPrefsStore, adToSkip, playedThrough } from "./ad-prefs";
 
 // One audio player for the whole app, kept outside React so playback, the lock screen and
 // progress saving carry on whatever screen is showing (or with the screen off).
@@ -276,8 +276,7 @@ function maybeSkipAd(prev: number, pos: number) {
   const now = Date.now();
   const elapsed = lastTickAt ? (now - lastTickAt) / 1000 : 0;
   lastTickAt = now;
-  if (pos <= prev || pos - prev > Math.max(3, elapsed * state.speed + 2)) return;
-  skipAdCrossed(prev, pos);
+  if (playedThrough(prev, pos, elapsed, state.speed)) skipAdCrossed(prev, pos);
 }
 
 /**
@@ -287,14 +286,10 @@ function maybeSkipAd(prev: number, pos: number) {
 function skipAdCrossed(prev: number, pos: number, undoTo?: number) {
   const spans = state.ads?.enabled ? state.ads.ads : [];
   const it = state.item;
-  if (!spans.length || !it || pos <= prev) return;
+  if (!spans.length || !it) return;
   if (adModeFor(adPrefsStore.get(), it.podcastId) !== "auto") return;
-  const i = spans.findIndex(
-    (s, idx) => (prev < s.startSec || (s.startSec < 1 && prev < 1)) && pos >= s.startSec && pos < s.endSec && !adsAllowed.has(idx),
-  );
-  if (i < 0) return;
-  const start = Math.max(spans[i]!.startSec, undoTo ?? 0);
-  const brk = adBreak(spans, i);
+  const brk = adToSkip(spans, prev, pos, adsAllowed, undoTo);
+  if (!brk) return;
   seek(brk.endSec);
   toast.show(brk.indexes.length > 1 ? `Skipped ${brk.indexes.length} ads` : "Skipped ad", {
     duration: 5000,
@@ -302,7 +297,7 @@ function skipAdCrossed(prev: number, pos: number, undoTo?: number) {
       label: "Undo",
       onPress: () => {
         for (const idx of brk.indexes) adsAllowed.add(idx);
-        seek(start);
+        seek(brk.undoTo);
       },
     },
   });

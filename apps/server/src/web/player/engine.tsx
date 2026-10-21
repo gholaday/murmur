@@ -16,7 +16,7 @@ import {
   type QueueRef,
 } from "@murmur/shared/client";
 import { api } from "../api";
-import { adBreak, adModeFor, adPrefsStore } from "./ad-prefs";
+import { adModeFor, adPrefsStore, adToSkip, playedThrough } from "./ad-prefs";
 import { effectiveVolume, volumeStore } from "./volume";
 
 const SAVE_EVERY_MS = 10_000;
@@ -609,8 +609,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
    * normal play may move further than 3 s between them, while a seek moves far in no time.
    */
   const maybeSkipAd = (prev: number, pos: number, elapsedSec: number) => {
-    if (pos <= prev || pos - prev > Math.max(3, elapsedSec * speedRef.current + 2)) return;
-    skipAdCrossed(prev, pos);
+    if (playedThrough(prev, pos, elapsedSec, speedRef.current)) skipAdCrossed(prev, pos);
   };
 
   /**
@@ -621,12 +620,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const spans = adsRef.current;
     const it = itemRef.current;
     if (!spans.length || !it || adModeFor(adPrefsStore.get(), it.podcastId) !== "auto") return;
-    // An ad at 0:00 is never crossed into, so playing from the start counts as running into it.
-    const ranInto = (s: AdSpan) => prev < s.startSec || (s.startSec < 1 && prev < 1);
-    const i = spans.findIndex((s, idx) => ranInto(s) && pos >= s.startSec && pos < s.endSec && !adsAllowed.current.has(idx));
-    if (i < 0) return;
-    const back = undoTo ?? spans[i]!.startSec;
-    const brk = adBreak(spans, i);
+    const brk = adToSkip(spans, prev, pos, adsAllowed.current, undoTo);
+    if (!brk) return;
     seek(brk.endSec);
     toast(brk.indexes.length > 1 ? `Skipped ${brk.indexes.length} ads` : "Skipped ad", {
       duration: 5000,
@@ -634,7 +629,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         label: "Undo",
         onClick: () => {
           for (const idx of brk.indexes) adsAllowed.current.add(idx);
-          seek(back);
+          seek(brk.undoTo);
         },
       },
     });

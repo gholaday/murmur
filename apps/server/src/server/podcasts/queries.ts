@@ -164,10 +164,13 @@ export function shortNotes<T extends EpisodeDto>(episodes: T[]): T[] {
   );
 }
 
-export function listEpisodes(sqlite: Sqlite, podcastId: string, userId: number): EpisodeDto[] {
+/** A show's episodes, newest first; `limit` for just the first page. */
+export function listEpisodes(sqlite: Sqlite, podcastId: string, userId: number, limit = -1): EpisodeDto[] {
   const rows = sqlite
-    .prepare(`SELECT ${EPISODE_COLUMNS} FROM episodes e ${EPISODE_JOINS} WHERE e.podcast_id = ? ORDER BY e.published_at DESC`)
-    .all(userId, podcastId) as EpisodeRow[];
+    .prepare(
+      `SELECT ${EPISODE_COLUMNS} FROM episodes e ${EPISODE_JOINS} WHERE e.podcast_id = ? ORDER BY e.published_at DESC LIMIT ?`,
+    )
+    .all(userId, podcastId, limit) as EpisodeRow[];
   return rows.map(toEpisode);
 }
 
@@ -182,11 +185,15 @@ export function listNewEpisodes(sqlite: Sqlite, userId: number, limit: number): 
   return withShow(rows);
 }
 
-/** Started, unfinished episodes, most recently listened first. */
+/**
+ * Started, unfinished episodes, most recently listened first. A started episode always has
+ * progress, so this joins it rather than LEFT JOINs, letting SQLite start from the user's
+ * progress instead of reading every episode of every show.
+ */
 export function listContinueEpisodes(sqlite: Sqlite, userId: number, limit: number): Promise<EpisodeWithShow[]> {
   const rows = sqlite
     .prepare(
-      `SELECT ${EPISODE_WITH_SHOW_COLUMNS} FROM episodes e ${EPISODE_JOINS}
+      `SELECT ${EPISODE_WITH_SHOW_COLUMNS} FROM episodes e ${EPISODE_JOINS.replace("LEFT JOIN progress", "JOIN progress")}
        WHERE ${IS_STARTED} ORDER BY pr.updated_at DESC LIMIT ?`,
     )
     .all(userId, limit) as EpisodeWithShowRow[];

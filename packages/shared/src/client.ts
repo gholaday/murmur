@@ -2,6 +2,7 @@
 // validate requests on the server, and importing them would add zod (~0.5 MB) to the app's
 // bundle. The types still come from the schemas; they're erased at build time.
 export type * from "./index";
+export * from "./ads";
 export * from "./api-paths";
 export * from "./format";
 export * from "./library";

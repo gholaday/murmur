@@ -14,5 +14,5 @@ export default async function ShowPage({ params }: { params: Promise<{ id: strin
   if (!podcast) notFound();
   // Only the first page goes with the page; long shows have over a thousand episodes, and
   // the rest load from the API when you ask for more or change the order.
-  return <ShowView podcast={podcast} pageSize={PAGE} firstPage={shortNotes(listEpisodes(sqlite, id, user.id).slice(0, PAGE))} />;
+  return <ShowView podcast={podcast} pageSize={PAGE} firstPage={shortNotes(listEpisodes(sqlite, id, user.id, PAGE))} />;
 }
