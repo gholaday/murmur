@@ -45,7 +45,6 @@ function sleepLabel(sleep: SleepTimer, now: number): string {
 
 export function FullPlayer() {
   const p = usePlayer();
-  const position = usePosition();
   const [sheet, setSheet] = useState<null | "sleep" | "chapters" | "more" | "ads">(null);
   const adPrefs = useAdPrefs();
   const volume = useVolume();
@@ -63,6 +62,8 @@ export function FullPlayer() {
     setWasExpanded(expanded);
     setClosing(!expanded);
   }
+  // Minimized, the player draws nothing, so it needn't redraw on every tick.
+  const position = usePosition(expanded || closing);
   useEffect(() => {
     if (!closing) return;
     const t = setTimeout(() => setClosing(false), CLOSE_MS);

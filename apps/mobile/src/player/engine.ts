@@ -371,9 +371,10 @@ player.addListener("playbackStatusUpdate", (s: AudioStatus) => {
     }
     return;
   }
-  if (s.playing !== state.playing || s.isBuffering !== state.loading) {
+  const loading = s.isBuffering || !s.isLoaded;
+  if (s.playing !== state.playing || loading !== state.loading) {
     const wasPlaying = state.playing;
-    set({ playing: s.playing, loading: s.isBuffering || !s.isLoaded });
+    set({ playing: s.playing, loading });
     if (wasPlaying && !s.playing && !s.didJustFinish) save();
   }
   if (pendingSeek === null && !seeking && s.isLoaded) {

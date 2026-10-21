@@ -85,7 +85,18 @@ export function createPodcastService(deps: Deps) {
         size_bytes = excluded.size_bytes,
         image_url = excluded.image_url,
         season = excluded.season,
-        episode_number = excluded.episode_number`);
+        episode_number = excluded.episode_number
+      -- Most of a feed is unchanged on each check; skipping those rows saves rewriting them.
+      WHERE episodes.title IS NOT excluded.title
+        OR episodes.description IS NOT excluded.description
+        OR episodes.published_at IS NOT excluded.published_at
+        OR (excluded.duration_sec IS NOT NULL AND episodes.duration_sec IS NOT excluded.duration_sec)
+        OR episodes.audio_url IS NOT excluded.audio_url
+        OR episodes.mime_type IS NOT excluded.mime_type
+        OR episodes.size_bytes IS NOT excluded.size_bytes
+        OR episodes.image_url IS NOT excluded.image_url
+        OR episodes.season IS NOT excluded.season
+        OR episodes.episode_number IS NOT excluded.episode_number`);
 
   /** Writes the feed's channel fields and episodes. Episodes that drop out of a feed are kept. */
   function saveFeed(podcastId: string, feed: ParsedFeed, etag: string | null, lastModified: string | null) {
