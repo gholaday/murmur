@@ -102,8 +102,63 @@ async function fileInfo(absDir: string, relDir: string, prefix: string, name: st
   return { name: inBook, relPath: relDir ? `${relDir}/${inBook}` : inBook, size: st.size, mtimeMs: Math.floor(st.mtimeMs) };
 }
 
-/** Walks one library folder and returns every folder in it that holds audio files directly. */
-export async function walkFolder(folder: LibraryFolder, log: Logger): Promise<FoundBook[]> {
+/** Folders to rescan, by library folder id, relative with forward slashes; "" is the whole folder. */
+export type ScanScopes = Map<number, string[]>;
+
+/**
+ * The changed paths grouped by library folder, relative to it, with paths inside another
+ * changed path dropped. `scanStart` turns each into the folder to walk.
+ */
+export function scopesFor(folders: LibraryFolder[], changed: string[]): ScanScopes {
+  const scopes: ScanScopes = new Map();
+  for (const p of changed) {
+    const folder = folders.find((f) => {
+      const rel = path.relative(f.path, p);
+      return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+    });
+    if (!folder) continue;
+    const list = scopes.get(folder.id) ?? [];
+    list.push(toPosix(path.relative(folder.path, p)));
+    scopes.set(folder.id, list);
+  }
+  for (const [id, list] of scopes) scopes.set(id, collapseScopes(list));
+  return scopes;
+}
+
+/** `rel` is the folder `scope` or inside it. */
+const withinScope = (rel: string, scope: string) => scope === "" || rel === scope || rel.startsWith(`${scope}/`);
+
+/** Drops duplicates and folders inside another one in the list. */
+function collapseScopes(list: string[]): string[] {
+  const unique = [...new Set(list)];
+  return unique.filter((s) => !unique.some((other) => other !== s && withinScope(s, other)));
+}
+
+/**
+ * The folder to walk for a changed path: the path itself when it's a folder (a new book or
+ * author), else the nearest folder above it, so a changed file rescans its book and a deleted
+ * book its author. A disc folder ("CD 1") stands for the book above it.
+ */
+export async function scanStart(root: string, rel: string): Promise<string> {
+  const parts = rel ? rel.split("/") : [];
+  while (parts.length) {
+    if (!DISC_FOLDER.test(parts.at(-1)!)) {
+      try {
+        if ((await fs.stat(path.join(root, ...parts))).isDirectory()) break;
+      } catch {
+        // gone: try its parent
+      }
+    }
+    parts.pop();
+  }
+  return parts.join("/");
+}
+
+/**
+ * Walks one library folder, or the part of it under `startRel`, and returns every folder
+ * in it that holds audio files directly.
+ */
+export async function walkFolder(folder: LibraryFolder, log: Logger, startRel = ""): Promise<FoundBook[]> {
   const libraryDir = folder.path;
 
   /** The book in `relDir`, if it holds audio, then those in its subfolders, in folder order. */
@@ -166,7 +221,7 @@ export async function walkFolder(folder: LibraryFolder, log: Logger): Promise<Fo
     return { ...book, folderId: folder.id, root: libraryDir, signature, contentKey };
   }
 
-  return visit("");
+  return visit(startRel);
 }
 
 export function createScanner(deps: ScannerDeps) {
@@ -254,12 +309,17 @@ export function createScanner(deps: ScannerDeps) {
     return true;
   }
 
-  async function runOnce(): Promise<{ stats: ScanStats; problems: string[] }> {
+  /**
+   * Scans every library folder, or with `scopes` only those parts of them (after file
+   * changes). A scoped scan only compares, moves and marks missing the books inside its scopes.
+   */
+  async function runOnce(scopes?: ScanScopes): Promise<{ stats: ScanStats; problems: string[] }> {
     const now = Date.now();
-    const folders = deps.folders();
-    if (folders.length === 0) throw new LibraryUnavailableError("No library folders are set. Add one in Settings.");
+    const allFolders = deps.folders();
+    if (allFolders.length === 0) throw new LibraryUnavailableError("No library folders are set. Add one in Settings.");
+    const folders = scopes ? allFolders.filter((f) => scopes.has(f.id)) : allFolders;
 
-    const existing = db
+    const allExisting = db
       .select({
         id: books.id,
         folderId: books.libraryFolderId,
@@ -276,6 +336,8 @@ export function createScanner(deps: ScannerDeps) {
     const problems: string[] = [];
     const unavailable = new Set<number>();
     const foundBooks: FoundBook[] = [];
+    // The parts of each folder walked: each changed path becomes the folder to walk.
+    const walked = new Map<number, string[]>();
     for (const folder of folders) {
       try {
         await fs.access(folder.path);
@@ -284,16 +346,21 @@ export function createScanner(deps: ScannerDeps) {
         problems.push(`${folder.path} is not reachable; its books were left as they were.`);
         continue;
       }
-      const inFolder = await walkFolder(folder, log);
-      const known = existing.filter((b) => b.folderId === folder.id && b.missingSince === null).length;
-      if (inFolder.length === 0 && known > 0) {
+      const starts = collapseScopes(await Promise.all((scopes?.get(folder.id) ?? [""]).map((s) => scanStart(folder.path, s))));
+      walked.set(folder.id, starts);
+      const inFolder = (await Promise.all(starts.map((s) => walkFolder(folder, log, s)))).flat();
+      const known = allExisting.filter((b) => b.folderId === folder.id && b.missingSince === null).length;
+      if (starts.includes("") && inFolder.length === 0 && known > 0) {
         unavailable.add(folder.id);
         problems.push(`${folder.path} looks empty but ${known} books are known there; they were left as they were.`);
         continue;
       }
       foundBooks.push(...inFolder);
     }
-    if (unavailable.size === folders.length) throw new LibraryUnavailableError(problems.join(" "));
+    if (folders.length && unavailable.size === folders.length) throw new LibraryUnavailableError(problems.join(" "));
+    const existing = scopes
+      ? allExisting.filter((b) => b.folderId !== null && (walked.get(b.folderId) ?? []).some((s) => withinScope(b.folderPath, s)))
+      : allExisting;
 
     const keyOf = (folderId: number | null, relDir: string) => `${folderId}:${relDir}`;
     const stats: ScanStats = { found: foundBooks.length, added: 0, updated: 0, moved: 0, unchanged: 0, missing: 0, removed: 0, failed: 0 };
@@ -341,7 +408,7 @@ export function createScanner(deps: ScannerDeps) {
     await Promise.all(tasks);
 
     // Books from a folder that was removed in Settings, and not found elsewhere, leave now.
-    const orphans = existing.filter((b) => !seen.has(b.id) && isOrphan(b.folderId)).map((b) => b.id);
+    const orphans = scopes ? [] : existing.filter((b) => !seen.has(b.id) && isOrphan(b.folderId)).map((b) => b.id);
     if (orphans.length) {
       db.delete(books).where(inArray(books.id, orphans)).run();
       stats.removed += orphans.length;
@@ -364,8 +431,25 @@ export function createScanner(deps: ScannerDeps) {
     return { stats, problems };
   }
 
-  /** Runs a scan; if one is already running, another pass is queued to start right after. */
-  async function scan(): Promise<void> {
+  /** What the next pass covers: everything, or the scopes asked for while one was running. */
+  let queued: ScanScopes | "full" | null = null;
+
+  function enqueue(scopes?: ScanScopes) {
+    if (!scopes || queued === "full") {
+      queued = "full";
+      return;
+    }
+    const next: ScanScopes = new Map(queued ?? []);
+    for (const [id, list] of scopes) next.set(id, collapseScopes([...(next.get(id) ?? []), ...list]));
+    queued = next;
+  }
+
+  /**
+   * Runs a scan of everything, or with `scopes` of just those folders. If one is already
+   * running, another pass is queued to start right after, merging what was asked for.
+   */
+  async function scan(scopes?: ScanScopes): Promise<void> {
+    enqueue(scopes);
     if (state.running) {
       state.rerunRequested = true;
       return;
@@ -374,12 +458,14 @@ export function createScanner(deps: ScannerDeps) {
     try {
       do {
         state.rerunRequested = false;
+        const pass = queued;
+        queued = null;
         const started = Date.now();
         try {
-          const { stats, problems } = await runOnce();
+          const { stats, problems } = await runOnce(pass === "full" || pass === null ? undefined : pass);
           state.lastStats = stats;
           state.lastError = problems.length ? problems.join(" ") : null;
-          log.info("scan finished", { ...stats, ms: Date.now() - started });
+          log.info(pass === "full" ? "scan finished" : "folder rescan finished", { ...stats, ms: Date.now() - started });
         } catch (err) {
           state.lastError = errorMessage(err);
           log.error("scan failed", { error: state.lastError });
@@ -393,7 +479,13 @@ export function createScanner(deps: ScannerDeps) {
     }
   }
 
-  return { scan };
+  /** Rescans just the folders holding these changed paths (absolute, from the file watcher). */
+  function scanChanged(paths: string[]): Promise<void> {
+    const scopes = scopesFor(deps.folders(), paths);
+    return scopes.size ? scan(scopes) : Promise.resolve();
+  }
+
+  return { scan, scanChanged };
 }
 
 export type Scanner = ReturnType<typeof createScanner>;

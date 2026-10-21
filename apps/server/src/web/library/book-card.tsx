@@ -29,12 +29,16 @@ export const BookCard = memo(function BookCard({ book, sub }: { book: BookSummar
   return (
     <div className="card">
       <Link href={`/book/${book.id}`} className="card-link">
-        <Cover
-          src={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 200) : null}
-          color={book.coverColor}
-          title={book.title}
-          subtitle={book.author}
-        />
+        <div className="card-cover">
+          <Cover
+            src={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 200) : null}
+            color={book.coverColor}
+            title={book.title}
+            subtitle={book.author}
+          />
+          {/* Admins see which books haven't been matched yet. */}
+          {actions?.isAdmin && !book.matched ? <span className="card-unmatched">Not matched</span> : null}
+        </div>
         {started ? (
           <div className="bar" aria-hidden="true">
             <div style={{ width: `${pct}%` }} />

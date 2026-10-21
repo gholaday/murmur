@@ -79,7 +79,7 @@ async function boot(): Promise<AppContext> {
       polling: env.watchPolling,
       debounceMs: env.watchDebounceMs,
       periodicMs: env.periodicScanMs,
-      onChange: () => void scanner.scan(),
+      onChange: (paths) => void (paths ? scanner.scanChanged(paths) : scanner.scan()),
       log: watchLog,
     });
   let currentWatcher = startWatch();

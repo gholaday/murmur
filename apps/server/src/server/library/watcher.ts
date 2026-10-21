@@ -9,9 +9,13 @@ interface WatcherOptions {
   polling: boolean;
   debounceMs: number;
   periodicMs: number;
-  onChange: () => void;
+  /** The paths that changed, or null for a full rescan (periodic, or too many changes to track). */
+  onChange: (paths: string[] | null) => void;
   log: Logger;
 }
+
+/** Beyond this many changed paths in one quiet period, rescanning everything is simpler. */
+const MAX_TRACKED_PATHS = 500;
 
 export interface LibraryWatcher {
   mode: () => WatchMode;
@@ -28,12 +32,17 @@ export function startWatcher(opts: WatcherOptions): LibraryWatcher {
   let mode: WatchMode = opts.polling ? "polling" : "events";
   let debounce: NodeJS.Timeout | null = null;
   let watcher: FSWatcher | null = null;
+  let changed: Set<string> | null = new Set();
 
-  const schedule = () => {
+  const schedule = (_event: string, p: string) => {
+    if (changed && changed.size < MAX_TRACKED_PATHS) changed.add(p);
+    else changed = null;
     if (debounce) clearTimeout(debounce);
     debounce = setTimeout(() => {
       debounce = null;
-      opts.onChange();
+      const paths = changed ? [...changed] : null;
+      changed = new Set();
+      opts.onChange(paths);
     }, opts.debounceMs);
   };
 
@@ -59,7 +68,7 @@ export function startWatcher(opts: WatcherOptions): LibraryWatcher {
     mode = "periodic-only";
   }
 
-  const periodic = setInterval(opts.onChange, opts.periodicMs);
+  const periodic = setInterval(() => opts.onChange(null), opts.periodicMs);
   periodic.unref();
 
   return {

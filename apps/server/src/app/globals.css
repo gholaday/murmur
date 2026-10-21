@@ -409,6 +409,8 @@ img.cover.pending { opacity: 0; }
 .chip .count-pill { margin-left: 6px; }
 .chip-warn:not([aria-pressed="true"]) { color: #f0b45a; }
 .card-link { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.card-cover { position: relative; }
+.card-unmatched { position: absolute; left: 6px; bottom: 6px; padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; background: rgba(17, 18, 20, 0.72); color: #f0b45a; pointer-events: none; }
 .card-menu { position: absolute; top: 6px; right: 6px; z-index: 2; }
 .card-dots { width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: rgba(17, 18, 20, 0.72); color: #f3f1ec; opacity: 0; transition: opacity 0.12s; }
 .card:hover .card-dots, .card-dots:focus-visible, .card-dots[aria-expanded="true"] { opacity: 1; }
@@ -901,6 +903,7 @@ a.episode-show:hover { color: var(--accent); }
 .compare .field { font-weight: 700; white-space: nowrap; }
 .compare .val { max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .compare img { width: 56px; border-radius: 6px; display: block; }
+.compare tr.same td { opacity: 0.5; }
 
 .badge-count { position: absolute; top: 6px; right: 6px; }
 

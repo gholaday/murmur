@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, expect, it } from "vitest";
 import { createLogger } from "../log";
-import { walkFolder } from "./scanner";
+import { scanStart, scopesFor, walkFolder } from "./scanner";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "murmur-walk-"));
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -54,4 +54,42 @@ it("gives a book the same signature until one of its files changes", async () =>
   const after = await walk();
   expect(after.signature).not.toBe(before.signature);
   expect(after.contentKey).not.toBe(before.contentKey); // the size changed too
+});
+
+it("groups changed paths by library folder, dropping those inside another change", () => {
+  const lib = path.join(root, "lib");
+  const other = path.join(root, "other");
+  const folders = [
+    { id: 1, path: lib },
+    { id: 2, path: other },
+  ] as Parameters<typeof scopesFor>[0];
+  const scopes = scopesFor(folders, [
+    path.join(lib, "Andy Weir", "Project Hail Mary", "cover.jpg"),
+    path.join(lib, "Brandon Sanderson", "Mistborn"),
+    path.join(lib, "Brandon Sanderson", "Mistborn", "Book 1 - The Final Empire", "01.mp3"), // inside the one above
+    path.join(other, "loose.mp3"),
+    path.join(root, "elsewhere", "x.mp3"), // outside every library folder
+  ]);
+  expect(scopes.get(1)?.sort()).toEqual(["Andy Weir/Project Hail Mary/cover.jpg", "Brandon Sanderson/Mistborn"]);
+  expect(scopes.get(2)).toEqual(["loose.mp3"]);
+  expect(scopes.size).toBe(2);
+});
+
+it("rescans a new folder itself, and the folder above a changed file or deleted folder", async () => {
+  file("Start/Author/Book/01.mp3");
+  file("Start/Author/Discs/CD 1/01.mp3");
+  const start = (rel: string) => scanStart(path.join(root, "Start"), rel);
+  expect(await start("Author/Book")).toBe("Author/Book"); // a new book folder
+  expect(await start("Author/Book/01.mp3")).toBe("Author/Book"); // a changed file
+  expect(await start("Author/Gone Book")).toBe("Author"); // a deleted book
+  expect(await start("Author/Discs/CD 1/01.mp3")).toBe("Author/Discs"); // a disc folder's book
+  expect(await start("Author/Discs/CD 1")).toBe("Author/Discs");
+  expect(await start("Gone Author/Gone Book/01.mp3")).toBe(""); // the whole library folder
+});
+
+it("walks only the part of the library it's asked to", async () => {
+  file("Scoped/One/01.mp3");
+  file("Scoped/Two/01.mp3");
+  const found = await walkFolder({ id: 1, path: root } as Parameters<typeof walkFolder>[0], createLogger("test"), "Scoped/One");
+  expect(found.map((b) => b.relDir)).toEqual(["Scoped/One"]);
 });
