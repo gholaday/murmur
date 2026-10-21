@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import Animated, { FadeIn as EnterFade, FadeOut as ExitFade, LayoutAnimationConfig } from "react-native-reanimated";
 import {
@@ -68,6 +68,40 @@ export default function Library() {
   const list = useMemo(() => books.data ?? [], [books.data]);
   const sorted = useMemo(() => sortBooks(list, sort), [list, sort]);
   const q = query.trim().toLowerCase();
+
+  const groups = useMemo((): BookGroup[] => {
+    if (tab === "authors") {
+      return groupBy(list, (b) => b.author).map(([name, items]) => ({
+        name,
+        books: sortBooks(items, "author"),
+        open: () => openGroup({ author: name }),
+        cardSub: (b) => seriesLabel(b.series, b.seriesPosition) ?? null,
+      }));
+    }
+    if (tab === "series") {
+      return groupBy(list, (b) => b.series).map(([name, items]) => {
+        const ordered = [...items].sort(bySeriesOrder);
+        const done = items.filter((b) => b.progress?.finished).length;
+        return {
+          name,
+          books: ordered,
+          sub: ordered[0]?.author,
+          side: done ? `${done} finished` : null,
+          open: () => openGroup({ series: name }),
+          cardSub: (b) => (b.seriesPosition !== null ? `Book ${b.seriesPosition}` : b.author),
+        };
+      });
+    }
+    return [];
+  }, [list, tab]);
+
+  const finishedRows = useMemo(() => {
+    if (tab !== "finished") return [];
+    const shown = list.filter((b) => b.progress?.finished).sort((a, b) => b.progress!.updatedAt - a.progress!.updatedAt);
+    const rows: BookSummary[][] = [];
+    for (let i = 0; i < shown.length; i += 3) rows.push(shown.slice(i, i + 3));
+    return rows;
+  }, [list, tab]);
 
   const setSort = (s: BookSort) => {
     setSortState(s);
@@ -203,51 +237,55 @@ export default function Library() {
         <SortSheet open={sortOpen} onClose={() => setSortOpen(false)} sort={sort} onSort={setSort} />
       </View>
     );
-  } else if (tab === "authors") {
-    body = groupBy(list, (b) => b.author).map(([name, items]) => (
-      <Group key={name} title={name} count={items.length} onOpen={() => openGroup({ author: name })}>
-        {sortBooks(items, "author").map((b) => (
-          <BookCard key={b.id} book={b} width={cardWidth} sub={seriesLabel(b.series, b.seriesPosition) ?? null} />
-        ))}
-      </Group>
-    ));
-  } else if (tab === "series") {
-    const groups = groupBy(list, (b) => b.series);
-    body = groups.length ? (
-      groups.map(([name, items]) => {
-        const ordered = [...items].sort(bySeriesOrder);
-        const done = items.filter((b) => b.progress?.finished).length;
-        return (
-          <Group
-            key={name}
-            title={name}
-            count={items.length}
-            sub={ordered[0]?.author}
-            side={done ? `${done} finished` : null}
-            onOpen={() => openGroup({ series: name })}
-          >
-            {ordered.map((b) => (
-              <BookCard key={b.id} book={b} width={cardWidth} sub={b.seriesPosition !== null ? `Book ${b.seriesPosition}` : b.author} />
-            ))}
-          </Group>
-        );
-      })
-    ) : (
-      <Empty>No series yet.</Empty>
+  } else if ((tab === "authors" || tab === "series") && groups.length) {
+    // One item per author or series: its heading and its sideways shelf.
+    return (
+      <View style={{ flex: 1, backgroundColor: t.bg }}>
+        <VirtualList
+          header={header}
+          data={groups}
+          keyOf={(g) => g.name}
+          fade={fade}
+          refresh={refresh}
+          render={(g) => (
+            <Group title={g.name} count={g.books.length} sub={g.sub} side={g.side} onOpen={g.open}>
+              {g.books.map((b) => (
+                <BookCard key={b.id} book={b} width={cardWidth} sub={g.cardSub(b)} />
+              ))}
+            </Group>
+          )}
+        />
+        <SortSheet open={sortOpen} onClose={() => setSortOpen(false)} sort={sort} onSort={setSort} />
+      </View>
+    );
+  } else if (tab === "finished" && finishedRows.length) {
+    return (
+      <View style={{ flex: 1, backgroundColor: t.bg }}>
+        <VirtualList
+          header={
+            <>
+              {header}
+              <View style={{ height: 20 }} />
+            </>
+          }
+          data={finishedRows}
+          keyOf={(r) => r[0]!.id}
+          fade={fade}
+          refresh={refresh}
+          separator={RowGap}
+          render={(r) => (
+            <View style={{ flexDirection: "row", columnGap: GAP }}>
+              {r.map((b) => (
+                <BookCard key={b.id} book={b} width={cardWidth} />
+              ))}
+            </View>
+          )}
+        />
+        <SortSheet open={sortOpen} onClose={() => setSortOpen(false)} sort={sort} onSort={setSort} />
+      </View>
     );
   } else {
-    const shown = [...list].filter((b) => b.progress?.finished).sort((a, b) => b.progress!.updatedAt - a.progress!.updatedAt);
-    body = shown.length ? (
-      <View style={{ marginTop: 20 }}>
-        <Grid>
-          {shown.map((b) => (
-            <BookCard key={b.id} book={b} width={cardWidth} />
-          ))}
-        </Grid>
-      </View>
-    ) : (
-      <Empty>No finished books yet.</Empty>
-    );
+    body = tab === "authors" ? null : <Empty>{tab === "finished" ? "No finished books yet." : "No series yet."}</Empty>;
   }
 
   return (
@@ -264,6 +302,53 @@ export default function Library() {
 
 // Defined once: an inline component here would be a new type each render, remounting every gap.
 const RowGap = () => <View style={{ height: 18 }} />;
+
+/** An author's or series' books, shown as a heading over a sideways shelf. */
+type BookGroup = {
+  name: string;
+  books: BookSummary[];
+  sub?: string | null;
+  side?: string | null;
+  open: () => void;
+  cardSub: (b: BookSummary) => string | null;
+};
+
+/**
+ * A virtualised list under the page header, so long libraries only mount the rows near the
+ * screen. Used by the Authors, Series and Finished views.
+ */
+function VirtualList<T>({
+  header,
+  data,
+  keyOf,
+  render,
+  fade,
+  refresh,
+  separator,
+}: {
+  header: React.ReactElement;
+  data: T[];
+  keyOf: (item: T) => string;
+  render: (item: T) => React.ReactNode;
+  fade: boolean;
+  refresh: React.ReactElement<React.ComponentProps<typeof RefreshControl>>;
+  separator?: React.ComponentType;
+}) {
+  return (
+    <FlatList
+      data={data}
+      keyExtractor={keyOf}
+      contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24 }}
+      refreshControl={refresh}
+      keyboardShouldPersistTaps="handled"
+      ListHeaderComponent={header}
+      ItemSeparatorComponent={separator}
+      windowSize={7}
+      maxToRenderPerBatch={6}
+      renderItem={({ item }) => <FadeIn when={fade}>{render(item)}</FadeIn>}
+    />
+  );
+}
 
 /**
  * The Books tab: its sections in your saved order. Normally All books is the virtualised grid
