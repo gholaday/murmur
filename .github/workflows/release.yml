@@ -79,6 +79,9 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The release notes link to the commits since the previous tag.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -122,11 +125,19 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 --decode > "$MURMUR_KEYSTORE"
           ./gradlew assembleRelease --no-daemon
           rm "$MURMUR_KEYSTORE"
+      # Settings' What's new opens this release, so its notes are the "Release x.y.z" commit's
+      # plain description of the changes. Without one, GitHub's generated notes.
       - name: Attach it to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           apk="murmur-$VERSION.apk"
           cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk "$apk"
-          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "$VERSION" --generate-notes
+          bash .github/release-notes.sh "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
+          if [ -s "$RUNNER_TEMP/notes.md" ]; then notes=(--notes-file "$RUNNER_TEMP/notes.md"); else notes=(--generate-notes); fi
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            if [ -s "$RUNNER_TEMP/notes.md" ]; then gh release edit "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md"; fi
+          else
+            gh release create "$GITHUB_REF_NAME" --title "$VERSION" "${notes[@]}"
+          fi
           gh release upload "$GITHUB_REF_NAME" "$apk" --clobber
