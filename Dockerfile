@@ -24,7 +24,10 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lo
 # ---------- build ----------
 FROM deps AS build
 COPY . .
-RUN pnpm --filter @murmur/server test && pnpm --filter @murmur/server build
+# Built into the server code (next.config.ts), so a container recreated with an older image's
+# environment, as Portainer's Recreate does, still reports the version it runs.
+ARG MURMUR_VERSION=dev
+RUN pnpm --filter @murmur/server test && MURMUR_VERSION=$MURMUR_VERSION pnpm --filter @murmur/server build
 # The install also pulls the glibc builds of sharp and argon2; on Alpine only the musl ones
 # load. Pruned here, before the copy, since deleting in a later layer wouldn't shrink the image.
 RUN cd apps/server/.next/standalone/node_modules/.pnpm \
