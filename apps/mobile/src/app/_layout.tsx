@@ -50,8 +50,7 @@ function Navigation() {
           <Stack.Screen name="book/[id]" />
           <Stack.Screen name="show/[id]" />
           <Stack.Screen name="group" />
-          <Stack.Screen name="shelf" />
-          <Stack.Screen name="podcast-list" />
+          <Stack.Screen name="shelf" />          <Stack.Screen name="podcast-list" />
           <Stack.Screen name="preview" />
           <Stack.Screen name="player" options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
         </Stack.Protected>

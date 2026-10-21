@@ -1,6 +1,6 @@
 import { ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { bySeriesOrder, groupBy, sortBooks } from "@murmur/shared/client";
+import { bySeriesOrder, groupBy, nextInSeriesSub, sortBooks } from "@murmur/shared/client";
 import { BookCard } from "@/components/book-card";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { Grid, Group, openGroup, PAD, Shelf, useGridWidth } from "@/components/library";
@@ -32,7 +32,7 @@ export default function GroupScreen() {
           <View style={{ marginTop: 12 }}>
             <Grid>
               {[...list].sort(bySeriesOrder).map((b) => (
-                <BookCard key={b.id} book={b} width={width} sub={b.seriesPosition !== null ? `Book ${b.seriesPosition}` : b.author} />
+                <BookCard key={b.id} book={b} width={width} sub={nextInSeriesSub(b)} />
               ))}
             </Grid>
           </View>

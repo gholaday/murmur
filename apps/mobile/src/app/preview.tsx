@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Animated, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { duration, plural, type PodcastPreview, type PodcastPreviewEpisode, type PodcastSummary, shortDate } from "@murmur/shared/client";
@@ -8,16 +8,17 @@ import { HeroBackdrop } from "@/components/hero";
 import { PlusIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { BackRow, Empty, SectionTitle, useBottomPad, useTopInset } from "@/components/page";
+import { BackRow, Empty, useBottomPad, useTopInset } from "@/components/page";
 import { Bone, FadeIn, Skeleton } from "@/components/skeleton";
+import { StickyHeading, useStickyHeading } from "@/components/sticky-heading";
 import { toast } from "@/components/toast";
-import { Button, Text } from "@/components/ui";
+import { Text } from "@/components/ui";
 import { api } from "@/lib/api";
 import { keys } from "@/lib/data";
 import { queryClient } from "@/lib/query";
 import { fonts, useTheme } from "@/theme";
 
-const PAGE = 20;
+type Item = "top" | "heading" | "empty" | PodcastPreviewEpisode;
 
 /** A podcast from search, read live from its feed, with Subscribe. Browse only: nothing plays. */
 export default function PreviewScreen() {
@@ -27,8 +28,8 @@ export default function PreviewScreen() {
   // `art` is the search result's 600px artwork; feeds often link a 3000px original instead.
   const { feedUrl, art } = useLocalSearchParams<{ feedUrl: string; art?: string }>();
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [limit, setLimit] = useState(PAGE);
   const [busy, setBusy] = useState(false);
+  const sticky = useStickyHeading();
 
   // Read live each time; the server caches it for a few minutes.
   const query = useQuery({
@@ -95,11 +96,10 @@ export default function PreviewScreen() {
     }
   };
 
-  return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <FadeIn style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ paddingTop: top, paddingHorizontal: PAD, paddingBottom: bottomPad }}>
+  const topBlock = (
+    <View>
           <HeroBackdrop path={artwork} color={null} height={top + 360} />
+          <View {...sticky.topProps} style={[sticky.topProps.style, { paddingTop: top, paddingHorizontal: PAD }]}>
           <BackRow />
           <View style={{ flexDirection: "row", gap: 16, alignItems: "flex-end", marginTop: 4 }}>
             <Cover path={artwork} title={preview.title} size={128} radius={12} />
@@ -157,21 +157,38 @@ export default function PreviewScreen() {
               ) : null}
             </Pressable>
           ) : null}
+          </View>
+    </View>
+  );
 
-          <SectionTitle title="Episodes" />
-          {preview.episodes.length === 0 ? (
-            <Empty>No episodes.</Empty>
-          ) : (
-            <>
-              {preview.episodes.slice(0, limit).map((e) => (
-                <PreviewEpisodeRow key={e.guid} episode={e} />
-              ))}
-              {preview.episodes.length > limit ? (
-                <Button label="Show more" kind="secondary" onPress={() => setLimit((l) => l + PAGE)} style={{ marginTop: 16 }} />
-              ) : null}
-            </>
-          )}
-        </ScrollView>
+  // The list's items: the top of the page, the heading (which sticks), then the episodes.
+  const items: Item[] = ["top", "heading", ...(preview.episodes.length ? preview.episodes : ["empty" as const])];
+
+  return (
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <FadeIn style={{ flex: 1 }}>
+        <Animated.FlatList
+          data={items}
+          keyExtractor={(item) => (typeof item === "string" ? item : item.guid)}
+          contentContainerStyle={{ paddingBottom: bottomPad }}
+          {...sticky.scrollProps}
+          stickyHeaderIndices={[1]}
+          windowSize={7}
+          maxToRenderPerBatch={8}
+          renderItem={({ item }) =>
+            item === "top" ? (
+              topBlock
+            ) : item === "heading" ? (
+              <StickyHeading title="Episodes" count={preview.episodeCount} cover={sticky.cover} />
+            ) : item === "empty" ? (
+              <Empty>No episodes.</Empty>
+            ) : (
+              <View style={{ paddingHorizontal: PAD }}>
+                <PreviewEpisodeRow episode={item} />
+              </View>
+            )
+          }
+        />
       </FadeIn>
       <BottomMiniPlayer />
     </View>

@@ -1,7 +1,7 @@
 import { memo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { apiPaths, type BookDetail, duration, plural, timeLeft } from "@murmur/shared/client";
+import { apiPaths, type BookDetail, chapterAt, duration, plural, timeLeft } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { HeroBackdrop } from "@/components/hero";
@@ -16,7 +16,6 @@ import { setFinished, useBook } from "@/lib/data";
 import { downloadBook, getDownload, removeDownload, useDownload, type Download } from "@/lib/downloads";
 import {
   bookToPlayable,
-  chapterAt,
   isCurrent,
   markCurrent,
   play,

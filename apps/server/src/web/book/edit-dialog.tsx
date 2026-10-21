@@ -10,6 +10,7 @@ import {
   type ChapterDto,
   duration,
   type MatchSearchResult,
+  errorText,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
@@ -28,10 +29,6 @@ const TABS: Array<{ id: EditTab; label: string }> = [
 ];
 
 const PROVIDER_NAME = { audible: "Audible", google: "Google Books" } as const;
-
-function errorText(err: unknown) {
-  return err instanceof Error ? err.message : "Something went wrong.";
-}
 
 interface Form {
   title: string;
@@ -301,14 +298,14 @@ function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; s
       <div className={`edit-field ${opts.wide ? "wide" : ""}`}>
         <div className="edit-label">
           <label htmlFor={id}>{FIELD_LABELS[f]}</label>
-          {changed ? <span className="edited-pill">Edited</span> : null}
+          {changed ? <span className="edited-dot" role="img" aria-label="Edited" title="Edited, differs from the files" /> : null}
           {unsaved ? (
             <button type="button" className="link-btn" onClick={() => setForm({ ...form, [f]: saved })}>
               Undo
             </button>
           ) : changed ? (
             <button type="button" className="link-btn" onClick={() => setForm({ ...form, [f]: scanned })}>
-              Reset to files
+              Reset
             </button>
           ) : null}
         </div>

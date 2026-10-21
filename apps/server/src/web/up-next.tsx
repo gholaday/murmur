@@ -2,41 +2,12 @@
 
 import { toast } from "sonner";
 import { useState } from "react";
-import { apiPaths, duration, plural, type QueueEntry, type QueueRef, timeLeft } from "@murmur/shared/client";
+import { chapterAt, duration, plural, type QueueEntry, queueEntryView, queueRef, timeLeft } from "@murmur/shared/client";
 import { Cover } from "./cover";
 import { CloseIcon, DragIcon, PlayIcon } from "./icons";
-import { chapterAt, type Playable, usePlayer, usePosition } from "./player/engine";
+import { type Playable, usePlayer, usePosition } from "./player/engine";
 import { QueueRowsSkeleton } from "./skeletons";
 import { useSortable } from "./sortable";
-
-function entryView(e: QueueEntry) {
-  if (e.itemType === "book") {
-    const b = e.book;
-    const pos = b.progress && !b.progress.finished ? b.progress.positionSec : 0;
-    return {
-      // The author sits above the title, as an episode's show does.
-      kind: b.author ?? "Audiobook",
-      title: b.title,
-      sub: pos > 5 ? timeLeft(b.durationSec, pos) : duration(b.durationSec),
-      cover: b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 200) : null,
-      color: b.coverColor,
-      remaining: Math.max(0, b.durationSec - pos),
-    };
-  }
-  const ep = e.episode;
-  const dur = ep.durationSec ?? 0;
-  const pos = ep.progress && !ep.progress.finished ? ep.progress.positionSec : 0;
-  return {
-    kind: ep.podcastTitle,
-    title: ep.title,
-    sub: pos > 5 && dur ? timeLeft(dur, pos) : duration(dur),
-    cover: ep.podcastCoverHash ? apiPaths.podcastCoverUrl(ep.podcastId, ep.podcastCoverHash, 200) : null,
-    color: ep.podcastCoverColor,
-    remaining: Math.max(0, dur - pos),
-  };
-}
-
-const toRef = (e: QueueEntry): QueueRef => ({ itemType: e.itemType, itemId: e.itemId });
 
 /** Its own component so the playhead ticks redraw this card, not the whole queue below it. */
 function NowPlayingCard({ item, onOpen }: { item: Playable; onOpen: () => void }) {
@@ -82,7 +53,7 @@ export function UpNextView() {
   const save = (entries: QueueEntry[]) => {
     setPending(entries);
     player
-      .queueReplace(entries.map(toRef))
+      .queueReplace(entries.map(queueRef))
       .catch((err: unknown) => {
         toast.error(err instanceof Error ? err.message : "Couldn't save the queue.");
         void player.refreshQueue();
@@ -100,7 +71,7 @@ export function UpNextView() {
 
   const sortable = useSortable(move);
 
-  const total = queue.reduce((sum, e) => sum + entryView(e).remaining, 0);
+  const total = queue.reduce((sum, e) => sum + queueEntryView(e).remaining, 0);
 
   return (
     <>
@@ -144,19 +115,19 @@ export function UpNextView() {
         ) : (
           <div ref={sortable.listRef} className={`list ${sortable.sorting ? "sorting" : ""}`}>
             {queue.map((e, i) => {
-              const v = entryView(e);
+              const v = queueEntryView(e);
               const row = sortable.rowProps(i);
               return (
                 <div key={`${e.itemType}:${e.itemId}`} data-row className={`queue-row ${row.className}`} style={row.style}>
                   <Cover className="thumb" src={v.cover} color={v.color} title={v.title} />
-                  <button type="button" className="list-row-main" style={{ textAlign: "left" }} onClick={() => void player.playRef(toRef(e))}>
+                  <button type="button" className="list-row-main" style={{ textAlign: "left" }} onClick={() => void player.playRef(queueRef(e))}>
                     <span className="list-row-meta">{v.kind}</span>
                     <span className="list-row-title" style={{ fontSize: 14 }}>
                       {v.title}
                     </span>
-                    <span className="list-row-sub">{v.sub}</span>
+                    <span className="list-row-sub">{v.length}</span>
                   </button>
-                  <button type="button" className="icon-btn dim" aria-label={`Play ${v.title} now`} onClick={() => void player.playRef(toRef(e))}>
+                  <button type="button" className="icon-btn dim" aria-label={`Play ${v.title} now`} onClick={() => void player.playRef(queueRef(e))}>
                     <PlayIcon size={18} />
                   </button>
                   <button type="button" className="icon-btn dim" aria-label={`Remove ${v.title}`} onClick={() => save(queue.filter((_, j) => j !== i))}>

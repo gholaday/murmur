@@ -4,11 +4,20 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
+  adScanStatus,
+  errorText,
+  gigabytes,
+  joinPath,
+  KEEP_PER_SHOW_OPTIONS,
   shortDate,
+  SKIP_BACK_OPTIONS,
+  SKIP_FORWARD_OPTIONS,
+  THEME_CHOICES,
   type EpisodeCacheStatusDto,
   type FolderBrowseDto,
   type FolderCheckDto,
   type LibraryFolderDto,
+  type ThemeChoice,
   type UserDto,
 } from "@murmur/shared/client";
 import { api } from "../api";
@@ -16,15 +25,7 @@ import { BackIcon, FolderIcon, PlusIcon } from "../icons";
 import { AD_MODES, adPrefsStore, useAdPrefs } from "../player/ad-prefs";
 import { usePlayer } from "../player/engine";
 import { Sheet } from "../sheet";
-import { applyTheme, currentTheme, type ThemeChoice } from "../theme";
-
-const THEMES: Array<{ id: ThemeChoice; label: string }> = [
-  { id: "system", label: "System" },
-  { id: "dark", label: "Dark" },
-  { id: "light", label: "Light" },
-];
-const BACK_OPTIONS = [5, 10, 15, 30];
-const FORWARD_OPTIONS = [10, 15, 30, 45, 60];
+import { applyTheme, currentTheme } from "../theme";
 
 interface ServerInfo {
   version: string;
@@ -36,10 +37,6 @@ interface ServerInfo {
   lastScanAt: number | null;
   lastScanError: string | null;
   watcher: "events" | "polling" | "periodic-only";
-}
-
-function errorText(err: unknown) {
-  return err instanceof Error ? err.message : "Something went wrong.";
 }
 
 export function ProfileView({
@@ -92,7 +89,7 @@ export function ProfileView({
           <div className="setting" style={{ flexWrap: "wrap", paddingBlock: 10 }}>
             <span className="setting-title">Skip back</span>
             <div className="chips">
-              {BACK_OPTIONS.map((s) => (
+              {SKIP_BACK_OPTIONS.map((s) => (
                 <button key={s} type="button" className="chip" aria-pressed={player.skip.back === s} onClick={() => player.setSkip({ ...player.skip, back: s })}>
                   {s}s
                 </button>
@@ -102,7 +99,7 @@ export function ProfileView({
           <div className="setting" style={{ flexWrap: "wrap", paddingBlock: 10 }}>
             <span className="setting-title">Skip forward</span>
             <div className="chips">
-              {FORWARD_OPTIONS.map((s) => (
+              {SKIP_FORWARD_OPTIONS.map((s) => (
                 <button
                   key={s}
                   type="button"
@@ -192,7 +189,7 @@ function ThemePicker() {
           <span className="setting-title">Theme</span>
         </span>
         <div className="chips" role="radiogroup" aria-label="Theme">
-          {THEMES.map((t) => (
+          {THEME_CHOICES.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -355,33 +352,10 @@ function LibraryCard({ server, onScanned }: { server: ServerInfo; onScanned: () 
   );
 }
 
-const PER_SHOW_OPTIONS = [0, 1, 3, 5, 10];
-/** The add-on reports every minute or so; this long without a word counts as not connected. */
-const ADDON_SILENT_MS = 15 * 60_000;
-
-function gb(bytes: number) {
-  return `${(bytes / 1024 ** 3).toFixed(bytes < 10 * 1024 ** 3 ? 1 : 0)} GB`;
-}
-
 function EpisodeCacheCard({ cache, onChanged }: { cache: EpisodeCacheStatusDto; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const { ads } = cache;
-  const addonState = !ads.addon || Date.now() - ads.addon.seenAt > ADDON_SILENT_MS ? "missing" : ads.addon.state;
-  const addonText =
-    addonState === "missing"
-      ? "Not connected. Check the add-on container is running."
-      : addonState === "ok"
-        ? "Working"
-        : (ads.addon?.message ?? (addonState === "paused" ? "Paused" : "Stopped by an error"));
-  const groq = addonState === "missing" ? null : ads.addon?.groq;
-  const groqText = groq
-    ? `Transcribing with Vosk${
-        groq.until ? ` until ${new Date(groq.until).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : ""
-      }. ${groq.problem}.`
-    : null;
-  const counts = [`${ads.done} scanned`, ads.queued ? `${ads.queued} waiting` : null, ads.failed ? `${ads.failed} failed` : null]
-    .filter(Boolean)
-    .join(", ");
+  const scan = adScanStatus(ads, Date.now());
 
   return (
     <div className="card-box">
@@ -389,11 +363,11 @@ function EpisodeCacheCard({ cache, onChanged }: { cache: EpisodeCacheStatusDto; 
         <span className="setting-text">
           <span className="setting-title">Episodes kept ready per show</span>
           <span className={`setting-sub ${cache.available ? "" : "error"}`}>
-            {cache.available ? `${gb(cache.usedBytes)} of ${gb(cache.maxBytes)} used` : cache.error}
+            {cache.available ? `${gigabytes(cache.usedBytes)} of ${gigabytes(cache.maxBytes)} used` : cache.error}
           </span>
         </span>
         <div className="chips" role="radiogroup" aria-label="Episodes kept ready per show">
-          {PER_SHOW_OPTIONS.map((n) => (
+          {KEEP_PER_SHOW_OPTIONS.map((n) => (
             <button
               key={n}
               type="button"
@@ -423,12 +397,12 @@ function EpisodeCacheCard({ cache, onChanged }: { cache: EpisodeCacheStatusDto; 
         <div className="setting">
           <span className="setting-text">
             <span className="setting-title">
-              <span className={`status-dot ${addonState === "ok" ? "" : "warn"}`} />
+              <span className={`status-dot ${scan.state === "ok" ? "" : "warn"}`} />
               Ad detection
             </span>
-            <span className={`setting-sub ${addonState === "error" ? "error" : ""}`}>{addonText}</span>
-            {groqText ? <span className={`setting-sub ${groq?.until ? "" : "error"}`}>{groqText}</span> : null}
-            <span className="setting-sub">{counts}</span>
+            <span className={`setting-sub ${scan.state === "error" ? "error" : ""}`}>{scan.text}</span>
+            {scan.groqText ? <span className={`setting-sub ${scan.groqStuck ? "error" : ""}`}>{scan.groqText}</span> : null}
+            <span className="setting-sub">{scan.counts}</span>
           </span>
           {ads.failed ? (
             <button
@@ -643,11 +617,6 @@ function AddFolderForm({
       </button>
     </form>
   );
-}
-
-function joinPath(dir: string, name: string) {
-  const sep = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";
-  return dir.endsWith(sep) ? dir + name : dir + sep + name;
 }
 
 function UsersCard({ me, users, onChanged }: { me: UserDto; users: UserDto[]; onChanged: () => void }) {

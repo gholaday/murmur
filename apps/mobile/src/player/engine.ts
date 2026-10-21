@@ -4,15 +4,24 @@ import { createAudioPlayer, setAudioModeAsync, type AudioStatus } from "expo-aud
 import { File, Directory, Paths } from "expo-file-system";
 import { onlineManager } from "@tanstack/react-query";
 import {
+  ADS_POLL_MS,
   apiPaths,
   type BookDetail,
+  chapterAt,
   type ChapterDto,
+  clampSpeed,
   type EpisodeAdsDto,
   type EpisodeWithShow,
   type ItemType,
+  NOW_PLAYING_KEY,
+  parseSkip,
   type ProgressItem,
   type QueueEntry,
   type QueueRef,
+  SAVE_EVERY_MS,
+  SKIP_KEY,
+  type SkipSettings,
+  type SleepTimer,
 } from "@murmur/shared/client";
 import { absolute, api, authHeaders } from "@/lib/api";
 import { fetchBook, fetchEpisode, invalidateListening, keys } from "@/lib/data";
@@ -26,14 +35,7 @@ import { adModeFor, adPrefsStore, adToSkip, playedThrough } from "./ad-prefs";
 // progress saving carry on whatever screen is showing (or with the screen off).
 // Mirrors the web player's engine (apps/server/src/web/player/engine.tsx).
 
-const SAVE_EVERY_MS = 10_000;
-const NOW_PLAYING_KEY = "murmur.nowPlaying";
 const OUTBOX_KEY = "murmur.progressOutbox";
-const SKIP_KEY = "murmur.skip";
-const ADS_POLL_MS = 60_000;
-/** Android's player tops out at 2x. */
-export const MAX_SPEED = 2;
-export const MIN_SPEED = 0.5;
 
 export interface PlayableFile {
   path: string;
@@ -57,8 +59,6 @@ export interface Playable {
   startAt: number;
   speed: number;
 }
-
-export const clampSpeed = (s: number) => Math.round(Math.min(MAX_SPEED, Math.max(MIN_SPEED, s)) * 100) / 100;
 
 export function bookToPlayable(b: BookDetail): Playable {
   return {
@@ -125,16 +125,6 @@ async function loadPlayableDetails(ref: QueueRef): Promise<Playable> {
   }
 }
 
-export function chapterAt(chapters: ChapterDto[], position: number): number {
-  return chapters.findLastIndex((c) => c.startSec <= position + 0.25);
-}
-
-export type SleepTimer = { mode: "off" } | { mode: "timer"; endsAt: number } | { mode: "chapter"; endSec: number };
-export interface SkipSettings {
-  back: number;
-  forward: number;
-}
-
 export interface PlayerState {
   item: Playable | null;
   playing: boolean;
@@ -159,7 +149,7 @@ let state: PlayerState = {
   error: null,
   speed: 1,
   sleep: { mode: "off" },
-  skip: getJson<SkipSettings>(SKIP_KEY) ?? { back: 10, forward: 30 },
+  skip: parseSkip(getJson<SkipSettings>(SKIP_KEY)),
   queue: [],
   queueLoaded: false,
   ads: null,

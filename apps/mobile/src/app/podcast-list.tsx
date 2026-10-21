@@ -1,17 +1,18 @@
 import { useMemo, useState } from "react";
-import { RefreshControl, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
+import { NEW_EPISODES_PAGE, PODCAST_LIST_IDS, PODCAST_LIST_TITLES, type PodcastListId, sortShows } from "@murmur/shared/client";
 import { EpisodeRow } from "@/components/episode-row";
 import { FilterIcon } from "@/components/icons";
 import { Grid, PAD, useGridWidth } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { BackRow, Empty, PageTitle, useBottomPad, useTopInset } from "@/components/page";
-import { PODCAST_LIST_IDS, PODCAST_LIST_TITLES, type PodcastListId, ShowCard, SortSheet, sortShows, useSort } from "@/components/podcasts";
+import { usePullRefresh } from "@/components/pull-refresh";
+import { ShowCard, SortSheet, useSort } from "@/components/podcasts";
 import { Button, IconButton } from "@/components/ui";
 import { useContinueEpisodes, useNewEpisodes, usePodcasts } from "@/lib/data";
 import { useTheme } from "@/theme";
 
-const NEW_PAGE = 10;
 
 /** Everything in one of the Podcasts tab's sections, opened from its heading. */
 export default function PodcastListScreen() {
@@ -23,7 +24,7 @@ export default function PodcastListScreen() {
   const id: PodcastListId = PODCAST_LIST_IDS.find((s) => s === params.id) ?? "new";
   const sort = useSort();
   const [sortOpen, setSortOpen] = useState(false);
-  const [shown, setShown] = useState(NEW_PAGE);
+  const [shown, setShown] = useState(NEW_EPISODES_PAGE);
 
   const podcasts = usePodcasts();
   const newEpisodes = useNewEpisodes();
@@ -32,6 +33,7 @@ export default function PodcastListScreen() {
   const shows = useMemo(() => sortShows(podcasts.data ?? [], sort), [podcasts.data, sort]);
   const episodes = (id === "new" ? newEpisodes.data : continueEpisodes.data) ?? [];
   const count = id === "podcasts" ? shows.length : episodes.length;
+  const refresh = usePullRefresh(query.refetch);
 
   let body: React.ReactNode;
   if (count === 0) body = query.isPending ? null : <Empty>Nothing here right now.</Empty>;
@@ -54,7 +56,7 @@ export default function PodcastListScreen() {
         ))}
         {list.length < episodes.length ? (
           <View style={{ marginTop: 20, alignItems: "center" }}>
-            <Button label="Show more" kind="secondary" onPress={() => setShown((n) => n + NEW_PAGE)} />
+            <Button label="Show more" kind="secondary" onPress={() => setShown((n) => n + NEW_EPISODES_PAGE)} />
           </View>
         ) : null}
       </>
@@ -65,9 +67,7 @@ export default function PodcastListScreen() {
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <ScrollView
         contentContainerStyle={{ paddingTop: top, paddingHorizontal: PAD, paddingBottom: bottomPad }}
-        refreshControl={
-          <RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={t.accent} colors={[t.accent]} />
-        }
+        refreshControl={refresh}
       >
         <BackRow />
         <PageTitle

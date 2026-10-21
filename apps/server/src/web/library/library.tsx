@@ -21,7 +21,11 @@ import {
   shelfBooks,
   type ShelfId,
   sortBooks,
+  BOOK_SORTS,
   type BookSort as Sort,
+  LIBRARY_SORT_KEY,
+  nextInSeriesSub,
+  progressPct,
   timeLeft,
 } from "@murmur/shared/client";
 import { api } from "../api";
@@ -30,7 +34,7 @@ import { BackIcon, CustomizeIcon, DragIcon, FilterIcon, SearchIcon } from "../ic
 import { EditBookDialog, type EditTab } from "../book/edit-dialog";
 import { Sheet, SheetItem } from "../sheet";
 import { useSortable } from "../sortable";
-import { BookActionsContext, BookCard, progressPct } from "./book-card";
+import { BookActionsContext, BookCard } from "./book-card";
 
 type Tab = "books" | "authors" | "series" | "finished" | "attention";
 
@@ -51,16 +55,6 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: "finished", label: "Finished" },
 ];
 
-const SORTS: Array<{ id: Sort; label: string }> = [
-  { id: "added", label: "Recently added" },
-  { id: "listened", label: "Recently listened" },
-  { id: "title", label: "Title" },
-  { id: "author", label: "Author" },
-];
-
-const SORT_KEY = "murmur.librarySort";
-/** Under a Next in series card: which book it is (series names are too long to fit), else the author. */
-const nextSub = (b: BookSummary) => (b.seriesPosition !== null ? `Book ${b.seriesPosition}` : b.author);
 /** A titled section of book cards, like "All books": the heading opens that author or series. */
 function GroupGrid({
   title,
@@ -154,6 +148,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
   const series = params.get("series");
   const shelfParam = params.get("shelf");
   const shelf = shelfParam && shelfParam in SHELF_TITLES ? (shelfParam as ShelfId) : null;
+  const allBooks = shelfParam === "all";
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [sort, setSort] = useState<Sort>("added");
@@ -173,8 +168,8 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(SORT_KEY) as Sort | null;
-      if (saved && SORTS.some((s) => s.id === saved)) setSort(saved);
+      const saved = localStorage.getItem(LIBRARY_SORT_KEY) as Sort | null;
+      if (saved && BOOK_SORTS.some((s) => s.id === saved)) setSort(saved);
     } catch {
       // private mode
     }
@@ -212,6 +207,28 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
   const unmatchedCount = useMemo(() => books.filter((b) => !b.matched).length, [books]);
   const q = query.trim().toLowerCase();
 
+  const sortSheet = (
+    <Sheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort books">
+      {BOOK_SORTS.map((s) => (
+        <SheetItem
+          key={s.id}
+          active={sort === s.id}
+          onClick={() => {
+            setSort(s.id);
+            setSortOpen(false);
+            try {
+              localStorage.setItem(LIBRARY_SORT_KEY, s.id);
+            } catch {
+              // private mode
+            }
+          }}
+        >
+          {s.label}
+        </SheetItem>
+      ))}
+    </Sheet>
+  );
+
   if (books.length === 0) {
     return (
       <>
@@ -222,6 +239,35 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
           <strong>No books yet</strong>
           {emptyReason}
         </div>
+      </>
+    );
+  }
+
+  // Every book, opened from the All books heading, in the chosen sort.
+  if (allBooks) {
+    return (
+      <>
+        <div className="back-row">
+          <button type="button" className="icon-btn" onClick={() => router.back()} aria-label="Back">
+            <BackIcon />
+          </button>
+        </div>
+        <div className="page-head">
+          <h1 className="page-title" style={{ fontSize: 26 }}>
+            <TitleWithCount title={BOOK_SECTION_TITLES.all} count={sorted.length} />
+          </h1>
+          <div className="head-actions">
+            <button type="button" className="icon-btn" aria-label="Sort" onClick={() => setSortOpen(true)}>
+              <FilterIcon />
+            </button>
+          </div>
+        </div>
+        <div className="grid">
+          {sorted.map((b) => (
+            <BookCard key={b.id} book={b} />
+          ))}
+        </div>
+        {sortSheet}
       </>
     );
   }
@@ -244,7 +290,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
         {list.length ? (
           <div className="grid">
             {list.map((b) => (
-              <BookCard key={b.id} book={b} sub={shelf === "next" ? nextSub(b) : undefined} />
+              <BookCard key={b.id} book={b} sub={shelf === "next" ? nextInSeriesSub(b) : undefined} />
             ))}
           </div>
         ) : (
@@ -338,20 +384,11 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
         </div>
       ) : null;
     }
-    if (id === "all") {
-      return (
-        <div className="grid">
-          {sorted.map((b) => (
-            <BookCard key={b.id} book={b} />
-          ))}
-        </div>
-      );
-    }
-    const list = shelves[id];
+    const list = id === "all" ? sorted : shelves[id];
     return list.length ? (
       <div className="shelf">
         {list.slice(0, SHELF_SIZE).map((b) => (
-          <BookCard key={b.id} book={b} sub={id === "next" ? nextSub(b) : undefined} />
+          <BookCard key={b.id} book={b} sub={id === "next" ? nextInSeriesSub(b) : undefined} />
         ))}
       </div>
     ) : null;
@@ -531,25 +568,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
         </>
       )}
 
-      <Sheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort books">
-        {SORTS.map((s) => (
-          <SheetItem
-            key={s.id}
-            active={sort === s.id}
-            onClick={() => {
-              setSort(s.id);
-              setSortOpen(false);
-              try {
-                localStorage.setItem(SORT_KEY, s.id);
-              } catch {
-                // private mode
-              }
-            }}
-          >
-            {s.label}
-          </SheetItem>
-        ))}
-      </Sheet>
+      {sortSheet}
     </>
   );
 }
@@ -612,12 +631,7 @@ function BookSections({
           >
             <div className="book-section-inner">
               <div className="section-head">
-                {s.id === "all" ? (
-                  <h2 className="section-title">
-                    <SectionTitle title={title} count={counts[s.id]} />
-                  </h2>
-                ) : (
-                  <button
+                <button
                     type="button"
                     className="section-title group-title"
                     onClick={() => {
@@ -626,7 +640,6 @@ function BookSections({
                   >
                     <SectionTitle title={title} count={counts[s.id]} />
                   </button>
-                )}
                 <div className={`customize-actions ${customizing ? "" : "off"}`} inert={!customizing}>
                   <button
                     type="button"

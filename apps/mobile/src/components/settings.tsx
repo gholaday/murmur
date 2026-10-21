@@ -1,7 +1,20 @@
 import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
-import { shortDate, type EpisodeCacheStatusDto, type FolderBrowseDto, type FolderCheckDto, type HealthDto, type LibraryFolderDto, type UserDto } from "@murmur/shared/client";
+import {
+  adScanStatus,
+  type EpisodeCacheStatusDto,
+  errorText,
+  type FolderBrowseDto,
+  type FolderCheckDto,
+  gigabytes,
+  type HealthDto,
+  joinPath,
+  KEEP_PER_SHOW_OPTIONS,
+  type LibraryFolderDto,
+  shortDate,
+  type UserDto,
+} from "@murmur/shared/client";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/query";
 import { fonts, useTheme } from "@/theme";
@@ -158,10 +171,6 @@ function Checkbox({ label, checked, onChange }: { label: string; checked: boolea
   );
 }
 
-function errorText(err: unknown) {
-  return err instanceof Error ? err.message : "Something went wrong.";
-}
-
 const passwordProps = { secureTextEntry: true, autoCapitalize: "none", autoCorrect: false, spellCheck: false } as const;
 
 /** Account row for changing your password; other devices are signed out, this one stays. */
@@ -224,12 +233,6 @@ export function PasswordRow() {
 
 const libraryKeys = { health: ["health"], folders: ["library-folders"], users: ["users"], cache: ["episode-cache"] } as const;
 
-const PER_SHOW_OPTIONS = [0, 1, 3, 5, 10];
-/** The add-on reports every minute or so; this long without a word counts as not connected. */
-const ADDON_SILENT_MS = 15 * 60_000;
-
-const gb = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(bytes < 10 * 1024 ** 3 ? 1 : 0)} GB`;
-
 /** Admin: how many recent episodes the server keeps ready per show, and how ad detection is doing. */
 export function EpisodeCacheSection() {
   const t = useTheme();
@@ -266,35 +269,20 @@ export function EpisodeCacheSection() {
   }
   const { ads } = c;
   // Measured from when this status was fetched.
-  const addonState = !ads.addon || cache.dataUpdatedAt - ads.addon.seenAt > ADDON_SILENT_MS ? "missing" : ads.addon.state;
-  const addonText =
-    addonState === "missing"
-      ? "Not connected. Check the add-on container is running."
-      : addonState === "ok"
-        ? "Working"
-        : (ads.addon?.message ?? (addonState === "paused" ? "Paused" : "Stopped by an error"));
-  const groq = addonState === "missing" ? null : ads.addon?.groq;
-  const groqText = groq
-    ? `Transcribing with Vosk${
-        groq.until ? ` until ${new Date(groq.until).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : ""
-      }. ${groq.problem}.`
-    : null;
-  const counts = [`${ads.done} scanned`, ads.queued ? `${ads.queued} waiting` : null, ads.failed ? `${ads.failed} failed` : null]
-    .filter(Boolean)
-    .join(", ");
+  const scan = adScanStatus(ads, cache.dataUpdatedAt);
 
   return (
     <FadeIn>
       <Card>
         <Row
           title="Episodes kept ready per show"
-          sub={c.available ? `${gb(c.usedBytes)} of ${gb(c.maxBytes)} used` : c.error}
+          sub={c.available ? `${gigabytes(c.usedBytes)} of ${gigabytes(c.maxBytes)} used` : c.error}
           subDanger={!c.available}
           stacked
           last={!ads.enabled}
         >
           <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
-            {PER_SHOW_OPTIONS.map((n) => (
+            {KEEP_PER_SHOW_OPTIONS.map((n) => (
               <Chip
                 key={n}
                 label={n === 0 ? "Off" : String(n)}
@@ -311,18 +299,18 @@ export function EpisodeCacheSection() {
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingVertical: 14 }}>
             <View style={{ flexShrink: 1, gap: 2 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: addonState === "ok" ? "#5ccf8a" : "#f0b45a" }} />
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: scan.state === "ok" ? "#5ccf8a" : "#f0b45a" }} />
                 <Text variant="bodyStrong">Ad detection</Text>
               </View>
-              <Text variant="small" style={addonState === "error" ? { color: t.danger } : undefined}>
-                {addonText}
+              <Text variant="small" style={scan.state === "error" ? { color: t.danger } : undefined}>
+                {scan.text}
               </Text>
-              {groqText ? (
-                <Text variant="small" style={groq?.until ? undefined : { color: t.danger }}>
-                  {groqText}
+              {scan.groqText ? (
+                <Text variant="small" style={scan.groqStuck ? { color: t.danger } : undefined}>
+                  {scan.groqText}
                 </Text>
               ) : null}
-              <Text variant="small">{counts}</Text>
+              <Text variant="small">{scan.counts}</Text>
             </View>
             {ads.failed ? (
               <SmallButton
@@ -465,11 +453,6 @@ export function LibrarySection() {
       </Sheet>
     </>
   );
-}
-
-function joinPath(dir: string, name: string) {
-  const sep = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";
-  return dir.endsWith(sep) ? dir + name : dir + sep + name;
 }
 
 /** Type a path or browse the server's folders; the path is checked as you go. */

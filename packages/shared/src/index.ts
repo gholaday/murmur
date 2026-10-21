@@ -1,7 +1,11 @@
 import { z } from "zod";
+import { clampSpeed } from "./player";
 import { BOOK_SECTION_IDS } from "./shelves";
 
 // ---------- Request schemas (validated on the server, reused by clients) ----------
+
+/** A playback speed. Anything out of range, like one saved under the old 3× limit, is brought into it. */
+const speedSchema = z.number().positive().transform(clampSpeed);
 
 export const credentialsSchema = z.object({
   username: z.string().trim().min(1).max(64),
@@ -35,7 +39,7 @@ export const progressItemSchema = z.object({
   durationSec: z.number().min(0),
   finished: z.boolean(),
   /** Omit to keep the speed already saved (1× for a new item). */
-  speed: z.number().min(0.5).max(3).optional(),
+  speed: speedSchema.optional(),
   /** Client timestamp (ms since epoch) of the change; the newest update wins. */
   updatedAt: z.number().int().positive(),
 });
@@ -53,7 +57,7 @@ export type SubscribeInput = z.input<typeof subscribeSchema>;
 
 export const podcastSettingsSchema = z.object({
   /** Your own playback speed for the show. */
-  speed: z.number().min(0.5).max(3).optional(),
+  speed: speedSchema.optional(),
 });
 export type PodcastSettingsInput = z.input<typeof podcastSettingsSchema>;
 
@@ -547,4 +551,7 @@ export * from "./ads";
 export * from "./api-paths";
 export * from "./format";
 export * from "./library";
+export * from "./player";
+export * from "./podcasts";
+export * from "./settings";
 export * from "./shelves";

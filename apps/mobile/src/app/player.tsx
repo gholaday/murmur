@@ -3,7 +3,19 @@ import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import Slider from "@react-native-community/slider";
-import { clock, duration, timeLeft } from "@murmur/shared/client";
+import {
+  chapterAt,
+  clampSpeed,
+  clock,
+  duration,
+  MAX_SPEED,
+  MIN_SPEED,
+  SLEEP_MINUTES,
+  sleepLabel,
+  SPEED_STEP,
+  speedText,
+  timeLeft,
+} from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import {
   DownIcon,
@@ -25,41 +37,14 @@ import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
 import { Chip, IconButton, Text } from "@/components/ui";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdDetection, useAdPrefs, type AdMode } from "@/player/ad-prefs";
-import {
-  chapterAt,
-  chapterStep,
-  clampSpeed,
-  markCurrent,
-  MAX_SPEED,
-  MIN_SPEED,
-  seek,
-  setSleep,
-  setSpeed,
-  skipBy,
-  stop,
-  toggle,
-  usePlayer,
-  usePosition,
-  type SleepTimer,
-} from "@/player/engine";
+import { chapterStep, markCurrent, seek, setSleep, setSpeed, skipBy, stop, toggle, usePlayer, usePosition } from "@/player/engine";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fonts, mixColor, useTheme } from "@/theme";
 
-const SPEED_STEP = 0.25;
 // Ad marks, the same in light and dark like the web's --ad colours.
 const AD = "#ef9f27";
 const AD_HEARD = "#ba7517";
 const ON_AD = "#412402";
-const SLEEP_MINUTES = [5, 10, 15, 30, 45, 60, 90];
-
-/** 1×, 1.25×, 1.5×, no trailing zeros. */
-const speedText = (v: number) => `${Number(v.toFixed(2))}×`;
-
-function sleepLabel(sleep: SleepTimer, now: number): string {
-  if (sleep.mode === "timer") return clock(Math.max(0, (sleep.endsAt - now) / 1000));
-  if (sleep.mode === "chapter") return "Chapter end";
-  return "Sleep";
-}
 
 export default function Player() {
   const t = useTheme();

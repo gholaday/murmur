@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
-import type { BookSummary, ShelfId } from "@murmur/shared/client";
+import { type BookSummary, nextInSeriesSub, type ShelfId } from "@murmur/shared/client";
 import { useTheme } from "@/theme";
 import { CountPill, Text } from "./ui";
 
@@ -35,6 +35,10 @@ export function openShelf(id: ShelfId) {
   router.push({ pathname: "/shelf", params: { id } });
 }
 
+export function openAllBooks() {
+  router.push({ pathname: "/shelf", params: { id: "all" } });
+}
+
 /** Today's date as YYYY-MM-DD, the seed that keeps Not started in the same order all day. */
 export function todayKey() {
   const d = new Date();
@@ -44,7 +48,7 @@ export function todayKey() {
 /** The line under a card on a home shelf: Next in series shows which book it is. */
 export function shelfSub(id: ShelfId, b: BookSummary) {
   if (id !== "next") return undefined;
-  return b.seriesPosition !== null ? `Book ${b.seriesPosition}` : b.author;
+  return nextInSeriesSub(b);
 }
 
 export function openGroup(params: { author: string } | { series: string }) {

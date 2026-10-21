@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { apiPaths, duration, type QueueEntry, type QueueRef, timeLeft } from "@murmur/shared/client";
+import { chapterAt, duration, type QueueEntry, queueEntryView, queueRef, timeLeft } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { CloseIcon, DragIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
@@ -10,34 +10,8 @@ import { Sheet, SheetItem } from "@/components/sheet";
 import { Bone, FadeIn, ListRowBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { DragHandle, SortableList, SortableScrollView } from "@/components/sortable-list";
 import { Bar, IconButton, Text } from "@/components/ui";
-import { chapterAt, type Playable, playRef, queueReplace, refreshQueue, usePlayer, usePosition } from "@/player/engine";
+import { type Playable, playRef, queueReplace, refreshQueue, usePlayer, usePosition } from "@/player/engine";
 import { useTheme } from "@/theme";
-
-function entryView(e: QueueEntry) {
-  if (e.itemType === "book") {
-    const b = e.book;
-    const pos = b.progress && !b.progress.finished ? b.progress.positionSec : 0;
-    return {
-      kind: b.author ?? "Audiobook",
-      title: b.title,
-      length: pos > 5 ? timeLeft(b.durationSec, pos) : duration(b.durationSec),
-      cover: b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 200) : null,
-      color: b.coverColor,
-      remaining: Math.max(0, b.durationSec - pos),
-    };
-  }
-  const ep = e.episode;
-  const dur = ep.durationSec ?? 0;
-  const pos = ep.progress && !ep.progress.finished ? ep.progress.positionSec : 0;
-  return {
-    kind: ep.podcastTitle,
-    title: ep.title,
-    length: pos > 5 && dur ? timeLeft(dur, pos) : duration(dur),
-    cover: ep.podcastCoverHash ? apiPaths.podcastCoverUrl(ep.podcastId, ep.podcastCoverHash, 200) : null,
-    color: ep.podcastCoverColor,
-    remaining: Math.max(0, dur - pos),
-  };
-}
 
 /** Title, chapter and progress of what's playing; on its own so only this re-renders as it plays. */
 function NowPlayingText({ item }: { item: Playable }) {
@@ -61,7 +35,6 @@ function NowPlayingText({ item }: { item: Playable }) {
   );
 }
 
-const toRef = (e: QueueEntry): QueueRef => ({ itemType: e.itemType, itemId: e.itemId });
 const keyOf = (e: QueueEntry) => `${e.itemType}:${e.itemId}`;
 
 export default function UpNext() {
@@ -74,7 +47,7 @@ export default function UpNext() {
 
   const save = (entries: QueueEntry[]) => {
     setError(null);
-    queueReplace(entries.map(toRef)).catch((err: unknown) => {
+    queueReplace(entries.map(queueRef)).catch((err: unknown) => {
       setError(err instanceof Error ? err.message : "Couldn't save the queue.");
       void refreshQueue();
     });
@@ -87,7 +60,7 @@ export default function UpNext() {
     save(next);
   };
 
-  const total = queue.reduce((sum, e) => sum + entryView(e).remaining, 0);
+  const total = queue.reduce((sum, e) => sum + queueEntryView(e).remaining, 0);
   const picked = menu !== null ? queue[menu] : undefined;
 
   return (
@@ -166,7 +139,7 @@ export default function UpNext() {
         )}
       </SortableScrollView>
 
-      <Sheet open={picked !== undefined} onClose={() => setMenu(null)} title={picked ? entryView(picked).title : undefined}>
+      <Sheet open={picked !== undefined} onClose={() => setMenu(null)} title={picked ? queueEntryView(picked).title : undefined}>
         {menu !== null ? (
           <>
             <SheetItem label="Move to top" disabled={menu === 0} onPress={() => (move(menu, 0), setMenu(null))} />
@@ -190,14 +163,14 @@ export default function UpNext() {
 
 function QueueRow({ entry, onMenu, onRemove }: { entry: QueueEntry; onMenu: () => void; onRemove: () => void }) {
   const t = useTheme();
-  const v = entryView(entry);
+  const v = queueEntryView(entry);
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, paddingHorizontal: 8 }}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Play ${v.title}`}
         accessibilityHint="Long press for more options"
-        onPress={() => void playRef(toRef(entry))}
+        onPress={() => void playRef(queueRef(entry))}
         onLongPress={onMenu}
         style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12 }}
       >

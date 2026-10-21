@@ -3,7 +3,19 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Cover } from "../cover";
-import { clock, duration, timeLeft } from "@murmur/shared/client";
+import {
+  chapterAt,
+  clampSpeed,
+  clock,
+  duration,
+  MAX_SPEED,
+  MIN_SPEED,
+  SLEEP_MINUTES,
+  sleepLabel,
+  SPEED_STEP,
+  speedText,
+  timeLeft,
+} from "@murmur/shared/client";
 import {
   DownIcon,
   ListIcon,
@@ -22,26 +34,11 @@ import {
 } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } from "./ad-prefs";
-import { chapterAt, usePlayer, usePosition, type SleepTimer } from "./engine";
+import { usePlayer, usePosition } from "./engine";
 import { effectiveVolume, useVolume, volumeStore } from "./volume";
 
-const MIN_SPEED = 0.5;
-const MAX_SPEED = 3;
-/** The − and + buttons jump by this; the slider moves in 0.05 steps. */
-const SPEED_STEP = 0.25;
-
-const clampSpeed = (v: number) => Math.min(MAX_SPEED, Math.max(MIN_SPEED, Math.round(v * 100) / 100));
-/** 1×, 1.25×, 1.5× — no trailing zeros. */
-const speedText = (v: number) => `${Number(v.toFixed(2))}×`;
-const SLEEP_MINUTES = [5, 10, 15, 30, 45, 60, 90];
 /** Matches the `sink` animation in globals.css. */
 const CLOSE_MS = 200;
-
-function sleepLabel(sleep: SleepTimer, now: number): string {
-  if (sleep.mode === "timer") return clock(Math.max(0, (sleep.endsAt - now) / 1000));
-  if (sleep.mode === "chapter") return "Chapter end";
-  return "Sleep";
-}
 
 export function FullPlayer() {
   const p = usePlayer();

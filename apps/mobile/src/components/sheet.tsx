@@ -96,17 +96,34 @@ export function Sheet({
   // mounted after `open` turns false until it has slid away.
   const [mounted, setMounted] = useState(open);
   if (open && !mounted) setMounted(true);
+  // The slide in waits until the sheet has been measured, then starts just below the screen's
+  // edge. From the full screen height, a short sheet would spend half the slide out of sight and
+  // then pop up.
+  const waiting = useRef(false);
+  const measured = useRef(false);
+  const slideIn = (h: number) => {
+    waiting.current = false;
+    drag.set(h + 40);
+    drag.set(withTiming(0, { duration: 260, easing: Easing.out(Easing.cubic) }));
+  };
+  const closed = () => {
+    measured.current = false;
+    setMounted(false);
+  };
 
   useEffect(() => {
     if (open) {
       listY.set(0);
-      drag.set(withTiming(0, { duration: 260, easing: Easing.out(Easing.cubic) }));
+      if (measured.current) slideIn(height.get());
+      else waiting.current = true;
     } else {
       const off = (height.get() || Dimensions.get("window").height) + 40;
       drag.set(withTiming(off, { duration: 200, easing: Easing.in(Easing.cubic) }, (finished) => {
-        if (finished) scheduleOnRN(setMounted, false);
+        if (finished) scheduleOnRN(closed);
       }));
     }
+    // slideIn and closed only touch refs and shared values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, drag, listY, height]);
 
   const pan = usePanGesture({
@@ -158,7 +175,12 @@ export function Sheet({
         </Animated.View>
         <GestureDetector gesture={pan}>
           <Animated.View
-            onLayout={(e) => height.set(e.nativeEvent.layout.height)}
+            onLayout={(e) => {
+              const h = e.nativeEvent.layout.height;
+              height.set(h);
+              measured.current = true;
+              if (waiting.current) slideIn(h);
+            }}
             style={[
               {
                 maxHeight: "80%",

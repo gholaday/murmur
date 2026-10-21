@@ -1,23 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import type { PodcastSearchResult, PodcastSummary } from "@murmur/shared/client";
+import {
+  newByShow,
+  PODCAST_LIST_TITLES,
+  PODCAST_SECTION_SIZE,
+  type PodcastSearchResult,
+  type PodcastSummary,
+  sortShows,
+} from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { EpisodeRow } from "@/components/episode-row";
 import { FilterIcon, PlusIcon } from "@/components/icons";
 import { PAD, SectionHead, Shelf, useGridWidth } from "@/components/library";
 import { Empty, PageTitle, useTopInset } from "@/components/page";
-import {
-  newByShow,
-  openPodcastList,
-  PODCAST_LIST_TITLES,
-  SECTION_SIZE,
-  ShowCard,
-  SortSheet,
-  sortShows,
-  useSort,
-} from "@/components/podcasts";
+import { openPodcastList, ShowCard, SortSheet, useSort } from "@/components/podcasts";
+import { usePullRefresh } from "@/components/pull-refresh";
 import { SmallButton } from "@/components/settings";
 import { Sheet } from "@/components/sheet";
 import { CoverGridBones, FadeIn, ListRowBone, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
@@ -56,12 +55,7 @@ export default function Podcasts() {
   const groups = useMemo(() => newByShow(newEpisodes.data ?? []), [newEpisodes.data]);
   const started = continueEpisodes.data ?? [];
 
-  const refreshing = podcasts.isRefetching || newEpisodes.isRefetching || continueEpisodes.isRefetching;
-  const onRefresh = () => {
-    void podcasts.refetch();
-    void newEpisodes.refetch();
-    void continueEpisodes.refetch();
-  };
+  const refresh = usePullRefresh(() => Promise.all([podcasts.refetch(), newEpisodes.refetch(), continueEpisodes.refetch()]));
 
   let body: React.ReactNode;
   if (podcasts.isPending) {
@@ -95,7 +89,7 @@ export default function Podcasts() {
         {started.length ? (
           <View style={{ marginTop: 24 }}>
             <SectionHead title={PODCAST_LIST_TITLES.continue} count={started.length} onOpen={() => openPodcastList("continue")} />
-            {started.slice(0, SECTION_SIZE).map((e) => (
+            {started.slice(0, PODCAST_SECTION_SIZE).map((e) => (
               <EpisodeRow key={e.id} episode={e} showThumb />
             ))}
           </View>
@@ -103,7 +97,7 @@ export default function Podcasts() {
         {groups.length ? (
           <View style={{ marginTop: 24 }}>
             <SectionHead title={PODCAST_LIST_TITLES.new} count={fresh.length} onOpen={() => openPodcastList("new")} />
-            {groups.slice(0, SECTION_SIZE).map((g) => (
+            {groups.slice(0, PODCAST_SECTION_SIZE).map((g) => (
               <EpisodeRow key={g.episode.id} episode={g.episode} showThumb newCount={g.count} />
             ))}
           </View>
@@ -116,7 +110,7 @@ export default function Podcasts() {
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: 24 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} colors={[t.accent]} />}
+        refreshControl={refresh}
       >
         <PageTitle
           title="Podcasts"

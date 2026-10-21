@@ -1,4 +1,6 @@
-export type ThemeChoice = "system" | "dark" | "light";
+import type { ThemeChoice } from "@murmur/shared/client";
+
+export type { ThemeChoice };
 
 export const THEME_COOKIE = "murmur_theme";
 

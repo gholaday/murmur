@@ -4,6 +4,31 @@ import type { BookSummary } from "./index";
 
 export type BookSort = "added" | "title" | "author" | "listened";
 
+/** The sort choices, in the order the sort sheet lists them. */
+export const BOOK_SORTS: { id: BookSort; label: string }[] = [
+  { id: "added", label: "Recently added" },
+  { id: "listened", label: "Recently listened" },
+  { id: "title", label: "Title" },
+  { id: "author", label: "Author" },
+];
+/** Device storage key for the chosen sort. */
+export const LIBRARY_SORT_KEY = "murmur.librarySort";
+
+/** How far through a book you are, 0 to 100, for its progress bar. */
+export function progressPct(b: BookSummary): number {
+  if (!b.progress || b.durationSec <= 0) return 0;
+  return Math.min(100, (b.progress.positionSec / b.durationSec) * 100);
+}
+
+/** Under a Next in series card: which book it is (series names are too long to fit), else the author. */
+export const nextInSeriesSub = (b: BookSummary) => (b.seriesPosition !== null ? `Book ${b.seriesPosition}` : b.author);
+
+/** A library folder path plus a folder name, with the separator the path already uses. */
+export function joinPath(dir: string, name: string): string {
+  const sep = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";
+  return dir.endsWith(sep) ? dir + name : dir + sep + name;
+}
+
 export const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 /** "The Martian" files under M. */

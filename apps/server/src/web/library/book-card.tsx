@@ -5,18 +5,13 @@ import { useRouter } from "next/navigation";
 import { createContext, memo, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { apiPaths, type BookSummary } from "@murmur/shared/client";
+import { apiPaths, type BookSummary, errorText, progressPct } from "@murmur/shared/client";
 import { api } from "../api";
 import type { EditTab } from "../book/edit-dialog";
 import { Cover } from "../cover";
 import { CheckIcon, MoreIcon } from "../icons";
 import { usePlayer } from "../player/engine";
 import { setFinished } from "../progress";
-
-export function progressPct(b: BookSummary): number {
-  if (!b.progress || b.durationSec <= 0) return 0;
-  return Math.min(100, (b.progress.positionSec / b.durationSec) * 100);
-}
 
 /** Lets cards offer the options menu; the library provides it, with one shared edit dialog. */
 export const BookActionsContext = createContext<{ isAdmin: boolean; edit: (bookId: string, tab: EditTab) => void } | null>(null);
@@ -140,7 +135,7 @@ function CardMenuItems({
 
   const choose = (fn: () => unknown) => () => {
     close();
-    void Promise.resolve(fn()).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Something went wrong."));
+    void Promise.resolve(fn()).catch((err: unknown) => toast.error(errorText(err)));
   };
 
   return (

@@ -38,6 +38,16 @@ export function shortDate(ms: number, now = Date.now()): string {
   return d.toLocaleDateString(undefined, { day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }) });
 }
 
+/** 3.2 GB, or 12 GB from 10 GB up. */
+export function gigabytes(bytes: number): string {
+  return `${(bytes / 1024 ** 3).toFixed(bytes < 10 * 1024 ** 3 ? 1 : 0)} GB`;
+}
+
+/** An error's message for showing to the user, with a fallback for anything else thrown. */
+export function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : "Something went wrong.";
+}
+
 export function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
 }

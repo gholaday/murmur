@@ -289,7 +289,8 @@ export async function applyMatch(ctx: AppContext, bookId: string, input: MatchAp
          series_position = excluded.series_position, description = excluded.description, year = excluded.year,
          cover_hash = excluded.cover_hash, chapters = excluded.chapters, matched_at = excluded.matched_at`,
     )
-    .run({ bookId, provider: input.provider, providerId: input.providerId, ...next, matchedAt: Date.now() });
+    // next comes first: a row read with SELECT * also carries the old provider, which mustn't win.
+    .run({ ...next, bookId, provider: input.provider, providerId: input.providerId, matchedAt: Date.now() });
 }
 
 export function removeMatch(ctx: AppContext, bookId: string) {

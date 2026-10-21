@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ScrollView, View } from "react-native";
+import { SKIP_BACK_OPTIONS, SKIP_FORWARD_OPTIONS, THEME_CHOICES } from "@murmur/shared/client";
 import { PAD } from "@/components/library";
 import { PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { Card, EpisodeCacheSection, LibrarySection, PasswordRow, RolePill, Row, SmallButton, UsersSection } from "@/components/settings";
@@ -8,15 +9,7 @@ import { Chip } from "@/components/ui";
 import { useSession } from "@/lib/session";
 import { AD_MODES, adPrefsStore, useAdDetection, useAdPrefs } from "@/player/ad-prefs";
 import { setSkip, usePlayer } from "@/player/engine";
-import { setThemeMode, useTheme, useThemeMode, type ThemeMode } from "@/theme";
-
-const THEMES: { id: ThemeMode; label: string }[] = [
-  { id: "system", label: "System" },
-  { id: "dark", label: "Dark" },
-  { id: "light", label: "Light" },
-];
-const BACK_OPTIONS = [5, 10, 15, 30];
-const FORWARD_OPTIONS = [10, 15, 30, 45, 60];
+import { setThemeMode, useTheme, useThemeMode } from "@/theme";
 
 export default function Settings() {
   const t = useTheme();
@@ -49,7 +42,7 @@ export default function Settings() {
         <Card>
           <Row title="Theme" last>
             <View style={{ flexDirection: "row", gap: 6 }}>
-              {THEMES.map((x) => (
+              {THEME_CHOICES.map((x) => (
                 <Chip key={x.id} label={x.label} selected={mode === x.id} onPress={() => setThemeMode(x.id)} />
               ))}
             </View>
@@ -59,10 +52,10 @@ export default function Settings() {
         <SectionTitle title="Playback" />
         <Card>
           <Row title="Skip back" stacked>
-            <ChipRow values={BACK_OPTIONS} value={skip.back} onPick={(v) => setSkip({ ...skip, back: v })} />
+            <ChipRow values={SKIP_BACK_OPTIONS} value={skip.back} onPick={(v) => setSkip({ ...skip, back: v })} />
           </Row>
           <Row title="Skip forward" stacked last={!adDetection}>
-            <ChipRow values={FORWARD_OPTIONS} value={skip.forward} onPick={(v) => setSkip({ ...skip, forward: v })} />
+            <ChipRow values={SKIP_FORWARD_OPTIONS} value={skip.forward} onPick={(v) => setSkip({ ...skip, forward: v })} />
           </Row>
           {adDetection ? (
             <Row title="Ads" sub={`This device only. ${AD_MODES.find((m) => m.id === adPrefs.mode)?.hint}.`} stacked last>

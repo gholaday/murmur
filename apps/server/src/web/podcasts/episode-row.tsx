@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
-import { apiPaths, duration, type EpisodeWithShow, shortDate, timeLeft } from "@murmur/shared/client";
+import { apiPaths, duration, type EpisodeWithShow, errorText, shortDate, timeLeft } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { AdsCheckedIcon, PauseIcon, PlayedIcon, PlayIcon, PlayNextIcon, QueueAddIcon } from "../icons";
@@ -60,7 +60,7 @@ export function EpisodeRow({
       toast(done);
       onChanged?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong.");
+      toast.error(errorText(err));
     } finally {
       setBusy(false);
     }

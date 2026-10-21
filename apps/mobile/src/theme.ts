@@ -1,5 +1,6 @@
 import { useColorScheme } from "react-native";
 import { useSyncExternalStore } from "react";
+import type { ThemeChoice } from "@murmur/shared/client";
 import { getJson, setJson } from "./lib/storage";
 
 // Colours follow docs/mockups and the web player's tokens.
@@ -43,7 +44,7 @@ export const light: typeof dark = {
 };
 
 export type Theme = typeof dark;
-export type ThemeMode = "dark" | "light" | "system";
+export type ThemeMode = ThemeChoice;
 
 export const fonts = {
   regular: "PlusJakartaSans_400Regular",

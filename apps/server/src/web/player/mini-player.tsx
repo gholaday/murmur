@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { Cover } from "../cover";
-import { clock, timeLeft } from "@murmur/shared/client";
+import { chapterAt, clock, timeLeft } from "@murmur/shared/client";
 import { PauseIcon, PlayIcon, SkipBackIcon, SkipForwardIcon } from "../icons";
-import { chapterAt, usePlayer, usePosition } from "./engine";
+import { usePlayer, usePosition } from "./engine";
 
 /**
  * Floating player above the tabs. On desktop it grows on hover to reveal a seek bar,

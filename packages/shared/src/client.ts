@@ -6,4 +6,7 @@ export * from "./ads";
 export * from "./api-paths";
 export * from "./format";
 export * from "./library";
+export * from "./player";
+export * from "./podcasts";
+export * from "./settings";
 export * from "./shelves";

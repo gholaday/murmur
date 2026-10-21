@@ -3,10 +3,10 @@
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { apiPaths, type EpisodeDto, type EpisodeWithShow, plural, type PodcastDetail, shortDate } from "@murmur/shared/client";
+import { apiPaths, type EpisodeDto, type EpisodeWithShow, errorText, matchesEpisode, plural, type PodcastDetail, shortDate } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { BackIcon, CheckIcon, MoreIcon } from "../icons";
+import { BackIcon, CheckIcon, FilterIcon, MoreIcon, SearchIcon } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
@@ -23,9 +23,11 @@ export function ShowView({
   const router = useRouter();
   const [oldestFirst, setOldestFirst] = useState(false);
   const [limit, setLimit] = useState(pageSize);
-  const [sheet, setSheet] = useState<null | "menu" | "unsubscribe">(null);
+  const [sheet, setSheet] = useState<null | "menu" | "unsubscribe" | "sort">(null);
   const [busy, setBusy] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState("");
   // Every episode, fetched the first time you need more than the first page.
   const [all, setAll] = useState<EpisodeDto[] | null>(null);
   const complete = all !== null || firstPage.length >= podcast.episodeCount;
@@ -55,9 +57,15 @@ export function ShowView({
     [episodes, podcast],
   );
   // Oldest first waits for the full list, so it never shows the first page backwards.
-  const visible = useMemo(
+  const ordered = useMemo(
     () => (oldestFirst && complete ? [...withShow].reverse() : withShow),
     [withShow, oldestFirst, complete],
+  );
+
+  const q = query.trim().toLowerCase();
+  const visible = useMemo(
+    () => (q ? ordered.filter((e) => matchesEpisode(e, q)) : ordered),
+    [ordered, q],
   );
 
   const run = async (fn: () => Promise<unknown>, done?: string) => {
@@ -67,7 +75,7 @@ export function ShowView({
       if (done) toast(done);
       changed();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong.");
+      toast.error(errorText(err));
     } finally {
       setBusy(false);
     }
@@ -132,22 +140,54 @@ export function ShowView({
         </>
       ) : null}
 
-      <div className="subtabs">
-        <h2 className="subtab subtab-static">Episodes</h2>
-        <button
-          type="button"
-          className="muted small"
-          onClick={() => {
-            if (!complete) void loadAll();
-            setOldestFirst((o) => !o);
-          }}
-        >
-          {oldestFirst ? "Oldest first" : "Newest first"}
-        </button>
+      <div className="episodes-head">
+        <div className="section-head">
+          <h2 className="section-title">
+            Episodes
+            <span className="count-pill" aria-label={plural(podcast.episodeCount, "episode")}>
+              {podcast.episodeCount}
+            </span>
+          </h2>
+          <div style={{ display: "flex", gap: 4 }}>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="Search episodes"
+              aria-pressed={searching}
+              onClick={() => {
+                // Searching covers every episode, so fetch them as the box opens.
+                if (!searching && !complete) void loadAll();
+                setSearching((s) => !s);
+                setQuery("");
+              }}
+            >
+              <SearchIcon />
+            </button>
+            <button type="button" className="icon-btn" aria-label="Sort episodes" onClick={() => setSheet("sort")}>
+              <FilterIcon />
+            </button>
+          </div>
+        </div>
+        {searching ? (
+          <div className="search">
+            <SearchIcon />
+            <input
+              className="input"
+              type="search"
+              placeholder="Search episodes"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label="Search episodes"
+              autoFocus
+            />
+          </div>
+        ) : null}
       </div>
 
-      {visible.length === 0 ? (
-        <div className="empty">No episodes.</div>
+      {q && !complete ? (
+        <div className="empty">Searching…</div>
+      ) : visible.length === 0 ? (
+        <div className="empty">{q ? "No episodes match." : "No episodes."}</div>
       ) : (
         <div>
           {visible.slice(0, limit).map((e) => (
@@ -169,6 +209,22 @@ export function ShowView({
           ) : null}
         </div>
       )}
+
+      <Sheet open={sheet === "sort"} onClose={() => setSheet(null)} title="Sort episodes">
+        {[false, true].map((oldest) => (
+          <SheetItem
+            key={String(oldest)}
+            active={oldestFirst === oldest}
+            onClick={() => {
+              if (oldest && !complete) void loadAll();
+              setOldestFirst(oldest);
+              setSheet(null);
+            }}
+          >
+            {oldest ? "Oldest first" : "Newest first"}
+          </SheetItem>
+        ))}
+      </Sheet>
 
       <Sheet open={sheet === "menu"} onClose={() => setSheet(null)} title={podcast.title}>
         <SheetItem

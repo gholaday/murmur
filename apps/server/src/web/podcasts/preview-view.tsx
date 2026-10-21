@@ -99,8 +99,15 @@ export function PreviewView({ preview, error }: { preview?: PodcastPreview; erro
         </>
       ) : null}
 
-      <div className="subtabs">
-        <h2 className="subtab subtab-static">Episodes</h2>
+      <div className="episodes-head">
+        <div className="section-head">
+          <h2 className="section-title">
+            Episodes
+            <span className="count-pill" aria-label={plural(preview.episodeCount, "episode")}>
+              {preview.episodeCount}
+            </span>
+          </h2>
+        </div>
       </div>
 
       {preview.episodes.length === 0 ? (

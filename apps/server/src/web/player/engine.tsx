@@ -14,16 +14,20 @@ import {
   type ProgressItem,
   type QueueEntry,
   type QueueRef,
+  ADS_POLL_MS,
+  chapterAt,
+  clampSpeed,
+  DEFAULT_SKIP,
+  NOW_PLAYING_KEY,
+  parseSkip,
+  SAVE_EVERY_MS,
+  SKIP_KEY,
+  type SkipSettings,
+  type SleepTimer,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { adModeFor, adPrefsStore, adToSkip, playedThrough } from "./ad-prefs";
 import { effectiveVolume, volumeStore } from "./volume";
-
-const SAVE_EVERY_MS = 10_000;
-/** How often ad times are re-fetched while the current episode is still being scanned. */
-const ADS_POLL_MS = 60_000;
-const NOW_PLAYING_KEY = "murmur.nowPlaying";
-const SKIP_KEY = "murmur.skip";
 
 export interface PlayableFile {
   url: string;
@@ -66,7 +70,7 @@ export function bookToPlayable(b: BookDetail): Playable {
     chapters: b.chapters,
     podcastId: null,
     startAt: resume,
-    speed: b.progress?.speed ?? 1,
+    speed: clampSpeed(b.progress?.speed ?? 1),
   };
 }
 
@@ -87,7 +91,7 @@ export function episodeToPlayable(e: EpisodeWithShow): Playable {
     chapters: [],
     podcastId: e.podcastId,
     startAt: resume,
-    speed: e.speed,
+    speed: clampSpeed(e.speed),
   };
 }
 
@@ -96,12 +100,6 @@ async function loadPlayable(ref: QueueRef): Promise<Playable> {
   return episodeToPlayable(await api<EpisodeWithShow>(`/api/episodes/${ref.itemId}`));
 }
 
-export type SleepTimer = { mode: "off" } | { mode: "timer"; endsAt: number } | { mode: "chapter"; endSec: number };
-
-export interface SkipSettings {
-  back: number;
-  forward: number;
-}
 
 interface PlayerApi {
   item: Playable | null;
@@ -179,18 +177,12 @@ export function usePosition(enabled = true): number {
   return useSyncExternalStore(enabled ? positionStore.subscribe : ignore, enabled ? positionStore.get : zero, zero);
 }
 
-export function chapterAt(chapters: ChapterDto[], position: number): number {
-  return chapters.findLastIndex((c) => c.startSec <= position + 0.25);
-}
-
 function readSkip(): SkipSettings {
   try {
-    const raw = JSON.parse(localStorage.getItem(SKIP_KEY) ?? "null") as SkipSettings | null;
-    if (raw && raw.back > 0 && raw.forward > 0) return raw;
+    return parseSkip(JSON.parse(localStorage.getItem(SKIP_KEY) ?? "null"));
   } catch {
-    // ignore
+    return DEFAULT_SKIP;
   }
-  return { back: 10, forward: 30 };
 }
 
 const refOf = (item: Playable): QueueRef => ({ itemType: item.type, itemId: item.id });
@@ -231,7 +223,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [speed, setSpeedState] = useState(1);
   const [sleep, setSleepState] = useState<SleepTimer>({ mode: "off" });
-  const [skip, setSkipState] = useState<SkipSettings>({ back: 10, forward: 30 });
+  const [skip, setSkipState] = useState<SkipSettings>(DEFAULT_SKIP);
   const [expanded, setExpanded] = useState(false);
   const [queue, setQueueState] = useState<QueueEntry[]>([]);
   const [queueLoaded, setQueueLoaded] = useState(false);

@@ -11,6 +11,7 @@ import {
   type PodcastSummary,
   type QueueEntry,
   type UserPrefs,
+  EPISODE_PAGE,
 } from "@murmur/shared/client";
 import { toast } from "@/components/toast";
 import { api } from "./api";
@@ -61,8 +62,17 @@ export const usePodcasts = () =>
 export const usePodcast = (id: string) =>
   useQuery({ queryKey: keys.podcast(id), queryFn: () => api<PodcastDetail>(`/api/podcasts/${id}`) });
 
-export const useEpisodes = (podcastId: string) =>
-  useQuery({ queryKey: keys.episodes(podcastId), queryFn: () => api<EpisodeDto[]>(`/api/podcasts/${podcastId}/episodes?short=1`) });
+/** Every episode of a show. Long shows have over a thousand, so it waits until it's needed. */
+export const useEpisodes = (podcastId: string, enabled = true) =>
+  useQuery({ queryKey: keys.episodes(podcastId), queryFn: () => api<EpisodeDto[]>(`/api/podcasts/${podcastId}/episodes?short=1`), enabled });
+
+/** A show's newest episodes, the first page of its list. Its key sits under the full list's, so invalidating one covers both. */
+export const useFirstEpisodes = (podcastId: string, enabled = true) =>
+  useQuery({
+    queryKey: [...keys.episodes(podcastId), "first"],
+    queryFn: () => api<EpisodeDto[]>(`/api/podcasts/${podcastId}/episodes?short=1&limit=${EPISODE_PAGE}`),
+    enabled,
+  });
 
 // Lists ask for short notes (`short=1`); a row fetches the full notes when it's expanded.
 
