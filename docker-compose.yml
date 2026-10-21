@@ -3,7 +3,7 @@
 services:
   murmur:
     # Published by .github/workflows/release.yml when a v* tag is pushed.
-    image: ghcr.io/gholaday/murmur:0.2.5
+    image: ghcr.io/gholaday/murmur:0.2.6
     container_name: murmur
     restart: unless-stopped
     ports:
@@ -33,7 +33,7 @@ services:
   # Optional ad detection add-on. Uncomment to use; needs ADDON_SECRET above and a Gemini API key
   # from aistudio.google.com. Without it Murmur works the same, just without ad marks.
   # murmur-adscan:
-  #   image: ghcr.io/gholaday/murmur-adscan:0.2.5
+  #   image: ghcr.io/gholaday/murmur-adscan:0.2.6
   #   container_name: murmur-adscan
   #   restart: unless-stopped
   #   depends_on:

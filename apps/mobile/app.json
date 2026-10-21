@@ -34,6 +34,7 @@
         }
       ],
       "./plugins/with-android-auto",
+      "./plugins/with-release-signing",
       "expo-secure-store",
       "expo-sqlite",
       "expo-image",

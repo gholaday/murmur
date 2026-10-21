@@ -55,7 +55,19 @@ If you use a login gateway such as Cloudflare Access, add a bypass for `/api/*`.
 
 ## 4. Put Murmur on your phone
 
-The app isn't on the Play Store; you install the APK directly. To build it yourself (needs Node, pnpm and the Android SDK):
+The app isn't on the Play Store. Each [release on GitHub](https://github.com/gholaday/murmur/releases) has the signed Android app attached as `murmur-<version>.apk`.
+
+**With automatic updates (recommended):** install [Obtainium](https://github.com/ImranR98/Obtainium), which installs apps straight from their GitHub releases and keeps them updated.
+
+1. In Obtainium, tap **Add App**.
+2. Paste `https://github.com/gholaday/murmur` as the source URL and tap **Add**.
+3. Tap **Install**. Android asks you to allow installs from Obtainium the first time.
+
+Obtainium then checks for new releases and offers each update, so the app keeps up with your server.
+
+**Without Obtainium:** download the APK from the latest release on your phone and open it to install (Android asks you to allow installs from your browser). Install newer releases the same way; they update the app in place.
+
+**Building it yourself** (needs Node, pnpm and the Android SDK):
 
 ```bash
 pnpm install
@@ -65,7 +77,7 @@ cd android
 ./gradlew assembleRelease
 ```
 
-The APK is written to `apps/mobile/android/app/build/outputs/apk/release/`. Copy it to your phone and open it to install (Android asks you to allow installs from that source).
+The APK is written to `apps/mobile/android/app/build/outputs/apk/release/`. It's signed with a development key, so Android won't install it over the app from GitHub, or the reverse: uninstall one first, which also removes its downloads and settings.
 
 On first launch, enter your server's address (the same one you open in the browser) and sign in.
 

@@ -22,10 +22,9 @@ import { SmallButton } from "@/components/settings";
 import { Sheet } from "@/components/sheet";
 import { CoverGridBones, FadeIn, ListRowBone, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { toast } from "@/components/toast";
-import { Button, Chip, Field, IconButton, Text } from "@/components/ui";
+import { Button, Field, IconButton, Text } from "@/components/ui";
 import { api } from "@/lib/api";
 import { keys, useContinueEpisodes, useNewEpisodes, usePodcasts } from "@/lib/data";
-import { useDownloads } from "@/lib/downloads";
 import { queryClient } from "@/lib/query";
 import { useTheme } from "@/theme";
 
@@ -36,9 +35,7 @@ export default function Podcasts() {
   const podcasts = usePodcasts();
   const newEpisodes = useNewEpisodes();
   const continueEpisodes = useContinueEpisodes();
-  const downloads = useDownloads();
   const sort = useSort();
-  const [view, setView] = useState<"shows" | "downloaded">("shows");
   const [sortOpen, setSortOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -58,13 +55,6 @@ export default function Podcasts() {
   const fresh = newEpisodes.data ?? [];
   const groups = useMemo(() => newByShow(newEpisodes.data ?? []), [newEpisodes.data]);
   const started = continueEpisodes.data ?? [];
-  const downloaded = useMemo(
-    () =>
-      Object.values(downloads)
-        .flatMap((d) => (d.type === "episode" ? [d] : []))
-        .sort((a, b) => b.episode.publishedAt - a.episode.publishedAt),
-    [downloads],
-  );
 
   const refreshing = podcasts.isRefetching || newEpisodes.isRefetching || continueEpisodes.isRefetching;
   const onRefresh = () => {
@@ -84,17 +74,6 @@ export default function Podcasts() {
           <ListRowBone key={i} thumb={48} />
         ))}
       </Skeleton>
-    );
-  }
-  else if (view === "downloaded") {
-    body = downloaded.length ? (
-      <View style={{ marginTop: 8 }}>
-        {downloaded.map((d) => (
-          <EpisodeRow key={d.id} episode={d.episode} showThumb />
-        ))}
-      </View>
-    ) : (
-      <Empty>No downloaded episodes yet.</Empty>
     );
   } else if (podcasts.isError && shows.length === 0) {
     body = <Empty title="Couldn't load podcasts">{podcasts.error.message}</Empty>;
@@ -143,7 +122,7 @@ export default function Podcasts() {
           title="Podcasts"
           right={
             <>
-              {shows.length > 1 && view === "shows" ? (
+              {shows.length > 1 ? (
                 <IconButton label="Sort podcasts" onPress={() => setSortOpen(true)}>
                   <FilterIcon color={t.text} />
                 </IconButton>
@@ -154,10 +133,6 @@ export default function Podcasts() {
             </>
           }
         />
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <Chip label="Podcasts" selected={view === "shows"} onPress={() => setView("shows")} />
-          <Chip label="Downloaded" selected={view === "downloaded"} onPress={() => setView("downloaded")} />
-        </View>
         {podcasts.isPending ? body : <FadeIn when={fade}>{body}</FadeIn>}
       </ScrollView>
 

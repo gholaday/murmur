@@ -17,7 +17,7 @@ Murmur is inspired by [Audiobookshelf](https://www.audiobookshelf.org/), and rea
 ```yaml
 services:
   murmur:
-    image: ghcr.io/gholaday/murmur:0.2.5
+    image: ghcr.io/gholaday/murmur:0.2.6
     container_name: murmur
     restart: unless-stopped
     ports:
@@ -33,7 +33,9 @@ services:
 
 Run `docker compose up -d`, open `http://<host>:3333`, and create the first account, which becomes the admin.
 
-[Getting started](docs/GETTING_STARTED.md) covers the rest: folder layout, remote access, the Android app, adding the web player to a phone's home screen, ad detection and updating. The full example stack is [`docker-compose.yml`](docker-compose.yml).
+**Android app:** download `murmur-<version>.apk` from the [latest release](https://github.com/gholaday/murmur/releases/latest), or add this repository to [Obtainium](https://github.com/ImranR98/Obtainium) to get updates automatically.
+
+[Getting started](docs/GETTING_STARTED.md) covers the rest: folder layout, remote access, installing the Android app, adding the web player to a phone's home screen, ad detection and updating. The full example stack is [`docker-compose.yml`](docker-compose.yml).
 
 ## Settings
 
@@ -83,7 +85,7 @@ pnpm test
 | `addons/adscan` | Optional ad detection add-on (Python) |
 | `docs/SPEC.md` | How Murmur works and why |
 
-**Releasing:** push a tag like `v0.3.0` and GitHub Actions publishes the Murmur and add-on images.
+**Releasing:** push a tag like `v0.3.0` and GitHub Actions publishes the Murmur and add-on images, and attaches the signed Android APK to a GitHub release (the tag sets the app's version). Signing needs the `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` repository secrets.
 
 ## License
 

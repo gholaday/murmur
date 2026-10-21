@@ -31,18 +31,16 @@ import { DragHandle, SortableList, SortableScrollProvider, useSortableScroll } f
 import { Grid, Group, openGroup, openShelf, PAD, Shelf, shelfSub, todayKey, useGridWidth } from "@/components/library";
 import { Bar, Button, Chip, CountPill, IconButton, Text } from "@/components/ui";
 import { saveBookSections, useBookSections, useBooks } from "@/lib/data";
-import { useDownloads } from "@/lib/downloads";
 import { getJson, setJson } from "@/lib/storage";
 import { fonts, useTheme } from "@/theme";
 
-type Tab = "books" | "authors" | "series" | "finished" | "downloaded";
+type Tab = "books" | "authors" | "series" | "finished";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "books", label: "Books" },
   { id: "authors", label: "Authors" },
   { id: "series", label: "Series" },
   { id: "finished", label: "Finished" },
-  { id: "downloaded", label: "Downloaded" },
 ];
 
 const SORTS: { id: BookSort; label: string }[] = [
@@ -59,7 +57,6 @@ export default function Library() {
   const top = useTopInset();
   const cardWidth = useGridWidth();
   const books = useBooks();
-  const downloads = useDownloads();
   const [tab, setTab] = useState<Tab>("books");
   const [sort, setSortState] = useState<BookSort>(() => getJson<BookSort>(SORT_KEY) ?? "added");
   const [sortOpen, setSortOpen] = useState(false);
@@ -239,10 +236,7 @@ export default function Library() {
       <Empty>No series yet.</Empty>
     );
   } else {
-    const shown =
-      tab === "finished"
-        ? [...list].filter((b) => b.progress?.finished).sort((a, b) => b.progress!.updatedAt - a.progress!.updatedAt)
-        : sorted.filter((b) => downloads[`book:${b.id}`]);
+    const shown = [...list].filter((b) => b.progress?.finished).sort((a, b) => b.progress!.updatedAt - a.progress!.updatedAt);
     body = shown.length ? (
       <View style={{ marginTop: 20 }}>
         <Grid>
@@ -252,7 +246,7 @@ export default function Library() {
         </Grid>
       </View>
     ) : (
-      <Empty>{tab === "finished" ? "No finished books yet." : "No downloaded books yet."}</Empty>
+      <Empty>No finished books yet.</Empty>
     );
   }
 
