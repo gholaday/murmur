@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { AdSpan, HealthDto } from "@murmur/shared/client";
 import { api } from "@/lib/api";
@@ -44,10 +44,20 @@ export const adPrefsStore = {
   },
 };
 
-/** Whether the server finds ads (its health says so), so ad options are worth showing. */
-export function useAdDetection(): boolean {
+const DETECTION_KEY = "murmur.adDetection";
+
+/**
+ * Whether the server finds ads (its health says so), so ad options are worth showing. Offline
+ * it's the server's last answer, so downloaded episodes keep their marks and Auto-skip;
+ * undefined when the server has never been asked.
+ */
+export function useAdDetection(): boolean | undefined {
   const health = useQuery({ queryKey: ["health"], queryFn: () => api<HealthDto>("/api/health") });
-  return health.data?.adDetection === true;
+  const known = health.data ? health.data.adDetection === true : undefined;
+  useEffect(() => {
+    if (known !== undefined) setJson(DETECTION_KEY, known);
+  }, [known]);
+  return known ?? getJson<boolean>(DETECTION_KEY) ?? undefined;
 }
 
 export function useAdPrefs(): AdPrefs {

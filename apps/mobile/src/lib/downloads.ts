@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { Directory, File, Paths } from "expo-file-system";
-import { apiPaths, type BookDetail, type EpisodeWithShow, type ItemType } from "@murmur/shared/client";
-import { absolute, authHeaders } from "./api";
+import { apiPaths, type BookDetail, type EpisodeAdsDto, type EpisodeWithShow, type ItemType } from "@murmur/shared/client";
+import { absolute, api, authHeaders } from "./api";
 import { getJson, setJson } from "./storage";
 
 // Books and episodes saved on the phone for offline listening. Each download keeps a copy of
@@ -20,7 +20,11 @@ export type Download = {
   files: Record<number, string>;
   savedAt: number;
   error?: string;
-} & ({ type: "book"; book: BookDetail } | { type: "episode"; episode: EpisodeWithShow });
+} & (
+  | { type: "book"; book: BookDetail }
+  /** `ads`: the episode's ad times as of the download (kept fresh while playing online). */
+  | { type: "episode"; episode: EpisodeWithShow; ads?: EpisodeAdsDto }
+);
 
 type Index = Record<string, Download>;
 
@@ -163,6 +167,19 @@ export function downloadEpisode(episode: EpisodeWithShow) {
   void run(key, "episode", episode.id, [
     { index: 0, url: apiPaths.episodeUrl(episode.id), mime: "audio/mpeg", durationSec: episode.durationSec ?? 0 },
   ]);
+  // Ad times go with it, so marks and Auto-skip work offline. No ads (or no connection) just
+  // means none are saved.
+  void api<EpisodeAdsDto>(apiPaths.episodeAds(episode.id))
+    .then((ads) => saveDownloadAds(episode.id, ads))
+    .catch(() => undefined);
+}
+
+/** Keeps a downloaded episode's saved ad times up to date; no-op when it isn't downloaded. */
+export function saveDownloadAds(episodeId: string, ads: EpisodeAdsDto) {
+  const key = keyOf("episode", episodeId);
+  const cur = index[key];
+  if (cur?.type !== "episode" || JSON.stringify(cur.ads) === JSON.stringify(ads)) return;
+  commit({ ...index, [key]: { ...cur, ads } });
 }
 
 export function removeDownload(type: ItemType, id: string) {

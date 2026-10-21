@@ -6,3 +6,6 @@ onlyBuiltDependencies:
   - better-sqlite3
   - esbuild
   - sharp
+
+patchedDependencies:
+  expo-audio@58.0.9: patches/expo-audio@58.0.9.patch

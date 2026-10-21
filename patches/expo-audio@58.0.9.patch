@@ -1,0 +1,331 @@
+diff --git a/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt b/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt
+index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..a757f05df7a831b4586185c1539a49dcc21dd179 100644
+--- a/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt
++++ b/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt
+@@ -19,8 +19,10 @@ import androidx.media3.common.ForwardingPlayer
+ import androidx.media3.common.Player
+ import androidx.media3.common.util.UnstableApi
+ import androidx.media3.session.CommandButton
++import androidx.media3.common.MediaItem
++import androidx.media3.common.MediaMetadata
++import androidx.media3.session.MediaLibraryService
+ import androidx.media3.session.MediaSession
+-import androidx.media3.session.MediaSessionService
+ import androidx.media3.session.MediaStyleNotificationHelper
+ import androidx.media3.session.SessionCommand
+ import expo.modules.audio.AudioLockScreenOptions
+@@ -39,10 +41,12 @@ import java.lang.ref.WeakReference
+ import java.net.URL
+ 
+ @OptIn(UnstableApi::class)
+-class AudioControlsService : MediaSessionService() {
++// Murmur patch: a MediaLibraryService (not just a MediaSessionService) so Android Auto lists the
++// app and shows what's playing; see AudioMediaSessionCallback for the browse tree.
++class AudioControlsService : MediaLibraryService() {
+   private lateinit var audioManager: AudioManager
+   private val binder = AudioPlaybackServiceBinder(this)
+-  private var mediaSession: MediaSession? = null
++  private var mediaSession: MediaLibraryService.MediaLibrarySession? = null
+   private var sessionMetadataPlayer: MetadataInjectingPlayer? = null
+   private var currentMetadata: Metadata? = null
+   private var currentPlayable: LockScreenPlayable? = null
+@@ -419,17 +423,15 @@ class AudioControlsService : MediaSessionService() {
+       sessionMetadataPlayer = null
+ 
+       appContext?.mainQueue?.launch {
+-        val context = appContext?.reactContext ?: return@launch
++        appContext?.reactContext ?: return@launch
+         val sessionPlayer = MetadataInjectingPlayer(resolveSessionPlayer(playable, options)).apply {
+           updateMetadata(metadata)
++          updateArtwork(currentArtwork)
+         }
+         // Distinguish this lock-screen session from the basic session built in
+         // `buildBasicMediaSession` (and from sessions for other players); two
+         // MediaSession instances with the empty default ID throw on construction.
+-        val session = MediaSession.Builder(context, sessionPlayer)
+-          .setId("ExpoAudioLockScreenSession_${playable.player.hashCode()}")
+-          .setCallback(AudioMediaSessionCallback(this@AudioControlsService))
+-          .build()
++        val session = buildLibrarySession(sessionPlayer, "ExpoAudioLockScreenSession_${playable.player.hashCode()}")
+ 
+         // Replace the basic media session with a session connected to our playback service.
+         playable.mediaSession.release()
+@@ -476,10 +478,33 @@ class AudioControlsService : MediaSessionService() {
+     stopForeground(STOP_FOREGROUND_REMOVE)
+   }
+ 
+-  override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
++  override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibraryService.MediaLibrarySession? {
+     return mediaSession
+   }
+ 
++  private fun buildLibrarySession(player: Player, id: String): MediaLibraryService.MediaLibrarySession =
++    MediaLibraryService.MediaLibrarySession.Builder(this, player, AudioMediaSessionCallback(this))
++      .setId(id)
++      .build()
++
++  /** What's loaded, as the single playable item in Android Auto's browse list. */
++  fun currentLibraryItem(): MediaItem? {
++    val metadata = currentMetadata ?: return null
++    return MediaItem.Builder()
++      .setMediaId(MetadataInjectingPlayer.CURRENT_ITEM_ID)
++      .setMediaMetadata(
++        MediaMetadata.Builder()
++          .setTitle(metadata.title)
++          .setArtist(metadata.artist)
++          .setAlbumTitle(metadata.albumTitle)
++          .setIsBrowsable(false)
++          .setIsPlayable(true)
++          .apply { sessionMetadataPlayer?.artworkBytes()?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) } }
++          .build()
++      )
++      .build()
++  }
++
+   override fun onBind(intent: Intent?): IBinder {
+     super.onBind(intent)
+     return binder
+@@ -502,14 +527,12 @@ class AudioControlsService : MediaSessionService() {
+       mediaSession?.release()
+       sessionMetadataPlayer = null
+       appContext?.mainQueue?.launch {
+-        val context = appContext?.reactContext ?: return@launch
++        appContext?.reactContext ?: return@launch
+         val sessionPlayer = MetadataInjectingPlayer(resolveSessionPlayer(playable, options)).apply {
+           updateMetadata(metadata)
++          updateArtwork(currentArtwork)
+         }
+-        val session = MediaSession.Builder(context, sessionPlayer)
+-          .setId("ExpoAudioLockScreenSession_${playable.player.hashCode()}")
+-          .setCallback(AudioMediaSessionCallback(this@AudioControlsService))
+-          .build()
++        val session = buildLibrarySession(sessionPlayer, "ExpoAudioLockScreenSession_${playable.player.hashCode()}")
+ 
+         playable.mediaSession.release()
+         playable.mediaSession = session
+@@ -593,11 +616,15 @@ class AudioControlsService : MediaSessionService() {
+ 
+     loadArtworkFromUrl(artworkUrl) { bitmap ->
+       currentArtwork = bitmap
++      // Android Auto and other system UIs run in other processes and can't open the app's
++      // file:// artwork, so the session carries the image itself.
++      sessionMetadataPlayer?.updateArtwork(bitmap)
+       postOrStartForegroundNotification(startInForeground = false)
+     }
+   }
+ 
+   private fun clearArtwork() {
++    sessionMetadataPlayer?.updateArtwork(null)
+     artworkLoadJob?.cancel()
+     artworkLoadJob = null
+     currentArtworkUrl = null
+diff --git a/android/src/main/java/expo/modules/audio/service/AudioMediaSessionCallback.kt b/android/src/main/java/expo/modules/audio/service/AudioMediaSessionCallback.kt
+index ee83be1fa02e01f15d9040e6f5fedb3c7e1ac34a..9cf029d1734ad93964294a133d286a9e33eec544 100644
+--- a/android/src/main/java/expo/modules/audio/service/AudioMediaSessionCallback.kt
++++ b/android/src/main/java/expo/modules/audio/service/AudioMediaSessionCallback.kt
+@@ -2,18 +2,75 @@ package expo.modules.audio.service
+ 
+ import android.os.Bundle
+ import androidx.annotation.OptIn
++import androidx.media3.common.MediaItem
++import androidx.media3.common.MediaMetadata
+ import androidx.media3.common.Player
+ import androidx.media3.common.util.UnstableApi
++import androidx.media3.session.LibraryResult
++import androidx.media3.session.MediaLibraryService
+ import androidx.media3.session.MediaSession
+ import androidx.media3.session.SessionCommand
++import androidx.media3.session.SessionError
+ import androidx.media3.session.SessionResult
++import com.google.common.collect.ImmutableList
+ import com.google.common.util.concurrent.Futures
+ import com.google.common.util.concurrent.ListenableFuture
+ 
++// Murmur patch: a MediaLibrarySession callback, so Android Auto can connect and browse. The tree
++// is one folder holding whatever is loaded; Auto plays it through MetadataInjectingPlayer.
+ @OptIn(UnstableApi::class)
+ class AudioMediaSessionCallback(
+   private val service: AudioControlsService
+-) : MediaSession.Callback {
++) : MediaLibraryService.MediaLibrarySession.Callback {
++  override fun onGetLibraryRoot(
++    session: MediaLibraryService.MediaLibrarySession,
++    browser: MediaSession.ControllerInfo,
++    params: MediaLibraryService.LibraryParams?
++  ): ListenableFuture<LibraryResult<MediaItem>> {
++    val root = MediaItem.Builder()
++      .setMediaId(ROOT_ID)
++      .setMediaMetadata(
++        MediaMetadata.Builder()
++          .setTitle("Now playing")
++          .setIsBrowsable(true)
++          .setIsPlayable(false)
++          .setMediaType(MediaMetadata.MEDIA_TYPE_FOLDER_MIXED)
++          .build()
++      )
++      .build()
++    return Futures.immediateFuture(LibraryResult.ofItem(root, params))
++  }
++
++  override fun onGetChildren(
++    session: MediaLibraryService.MediaLibrarySession,
++    browser: MediaSession.ControllerInfo,
++    parentId: String,
++    page: Int,
++    pageSize: Int,
++    params: MediaLibraryService.LibraryParams?
++  ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
++    val items = if (parentId == ROOT_ID) listOfNotNull(service.currentLibraryItem()) else emptyList()
++    return Futures.immediateFuture(LibraryResult.ofItemList(ImmutableList.copyOf(items), params))
++  }
++
++  override fun onGetItem(
++    session: MediaLibraryService.MediaLibrarySession,
++    browser: MediaSession.ControllerInfo,
++    mediaId: String
++  ): ListenableFuture<LibraryResult<MediaItem>> {
++    val item = service.currentLibraryItem()?.takeIf { it.mediaId == mediaId }
++      ?: return Futures.immediateFuture(LibraryResult.ofError(SessionError.ERROR_BAD_VALUE))
++    return Futures.immediateFuture(LibraryResult.ofItem(item, null))
++  }
++
++  // Items from the browse list have no URI; hand them back as they are, and the session player
++  // treats the current one as "play".
++  override fun onAddMediaItems(
++    mediaSession: MediaSession,
++    controller: MediaSession.ControllerInfo,
++    mediaItems: MutableList<MediaItem>
++  ): ListenableFuture<MutableList<MediaItem>> = Futures.immediateFuture(mediaItems)
++
+   override fun onConnect(
+     session: MediaSession,
+     controller: MediaSession.ControllerInfo
+@@ -35,7 +92,7 @@ class AudioMediaSessionCallback(
+         }
+         .build()
+ 
+-      val availableSessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
++      val availableSessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
+         .add(SessionCommand(AudioControlsService.ACTION_SEEK_BACKWARD, Bundle.EMPTY))
+         .add(SessionCommand(AudioControlsService.ACTION_SEEK_FORWARD, Bundle.EMPTY))
+         .apply {
+@@ -83,4 +140,8 @@ class AudioMediaSessionCallback(
+       else -> super.onCustomCommand(session, controller, command, args)
+     }
+   }
++
++  companion object {
++    private const val ROOT_ID = "expo-audio-root"
++  }
+ }
+diff --git a/android/src/main/java/expo/modules/audio/service/MetadataInjectingPlayer.kt b/android/src/main/java/expo/modules/audio/service/MetadataInjectingPlayer.kt
+index 18203a364d17dcf3de95d22a20175308e3363889..c4c2390fa91f88c8e308190a45e88b09a6ecb2fe 100644
+--- a/android/src/main/java/expo/modules/audio/service/MetadataInjectingPlayer.kt
++++ b/android/src/main/java/expo/modules/audio/service/MetadataInjectingPlayer.kt
+@@ -1,14 +1,17 @@
+ package expo.modules.audio.service
+ 
++import android.graphics.Bitmap
+ import android.os.Handler
+ import android.os.Looper
+ import androidx.core.net.toUri
+ import androidx.media3.common.FlagSet
+ import androidx.media3.common.ForwardingPlayer
++import androidx.media3.common.MediaItem
+ import androidx.media3.common.MediaMetadata
+ import androidx.media3.common.Player
+ import androidx.media3.common.util.UnstableApi
+ import expo.modules.audio.Metadata
++import java.io.ByteArrayOutputStream
+ import java.util.IdentityHashMap
+ 
+ // MediaSession reads artwork from Player.mediaMetadata, but expo-audio lock-screen metadata can
+@@ -21,6 +24,49 @@ internal class MetadataInjectingPlayer(
+   private val handler = Handler(applicationLooper)
+   private val listeners = IdentityHashMap<Player.Listener, Player.Listener>()
+   private var injectedMetadata: Metadata? = null
++  private var artworkBytes: ByteArray? = null
++
++  /** The artwork as JPEG bytes, for Android Auto and other UIs that can't open file:// URIs. */
++  fun artworkBytes(): ByteArray? = artworkBytes
++
++  fun updateArtwork(bitmap: Bitmap?) {
++    if (Looper.myLooper() != applicationLooper) {
++      handler.post { updateArtwork(bitmap) }
++      return
++    }
++    artworkBytes = bitmap?.let {
++      ByteArrayOutputStream().use { out ->
++        it.compress(Bitmap.CompressFormat.JPEG, 90, out)
++        out.toByteArray()
++      }
++    }
++    notifyMetadataChanged()
++  }
++
++  // Android Auto plays an item from its browse list by setting it on the session's player. The
++  // only item listed is what's already loaded, so that just means play; anything else is ignored
++  // rather than replacing the real media item.
++  private fun isCurrentItemOnly(items: List<MediaItem>) = items.isNotEmpty() && items.all { it.mediaId == CURRENT_ITEM_ID }
++
++  override fun setMediaItems(mediaItems: MutableList<MediaItem>) {
++    if (isCurrentItemOnly(mediaItems)) play()
++  }
++
++  override fun setMediaItems(mediaItems: MutableList<MediaItem>, resetPosition: Boolean) {
++    if (isCurrentItemOnly(mediaItems)) play()
++  }
++
++  override fun setMediaItems(mediaItems: MutableList<MediaItem>, startIndex: Int, startPositionMs: Long) {
++    if (isCurrentItemOnly(mediaItems)) play()
++  }
++
++  override fun addMediaItems(mediaItems: MutableList<MediaItem>) {
++    if (isCurrentItemOnly(mediaItems)) play()
++  }
++
++  override fun addMediaItems(index: Int, mediaItems: MutableList<MediaItem>) {
++    if (isCurrentItemOnly(mediaItems)) play()
++  }
+ 
+   override fun addListener(listener: Player.Listener) {
+     val forwardingListener = synchronized(listeners) {
+@@ -43,8 +89,9 @@ internal class MetadataInjectingPlayer(
+       .setTitle(metadata?.title)
+       .setArtist(metadata?.artist)
+       .setAlbumTitle(metadata?.albumTitle)
+-      .setArtworkUri(metadata?.artworkUrl?.toString()?.toUri())
+-      .setArtworkData(null, null)
++      // Other apps can't open a file:// path into this app; the image bytes stand in for it.
++      .setArtworkUri(metadata?.artworkUrl?.toString()?.takeUnless { it.startsWith("file:") }?.toUri())
++      .setArtworkData(artworkBytes, artworkBytes?.let { MediaMetadata.PICTURE_TYPE_FRONT_COVER })
+       .build()
+   }
+ 
+@@ -56,11 +103,14 @@ internal class MetadataInjectingPlayer(
+ 
+     val previousMetadata = mediaMetadata
+     injectedMetadata = metadata
+-    val newMetadata = mediaMetadata
+-
+-    if (previousMetadata == newMetadata) {
++    if (previousMetadata == mediaMetadata) {
+       return
+     }
++    notifyMetadataChanged()
++  }
++
++  private fun notifyMetadataChanged() {
++    val newMetadata = mediaMetadata
+ 
+     val events = Player.Events(
+       FlagSet.Builder()
+@@ -90,4 +140,8 @@ internal class MetadataInjectingPlayer(
+       listener.onEvents(this@MetadataInjectingPlayer, events)
+     }
+   }
++
++  companion object {
++    const val CURRENT_ITEM_ID = "expo-audio-current"
++  }
+ }

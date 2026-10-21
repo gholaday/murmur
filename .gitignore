@@ -19,3 +19,6 @@ Thumbs.db
 # Personal notes and local tool settings
 docs/TODO.md
 .claude/
+
+# Written by next dev
+apps/server/AGENTS.md

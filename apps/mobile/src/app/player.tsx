@@ -99,7 +99,8 @@ export default function Player() {
   const within = Math.min(spanLen, Math.max(0, pos - span.start));
   const speed = speedDraft ?? p.speed;
   const tint = item.color ?? "#3b4a6e";
-  const showAds = item.type === "episode" && adDetection;
+  // Not yet known (never online since installing): the episode's own ad times say so.
+  const showAds = item.type === "episode" && (adDetection ?? !!p.ads?.enabled);
   const adMode = adModeFor(adPrefs, item.podcastId);
   const marks = showAds && adMode !== "off" && p.ads?.enabled ? p.ads.ads : [];
   const adIndex = marks.findIndex((a) => pos >= a.startSec && pos < a.endSec);

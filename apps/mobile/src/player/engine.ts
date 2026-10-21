@@ -16,7 +16,7 @@ import {
 } from "@murmur/shared/client";
 import { absolute, api, authHeaders } from "@/lib/api";
 import { fetchBook, fetchEpisode, invalidateListening, keys } from "@/lib/data";
-import { getDownload, localUri } from "@/lib/downloads";
+import { getDownload, localUri, saveDownloadAds } from "@/lib/downloads";
 import { queryClient } from "@/lib/query";
 import { getJson, removeKey, setJson } from "@/lib/storage";
 import { toast } from "@/components/toast";
@@ -97,8 +97,17 @@ export function episodeToPlayable(e: EpisodeWithShow): Playable {
   };
 }
 
-/** Loads an item's details: the download's saved copy first, so it works offline. */
+/**
+ * Loads an item's details, falling back to the download's saved copy offline. Progress not yet
+ * sent to the server (listened offline) is newer than either, so it wins.
+ */
 export async function loadPlayable(ref: QueueRef): Promise<Playable> {
+  const it = await loadPlayableDetails(ref);
+  const unsent = getJson<Outbox>(OUTBOX_KEY)?.[`${ref.itemType}:${ref.itemId}`];
+  return unsent && !unsent.finished ? { ...it, startAt: unsent.positionSec } : it;
+}
+
+async function loadPlayableDetails(ref: QueueRef): Promise<Playable> {
   const dl = getDownload(ref.itemType, ref.itemId);
   if (ref.itemType === "book") {
     try {
@@ -242,9 +251,13 @@ function watchAds() {
       const info = await api<EpisodeAdsDto>(apiPaths.episodeAds(it.id));
       if (adsFor !== key) return;
       set({ ads: info });
+      saveDownloadAds(it.id, info);
       if (!info.enabled || info.status === "done" || info.status === "failed") return;
     } catch {
       if (adsFor !== key) return;
+      // Offline: a download carries the ad times it was saved with.
+      const dl = getDownload("episode", it.id);
+      if (!state.ads && dl?.type === "episode" && dl.ads) set({ ads: dl.ads });
     }
     adsTimer = setTimeout(() => void fetchAds(), ADS_POLL_MS);
   };
@@ -307,6 +320,8 @@ let fileIndex = 0;
 let pendingSeek: number | null = null;
 let autoplayAfterLoad = false;
 let seeking = false;
+/** Whether the loaded file is the phone's downloaded copy rather than the server's stream. */
+let playingLocal = false;
 let lastSaved = 0;
 let lockScreenActive = false;
 
@@ -326,6 +341,7 @@ function load(it: Playable, at: number, autoplay: boolean) {
   autoplayAfterLoad = autoplay;
   setPosition(at);
   set({ error: null, loading: true });
+  playingLocal = !!localUri(it.type, it.id, idx);
   player.replace(sourceFor(it, idx));
   // Playback starts once the position is restored (see the status listener).
 }
@@ -334,6 +350,11 @@ player.addListener("playbackStatusUpdate", (s: AudioStatus) => {
   const it = state.item;
   if (!it) return;
   if (s.error) {
+    // Downloaded while streaming, then the connection went: carry on from the saved copy.
+    if (!playingLocal && localUri(it.type, it.id, fileIndex)) {
+      load(it, position, state.playing || autoplayAfterLoad);
+      return;
+    }
     set({ loading: false, playing: false, error: "Couldn't play this. Check your connection and try again." });
     return;
   }
@@ -547,6 +568,9 @@ export async function playRef(ref: QueueRef, startAt?: number) {
 
 export function toggle() {
   if (!state.item) return;
+  // After an error the player is stuck; play loads it again from where it was (the
+  // downloaded copy if there is one now).
+  if (state.error) return load(state.item, position, true);
   if (player.playing) player.pause();
   else {
     // Reaching the end then pressing play starts again rather than doing nothing.

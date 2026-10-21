@@ -33,6 +33,7 @@
           "recordAudioAndroid": false
         }
       ],
+      "./plugins/with-android-auto",
       "expo-secure-store",
       "expo-sqlite",
       "expo-image",
