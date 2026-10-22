@@ -25,7 +25,11 @@ const UNKNOWN_COVER_WIDTH = 500;
 
 let providers: Providers | null = null;
 function getProviders(ctx: AppContext): Providers {
-  providers ??= createProviders(ctx.sqlite, { region: env.audibleRegion, userAgent: `Murmur/${env.version}` });
+  providers ??= createProviders(ctx.sqlite, {
+    region: env.audibleRegion,
+    userAgent: `Murmur/${env.version}`,
+    googleApiKey: env.googleBooksApiKey,
+  });
   return providers;
 }
 
@@ -49,7 +53,7 @@ function localOf(book: BookDetail): LocalBook {
 
 /**
  * Finds and scores candidates. With an ASIN in the files it looks that up directly first;
- * Google Books is only asked when Audible has nothing usable.
+ * Apple Books and Google Books are only asked when Audible has nothing usable.
  */
 export async function searchMatches(
   ctx: AppContext,
@@ -82,11 +86,16 @@ export async function searchMatches(
 
   let scored = [...found.values()].map((c) => scoreCandidate(local, c));
   if (!scored.some((c) => c.score >= 70)) {
-    try {
-      for (const c of await p.googleSearch(title, author)) scored.push(scoreCandidate(local, c));
-    } catch (err) {
-      errors.push(`Google Books: ${errorMessage(err)}`);
-    }
+    // Asked together; either can be down or out of quota without losing the other.
+    const fallbacks = [
+      { name: "Apple Books", search: p.itunesSearch },
+      { name: "Google Books", search: p.googleSearch },
+    ];
+    const results = await Promise.allSettled(fallbacks.map((f) => f.search(title, author)));
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") for (const c of r.value) scored.push(scoreCandidate(local, c));
+      else errors.push(`${fallbacks[i]!.name}: ${errorMessage(r.reason)}`);
+    });
   }
 
   // Highest score first; ties broken by provider then id so the order never shuffles.

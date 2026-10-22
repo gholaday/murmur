@@ -28,7 +28,7 @@ const TABS: Array<{ id: EditTab; label: string }> = [
   { id: "files", label: "Files" },
 ];
 
-const PROVIDER_NAME = { audible: "Audible", google: "Google Books" } as const;
+const PROVIDER_NAME = { audible: "Audible", google: "Google Books", itunes: "Apple Books" } as const;
 
 interface Form {
   title: string;
@@ -142,7 +142,6 @@ export function EditBookDialog({
   /** Runs an action that returns fresh edit info, then refreshes the page behind. */
   const act = async (fn: () => Promise<BookEditInfo | void>, done: string) => {
     setBusy(true);
-    setError(null);
     try {
       const next = await fn();
       if (next) adopt(next);
@@ -150,7 +149,7 @@ export function EditBookDialog({
       toast(done);
       onChanged();
     } catch (err) {
-      setError(errorText(err));
+      toast.error(errorText(err));
     } finally {
       setBusy(false);
     }
@@ -227,12 +226,12 @@ export function EditBookDialog({
           </div>
 
           <div className="edit-body">
-            {error ? (
+            {/* Only a failed load shows here, in place of the tabs; other failures are toasts. */}
+            {error && !info ? (
               <p className="error small" role="alert" style={{ marginTop: 0 }}>
                 {error}
               </p>
-            ) : null}
-            {!info || !form ? (
+            ) : !info || !form ? (
               <div className="loading-center" aria-busy="true" aria-label="Loading">
                 <div className="spinner" />
               </div>

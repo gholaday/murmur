@@ -20,6 +20,8 @@ export const env = {
   updateCheck: process.env.UPDATE_CHECK !== "false",
   /** Audible store used by Match: us, uk, ca, au, de, fr, it, es, in or jp. */
   audibleRegion: (process.env.AUDIBLE_REGION ?? "us").toLowerCase(),
+  /** Optional Google Books key for Match. Without one, Google shares a small quota per IP address. */
+  googleBooksApiKey: process.env.GOOGLE_BOOKS_API_KEY?.trim() || null,
   dataDir,
   dbPath: path.join(dataDir, "murmur.db"),
   coversDir: path.join(dataDir, "covers"),

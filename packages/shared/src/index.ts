@@ -166,7 +166,7 @@ export const matchFieldSchema = z.enum([
 export type MatchField = z.infer<typeof matchFieldSchema>;
 
 export const matchApplySchema = z.object({
-  provider: z.enum(["audible", "google"]),
+  provider: z.enum(["audible", "google", "itunes"]),
   providerId: z.string().min(1).max(64),
   fields: z.array(matchFieldSchema).min(1),
 });
@@ -368,7 +368,7 @@ export type QueueEntry =
   | { itemType: "book"; itemId: string; book: BookSummary }
   | { itemType: "episode"; itemId: string; episode: EpisodeWithShow };
 
-export type MatchProvider = "audible" | "google";
+export type MatchProvider = "audible" | "google" | "itunes";
 
 export interface MatchCandidate {
   provider: MatchProvider;

@@ -17,7 +17,7 @@ Murmur is inspired by [Audiobookshelf](https://www.audiobookshelf.org/), and rea
 ```yaml
 services:
   murmur:
-    image: ghcr.io/gholaday/murmur:0.2.12
+    image: ghcr.io/gholaday/murmur:0.2.13
     container_name: murmur
     restart: unless-stopped
     ports:
@@ -48,6 +48,7 @@ All optional.
 | `LIBRARY_DIR` | `/audiobooks` | First library folder; more can be added in Settings |
 | `DATA_DIR` | `/data` | Database, covers and backups |
 | `AUDIBLE_REGION` | `us` | Store used by Match: `us`, `uk`, `ca`, `au`, `de`, `fr`, `it`, `es`, `in`, `jp` |
+| `GOOGLE_BOOKS_API_KEY` | | Optional, free from the [Google Cloud console](https://console.cloud.google.com/apis/library/books.googleapis.com) (enable the Books API, then create an API key). Without one, Match shares Google's small per-address quota and may be told to wait |
 | `FEED_CHECK_MINUTES` | `30` | How often each podcast feed is checked; new episodes are downloaded right after |
 | `WATCH_POLLING` | `false` | Set `true` for network mounts that don't report file changes |
 | `WATCH_DEBOUNCE_SECONDS` | `30` | Wait after the last file change before rescanning |

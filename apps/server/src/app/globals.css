@@ -855,6 +855,22 @@ a.episode-show:hover { color: var(--accent); }
 .cover-suggest img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; outline: 2px solid transparent; outline-offset: 2px; }
 .cover-suggest button:hover img { outline-color: var(--accent); }
 .match-panel { display: flex; flex-direction: column; gap: 12px; }
+/* Review and Apply stay at the top of the dialog while the results or fields scroll under them.
+   The negative margins reach the dialog's edges; top matches .edit-body's top padding. */
+.match-bar {
+  position: sticky;
+  top: -18px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 -20px;
+  padding: 10px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.match-bar:first-child { margin-top: -18px; }
+.match-bar .btn-primary { margin-left: auto; }
 .chapter-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .chapter-edit { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .chapter-edit li { display: flex; align-items: center; gap: 8px; }
@@ -973,3 +989,19 @@ a.episode-show:hover { color: var(--accent); }
 }
 .tooltip.below { transform: none; }
 @keyframes tip-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* The toaster's popover (see toaster.tsx): an empty, click-through box in the top layer, so
+   toasts show above open dialogs. The toasts themselves position as usual. */
+.toast-layer[popover] {
+  position: fixed;
+  inset: 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+  pointer-events: none;
+}
+.toast-layer [data-sonner-toast] { pointer-events: auto; }

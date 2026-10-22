@@ -12,19 +12,23 @@ export class ProviderError extends Error {}
 
 /**
  * GET JSON through the 30-day provider cache. When a provider is down, a stale cached
- * answer is better than none, so it is used instead of failing.
+ * answer is better than none, so it is used instead of failing. `fetchUrl` is what's
+ * actually requested when it differs from `url`, the cache key: it can carry an API key,
+ * which stays out of the database and the logs.
  */
-async function cachedJson<T>(sqlite: Sqlite, url: string, userAgent: string): Promise<T | null> {
+async function cachedJson<T>(sqlite: Sqlite, url: string, userAgent: string, fetchUrl = url): Promise<T | null> {
   const row = sqlite.prepare("SELECT body, fetched_at FROM provider_cache WHERE url = ?").get(url) as
     | { body: string; fetched_at: number }
     | undefined;
   if (row && Date.now() - row.fetched_at < CACHE_TTL_MS) return JSON.parse(row.body) as T;
   try {
-    const res = await fetch(url, {
+    const res = await fetch(fetchUrl, {
       headers: { "User-Agent": userAgent, Accept: "application/json" },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (res.status === 404) return null;
+    if (res.status === 429) throw new ProviderError("is limiting how often it can be searched. Try again in a while");
+    if (res.status >= 500) throw new ProviderError("isn't answering right now. Try again in a while");
     if (!res.ok) throw new ProviderError(`answered ${res.status}`);
     const body = await res.text();
     JSON.parse(body); // don't cache garbage
@@ -108,9 +112,21 @@ function audibleCandidate(p: AudibleProduct): CandidateDetail {
   };
 }
 
-export function createProviders(sqlite: Sqlite, opts: { region: string; userAgent: string }) {
+export function createProviders(sqlite: Sqlite, opts: { region: string; userAgent: string; googleApiKey?: string | null }) {
   const host = AUDIBLE_HOSTS[opts.region] ?? AUDIBLE_HOSTS.us!;
   const get = <T>(url: string) => cachedJson<T>(sqlite, url, opts.userAgent);
+  // Without a key, Google Books shares a small quota between everyone on the same address.
+  const googleGet = async <T>(url: string) => {
+    const keyed = opts.googleApiKey ? `${url}${url.includes("?") ? "&" : "?"}key=${encodeURIComponent(opts.googleApiKey)}` : url;
+    try {
+      return await cachedJson<T>(sqlite, url, opts.userAgent, keyed);
+    } catch (err) {
+      if (err instanceof ProviderError && !opts.googleApiKey && err.message.startsWith("is limiting")) {
+        throw new ProviderError(`${err.message}, or set GOOGLE_BOOKS_API_KEY for a quota of your own`);
+      }
+      throw err;
+    }
+  };
 
   async function audibleSearch(title: string, author: string | null): Promise<CandidateDetail[]> {
     const run = async (params: Record<string, string>) => {
@@ -191,20 +207,74 @@ export function createProviders(sqlite: Sqlite, opts: { region: string; userAgen
   async function googleSearch(title: string, author: string | null): Promise<CandidateDetail[]> {
     const q = [`intitle:${title}`, author ? `inauthor:${author}` : null].filter(Boolean).join(" ");
     const qs = new URLSearchParams({ q, maxResults: "10", printType: "books" });
-    const data = await get<{ items?: GoogleVolume[] }>(`https://www.googleapis.com/books/v1/volumes?${qs}`);
+    const data = await googleGet<{ items?: GoogleVolume[] }>(`https://www.googleapis.com/books/v1/volumes?${qs}`);
     return (data?.items ?? []).filter((v) => v.volumeInfo?.title).map(googleCandidate);
   }
 
   async function googleById(id: string): Promise<CandidateDetail | null> {
-    const data = await get<GoogleVolume>(`https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(id)}`);
+    const data = await googleGet<GoogleVolume>(`https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(id)}`);
     return data?.volumeInfo?.title ? googleCandidate(data) : null;
   }
 
-  async function byId(provider: MatchProvider, id: string): Promise<CandidateDetail | null> {
-    return provider === "audible" ? audibleByAsin(id) : googleById(id);
+  // ---------- iTunes (Apple Books audiobooks: no key or quota, audio editions, big covers) ----------
+
+  interface ItunesAudiobook {
+    collectionId: number;
+    collectionName?: string;
+    artistName?: string;
+    releaseDate?: string;
+    artworkUrl100?: string;
+    description?: string;
   }
 
-  return { audibleSearch, audibleByAsin, audnexusChapters, googleSearch, byId };
+  // Apple's store codes match Audible's regions, except the UK.
+  const itunesCountry = opts.region === "uk" ? "gb" : opts.region;
+
+  function itunesCandidate(a: ItunesAudiobook): CandidateDetail {
+    return {
+      provider: "itunes",
+      providerId: String(a.collectionId),
+      title: (a.collectionName ?? "").replace(/\s*\((un)?abridged\)\s*$/i, ""),
+      subtitle: null,
+      author: a.artistName ?? null,
+      narrator: null,
+      series: null,
+      seriesPosition: null,
+      year: a.releaseDate?.slice(0, 4) ?? null,
+      durationSec: null,
+      language: null,
+      // The artwork link names its size; Apple serves the same image at any size up to the original.
+      coverUrl: a.artworkUrl100 ? a.artworkUrl100.replace(/\/100x100bb\./, "/1400x1400bb.") : null,
+      description: a.description ? htmlToText(a.description) || null : null,
+    };
+  }
+
+  async function itunesSearch(title: string, author: string | null): Promise<CandidateDetail[]> {
+    const qs = new URLSearchParams({
+      term: [title, author].filter(Boolean).join(" "),
+      media: "audiobook",
+      entity: "audiobook",
+      country: itunesCountry,
+      limit: "10",
+    });
+    const data = await get<{ results?: ItunesAudiobook[] }>(`https://itunes.apple.com/search?${qs}`);
+    return (data?.results ?? []).filter((a) => a.collectionId && a.collectionName).map(itunesCandidate);
+  }
+
+  async function itunesById(id: string): Promise<CandidateDetail | null> {
+    const qs = new URLSearchParams({ id, entity: "audiobook", country: itunesCountry });
+    const data = await get<{ results?: ItunesAudiobook[] }>(`https://itunes.apple.com/lookup?${qs}`);
+    const hit = data?.results?.find((a) => String(a.collectionId) === id && a.collectionName);
+    return hit ? itunesCandidate(hit) : null;
+  }
+
+  async function byId(provider: MatchProvider, id: string): Promise<CandidateDetail | null> {
+    if (provider === "audible") return audibleByAsin(id);
+    if (provider === "itunes") return itunesById(id);
+    return googleById(id);
+  }
+
+  return { audibleSearch, audibleByAsin, audnexusChapters, googleSearch, itunesSearch, byId };
 }
 
 export type Providers = ReturnType<typeof createProviders>;

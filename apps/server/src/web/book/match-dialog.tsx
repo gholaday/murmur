@@ -2,12 +2,13 @@
 
 /* eslint-disable @next/next/no-img-element -- provider cover thumbnails are remote */
 import { useCallback, useEffect, useState } from "react";
-import { type BookDetail, duration, type MatchCandidate, type MatchField, type MatchPreview, type MatchSearchResult, type MatchValues, seriesLabel } from "@murmur/shared/client";
+import { toast } from "sonner";
+import { type BookDetail, duration, type MatchCandidate, type MatchField, type MatchPreview, type MatchSearchResult, type MatchValues, plural, seriesLabel } from "@murmur/shared/client";
 import { api } from "../api";
 import { BackIcon } from "../icons";
 
 const keyOf = (c: Pick<MatchCandidate, "provider" | "providerId">) => `${c.provider}:${c.providerId}`;
-const PROVIDER_NAME = { audible: "Audible", google: "Google Books" } as const;
+const PROVIDER_NAME = { audible: "Audible", google: "Google Books", itunes: "Apple Books" } as const;
 
 const FIELDS: Array<{ field: MatchField; label: string; show: (v: MatchValues) => React.ReactNode }> = [
   { field: "cover", label: "Cover", show: (v) => (v.coverUrl ? <img src={v.coverUrl} alt="" /> : <span className="muted">None</span>) },
@@ -83,24 +84,25 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const search = useCallback(
     async (custom?: { title: string; author: string }) => {
       setBusy(true);
-      setError(null);
       setPreview(null);
       try {
         const qs = custom ? `?${new URLSearchParams({ title: custom.title, author: custom.author })}` : "";
         const r = await api<MatchSearchResult>(`/api/books/${book.id}/match${qs}`);
         setResult(r);
         setSelected(r.suggested);
+        // A source that couldn't be searched; the others' results still show. The id keeps a
+        // repeat search from stacking the same message.
+        for (const e of r.errors) toast.error(e, { id: e });
         if (!custom) {
           setTitle(r.query.title);
           setAuthor(r.query.author ?? "");
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Search failed.");
+        toast.error(err instanceof Error ? err.message : "Search failed.");
       } finally {
         setBusy(false);
       }
@@ -116,7 +118,6 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
     const c = result?.candidates.find((x) => keyOf(x) === selected);
     if (!c) return;
     setBusy(true);
-    setError(null);
     try {
       const p = await api<MatchPreview>(
         `/api/books/${book.id}/match/preview?${new URLSearchParams({ provider: c.provider, providerId: c.providerId })}`,
@@ -125,7 +126,7 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
       // The fields applied last time, or the recommended ones the first time.
       setChosen(new Set(lastFields() ?? p.recommended));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't load that result.");
+      toast.error(err instanceof Error ? err.message : "Couldn't load that result.");
     } finally {
       setBusy(false);
     }
@@ -137,7 +138,6 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
   const apply = async () => {
     if (!preview || fields.length === 0) return;
     setBusy(true);
-    setError(null);
     try {
       await api(`/api/books/${book.id}/match`, {
         method: "POST",
@@ -146,7 +146,7 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
       saveLastFields([...chosen]);
       onApplied();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't apply the match.");
+      toast.error(err instanceof Error ? err.message : "Couldn't apply the match.");
     } finally {
       setBusy(false);
     }
@@ -157,9 +157,14 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
     <div className="match-panel">
       {preview ? (
         <>
-          <button type="button" className="btn" style={{ alignSelf: "flex-start" }} onClick={() => setPreview(null)}>
-            <BackIcon size={18} /> Results
-          </button>
+          <div className="match-bar">
+            <button type="button" className="btn" onClick={() => setPreview(null)}>
+              <BackIcon size={18} /> Results
+            </button>
+            <button type="button" className="btn btn-primary" disabled={busy || fields.length === 0} onClick={() => void apply()}>
+              {busy ? "Applying…" : fields.length ? `Apply ${fields.length} ${fields.length === 1 ? "field" : "fields"}` : "Pick a field"}
+            </button>
+          </div>
           <div style={{ overflowX: "auto" }}>
             <table className="compare">
               <thead>
@@ -208,10 +213,6 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
               </tbody>
             </table>
           </div>
-          {error ? <p className="error small">{error}</p> : null}
-          <button type="button" className="btn btn-primary btn-big" disabled={busy || fields.length === 0} onClick={() => void apply()}>
-            {busy ? "Applying…" : fields.length ? `Apply ${fields.length} ${fields.length === 1 ? "field" : "fields"}` : "Pick at least one field"}
-          </button>
         </>
       ) : (
         <>
@@ -226,24 +227,23 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
               <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" aria-label="Search title" />
               <input className="input" value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="Author" aria-label="Search author" />
             </div>
-            <button type="submit" className="btn" disabled={busy || !title.trim()}>
+            <button type="submit" className="btn btn-primary" disabled={busy || !title.trim()}>
               {busy && !result ? "Searching…" : "Search"}
             </button>
           </form>
-
-          {result?.errors.map((e) => (
-            <p key={e} className="error small" style={{ margin: 0 }}>
-              {e}
-            </p>
-          ))}
-          {error ? <p className="error small" style={{ margin: 0 }}>{error}</p> : null}
 
           {result ? (
             result.candidates.length === 0 ? (
               <p className="muted">No results.</p>
             ) : (
               <>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: "48dvh", overflowY: "auto" }}>
+                <div className="match-bar">
+                  <span className="muted small">{plural(result.candidates.length, "result")}</span>
+                  <button type="button" className="btn btn-primary" disabled={!selected || busy} onClick={() => void review()}>
+                    {busy ? "Loading…" : selected ? "Review changes" : "Pick a result"}
+                  </button>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {result.candidates.map((c) => {
                     const k = keyOf(c);
                     const on = selected === k;
@@ -281,9 +281,6 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
                     );
                   })}
                 </div>
-                <button type="button" className="btn btn-primary btn-big" disabled={!selected || busy} onClick={() => void review()}>
-                  {busy ? "Loading…" : "Review changes"}
-                </button>
               </>
             )
           ) : busy ? (
