@@ -14,7 +14,13 @@
       "android": { "buildType": "apk" }
     },
     "production": {
-      "android": { "buildType": "apk" }
+      "android": { "buildType": "apk" },
+      "ios": { "resourceClass": "m-medium" }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {}
     }
   }
 }

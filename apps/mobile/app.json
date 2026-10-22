@@ -30,7 +30,8 @@
         {
           "enableBackgroundPlayback": true,
           "enableBackgroundRecording": false,
-          "recordAudioAndroid": false
+          "recordAudioAndroid": false,
+          "microphonePermission": false
         }
       ],
       "./plugins/with-android-auto",
@@ -83,6 +84,20 @@
         "projectId": "97044b4c-6797-4a91-8b9a-21aa68fa8f3a"
       }
     },
-    "ios": {}
+    "ios": {
+      "bundleIdentifier": "com.gholaday.murmur",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        },
+        "NSLocalNetworkUsageDescription": "Murmur connects to your Murmur server when it's on your home network."
+      }
+    }
   }
 }

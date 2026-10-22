@@ -8,9 +8,9 @@ import { api } from "../api";
 import { BackIcon } from "../icons";
 
 const keyOf = (c: Pick<MatchCandidate, "provider" | "providerId">) => `${c.provider}:${c.providerId}`;
-const PROVIDER_NAME = { audible: "Audible", google: "Google Books", itunes: "Apple Books" } as const;
+export const PROVIDER_NAME = { audible: "Audible", google: "Google Books", itunes: "Apple Books" } as const;
 
-const FIELDS: Array<{ field: MatchField; label: string; show: (v: MatchValues) => React.ReactNode }> = [
+export const FIELDS: Array<{ field: MatchField; label: string; show: (v: MatchValues) => React.ReactNode }> = [
   { field: "cover", label: "Cover", show: (v) => (v.coverUrl ? <img src={v.coverUrl} alt="" /> : <span className="muted">None</span>) },
   { field: "title", label: "Title", show: (v) => v.title },
   { field: "author", label: "Author", show: (v) => v.author },
@@ -24,7 +24,7 @@ const FIELDS: Array<{ field: MatchField; label: string; show: (v: MatchValues) =
 /** The fields last applied from a match, checked again at the next review. Kept in this browser. */
 const LAST_FIELDS_KEY = "murmur.matchFields";
 
-function lastFields(): MatchField[] | null {
+export function lastFields(): MatchField[] | null {
   try {
     const raw = JSON.parse(localStorage.getItem(LAST_FIELDS_KEY) ?? "null") as unknown;
     return Array.isArray(raw) ? raw.filter((f): f is MatchField => FIELDS.some((x) => x.field === f)) : null;
@@ -71,7 +71,7 @@ function canApply(preview: MatchPreview, field: MatchField): boolean {
   return !!entry?.show(preview.proposed) && !blocked && !isSame(preview, field);
 }
 
-function scoreClass(score: number) {
+export function scoreClass(score: number) {
   return score >= 90 ? "high" : score >= 70 ? "mid" : "";
 }
 

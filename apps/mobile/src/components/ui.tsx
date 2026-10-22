@@ -12,6 +12,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from "react-native";
+import { selectHaptic } from "@/lib/haptics";
 import { fonts, useTheme, type Theme } from "@/theme";
 
 type Variant = "title" | "heading" | "body" | "bodyStrong" | "small" | "caption";
@@ -199,7 +200,10 @@ export function Chip({ label, selected, onPress }: { label: string; selected: bo
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      onPress={onPress}
+      onPress={() => {
+        if (!selected) selectHaptic();
+        onPress();
+      }}
       style={{
         height: 36,
         paddingHorizontal: 16,

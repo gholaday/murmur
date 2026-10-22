@@ -14,6 +14,7 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
+import { dragHaptic } from "@/lib/haptics";
 import { useTheme } from "@/theme";
 
 // Drag-to-reorder like the web's sortable.ts: the lifted row follows the finger, the rows it
@@ -322,6 +323,7 @@ export function DragHandle({ label, children }: { label: string; children: React
       activeTop.set(top);
       pointerY.set(e.absoluteY);
       active.set(id);
+      scheduleOnRN(dragHaptic);
     },
     onUpdate: (e) => {
       translation.set(e.translationY);
@@ -331,6 +333,7 @@ export function DragHandle({ label, children }: { label: string; children: React
     onFinalize: () => {
       if (active.get() !== id) return;
       const keys = [...order.get()];
+      scheduleOnRN(dragHaptic);
       activeTop.set(
         withTiming(topOf(keys, heights.get(), id), { duration: DROP_MS }, () => {
           active.set(null);

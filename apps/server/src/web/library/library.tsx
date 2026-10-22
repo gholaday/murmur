@@ -35,8 +35,9 @@ import { EditBookDialog, type EditTab } from "../book/edit-dialog";
 import { Sheet, SheetItem } from "../sheet";
 import { useSortable } from "../sortable";
 import { BookActionsContext, BookCard } from "./book-card";
+import { BulkMatch } from "./bulk-match";
 
-type Tab = "books" | "authors" | "series" | "finished" | "attention";
+type Tab = "books" | "authors" | "series" | "finished" | "attention" | "unmatched";
 
 /** Problems an admin can fix from the edit dialog, listed under Needs attention. */
 const ISSUES = [
@@ -140,7 +141,6 @@ export function Library(props: LibraryProps) {
 
 function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSections }: LibraryProps) {
   const router = useRouter();
-  const [issue, setIssue] = useState<IssueId>("all");
   const pathname = usePathname();
   const params = useSearchParams();
   const tab = (params.get("tab") as Tab | null) ?? "books";
@@ -469,33 +469,31 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
                 {t.label}
               </button>
             ))}
-            {isAdmin && (attentionCount > 0 || (tab === "attention" && issue !== "unmatched")) ? (
+            {isAdmin && (attentionCount > 0 || tab === "attention") ? (
               <button
                 type="button"
                 role="tab"
                 className="chip chip-warn"
-                aria-selected={tab === "attention" && issue !== "unmatched"}
-                aria-pressed={tab === "attention" && issue !== "unmatched"}
+                aria-selected={tab === "attention"}
+                aria-pressed={tab === "attention"}
                 onClick={() => {
                   setCustomizing(false);
-                  setIssue("all");
                   go({ tab: "attention" });
                 }}
               >
                 Needs attention
               </button>
             ) : null}
-            {isAdmin && (unmatchedCount > 0 || (tab === "attention" && issue === "unmatched")) ? (
+            {isAdmin && (unmatchedCount > 0 || tab === "unmatched") ? (
               <button
                 type="button"
                 role="tab"
                 className="chip"
-                aria-selected={tab === "attention" && issue === "unmatched"}
-                aria-pressed={tab === "attention" && issue === "unmatched"}
+                aria-selected={tab === "unmatched"}
+                aria-pressed={tab === "unmatched"}
                 onClick={() => {
                   setCustomizing(false);
-                  setIssue("unmatched");
-                  go({ tab: "attention" });
+                  go({ tab: "unmatched" });
                 }}
               >
                 Not matched
@@ -503,9 +501,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
             ) : null}
           </div>
 
-          {tab === "attention" ? (
-            <AttentionView books={sorted} issue={issue} />
-          ) : null}
+          {tab === "attention" || tab === "unmatched" ? <AttentionView books={sorted} issue={tab === "unmatched" ? "unmatched" : "all"} /> : null}
 
           {tab === "books" ? (
             <>
@@ -681,18 +677,20 @@ function BookSections({
 
 function AttentionView({ books, issue }: { books: BookSummary[]; issue: IssueId }) {
   const list = issue === "unmatched" ? books.filter((b) => !b.matched) : books.filter((b) => issuesOf(b).length > 0);
+  const grid =
+    list.length === 0 ? (
+      <div className="empty">Nothing to fix here.</div>
+    ) : (
+      <div className="grid">
+        {list.map((b) => (
+          // Unmatched books already carry a "Not matched" mark on the cover, so they show their author.
+          <BookCard key={b.id} book={b} sub={issue === "unmatched" ? undefined : issuesOf(b).map((i) => i.label).join(", ")} />
+        ))}
+      </div>
+    );
   return (
     <section className="section">
-      {list.length === 0 ? (
-        <div className="empty">Nothing to fix here.</div>
-      ) : (
-        <div className="grid">
-          {list.map((b) => (
-            // Unmatched books already carry a "Not matched" mark on the cover, so they show their author.
-            <BookCard key={b.id} book={b} sub={issue === "unmatched" ? undefined : issuesOf(b).map((i) => i.label).join(", ")} />
-          ))}
-        </div>
-      )}
+      {issue === "unmatched" ? <BulkMatch unmatched={list.filter((b) => b.missingSince === null).length}>{grid}</BulkMatch> : grid}
     </section>
   );
 }

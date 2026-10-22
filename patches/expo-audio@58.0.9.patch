@@ -329,3 +329,72 @@ index 18203a364d17dcf3de95d22a20175308e3363889..c4c2390fa91f88c8e308190a45e88b09
 +    const val CURRENT_ITEM_ID = "expo-audio-current"
 +  }
  }
+diff --git a/build/AudioConstants.d.ts b/build/AudioConstants.d.ts
+index 57ffc218d6a2be787e5c579c4c55ac25866b3377..00278affd1ab3b248157b07f6806857402054e09 100644
+--- a/build/AudioConstants.d.ts
++++ b/build/AudioConstants.d.ts
+@@ -23,4 +23,12 @@ export type AudioLockScreenOptions = {
+      * and scrub bar, and disable seek controls.
+      */
+     isLiveStream?: boolean;
++    /**
++     * iOS only: seconds the lock screen's seek forward button jumps. Defaults to 10.
++     */
++    seekForwardInterval?: number;
++    /**
++     * iOS only: seconds the lock screen's seek backward button jumps. Defaults to 10.
++     */
++    seekBackwardInterval?: number;
+ };
+diff --git a/ios/AudioRecords.swift b/ios/AudioRecords.swift
+index d331e804fab76a53c24eae7b22417935404aa765..f684a4a63c8b912329db0bc6a535cc1dd42ec81e 100644
+--- a/ios/AudioRecords.swift
++++ b/ios/AudioRecords.swift
+@@ -82,6 +82,8 @@ struct LockScreenOptions: Record {
+   @Field var showNextTrack: Bool = false
+   @Field var showPreviousTrack: Bool = false
+   @Field var isLiveStream: Bool? = false
++  @Field var seekForwardInterval: Double = 10
++  @Field var seekBackwardInterval: Double = 10
+ }
+ 
+ enum BitRateStrategy: String, Enumerable {
+diff --git a/ios/MediaController.swift b/ios/MediaController.swift
+index 1f7ca7ea4ec041e4111ab96ffa15b939f6e4d896..164c8a2900101af25ee1db18c2106f7530de4562 100644
+--- a/ios/MediaController.swift
++++ b/ios/MediaController.swift
+@@ -329,7 +329,7 @@ class MediaController {
+     }
+     remoteCommandTargets.append((remoteCommandCenter.changePlaybackPositionCommand, changePlaybackPositionTarget))
+ 
+-    remoteCommandCenter.skipForwardCommand.preferredIntervals = [10.0]
++    remoteCommandCenter.skipForwardCommand.preferredIntervals = [NSNumber(value: options?.seekForwardInterval ?? 10)]
+     let skipForwardTarget = remoteCommandCenter.skipForwardCommand.addTarget { [weak self] event in
+       guard let playable = self?.activePlayable,
+       let event = event as? MPSkipIntervalCommandEvent else {
+@@ -344,7 +344,7 @@ class MediaController {
+     }
+     remoteCommandTargets.append((remoteCommandCenter.skipForwardCommand, skipForwardTarget))
+ 
+-    remoteCommandCenter.skipBackwardCommand.preferredIntervals = [10.0]
++    remoteCommandCenter.skipBackwardCommand.preferredIntervals = [NSNumber(value: options?.seekBackwardInterval ?? 10)]
+     let skipBackwardTarget = remoteCommandCenter.skipBackwardCommand.addTarget { [weak self] event in
+       guard let playable = self?.activePlayable,
+       let event = event as? MPSkipIntervalCommandEvent else {
+diff --git a/src/AudioConstants.ts b/src/AudioConstants.ts
+index f08580640577a4a5edd9083448e36aab190906ac..aefc449b80d33ffce3bc966097cb79e5b8f2167b 100644
+--- a/src/AudioConstants.ts
++++ b/src/AudioConstants.ts
+@@ -24,4 +24,12 @@ export type AudioLockScreenOptions = {
+    * and scrub bar, and disable seek controls.
+    */
+   isLiveStream?: boolean;
++  /**
++   * iOS only: seconds the lock screen's seek forward button jumps. Defaults to 10.
++   */
++  seekForwardInterval?: number;
++  /**
++   * iOS only: seconds the lock screen's seek backward button jumps. Defaults to 10.
++   */
++  seekBackwardInterval?: number;
+ };

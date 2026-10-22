@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { AppState } from "react-native";
-import { createAudioPlayer, setAudioModeAsync, type AudioStatus } from "expo-audio";
+import { type AudioMetadata, createAudioPlayer, setAudioModeAsync, type AudioStatus } from "expo-audio";
 import { File, Directory, Paths } from "expo-file-system";
 import { onlineManager } from "@tanstack/react-query";
 import {
@@ -26,6 +26,8 @@ import {
 import { absolute, api, authHeaders } from "@/lib/api";
 import { fetchBook, fetchEpisode, invalidateListening, keys } from "@/lib/data";
 import { getDownload, localUri, saveDownloadAds } from "@/lib/downloads";
+import { tapHaptic } from "@/lib/haptics";
+import { isIOS } from "@/lib/platform";
 import { queryClient } from "@/lib/query";
 import { getJson, removeKey, setJson } from "@/lib/storage";
 import { toast } from "@/components/toast";
@@ -175,6 +177,9 @@ AppState.addEventListener("change", (s) => {
 function setPosition(p: number) {
   position = p;
   if (appActive) positionListeners.forEach((l) => l());
+  // The lock screen names the chapter playing, so it changes as a chapter ends.
+  const it = state.item;
+  if (lockScreenActive && it && it.chapters.length > 1 && chapterAt(it.chapters, p) !== lockScreenChapter) void showOnLockScreen(it);
 }
 
 export function usePlayer(): PlayerState {
@@ -309,6 +314,17 @@ let seeking = false;
 let playingLocal = false;
 let lastSaved = 0;
 let lockScreenActive = false;
+/** The chapter the lock screen shows, or -1 for an item without chapters. */
+let lockScreenChapter = -1;
+let lockScreenMetadata: AudioMetadata | undefined;
+
+/** The lock screen's skip buttons jump as far as the player's own (iOS; Android has its own). */
+const lockScreenOptions = () => ({
+  showSeekBackward: true,
+  showSeekForward: true,
+  seekBackwardInterval: state.skip.back,
+  seekForwardInterval: state.skip.forward,
+});
 
 const fileAt = (it: Playable, sec: number) => Math.max(0, it.files.findLastIndex((f) => f.startSec <= sec));
 
@@ -406,16 +422,24 @@ async function artworkFor(it: Playable): Promise<string | undefined> {
   }
 }
 
+/**
+ * Shows the item on the lock screen and Control Center (Android's media notification). A book
+ * with chapters shows the chapter as the title and the book under it.
+ */
 async function showOnLockScreen(it: Playable) {
-  const metadata = {
-    title: it.title,
-    artist: it.subtitle ?? undefined,
+  const ci = it.chapters.length > 1 ? chapterAt(it.chapters, position) : -1;
+  lockScreenChapter = ci;
+  const chapter = ci >= 0 ? it.chapters[ci] : undefined;
+  const metadata: AudioMetadata = {
+    title: chapter?.title ?? it.title,
+    artist: chapter ? it.title : (it.subtitle ?? undefined),
     albumTitle: it.type === "book" ? it.title : (it.subtitle ?? undefined),
     artworkUrl: await artworkFor(it),
   };
   if (state.item !== it && state.item?.id !== it.id) return;
+  lockScreenMetadata = metadata;
   if (lockScreenActive) player.updateLockScreenMetadata(metadata);
-  else player.setActiveForLockScreen(true, metadata, { showSeekBackward: true, showSeekForward: true });
+  else player.setActiveForLockScreen(true, metadata, lockScreenOptions());
   lockScreenActive = true;
 }
 
@@ -554,6 +578,7 @@ export async function playRef(ref: QueueRef, startAt?: number) {
 
 export function toggle() {
   if (!state.item) return;
+  tapHaptic();
   // After an error the player is stuck; play loads it again from where it was (the
   // downloaded copy if there is one now).
   if (state.error) return load(state.item, position, true);
@@ -588,6 +613,7 @@ export function seek(sec: number) {
  * the break; Undo comes back to where the skip landed.
  */
 export function skipBy(delta: number) {
+  tapHaptic();
   const from = position;
   seek(from + delta);
   if (delta > 0) skipAdCrossed(from, position, position);
@@ -597,6 +623,7 @@ export function chapterStep(dir: -1 | 1) {
   const it = state.item;
   if (!it) return;
   if (it.chapters.length === 0) return skipBy(dir * 30);
+  tapHaptic();
   const i = chapterAt(it.chapters, position);
   if (dir === 1) {
     const next = it.chapters[i + 1];
@@ -639,6 +666,8 @@ export function setSleep(s: SleepTimer) {
 export function setSkip(s: SkipSettings) {
   set({ skip: s });
   setJson(SKIP_KEY, s);
+  // iOS reads the intervals when the lock screen controls are set up, so set them up again.
+  if (isIOS && lockScreenActive) player.setActiveForLockScreen(true, lockScreenMetadata, lockScreenOptions());
 }
 
 /** Marks the current item finished (or not) and saves it. */
@@ -665,6 +694,8 @@ function clear() {
   player.pause();
   player.clearLockScreenControls();
   lockScreenActive = false;
+  lockScreenChapter = -1;
+  lockScreenMetadata = undefined;
   player.replace(null);
   removeKey(NOW_PLAYING_KEY);
 }

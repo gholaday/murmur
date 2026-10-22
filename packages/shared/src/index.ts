@@ -172,6 +172,14 @@ export const matchApplySchema = z.object({
 });
 export type MatchApplyInput = z.input<typeof matchApplySchema>;
 
+export const bulkMatchStartSchema = z.object({
+  fields: z.array(matchFieldSchema).min(1),
+});
+export type BulkMatchStartInput = z.input<typeof bulkMatchStartSchema>;
+
+export const bulkMatchApplySchema = z.object({ bookIds: z.array(z.string().min(1).max(64)).min(1).max(5000) });
+export const bulkMatchUndoSchema = z.object({ bookId: z.string().min(1).max(64) });
+
 /**
  * A book's details as edited by an admin. Every field is sent; a value equal to what the
  * files say is stored as "use the files", and an empty string clears the field.
@@ -407,6 +415,47 @@ export interface MatchPreview {
   recommended: MatchField[];
   /** Why chapters can't be applied, when they can't. */
   chaptersNote: string | null;
+}
+
+/** One field a bulk match result changes, as text for both sides. */
+export interface BulkMatchChange {
+  field: MatchField;
+  from: string | null;
+  to: string | null;
+  /** Edited by hand, so it's left alone. */
+  edited: boolean;
+}
+
+/** Where one book stands in a bulk match. */
+export type BulkMatchItemStatus = "pending" | "applied" | "review" | "none";
+
+export interface BulkMatchItem {
+  bookId: string;
+  title: string;
+  author: string | null;
+  coverHash: string | null;
+  coverColor: string | null;
+  durationSec: number;
+  status: BulkMatchItemStatus;
+  /** The best result, for review or as applied. */
+  candidate: MatchCandidate | null;
+  /** Fields changed when it was applied. */
+  applied: MatchField[];
+  /** What applying the result changes, field by field, or changed when it was applied. */
+  changes: BulkMatchChange[];
+  /** Why there's no result, or why applying failed. */
+  message: string | null;
+}
+
+/** The current or last bulk match. Kept in memory only, until it's cleared or the server restarts. */
+export interface BulkMatchDto {
+  running: boolean;
+  fields: MatchField[];
+  total: number;
+  done: number;
+  /** Title of the book being searched now. */
+  current: string | null;
+  items: BulkMatchItem[];
 }
 
 export interface MatchValues {

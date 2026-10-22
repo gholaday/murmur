@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { LoginResponse, UserDto } from "@murmur/shared/client";
 import { stop as stopPlayer } from "@/player/engine";
 import { api, clearEtags, configureApi, normalizeServerUrl, probeServer } from "./api";
+import { APP_NAME } from "./platform";
 import { queryClient } from "./query";
 import { getJson, removeKey, secrets, setJson } from "./storage";
 
@@ -26,7 +27,7 @@ export function useSession(): Session {
 }
 
 /**
- * Keeps the server URL, token and user. The token is stored in the Android keystore and
+ * Keeps the server URL, token and user. The token is stored in the Android keystore (the iOS keychain) and
  * kept until the server revokes it, so you sign in once per device.
  */
 export function SessionProvider({ children }: { children: React.ReactNode }) {
@@ -64,7 +65,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         res = await fetch(`${url}/api/auth/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, password, client: "app", deviceName: "Android app" }),
+          body: JSON.stringify({ username, password, client: "app", deviceName: APP_NAME }),
           signal: AbortSignal.timeout(15_000),
         });
       } catch {

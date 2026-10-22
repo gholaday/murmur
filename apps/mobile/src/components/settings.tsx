@@ -19,6 +19,7 @@ import {
   versionStatus,
 } from "@murmur/shared/client";
 import { api } from "@/lib/api";
+import { APP_NAME } from "@/lib/platform";
 import { queryClient } from "@/lib/query";
 import { fonts, useTheme } from "@/theme";
 import { BackIcon, CheckIcon, FolderIcon } from "./icons";
@@ -266,7 +267,7 @@ export function ServerSection() {
           <RowBone />
         </Skeleton>
       )}
-      <Row title="Android app" sub={`Version ${Constants.expoConfig?.version ?? "unknown"}`} last />
+      <Row title={APP_NAME} sub={`Version ${Constants.expoConfig?.version ?? "unknown"}`} last />
     </Card>
   );
 }
