@@ -63,6 +63,7 @@ export function parseSkip(raw: unknown): SkipSettings {
 /** Device storage keys. */
 export const NOW_PLAYING_KEY = "murmur.nowPlaying";
 export const SKIP_KEY = "murmur.skip";
+export const HAPTICS_KEY = "murmur.haptics";
 /** How often the position is saved while playing. */
 export const SAVE_EVERY_MS = 10_000;
 /** How often ad times are re-fetched while the current episode is still being scanned. */

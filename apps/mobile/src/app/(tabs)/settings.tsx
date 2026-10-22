@@ -6,6 +6,7 @@ import { PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { Card, EpisodeCacheSection, LibrarySection, PasswordRow, RolePill, Row, ServerSection, SmallButton, UsersSection } from "@/components/settings";
 import { ConfirmSheet } from "@/components/sheet";
 import { Chip } from "@/components/ui";
+import { hapticsStore, useHapticsEnabled } from "@/lib/haptics";
 import { useSession } from "@/lib/session";
 import { AD_MODES, adPrefsStore, useAdDetection, useAdPrefs } from "@/player/ad-prefs";
 import { setSkip, usePlayer } from "@/player/engine";
@@ -19,6 +20,7 @@ export default function Settings() {
   const { skip } = usePlayer();
   const adPrefs = useAdPrefs();
   const adDetection = useAdDetection();
+  const haptics = useHapticsEnabled();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const user = session.user;
 
@@ -40,11 +42,17 @@ export default function Settings() {
 
         <SectionTitle title="Appearance" />
         <Card>
-          <Row title="Theme" last>
+          <Row title="Theme">
             <View style={{ flexDirection: "row", gap: 6 }}>
               {THEME_CHOICES.map((x) => (
                 <Chip key={x.id} label={x.label} selected={mode === x.id} onPress={() => setThemeMode(x.id)} />
               ))}
+            </View>
+          </Row>
+          <Row title="Haptics" sub="A light tap on play, skips and choices." last>
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              <Chip label="On" selected={haptics} onPress={() => hapticsStore.set(true)} />
+              <Chip label="Off" selected={!haptics} onPress={() => hapticsStore.set(false)} />
             </View>
           </Row>
         </Card>
