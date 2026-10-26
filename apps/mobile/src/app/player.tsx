@@ -351,7 +351,7 @@ export default function Player() {
         />
       </Sheet>
 
-      <Sheet open={sheet === "chapters"} onClose={() => setSheet(null)} title="Chapters" scrollY={Math.max(0, ci - 2) * CHAPTER_ROW}>
+      <Sheet open={sheet === "chapters"} onClose={() => setSheet(null)} title="Chapters" keepInView={{ top: ci * CHAPTER_ROW, height: CHAPTER_ROW }}>
         {item.chapters.map((c, i) => (
           <Pressable
             key={c.index}

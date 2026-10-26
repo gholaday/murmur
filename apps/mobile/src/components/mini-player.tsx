@@ -7,6 +7,7 @@ import { skipBy, toggle, usePlayer, usePosition } from "@/player/engine";
 import { fonts, mixColor, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { PauseIcon, PlayIcon, SkipBackIcon, SkipForwardIcon } from "./icons";
+import { Marquee } from "./marquee";
 import { Text } from "./ui";
 
 /** Floating player above the tabs; tap to open the full player. */
@@ -21,6 +22,7 @@ export function MiniPlayer() {
   const dur = item.durationSec || 0;
   const chapter = item.chapters.length > 1 ? item.chapters[chapterAt(item.chapters, position)] : undefined;
   const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
+  const book = item.type === "book";
 
   return (
     <Animated.View
@@ -48,25 +50,38 @@ export function MiniPlayer() {
         >
           <Cover path={item.coverPath} title={item.title} color={item.color} size={48} radius={8} />
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14 }}>
-              {item.title}
-            </Text>
-            {/* Title, then the chapter (books with chapters), then time left, each on its own line. */}
+            {book ? (
+              <Marquee>
+                <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14 }}>
+                  {item.title}
+                </Text>
+              </Marquee>
+            ) : (
+              <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14 }}>
+                {item.title}
+              </Text>
+            )}
             {error ? (
               <Text variant="small" numberOfLines={2} style={{ color: t.danger }}>
                 {error}
               </Text>
-            ) : (
-              <>
-                {chapter ? (
-                  <Text variant="small" numberOfLines={1}>
-                    {chapter.title}
+            ) : book && chapter ? (
+              // A book's chapter and time left share a line, which scrolls as one when it's long.
+              // Tabular digits keep the time's width steady as it ticks, so the scroll runs on.
+              <Marquee>
+                <Text variant="small" numberOfLines={1}>
+                  {chapter.title}
+                </Text>
+                {dur ? (
+                  <Text variant="small" numberOfLines={1} style={{ marginLeft: 14, fontVariant: ["tabular-nums"] }}>
+                    {timeLeft(dur, position)}
                   </Text>
                 ) : null}
-                <Text variant="small" numberOfLines={1}>
-                  {dur ? timeLeft(dur, position) : item.subtitle}
-                </Text>
-              </>
+              </Marquee>
+            ) : (
+              <Text variant="small" numberOfLines={1}>
+                {dur ? timeLeft(dur, position) : item.subtitle}
+              </Text>
             )}
           </View>
         </Pressable>
