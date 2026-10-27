@@ -32,10 +32,10 @@ import { fonts, useTheme } from "@/theme";
 type View_ = "albums" | "artists" | "songs" | "playlists";
 
 const VIEWS: { id: View_; label: string; placeholder: string }[] = [
+  { id: "playlists", label: "Playlists", placeholder: "Playlist" },
   { id: "albums", label: "Albums", placeholder: "Album or artist" },
   { id: "artists", label: "Artists", placeholder: "Artist" },
   { id: "songs", label: "Songs", placeholder: "Song, artist or album" },
-  { id: "playlists", label: "Playlists", placeholder: "Playlist" },
 ];
 
 type Item =
