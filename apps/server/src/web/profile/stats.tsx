@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiPaths, duration, localDay, plural, type StatsDto, type StatsPeriod, type StatsTop, statsTopLabel } from "@murmur/shared/client";
+import { apiPaths, duration, localDay, plural, type StatsDto, type StatsPeriod, type StatsTop, statsTopLabel, type UserPrefs } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 
@@ -29,7 +29,7 @@ function currentKey(period: StatsPeriod, today: string): string {
 }
 
 /** Listening stats on the You page: a total, bars, the split by kind, and what you played most. */
-export function ListeningStats() {
+export function ListeningStats({ tabs }: { tabs: UserPrefs["tabs"] }) {
   const [period, setPeriod] = useState<StatsPeriod>("week");
   const [stats, setStats] = useState<StatsDto | null>(null);
   const [failed, setFailed] = useState(false);
@@ -53,7 +53,11 @@ export function ListeningStats() {
 
   const max = Math.max(1, ...(stats?.bars.map((b) => b.sec) ?? []));
   const now = currentKey(period, today);
-  const kinds = stats ? stats.split.book + stats.split.episode + (stats.split.music ?? 0) : 0;
+  // A hidden tab hides its part of the split and its Most played rows; the total still counts it.
+  const episodeSec = tabs.podcasts ? (stats?.split.episode ?? 0) : 0;
+  const musicSec = tabs.music ? (stats?.split.music ?? 0) : 0;
+  const kinds = stats ? stats.split.book + episodeSec + musicSec : 0;
+  const top = (stats?.top ?? []).filter((t) => (t.kind !== "podcast" || tabs.podcasts) && ((t.kind !== "album" && t.kind !== "song") || tabs.music));
   // A month has too many days to label each bar; every seventh keeps it readable.
   const labelEvery = (stats?.bars.length ?? 0) > 12 ? 7 : 1;
 
@@ -93,8 +97,8 @@ export function ListeningStats() {
               <>
                 <div className="stats-split" aria-hidden="true">
                   <div style={{ flex: stats.split.book, background: "var(--accent)" }} />
-                  <div style={{ flex: stats.split.episode, background: "var(--stat-2)" }} />
-                  <div style={{ flex: stats.split.music ?? 0, background: "var(--stat-3)" }} />
+                  <div style={{ flex: episodeSec, background: "var(--stat-2)" }} />
+                  <div style={{ flex: musicSec, background: "var(--stat-3)" }} />
                 </div>
                 <div className="stats-legend">
                   <div>
@@ -102,16 +106,18 @@ export function ListeningStats() {
                     <span>Books</span>
                     <span className="muted">{duration(stats.split.book) || "0m"}</span>
                   </div>
-                  <div>
-                    <span className="stats-dot" style={{ background: "var(--stat-2)" }} />
-                    <span>Podcasts</span>
-                    <span className="muted">{duration(stats.split.episode) || "0m"}</span>
-                  </div>
-                  {stats.split.music ? (
+                  {tabs.podcasts ? (
+                    <div>
+                      <span className="stats-dot" style={{ background: "var(--stat-2)" }} />
+                      <span>Podcasts</span>
+                      <span className="muted">{duration(episodeSec) || "0m"}</span>
+                    </div>
+                  ) : null}
+                  {musicSec ? (
                     <div>
                       <span className="stats-dot" style={{ background: "var(--stat-3)" }} />
                       <span>Music</span>
-                      <span className="muted">{duration(stats.split.music)}</span>
+                      <span className="muted">{duration(musicSec)}</span>
                     </div>
                   ) : null}
                 </div>
@@ -122,13 +128,13 @@ export function ListeningStats() {
           <div className="stats-tiles">
             <StatTile value={plural(stats.streakDays, "day")} label="Listening streak" />
             <StatTile value={plural(stats.finishedBooks, "book")} label="Finished" />
-            <StatTile value={String(stats.episodesPlayed)} label="Episodes played" />
+            {tabs.podcasts ? <StatTile value={String(stats.episodesPlayed)} label="Episodes played" /> : null}
             {stats.savedSec >= 60 ? <StatTile value={duration(stats.savedSec)} label="Saved by playing faster" /> : null}
           </div>
 
-          {stats.top.length ? (
+          {top.length ? (
             <div className="card-box">
-              {stats.top.map((t) => (
+              {top.map((t) => (
                 <a key={`${t.kind}:${t.id}`} className="setting stats-top" href={topHref(t)}>
                   <Cover src={topCover(t)} color={null} title={t.title} className="stats-top-cover" />
                   <span className="setting-text">

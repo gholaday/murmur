@@ -168,7 +168,7 @@ export function ProfileView({
     appearance: THEME_CHOICES.find((t) => t.id === theme)?.label,
     server: `Murmur ${server.version}`,
     library: plural(server.books, "book"),
-    podcasts: tabs.podcasts ? plural(shows, "show") : "Hidden",
+    podcasts: plural(shows, "show"),
     users: String(users.length),
   };
 
@@ -181,7 +181,7 @@ export function ProfileView({
         </div>
       </div>
 
-      <ListeningStats />
+      <ListeningStats tabs={tabs} />
 
       <section className="section">
         <h2 className="section-title">Your library</h2>
@@ -208,7 +208,7 @@ export function ProfileView({
       <section className="section">
         <h2 className="section-title">Settings</h2>
         <div className="card-box">
-          {SECTIONS.filter((s) => user.isAdmin || !s.admin).map((s) => (
+          {SECTIONS.filter((s) => (user.isAdmin || !s.admin) && (s.id !== "podcasts" || tabs.podcasts || user.isAdmin)).map((s) => (
             <NavRow key={s.id} title={s.title} value={values[s.id]} href={`/you/${s.id}`} />
           ))}
         </div>
