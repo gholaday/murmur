@@ -304,7 +304,7 @@ Music is optional. It comes from one or more music folders, managed by the admin
 **Your music**
 
 - Music is per person: a list of songs (`user_tracks`), and everyone starts with none. Adding an album adds its songs. Album and artist state is worked out from the songs, so nothing else is stored.
-- The Music tab shows your music as Albums, Artists, Songs and Playlists. Browse, above the chips, has every album, filtered to All, Not added, or New (found in the last 14 days). The UI never mentions the server.
+- The Music tab shows your music as Playlists, Albums, Artists and Songs, opening on Albums. Browse, above the chips, has every album, filtered to All, Not added, or New (found in the last 14 days). The UI never mentions the server.
 - Lists take `scope=mine` or `scope=all`; the server defaults to `all`.
 - There's no following of artists, so songs the server gets later aren't added for you.
 
@@ -362,6 +362,8 @@ Podcasts and Music can be turned off under You > Tabs; Books, Listening and You 
 **Look and feel:** dark theme by default with a light option; periwinkle accent (#8E9BFF on dark, #4F5BD5 on light); the player background takes its colour from the cover; large touch targets.
 
 **Playback:** `expo-audio` runs as a media session service so audio keeps playing with the screen off, with lock-screen and notification controls. One player is shared by the whole app; a multi-file book plays file by file on one continuous timeline. Streams use the server's range-request endpoint with the app's token, and downloaded files play from local storage. Limits of `expo-audio` on Android: speed goes up to 2×, and the lock-screen and headset skip buttons always move 10 seconds (the in-app skip buttons use the lengths set in Settings).
+
+**Android Auto:** a pnpm patch to `expo-audio` turns the playback service into a media library service, and the `with-android-auto` config plugin adds the manifest entries. Auto shows Now playing and, while the Music tab shows, Music with Playlists, Albums, Artists and Songs. The app answers those lists from its saved copies, so they work offline. A picked song plays its album, artist or playlist like the app, with previous and next. Cover art reaches Auto as `content://` links from a read-only provider, because it can't open the app's own files or authenticated links. One media session lasts across songs and books, so Auto stays connected.
 
 **Offline:** lists and opened pages are cached on the phone, so the app opens and downloaded items play without a connection. Progress is written to a local outbox first and sent to the server when it's reachable.
 
@@ -505,7 +507,6 @@ These are left out on purpose; each can be added later if it earns its place.
 
 **Ideas for later**
 
-- Android Auto through a small native Media3 module
 - Bookmarks and clips with notes
 - A yearly listening recap
 - Smart music mixes, and trimming silence between songs

@@ -36,10 +36,10 @@ import { SongMenuButton } from "./song-menu";
 
 export type MusicTab = "albums" | "artists" | "songs" | "playlists";
 const TABS: Array<{ id: MusicTab; label: string; placeholder: string }> = [
+  { id: "playlists", label: "Playlists", placeholder: "Playlist" },
   { id: "albums", label: "Albums", placeholder: "Album or artist" },
   { id: "artists", label: "Artists", placeholder: "Artist" },
   { id: "songs", label: "Songs", placeholder: "Song, artist or album" },
-  { id: "playlists", label: "Playlists", placeholder: "Playlist" },
 ];
 const SORT_KEY = "murmur.albumSort";
 
