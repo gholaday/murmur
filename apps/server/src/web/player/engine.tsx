@@ -11,6 +11,12 @@ import {
   type ChapterDto,
   type EpisodeWithShow,
   type ItemType,
+  type PlayContextDto,
+  type PlayType,
+  type TrackDto,
+  albumCover,
+  PLAY_COUNTS_AFTER_SEC,
+  shuffled as shuffleList,
   type ListeningStore,
   ListeningTracker,
   type ProgressItem,
@@ -60,9 +66,9 @@ export interface PlayableFile {
   durationSec: number;
 }
 
-/** Anything the player can play: a book (one or more files on one timeline) or an episode. */
+/** Anything the player can play: a book (one or more files on one timeline), an episode or a song. */
 export interface Playable {
-  type: ItemType;
+  type: PlayType;
   id: string;
   title: string;
   subtitle: string | null;
@@ -120,10 +126,45 @@ export function episodeToPlayable(e: EpisodeWithShow): Playable {
   };
 }
 
-async function loadPlayable(ref: QueueRef): Promise<Playable> {
+/** A song: always from the start, at 1x, with no position kept. */
+export function trackToPlayable(t: TrackDto): Playable {
+  return {
+    type: "track",
+    id: t.id,
+    title: t.title,
+    subtitle: t.artist,
+    coverUrl: albumCover(t.albumId, t.coverHash),
+    coverUrlLarge: albumCover(t.albumId, t.coverHash, 600),
+    color: null,
+    href: `/music/album/${t.albumId}`,
+    durationSec: t.durationSec,
+    files: [{ url: apiPaths.trackUrl(t.id), startSec: 0, durationSec: t.durationSec }],
+    chapters: [],
+    podcastId: null,
+    startAt: 0,
+    speed: 1,
+  };
+}
+
+/** What was playing, saved on this device so a reload picks it up. */
+type PlayRef = { itemType: PlayType; itemId: string };
+
+async function loadPlayable(ref: PlayRef): Promise<Playable> {
   if (ref.itemType === "book") return bookToPlayable(await api<BookDetail>(`/api/books/${ref.itemId}`));
+  if (ref.itemType === "track") return trackToPlayable(await api<TrackDto>(apiPaths.track(ref.itemId)));
   return episodeToPlayable(await api<EpisodeWithShow>(`/api/episodes/${ref.itemId}`));
 }
+
+/** Where music plays from, as the album, artist and Songs pages hand it to the player. */
+export interface MusicSource {
+  kind: PlayContextDto["kind"];
+  refId: string | null;
+  title: string;
+  tracks: TrackDto[];
+}
+
+/** Start the next song loading this long before the current one ends, so it follows without a gap. */
+const PRELOAD_SEC = 10;
 
 
 interface PlayerApi {
@@ -142,7 +183,15 @@ interface PlayerApi {
   queue: QueueEntry[];
   /** False until the queue has been fetched once, so an empty list isn't shown too early. */
   queueLoaded: boolean;
-  isCurrent: (type: ItemType, id: string) => boolean;
+  /** The album, artist or song list music is playing from; Up Next shows the rest of it. */
+  musicContext: PlayContextDto | null;
+  isCurrent: (type: PlayType, id: string) => boolean;
+  /** Plays `source` from its song at `index`, or shuffled (starting with that song when one is given). */
+  playMusic: (source: MusicSource, index: number, shuffle?: boolean) => void;
+  /** Jumps to another song in the current context. */
+  playContextAt: (index: number) => void;
+  /** Previous and next song: back restarts the song unless it's just begun. */
+  trackStep: (dir: -1 | 1) => void;
   /** Plays an item, resuming where you left off unless `startAt` is given. */
   play: (item: Playable, startAt?: number) => void;
   playRef: (ref: QueueRef, startAt?: number) => Promise<void>;
@@ -210,11 +259,21 @@ function readSkip(): SkipSettings {
   }
 }
 
-const refOf = (item: Playable): QueueRef => ({ itemType: item.type, itemId: item.id });
+const refOf = (item: Playable): PlayRef => ({ itemType: item.type, itemId: item.id });
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const audio = useRef<HTMLAudioElement>(null);
+  // Two players: `audio` is the one playing, the other loads the next song ahead of time.
+  // Events from the spare one are ignored until it takes over.
+  const players = useRef<[HTMLAudioElement | null, HTMLAudioElement | null]>([null, null]);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const spare = () => (players.current[0] === audio.current ? players.current[1] : players.current[0]);
+  /** The song id the spare player holds, ready to go. */
+  const preloaded = useRef<string | null>(null);
+  const contextRef = useRef<PlayContextDto | null>(null);
+  /** Seconds of the current song heard, toward counting it as played. */
+  const heardSec = useRef(0);
+  const counted = useRef(false);
   const itemRef = useRef<Playable | null>(null);
   const fileIndex = useRef(0);
   const pendingSeek = useRef<number | null>(null);
@@ -223,10 +282,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const lastSaved = useRef(0);
   const unsaved = useRef<ProgressItem | null>(null);
 
-  // The element keeps its volume across sources, so it's set once and on every change.
+  // The elements keep their volume across sources, so it's set once and on every change.
   useEffect(() => {
+    audio.current ??= players.current[0];
     const apply = () => {
-      if (audio.current) audio.current.volume = effectiveVolume(volumeStore.get());
+      for (const el of players.current) if (el) el.volume = effectiveVolume(volumeStore.get());
     };
     apply();
     return volumeStore.subscribe(apply);
@@ -255,6 +315,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [queue, setQueueState] = useState<QueueEntry[]>([]);
   const [queueLoaded, setQueueLoaded] = useState(false);
   const [adsInfo, setAdsInfo] = useState<EpisodeAdsDto | null>(null);
+  const [musicContext, setMusicContextState] = useState<PlayContextDto | null>(null);
+  const setMusicContext = useCallback((c: PlayContextDto | null) => {
+    contextRef.current = c;
+    setMusicContextState(c);
+  }, []);
 
   const setQueue = useCallback((q: QueueEntry[]) => {
     queueRef.current = q;
@@ -284,6 +349,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     (finished = false) => {
       const it = itemRef.current;
       if (!it) return;
+      // Songs keep no position; only their listening time goes up.
+      if (it.type === "track") {
+        lastSaved.current = Date.now();
+        listening().persist();
+        return flush();
+      }
       const dur = it.durationSec || audio.current?.duration || 0;
       unsaved.current = {
         itemType: it.type,
@@ -400,15 +471,110 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setItem(it);
       setSleepState({ mode: "off" });
       sleepRef.current = { mode: "off" };
+      heardSec.current = 0;
+      counted.current = false;
       load(it, startAt ?? it.startAt, true);
       try {
         localStorage.setItem(NOW_PLAYING_KEY, JSON.stringify(refOf(it)));
       } catch {
         // private mode
       }
-      removeFromQueue(refOf(it));
+      if (it.type === "track") return;
+      removeFromQueue({ itemType: it.type, itemId: it.id });
+      // A book or episode takes over from music, so its "rest of the album" leaves Up Next.
+      if (contextRef.current) {
+        setMusicContext(null);
+        void api(apiPaths.playContext, { method: "DELETE" }).catch(() => undefined);
+      }
     },
-    [load, removeFromQueue, save, seek],
+    [load, removeFromQueue, save, seek, setMusicContext],
+  );
+
+  /** The spare player starts loading `track`, so it can take over the moment the current song ends. */
+  const preload = useCallback((track: TrackDto) => {
+    const el = spare();
+    if (!el || preloaded.current === track.id) return;
+    preloaded.current = track.id;
+    el.preload = "auto";
+    el.src = apiPaths.trackUrl(track.id);
+    el.load();
+  }, []);
+
+  /** Plays song `index` of the current context, from a player that preloaded it when there is one. */
+  const playContextAt = useCallback(
+    (index: number) => {
+      const c = contextRef.current;
+      const track = c?.tracks[index];
+      if (!c || !track) return;
+      const it = trackToPlayable(track);
+      const next = spare();
+      if (preloaded.current === track.id && next) {
+        // The gapless hand-over: the spare player already has the song loaded.
+        const old = audio.current;
+        audio.current = next;
+        itemRef.current = it;
+        fileIndex.current = 0;
+        pendingSeek.current = null;
+        positionRef.current = 0;
+        lastTick.current = 0;
+        setPosition(0);
+        speedRef.current = 1;
+        next.playbackRate = 1;
+        void next.play().catch(() => setPlaying(false));
+        if (old) {
+          old.pause();
+          old.removeAttribute("src");
+          old.load();
+        }
+        preloaded.current = null;
+        setItem(it);
+        setSpeedState(1);
+        heardSec.current = 0;
+        counted.current = false;
+        try {
+          localStorage.setItem(NOW_PLAYING_KEY, JSON.stringify(refOf(it)));
+        } catch {
+          // private mode
+        }
+      } else {
+        preloaded.current = null;
+        play(it, 0);
+      }
+      setMusicContext({ ...c, index });
+      void api(apiPaths.playContext, { method: "PATCH", body: { index } }).catch(() => undefined);
+    },
+    [play, setMusicContext],
+  );
+
+  const playMusic = useCallback(
+    (source: MusicSource, index: number, shuffle = false) => {
+      if (!source.tracks.length) return;
+      const first = source.tracks[index];
+      const tracks = shuffle ? shuffleList(source.tracks, index >= 0 ? first : undefined) : source.tracks;
+      const at = shuffle ? 0 : Math.max(0, index);
+      const c: PlayContextDto = { kind: source.kind, refId: source.refId, title: source.title, tracks, index: at, shuffled: shuffle };
+      setMusicContext(c);
+      preloaded.current = null;
+      playContextAt(at);
+      void api(apiPaths.playContext, {
+        method: "PUT",
+        body: { kind: c.kind, refId: c.refId, title: c.title, trackIds: tracks.map((t) => t.id), index: at, shuffled: shuffle },
+      }).catch(() => undefined);
+    },
+    [playContextAt, setMusicContext],
+  );
+
+  const trackStep = useCallback(
+    (dir: -1 | 1) => {
+      const c = contextRef.current;
+      const it = itemRef.current;
+      if (!c || !it || it.type !== "track") return;
+      if (dir === -1 && positionRef.current > 3) return seek(0);
+      const index = c.index + dir;
+      if (index >= 0 && index < c.tracks.length) playContextAt(index);
+      else if (dir === -1) seek(0);
+    },
+    [playContextAt, seek],
   );
 
   const playRef = useCallback(
@@ -505,10 +671,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     itemRef.current = null;
     setItem(null);
     setExpanded(false);
-    if (el) {
-      el.pause();
-      el.removeAttribute("src");
-      el.load();
+    preloaded.current = null;
+    for (const p of [el, spare()]) {
+      if (!p) continue;
+      p.pause();
+      p.removeAttribute("src");
+      p.load();
     }
     try {
       localStorage.removeItem(NOW_PLAYING_KEY);
@@ -545,13 +713,25 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setSkipState(readSkip());
     void refreshQueue();
-    let saved: QueueRef | null = null;
+    let saved: PlayRef | null = null;
     try {
-      saved = JSON.parse(localStorage.getItem(NOW_PLAYING_KEY) ?? "null") as QueueRef | null;
+      saved = JSON.parse(localStorage.getItem(NOW_PLAYING_KEY) ?? "null") as PlayRef | null;
     } catch {
       saved = null;
     }
     if (!saved) return;
+    const songId = saved.itemType === "track" ? saved.itemId : null;
+    // A song comes back with the album or list it was playing from, so next and Up Next work.
+    if (songId) {
+      api<PlayContextDto | null>(apiPaths.playContext)
+        .then((c) => {
+          if (c && !contextRef.current) {
+            const at = c.tracks.findIndex((t) => t.id === songId);
+            if (at >= 0) setMusicContext({ ...c, index: at });
+          }
+        })
+        .catch(() => undefined);
+    }
     loadPlayable(saved)
       .then((it) => {
         if (itemRef.current) return; // something else started meanwhile
@@ -567,7 +747,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           // private mode
         }
       });
-  }, [load, refreshQueue]);
+  }, [load, refreshQueue, setMusicContext]);
 
   // Save when the page is hidden or closed, and retry unsaved progress once back online.
   useEffect(() => {
@@ -662,10 +842,28 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   };
   skipAdCrossedRef.current = skipAdCrossed;
 
+  // ---------- Music ----------
+
+  /** While a song plays: count it once heard long enough, and preload the next one near its end. */
+  const musicTick = (it: Playable, pos: number, heard: number) => {
+    if (heard > 0 && heard < 5) heardSec.current += heard;
+    const dur = it.durationSec || audio.current?.duration || 0;
+    const needed = dur > 0 ? Math.min(PLAY_COUNTS_AFTER_SEC, dur / 2) : PLAY_COUNTS_AFTER_SEC;
+    if (!counted.current && heardSec.current >= needed) {
+      counted.current = true;
+      void api(apiPaths.trackPlays, { method: "POST", body: { trackId: it.id } }).catch(() => undefined);
+    }
+    const c = contextRef.current;
+    const next = c?.tracks[c.index + 1];
+    if (next && dur > 0 && dur - pos < PRELOAD_SEC) preload(next);
+  };
+
   // ---------- Lock screen, notification and headset controls ----------
 
-  const handlers = useRef({ toggle, skipBy, chapterStep, seek, skip });
-  handlers.current = { toggle, skipBy, chapterStep, seek, skip };
+  // Previous and next mean the song for music, the chapter otherwise.
+  const step = (dir: -1 | 1) => (itemRef.current?.type === "track" ? trackStep(dir) : chapterStep(dir));
+  const handlers = useRef({ toggle, skipBy, chapterStep: step, seek, skip });
+  handlers.current = { toggle, skipBy, chapterStep: step, seek, skip };
 
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
@@ -716,7 +914,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const isCurrent = useCallback((type: ItemType, id: string) => item?.type === type && item.id === id, [item]);
+  const isCurrent = useCallback((type: PlayType, id: string) => item?.type === type && item.id === id, [item]);
 
   const value = useMemo<PlayerApi>(
     () => ({
@@ -732,6 +930,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       ads: adsInfo?.ads ?? [],
       queue,
       queueLoaded,
+      musicContext,
+      playMusic,
+      playContextAt,
+      trackStep,
       isCurrent,
       play,
       playRef,
@@ -762,6 +964,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       adsInfo,
       queue,
       queueLoaded,
+      musicContext,
+      playMusic,
+      playContextAt,
+      trackStep,
       isCurrent,
       play,
       playRef,
@@ -784,10 +990,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   return (
     <PlayerContext.Provider value={value}>
       {children}
+      {[0, 1].map((n) => (
         <audio
-          ref={audio}
+          key={n}
+          ref={(el) => {
+            players.current[n] = el;
+          }}
           preload="metadata"
           onLoadedMetadata={(e) => {
+            if (e.currentTarget !== audio.current) return; // the spare player preloading
             const el = e.currentTarget;
             if (pendingSeek.current !== null) {
               el.currentTime = pendingSeek.current;
@@ -803,9 +1014,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             }
             setLoading(false);
           }}
-          onWaiting={() => setLoading(true)}
-          onPlaying={() => setLoading(false)}
+          onWaiting={(e) => e.currentTarget === audio.current && setLoading(true)}
+          onPlaying={(e) => e.currentTarget === audio.current && setLoading(false)}
           onTimeUpdate={(e) => {
+            if (e.currentTarget !== audio.current) return;
             const it = itemRef.current;
             if (!it || pendingSeek.current !== null) return;
             const pos = (it.files[fileIndex.current]?.startSec ?? 0) + e.currentTarget.currentTime;
@@ -816,7 +1028,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             if (!e.currentTarget.paused) {
               maybeSkipAd(prev, pos, elapsedSec);
               const key = `${it.type}:${it.id}`;
-              if (lastListenKey.current === key) listening().add(it.type, it.id, elapsedSec, pos - prev, speedRef.current);
+              if (lastListenKey.current === key) {
+                listening().add(it.type, it.id, elapsedSec, pos - prev, speedRef.current);
+                if (it.type === "track") musicTick(it, pos, Math.min(elapsedSec, pos - prev));
+              }
               lastListenKey.current = key;
             }
             positionRef.current = pos;
@@ -829,8 +1044,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               setSleep({ mode: "off" });
             }
           }}
-          onPlay={() => setPlaying(true)}
-          onPause={() => {
+          onPlay={(e) => e.currentTarget === audio.current && setPlaying(true)}
+          onPause={(e) => {
+            if (e.currentTarget !== audio.current) return;
             setPlaying(false);
             const it = itemRef.current;
             if (!it) return;
@@ -839,8 +1055,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             if (dur && positionRef.current >= dur - 1) return;
             save();
           }}
-          onSeeked={() => updatePositionState(positionRef.current, true)}
-          onEnded={() => {
+          onSeeked={(e) => e.currentTarget === audio.current && updatePositionState(positionRef.current, true)}
+          onEnded={(e) => {
+            if (e.currentTarget !== audio.current) return;
             const it = itemRef.current;
             if (!it) return;
             const next = fileIndex.current + 1;
@@ -848,16 +1065,26 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               load(it, it.files[next]!.startSec, true);
               return;
             }
+            if (it.type === "track") {
+              // On to the next song in the album or list, then to Up Next once it's done.
+              void save();
+              const c = contextRef.current;
+              if (c && c.index + 1 < c.tracks.length) return playContextAt(c.index + 1);
+              void advance();
+              return;
+            }
             void save(true)?.then(() => router.refresh());
             void advance();
           }}
           onError={(e) => {
+            if (e.currentTarget !== audio.current) return;
             if (!itemRef.current || !e.currentTarget.getAttribute("src")) return;
             setLoading(false);
             setPlaying(false);
             setError("Couldn't play this. Check your connection and try again.");
           }}
         />
+      ))}
     </PlayerContext.Provider>
   );
 }

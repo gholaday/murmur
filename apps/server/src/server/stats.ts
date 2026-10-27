@@ -36,7 +36,7 @@ export function saveListening(ctx: AppContext, userId: number, report: Listening
 
 interface DayRow {
   day: string;
-  item_type: "book" | "episode";
+  item_type: "book" | "episode" | "track";
   item_id: string;
   listened: number;
   content: number;
@@ -54,7 +54,7 @@ export async function getStats(ctx: AppContext, userId: number, period: StatsPer
     )
     .all(userId, range.from, range.to) as DayRow[];
 
-  const split = { book: 0, episode: 0 };
+  const split = { book: 0, episode: 0, music: 0 };
   const byItem = new Map<string, number>();
   const episodes = new Set<string>();
   let totalSec = 0;
@@ -62,7 +62,7 @@ export async function getStats(ctx: AppContext, userId: number, period: StatsPer
   for (const r of rows) {
     totalSec += r.listened;
     contentSec += r.content;
-    split[r.item_type] += r.listened;
+    split[r.item_type === "track" ? "music" : r.item_type] += r.listened;
     const key = `${r.item_type}:${r.item_id}`;
     byItem.set(key, (byItem.get(key) ?? 0) + r.listened);
   }
@@ -109,7 +109,7 @@ export async function getStats(ctx: AppContext, userId: number, period: StatsPer
     totalSec: Math.round(totalSec),
     previousSec: previous ? Math.round(previous.sec) : null,
     bars,
-    split: { book: Math.round(split.book), episode: Math.round(split.episode) },
+    split: { book: Math.round(split.book), episode: Math.round(split.episode), music: Math.round(split.music) },
     streakDays: streakDays(listenedDays, today),
     finishedBooks: finished.n,
     episodesPlayed: episodes.size,

@@ -71,6 +71,20 @@
       "when": 1793075261605,
       "tag": "0009_music",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1793077335828,
+      "tag": "0010_your_music",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1793078019513,
+      "tag": "0011_music_playback",
+      "breakpoints": true
     }
   ]
 }

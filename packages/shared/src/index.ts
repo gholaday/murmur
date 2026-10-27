@@ -31,6 +31,9 @@ export type CreateUserInput = z.input<typeof createUserSchema>;
 
 export const itemTypeSchema = z.enum(["book", "episode"]);
 export type ItemType = z.infer<typeof itemTypeSchema>;
+/** Everything the player plays: books and episodes keep a position, songs (tracks) don't. */
+export const playTypeSchema = z.enum(["book", "episode", "track"]);
+export type PlayType = z.infer<typeof playTypeSchema>;
 
 export const progressItemSchema = z.object({
   itemType: itemTypeSchema,
@@ -59,7 +62,7 @@ export const listeningReportSchema = z.object({
     .array(
       z.object({
         day: daySchema,
-        itemType: itemTypeSchema,
+        itemType: playTypeSchema,
         itemId: z.string().min(1).max(64),
         listenedSec: z.number().min(0).max(86_400),
         contentSec: z.number().min(0).max(86_400 * 4),
@@ -104,6 +107,26 @@ export const musicFoldersSchema = z.object({
   paths: z.array(folderPathSchema).max(20),
 });
 export const albumSortSchema = z.enum(["added", "name", "artist", "year"]).catch("added");
+/** Lists default to everything, so older apps keep working. */
+export const musicScopeSchema = z.enum(["mine", "all"]).catch("all");
+/** What you're playing music from: an album, an artist, or a list of songs, in play order. */
+export const playContextSchema = z.object({
+  kind: z.enum(["album", "artist", "songs"]),
+  refId: z.string().max(64).nullable(),
+  title: z.string().min(1).max(300),
+  trackIds: z.array(z.string().min(1).max(64)).min(1).max(5000),
+  index: z.number().int().min(0),
+  shuffled: z.boolean(),
+});
+export type PlayContextInput = z.infer<typeof playContextSchema>;
+export const playContextIndexSchema = z.object({ index: z.number().int().min(0) });
+export const trackPlaySchema = z.object({ trackId: z.string().min(1).max(64) });
+export const musicMineSchema = z
+  .object({
+    trackIds: z.array(z.string().min(1).max(64)).max(5000).optional(),
+    albumIds: z.array(z.string().min(1).max(64)).max(1000).optional(),
+  })
+  .refine((v) => v.trackIds?.length || v.albumIds?.length, "Pick at least one song or album.");
 
 export const folderCheckSchema = z.object({
   path: folderPathSchema,

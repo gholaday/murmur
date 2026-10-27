@@ -1,16 +1,19 @@
-import { ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { artistSub } from "@murmur/shared/client";
+import { albumInMusic, artistSub, plural } from "@murmur/shared/client";
+import { PlusIcon } from "@/components/icons";
 import { Grid, PAD, useGridWidth } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { AlbumCard, SongRow } from "@/components/music";
 import { BackRow, Empty, PageTitle, SectionTitle, useBottomPad, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { Bone, CoverGridBones, FadeIn, Skeleton, useJustLoaded } from "@/components/skeleton";
-import { useArtist } from "@/lib/data";
-import { useTheme } from "@/theme";
+import { Text } from "@/components/ui";
+import { setInMusic, useArtist } from "@/lib/data";
+import { selectHaptic } from "@/lib/haptics";
+import { fonts, useTheme } from "@/theme";
 
-/** An artist's own albums, newest first, then songs of theirs on other albums. */
+/** All of an artist's albums, newest first, then songs of theirs on other albums; each can be added. */
 export default function ArtistScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const t = useTheme();
@@ -21,17 +24,46 @@ export default function ArtistScreen() {
   const refresh = usePullRefresh(artist.refetch);
   const fade = useJustLoaded(!artist.isPending);
   const a = artist.data;
+  // Albums not fully in your music yet; the button adds them all.
+  const missing = a?.albums.filter((al) => albumInMusic(al) !== "all") ?? [];
+  const added = (a?.albums.length ?? 0) - missing.length;
 
   let body: React.ReactNode;
   if (a) {
     body = (
       <FadeIn when={fade}>
-        <PageTitle title={a.name} sub={artistSub(a)} />
+        <PageTitle title={a.name} sub={added ? `${artistSub(a)}, ${added} in your music` : artistSub(a)} />
+        {missing.length ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              selectHaptic();
+              void setInMusic({ albums: missing }, true);
+            }}
+            style={({ pressed }) => ({
+              marginTop: 12,
+              height: 44,
+              borderRadius: 22,
+              borderWidth: 1,
+              borderColor: t.line,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              opacity: pressed ? 0.6 : 1,
+            })}
+          >
+            <PlusIcon size={18} color={t.text} />
+            <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: t.text }}>
+              {added ? `Add the other ${plural(missing.length, "album")}` : missing.length === 1 ? "Add the album" : `Add all ${missing.length} albums`}
+            </Text>
+          </Pressable>
+        ) : null}
         {a.albums.length ? (
           <View style={{ marginTop: 16 }}>
             <Grid>
               {a.albums.map((al) => (
-                <AlbumCard key={al.id} album={al} width={width} sub={al.year} />
+                <AlbumCard key={al.id} album={al} width={width} sub={al.year} badge />
               ))}
             </Grid>
           </View>
@@ -40,7 +72,7 @@ export default function ArtistScreen() {
           <>
             <SectionTitle title="Appears on" count={a.appearsOn.length} />
             {a.appearsOn.map((tr) => (
-              <SongRow key={tr.id} track={tr} />
+              <SongRow key={tr.id} track={tr} toggle />
             ))}
           </>
         ) : null}

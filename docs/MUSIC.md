@@ -171,7 +171,27 @@ Each candidate gets a score out of 100, the same as for books:
 - Audio fingerprinting (AcoustID). It needs the `fpcalc` program in the image and decoding every file, which is a lot of work for tags you already have.
 - TheAudioDB and fanart.tv. Both need API keys, and Deezer covers artist photos.
 
+## Your music (built)
+
+- Music is per person: a list of songs (`user_tracks`), and everyone starts with none. Adding an album adds its songs; removing it removes them. Album and artist state is worked out from the songs (`songsInMusic`, `inMusic`), so nothing else is stored.
+- Lists take `scope=mine` (your music) or `scope=all` (Browse). The server defaults to `all`. `PUT`/`DELETE /api/music/mine` with `{ trackIds?, albumIds? }`.
+- The Music tab shows your music, with a Browse row above the chips and a first-visit screen. Browse has All, Not added and New (found in the last 14 days). Album and artist pages add whole albums or single songs. The UI never mentions the server.
+- No following artists for now. Songs the server gets later aren't added for you.
+
 ## Phase 4: web
+
+**Built:**
+- Browsing, Browse and adding, as above. Artists use the Books-style groups, as in the app. The album cover sits beside the title.
+- Playback:
+  - `Playable` has a "track" type. Songs play from the start at 1x, keep no position, and count as played after 30 s or half their length (`track_plays`).
+  - Playing from an album, an artist's songs or your Songs list saves a `play_context` (`/api/music/context`). Ending a song moves to the next one in it, then on to Up Next.
+  - Two audio elements. The spare one loads the next song 10 s before the end and takes over at once when the current song ends.
+  - Media Session previous and next step through songs. The full player swaps skips and chapters for previous and next, and hides speed.
+  - Up Next shows "Rest of <album>" as one row that opens up.
+  - Song time counts in the stats as Music.
+- **Not yet:** queueing single songs (`queue_items` stays books and episodes), and play counts in Most played.
+
+**The plan:**
 
 - Pages:
   - `/music`: albums, artists and songs, with sort and search.

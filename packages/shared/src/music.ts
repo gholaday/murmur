@@ -11,6 +11,12 @@ export const ALBUM_SORTS: Array<{ id: AlbumSort; label: string }> = [
   { id: "year", label: "Year" },
 ];
 
+/** "mine" is your music (songs you added, and their albums and artists); "all" is Browse. */
+export type MusicScope = "mine" | "all";
+
+/** An album counts as new in Browse for this long after the scan finds it. */
+export const NEW_ALBUM_DAYS = 14;
+
 /** Whether the server has music at all, and how much. Music is hidden everywhere when `enabled` is false. */
 export interface MusicSummaryDto {
   /** At least one music folder is set up. */
@@ -18,6 +24,47 @@ export interface MusicSummaryDto {
   albums: number;
   artists: number;
   tracks: number;
+  /** Albums found in the last NEW_ALBUM_DAYS days. */
+  newAlbums: number;
+  /** Your music: albums you have any songs from, and how many songs. */
+  mine: { albums: number; tracks: number };
+}
+
+/** What music is playing from; Up Next shows the songs after `index` as one row. */
+export interface PlayContextDto {
+  kind: "album" | "artist" | "songs";
+  /** The album or artist, for a link back. */
+  refId: string | null;
+  /** "Back In Black", "AC/DC" or "Your songs". */
+  title: string;
+  /** In play order (shuffled already when `shuffled`); songs gone from the server are left out. */
+  tracks: TrackDto[];
+  /** The song playing now. */
+  index: number;
+  shuffled: boolean;
+}
+
+/** A song counts as played after this long, or half its length if that's shorter. */
+export const PLAY_COUNTS_AFTER_SEC = 30;
+
+/** In random order (Fisher-Yates), with `first` moved to the front when given. */
+export function shuffled<T>(list: T[], first?: T): T[] {
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  if (first !== undefined) {
+    const at = out.indexOf(first);
+    if (at > 0) out.unshift(...out.splice(at, 1));
+  }
+  return out;
+}
+
+/** Add or remove songs from your music; an album adds or removes all its songs. */
+export interface MusicMineChange {
+  trackIds?: string[];
+  albumIds?: string[];
 }
 
 export interface AlbumSummary {
@@ -34,6 +81,8 @@ export interface AlbumSummary {
   trackCount: number;
   durationSec: number;
   addedAt: number;
+  /** How many of its songs are in your music; equal to trackCount when all are. */
+  songsInMusic: number;
 }
 
 export interface TrackDto {
@@ -50,6 +99,8 @@ export interface TrackDto {
   mimeType: string;
   /** The album's cover, which songs share. */
   coverHash: string | null;
+  /** You added it to your music. */
+  inMusic: boolean;
 }
 
 export interface AlbumDetail extends AlbumSummary {
@@ -99,6 +150,20 @@ export function albumPills(a: AlbumSummary): string[] {
 
 /** The line under an artist's name: albums, or songs when they only appear on others' albums. */
 export const artistSub = (a: ArtistSummary): string => (a.albumCount ? plural(a.albumCount, "album") : plural(a.trackCount, "song"));
+
+/** How much of an album is in your music. */
+export const albumInMusic = (a: AlbumSummary): "all" | "some" | "none" =>
+  a.songsInMusic === 0 ? "none" : a.songsInMusic >= a.trackCount ? "all" : "some";
+
+/** "In your music", "3 of 10 songs", or null when none are. */
+export function albumInMusicLabel(a: AlbumSummary): string | null {
+  const state = albumInMusic(a);
+  if (state === "none") return null;
+  return state === "all" ? "In your music" : `${a.songsInMusic} of ${plural(a.trackCount, "song")}`;
+}
+
+/** Found by the scan in the last NEW_ALBUM_DAYS days. */
+export const isNewAlbum = (a: AlbumSummary, now: number = Date.now()): boolean => now - a.addedAt < NEW_ALBUM_DAYS * 86_400_000;
 
 /** An album's songs split by disc; one group with `disc: null` when there's only one disc. */
 export function albumDiscs(tracks: TrackDto[]): Array<{ disc: number | null; tracks: TrackDto[] }> {

@@ -1,6 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -27,11 +28,12 @@ import {
   plural,
 } from "@murmur/shared/client";
 import { api } from "../api";
-import { BackIcon, FolderIcon, PlusIcon } from "../icons";
+import { BackIcon, ChevronIcon, FolderIcon, PlusIcon } from "../icons";
 import { AD_MODES, adPrefsStore, useAdPrefs } from "../player/ad-prefs";
 import { usePlayer } from "../player/engine";
 import { Sheet } from "../sheet";
 import { applyTheme, currentTheme } from "../theme";
+import { SECTIONS, type SettingsSection } from "./sections";
 import { ListeningStats } from "./stats";
 
 interface ServerInfo {
@@ -46,7 +48,21 @@ interface ServerInfo {
   watcher: "events" | "polling" | "periodic-only";
 }
 
+/** A settings row: its name, an optional current value, and a chevron. */
+function NavRow({ title, value, href }: { title: string; value?: string | null; href: string }) {
+  return (
+    <Link href={href} className="setting setting-link">
+      <span className="setting-title">{title}</span>
+      <span className="setting-value">
+        {value ? <span>{value}</span> : null}
+        <ChevronIcon />
+      </span>
+    </Link>
+  );
+}
+
 export function ProfileView({
+  section,
   user,
   users,
   folders,
@@ -58,6 +74,8 @@ export function ProfileView({
   musicFolders,
   music,
 }: {
+  /** One settings group on its own page; none is You itself. */
+  section?: SettingsSection;
   musicFolders: LibraryFolderDto[];
   music: MusicSummaryDto;
   shows: number;
@@ -71,7 +89,88 @@ export function ProfileView({
 }) {
   const router = useRouter();
   const player = usePlayer();
-  const adPrefs = useAdPrefs();
+  const [theme, setTheme] = useState<ThemeChoice>("system");
+  useEffect(() => setTheme(currentTheme()), []);
+
+  if (section) {
+    const refresh = () => router.refresh();
+    return (
+      <>
+        <div className="back-row">
+          <button type="button" className="icon-btn" aria-label="Back" onClick={() => (window.history.length > 1 ? router.back() : router.push("/you"))}>
+            <BackIcon />
+          </button>
+        </div>
+        <div className="page-head">
+          <h1 className="page-title">{SECTIONS.find((s) => s.id === section)!.title}</h1>
+        </div>
+        <div className="settings-page">
+          {section === "account" ? (
+            <>
+              <PasswordForm username={user.username} isAdmin={user.isAdmin} />
+              <button
+                type="button"
+                className="btn"
+                onClick={async () => {
+                  player.stop();
+                  await fetch("/api/auth/logout", { method: "POST" });
+                  window.location.href = "/login";
+                }}
+              >
+                Sign out
+              </button>
+            </>
+          ) : section === "appearance" ? (
+            <ThemePicker />
+          ) : section === "playback" ? (
+            <PlaybackCard adsEnabled={adsEnabled} />
+          ) : section === "server" ? (
+            <VersionCard version={server.version} devBuild={server.devBuild} updates={server.updates} />
+          ) : section === "library" ? (
+            <>
+              <LibraryCard server={server} onScanned={refresh} />
+              <h2 className="section-title">Book folders</h2>
+              <FoldersCard folders={folders} otherPaths={musicFolders.map((f) => f.path)} onSaved={refresh} />
+              <h2 className="section-title">Music folders</h2>
+              {musicFolders.length === 0 ? (
+                <p className="muted small" style={{ margin: 0 }}>
+                  Add a folder of music to turn on the Music tab. Albums come from the songs' tags, or from Artist/Album folders when there are none.
+                </p>
+              ) : null}
+              <FoldersCard kind="music" folders={musicFolders} otherPaths={folders.map((f) => f.path)} onSaved={refresh} />
+            </>
+          ) : section === "podcasts" ? (
+            <>
+              {cache ? <EpisodeCacheCard cache={cache} onChanged={refresh} /> : null}
+              <div className="card-box">
+                <div className="setting">
+                  <span className="setting-text">
+                    <span className="setting-title">Export subscriptions</span>
+                  </span>
+                  <a className="btn" href="/api/podcasts/opml" download="murmur-podcasts.opml">
+                    Export
+                  </a>
+                </div>
+              </div>
+            </>
+          ) : section === "users" ? (
+            <UsersCard me={user} users={users} onChanged={refresh} />
+          ) : (
+            <TabsCard tabs={tabs} music={music} onSaved={refresh} />
+          )}
+        </div>
+      </>
+    );
+  }
+
+  const values: Partial<Record<SettingsSection, string | null>> = {
+    account: user.username,
+    appearance: THEME_CHOICES.find((t) => t.id === theme)?.label,
+    server: `Murmur ${server.version}`,
+    library: plural(server.books, "book"),
+    podcasts: tabs.podcasts ? plural(shows, "show") : "Hidden",
+    users: String(users.length),
+  };
 
   return (
     <>
@@ -80,17 +179,6 @@ export function ProfileView({
           <h1 className="page-title">You</h1>
           <div className="page-sub">{user.username}</div>
         </div>
-        <button
-          type="button"
-          className="btn"
-          onClick={async () => {
-            player.stop();
-            await fetch("/api/auth/logout", { method: "POST" });
-            window.location.href = "/login";
-          }}
-        >
-          Sign out
-        </button>
       </div>
 
       <ListeningStats />
@@ -108,16 +196,32 @@ export function ProfileView({
               <div className="muted small">Podcasts</div>
             </div>
           ) : null}
+          {tabs.music && music.enabled ? (
+            <div className="stats-tile">
+              <div className="stats-tile-value">{music.mine.albums}</div>
+              <div className="muted small">Albums</div>
+            </div>
+          ) : null}
         </div>
       </section>
 
       <section className="section">
-        <h2 className="section-title">Appearance</h2>
-        <ThemePicker />
+        <h2 className="section-title">Settings</h2>
+        <div className="card-box">
+          {SECTIONS.filter((s) => user.isAdmin || !s.admin).map((s) => (
+            <NavRow key={s.id} title={s.title} value={values[s.id]} href={`/you/${s.id}`} />
+          ))}
+        </div>
       </section>
+    </>
+  );
+}
 
-      <section className="section">
-        <h2 className="section-title">Playback</h2>
+/** Skip lengths, and what to do about ads when they're found. */
+function PlaybackCard({ adsEnabled }: { adsEnabled: boolean }) {
+  const player = usePlayer();
+  const adPrefs = useAdPrefs();
+  return (
         <div className="card-box">
           <div className="setting" style={{ flexWrap: "wrap", paddingBlock: 10 }}>
             <span className="setting-title">Skip back</span>
@@ -169,60 +273,6 @@ export function ProfileView({
             </div>
           ) : null}
         </div>
-      </section>
-
-      <section className="section">
-        <h2 className="section-title">Account</h2>
-        <PasswordForm username={user.username} isAdmin={user.isAdmin} />
-      </section>
-
-      {user.isAdmin ? (
-        <>
-          <section className="section">
-            <h2 className="section-title">Server</h2>
-            <VersionCard version={server.version} devBuild={server.devBuild} updates={server.updates} />
-          </section>
-          <section className="section">
-            <h2 className="section-title">Library</h2>
-            <LibraryCard server={server} onScanned={() => router.refresh()} />
-            <FoldersCard folders={folders} otherPaths={musicFolders.map((f) => f.path)} onSaved={() => router.refresh()} />
-          </section>
-          <section className="section">
-            <h2 className="section-title">Music</h2>
-            {musicFolders.length === 0 ? (
-              <p className="muted small" style={{ margin: 0 }}>
-                Add a folder of music to turn on the Music tab. Albums come from the songs' tags, or from Artist/Album folders when there are none.
-              </p>
-            ) : null}
-            <FoldersCard kind="music" folders={musicFolders} otherPaths={folders.map((f) => f.path)} onSaved={() => router.refresh()} />
-          </section>
-          <section className="section">
-            <h2 className="section-title">Users</h2>
-            <UsersCard me={user} users={users} onChanged={() => router.refresh()} />
-          </section>
-        </>
-      ) : null}
-
-      <section className="section">
-        <h2 className="section-title">Podcasts</h2>
-        {cache ? <EpisodeCacheCard cache={cache} onChanged={() => router.refresh()} /> : null}
-        <div className="card-box">
-          <div className="setting">
-            <span className="setting-text">
-              <span className="setting-title">Export subscriptions</span>
-            </span>
-            <a className="btn" href="/api/podcasts/opml" download="murmur-podcasts.opml">
-              Export
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <section className="section">
-        <h2 className="section-title">Tabs</h2>
-        <TabsCard tabs={tabs} music={music} onSaved={() => router.refresh()} />
-      </section>
-    </>
   );
 }
 

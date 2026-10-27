@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import {
   ALBUM_SORTS,
   albumCover,
+  albumInMusic,
   type AlbumSort,
   type AlbumSummary,
   guestArtist,
@@ -11,10 +12,12 @@ import {
   songSub,
   type TrackDto,
 } from "@murmur/shared/client";
+import { setInMusic } from "@/lib/data";
+import { selectHaptic } from "@/lib/haptics";
 import { getJson, setJson } from "@/lib/storage";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { MoreIcon } from "./icons";
+import { CheckIcon, PlusIcon } from "./icons";
 import { Sheet, SheetItem } from "./sheet";
 import { Text } from "./ui";
 
@@ -67,8 +70,17 @@ export function AlbumSortSheet({ open, onClose }: { open: boolean; onClose: () =
 
 // ---------- Cards and rows ----------
 
-/** Cover with the title and artist under it, for album grids. */
-export const AlbumCard = memo(function AlbumCard({ album, width, sub }: { album: AlbumSummary; width: number; sub?: string | null }) {
+// The + badge is light on any cover, in either theme.
+const BADGE_LIGHT = "#f3f1ec";
+const BADGE_INK = "#141833";
+
+/**
+ * Cover with the title and artist under it, for album grids. With `badge`, a round button on the
+ * cover adds the whole album to your music (+), or takes it out again when every song is in (✓).
+ */
+export const AlbumCard = memo(function AlbumCard({ album, width, sub, badge }: { album: AlbumSummary; width: number; sub?: string | null; badge?: boolean }) {
+  const t = useTheme();
+  const all = albumInMusic(album) === "all";
   return (
     <Pressable
       accessibilityRole="button"
@@ -76,7 +88,35 @@ export const AlbumCard = memo(function AlbumCard({ album, width, sub }: { album:
       onPress={() => openAlbum(album.id)}
       style={({ pressed }) => ({ width, gap: 8, opacity: pressed ? 0.75 : 1 })}
     >
-      <Cover path={albumCover(album.id, album.coverHash, 600)} title={album.title} color={album.coverColor} />
+      <View>
+        <Cover path={albumCover(album.id, album.coverHash, 600)} title={album.title} color={album.coverColor} />
+        {badge ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={all ? `Remove ${album.title} from your music` : `Add ${album.title} to your music`}
+            accessibilityState={{ checked: all }}
+            hitSlop={6}
+            onPress={() => {
+              selectHaptic();
+              void setInMusic({ albums: [album] }, !all);
+            }}
+            style={{
+              position: "absolute",
+              right: 8,
+              bottom: 8,
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: all ? t.accent : BADGE_LIGHT,
+              elevation: 4,
+            }}
+          >
+            {all ? <CheckIcon size={18} color={t.onAccent} /> : <PlusIcon size={18} color={BADGE_INK} />}
+          </Pressable>
+        ) : null}
+      </View>
       <View style={{ gap: 2 }}>
         <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14 }}>
           {album.title}
@@ -89,8 +129,8 @@ export const AlbumCard = memo(function AlbumCard({ album, width, sub }: { album:
   );
 });
 
-/** A song with its album's cover, title, "Artist, Album" and length. */
-export const SongRow = memo(function SongRow({ track }: { track: TrackDto }) {
+/** A song with its album's cover, title, "Artist, Album" and length; `toggle` adds a + / ✓ at the end. */
+export const SongRow = memo(function SongRow({ track, toggle }: { track: TrackDto; toggle?: boolean }) {
   const t = useTheme();
   return (
     <Pressable
@@ -109,11 +149,12 @@ export const SongRow = memo(function SongRow({ track }: { track: TrackDto }) {
         </Text>
       </View>
       <Length track={track} />
+      {toggle ? <InMusicToggle track={track} /> : null}
     </Pressable>
   );
 });
 
-/** A numbered song on an album: number, title (and its own artist when it differs), length, more. */
+/** A numbered song on an album: number, title (and its own artist when it differs), length, + / ✓. */
 export function TrackRow({ track, n, albumArtistId }: { track: TrackDto; n: number; albumArtistId: string }) {
   const t = useTheme();
   const guest = guestArtist(track, albumArtistId);
@@ -131,11 +172,63 @@ export function TrackRow({ track, n, albumArtistId }: { track: TrackDto; n: numb
         ) : null}
       </View>
       <Length track={track} />
-      {/* TODO(music part B): play next, add to Up Next, go to artist. */}
-      <Pressable accessibilityRole="button" accessibilityLabel={`More for ${track.title}`} disabled style={{ width: 32, height: 44, alignItems: "center", justifyContent: "center", opacity: 0.4 }}>
-        <MoreIcon size={20} color={t.muted} />
+      <InMusicToggle track={track} />
+    </View>
+  );
+}
+
+/** An album you haven't fully added, as a search result: cover, title, "Album, year" and a + button. */
+export function AlbumAddRow({ album }: { album: AlbumSummary }) {
+  const t = useTheme();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, borderBottomWidth: 1, borderBottomColor: t.line }}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => openAlbum(album.id)}
+        style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}
+      >
+        <Cover path={albumCover(album.id, album.coverHash)} title="" color={album.coverColor} size={44} radius={6} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 15 }}>
+            {album.title}
+          </Text>
+          <Text variant="small" numberOfLines={1}>
+            {album.year ? `Album, ${album.year}` : "Album"}
+          </Text>
+        </View>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Add ${album.title} to your music`}
+        onPress={() => {
+          selectHaptic();
+          void setInMusic({ albums: [album] }, true);
+        }}
+        style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: t.line, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.6 : 1 })}
+      >
+        <PlusIcon size={18} color={t.text} />
       </Pressable>
     </View>
+  );
+}
+
+/** Adds one song to your music (+), or takes it out (✓ in the accent colour). */
+export function InMusicToggle({ track }: { track: TrackDto }) {
+  const t = useTheme();
+  const on = track.inMusic;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={on ? `Remove ${track.title} from your music` : `Add ${track.title} to your music`}
+      accessibilityState={{ checked: on }}
+      onPress={() => {
+        selectHaptic();
+        void setInMusic({ tracks: [track] }, !on);
+      }}
+      style={({ pressed }) => ({ width: 40, height: 44, marginRight: -6, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.6 : 1 })}
+    >
+      {on ? <CheckIcon size={20} color={t.accent} /> : <PlusIcon size={20} color={t.muted} />}
+    </Pressable>
   );
 }
 
@@ -144,11 +237,12 @@ function Length({ track }: { track: TrackDto }) {
   return <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: t.muted, fontVariant: ["tabular-nums"] }}>{songLength(track)}</Text>;
 }
 
-/** A small grey label, for an album's year, song count and length. */
-export function Pill({ label }: { label: string }) {
+/** A small grey label, for an album's year, song count and length; `check` marks "In your music". */
+export function Pill({ label, check }: { label: string; check?: boolean }) {
   const t = useTheme();
   return (
-    <View style={{ height: 24, paddingHorizontal: 9, borderRadius: 12, justifyContent: "center", backgroundColor: t.chip }}>
+    <View style={{ height: 24, paddingHorizontal: 9, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: t.chip }}>
+      {check ? <CheckIcon size={13} color={t.accent} /> : null}
       <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: t.text2 }}>{label}</Text>
     </View>
   );

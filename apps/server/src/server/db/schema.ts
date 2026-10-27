@@ -173,6 +173,53 @@ export const tracks = sqliteTable(
   ],
 );
 
+/**
+ * The songs each person added to their music. Albums and artists in "your music" are worked
+ * out from these: an album is in it when any of its songs is.
+ */
+export const userTracks = sqliteTable(
+  "user_tracks",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    trackId: text("track_id")
+      .notNull()
+      .references(() => tracks.id, { onDelete: "cascade" }),
+    addedAt: integer("added_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.trackId] }), index("user_tracks_track_idx").on(t.trackId)],
+);
+
+/** What each person is playing music from, so Up Next and every device can show the rest of it. */
+export const playContext = sqliteTable("play_context", {
+  userId: integer("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: ["album", "artist", "songs"] }).notNull(),
+  refId: text("ref_id"),
+  title: text("title").notNull(),
+  /** JSON array of track ids in play order. */
+  trackIds: text("track_ids").notNull(),
+  index: integer("idx").notNull(),
+  shuffled: integer("shuffled", { mode: "boolean" }).notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+/** How often each person played each song. No foreign key, so counts outlive a rescan, like progress. */
+export const trackPlays = sqliteTable(
+  "track_plays",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    trackId: text("track_id").notNull(),
+    count: integer("count").notNull(),
+    lastPlayedAt: integer("last_played_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.trackId] })],
+);
+
 /** One row per feed, shared by every user subscribed to it. */
 export const podcasts = sqliteTable("podcasts", {
   id: text("id").primaryKey(),
@@ -286,7 +333,7 @@ export const listeningDays = sqliteTable(
       .references(() => users.id, { onDelete: "cascade" }),
     clientId: text("client_id").notNull(),
     day: text("day").notNull(),
-    itemType: text("item_type", { enum: ["book", "episode"] }).notNull(),
+    itemType: text("item_type", { enum: ["book", "episode", "track"] }).notNull(),
     itemId: text("item_id").notNull(),
     listenedSec: real("listened_sec").notNull(),
     contentSec: real("content_sec").notNull(),

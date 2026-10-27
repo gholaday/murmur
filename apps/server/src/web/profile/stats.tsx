@@ -53,7 +53,7 @@ export function ListeningStats() {
 
   const max = Math.max(1, ...(stats?.bars.map((b) => b.sec) ?? []));
   const now = currentKey(period, today);
-  const kinds = stats ? stats.split.book + stats.split.episode : 0;
+  const kinds = stats ? stats.split.book + stats.split.episode + (stats.split.music ?? 0) : 0;
   // A month has too many days to label each bar; every seventh keeps it readable.
   const labelEvery = (stats?.bars.length ?? 0) > 12 ? 7 : 1;
 
@@ -94,6 +94,7 @@ export function ListeningStats() {
                 <div className="stats-split" aria-hidden="true">
                   <div style={{ flex: stats.split.book, background: "var(--accent)" }} />
                   <div style={{ flex: stats.split.episode, background: "var(--stat-2)" }} />
+                  <div style={{ flex: stats.split.music ?? 0, background: "var(--stat-3)" }} />
                 </div>
                 <div className="stats-legend">
                   <div>
@@ -106,6 +107,13 @@ export function ListeningStats() {
                     <span>Podcasts</span>
                     <span className="muted">{duration(stats.split.episode) || "0m"}</span>
                   </div>
+                  {stats.split.music ? (
+                    <div>
+                      <span className="stats-dot" style={{ background: "var(--stat-3)" }} />
+                      <span>Music</span>
+                      <span className="muted">{duration(stats.split.music)}</span>
+                    </div>
+                  ) : null}
                 </div>
               </>
             ) : null}

@@ -47,6 +47,13 @@ export const MusicIcon = (p: IconProps) => (
     <Circle cx="18" cy="16" r="3" />
   </Icon>
 );
+export const BrowseIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Rect x="3" y="4" width="18" height="6" rx="2" />
+    <Rect x="3" y="14" width="18" height="6" rx="2" />
+    <Path d="M7 7h.01M7 17h.01" />
+  </Icon>
+);
 export const ShuffleIcon = (p: IconProps) => (
   <Icon {...p}>
     <Path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />

@@ -1,4 +1,4 @@
-import type { ItemType } from "./index";
+import type { PlayType } from "./index";
 
 // Listening stats: how long you listened, by day. Days are the listener's own calendar days
 // (YYYY-MM-DD), worked out on the device, so "today" and "this week" are yours wherever the
@@ -159,7 +159,7 @@ export interface StatsDto {
   /** The same stretch of the period before; null for all time. */
   previousSec: number | null;
   bars: Array<{ key: string; label: string; sec: number }>;
-  split: Record<"book" | "episode", number>;
+  split: Record<"book" | "episode" | "music", number>;
   streakDays: number;
   finishedBooks: number;
   episodesPlayed: number;
@@ -172,7 +172,7 @@ export interface StatsDto {
 
 export interface ListeningItem {
   day: string;
-  itemType: ItemType;
+  itemType: PlayType;
   itemId: string;
   /** Real time spent listening. */
   listenedSec: number;
@@ -220,7 +220,7 @@ export class ListeningTracker {
    * position moved. The smaller of the two counts, so a seek forward doesn't add the skipped part
    * and a paused or frozen player adds nothing.
    */
-  add(itemType: ItemType, itemId: string, wallSec: number, movedSec: number, speed: number, now = Date.now()) {
+  add(itemType: PlayType, itemId: string, wallSec: number, movedSec: number, speed: number, now = Date.now()) {
     const seconds = Math.min(wallSec, movedSec / speed);
     if (!(seconds > 0) || seconds > MAX_TICK_SEC) return;
     const day = localDay(now);

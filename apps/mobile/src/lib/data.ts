@@ -5,6 +5,8 @@ import {
   apiPaths,
   type ArtistDetail,
   type ArtistSummary,
+  type MusicMineChange,
+  type MusicScope,
   type MusicSummaryDto,
   type TrackDto,
   type BookDetail,
@@ -35,11 +37,11 @@ export const keys = {
   queue: ["queue"] as const,
   prefs: ["prefs"] as const,
   music: ["music"] as const,
-  albums: ["albums"] as const,
+  albums: (scope: MusicScope) => ["albums", scope] as const,
   album: (id: string) => ["album", id] as const,
-  artists: ["artists"] as const,
+  artists: (scope: MusicScope) => ["artists", scope] as const,
   artist: (id: string) => ["artist", id] as const,
-  tracks: ["tracks"] as const,
+  tracks: (scope: MusicScope) => ["tracks", scope] as const,
 };
 
 // Your own settings (Books tab layout, which tabs show), saved on the server so the web and the
@@ -81,18 +83,62 @@ export const useBook = (id: string) =>
 /** Whether the server has music; everything about music hides until it says so. */
 export const useMusicSummary = () => useQuery({ queryKey: keys.music, queryFn: () => api<MusicSummaryDto>(apiPaths.music) });
 
-/** Every album, newest first; the Music tab sorts them on the phone, so a sort change needs no refetch. */
-export const useAlbums = () => useQuery({ queryKey: keys.albums, queryFn: () => api<AlbumSummary[]>(apiPaths.albums("added")) });
+// Music comes in two scopes: "mine" is your music (songs you added, and their albums and artists),
+// "all" is everything, shown under Browse.
+
+/** Albums newest first; screens sort them on the phone, so a sort change needs no refetch. */
+export const useAlbums = (scope: MusicScope, enabled = true) =>
+  useQuery({ queryKey: keys.albums(scope), queryFn: () => api<AlbumSummary[]>(apiPaths.albums(scope, "added")), enabled });
 
 export const useAlbum = (id: string) => useQuery({ queryKey: keys.album(id), queryFn: () => api<AlbumDetail>(apiPaths.album(id)) });
 
-export const useArtists = (enabled = true) =>
-  useQuery({ queryKey: keys.artists, queryFn: () => api<ArtistSummary[]>(apiPaths.artists), enabled });
+export const useArtists = (scope: MusicScope, enabled = true) =>
+  useQuery({ queryKey: keys.artists(scope), queryFn: () => api<ArtistSummary[]>(apiPaths.artists(scope)), enabled });
 
+/** All of an artist's albums and songs, each marked with how much is in your music. */
 export const useArtist = (id: string) => useQuery({ queryKey: keys.artist(id), queryFn: () => api<ArtistDetail>(apiPaths.artist(id)) });
 
-/** Every song, A to Z; the Songs list filters it on the phone. */
-export const useTracks = (enabled = true) => useQuery({ queryKey: keys.tracks, queryFn: () => api<TrackDto[]>(apiPaths.tracks()), enabled });
+/** Songs A to Z; lists filter them on the phone. */
+export const useTracks = (scope: MusicScope, enabled = true) =>
+  useQuery({ queryKey: keys.tracks(scope), queryFn: () => api<TrackDto[]>(apiPaths.tracks(scope)), enabled });
+
+/**
+ * Adds songs to your music, or removes them; an album means all its songs. Every cached list shows
+ * the change at once, then everything music refetches from the server.
+ */
+export async function setInMusic(change: { albums?: AlbumSummary[]; tracks?: TrackDto[] }, on: boolean) {
+  const albumIds = new Set(change.albums?.map((a) => a.id));
+  // Only songs that actually change move their album's count.
+  const moved = (change.tracks ?? []).filter((t) => t.inMusic !== on);
+  const trackIds = new Set(moved.map((t) => t.id));
+  const delta = new Map<string, number>();
+  for (const t of moved) delta.set(t.albumId, (delta.get(t.albumId) ?? 0) + (on ? 1 : -1));
+
+  const album = <A extends AlbumSummary>(a: A): A =>
+    albumIds.has(a.id)
+      ? { ...a, songsInMusic: on ? a.trackCount : 0 }
+      : delta.has(a.id)
+        ? { ...a, songsInMusic: Math.max(0, Math.min(a.trackCount, a.songsInMusic + delta.get(a.id)!)) }
+        : a;
+  const track = (t: TrackDto): TrackDto => (albumIds.has(t.albumId) || trackIds.has(t.id) ? { ...t, inMusic: on } : t);
+
+  queryClient.setQueriesData<AlbumSummary[]>({ queryKey: ["albums"] }, (list) => list?.map(album));
+  queryClient.setQueriesData<TrackDto[]>({ queryKey: ["tracks"] }, (list) => list?.map(track));
+  queryClient.setQueriesData<AlbumDetail>({ queryKey: ["album"] }, (a) => a && { ...album(a), tracks: a.tracks.map(track) });
+  queryClient.setQueriesData<ArtistDetail>({ queryKey: ["artist"] }, (a) => a && { ...a, albums: a.albums.map(album), appearsOn: a.appearsOn.map(track) });
+
+  const body: MusicMineChange = {};
+  if (albumIds.size) body.albumIds = [...albumIds];
+  if (change.tracks?.length) body.trackIds = change.tracks.map((t) => t.id);
+  try {
+    const summary = await api<MusicSummaryDto>(apiPaths.mine, { method: on ? "PUT" : "DELETE", body });
+    queryClient.setQueryData(keys.music, summary);
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : on ? "Couldn't add that." : "Couldn't remove that.");
+  } finally {
+    for (const key of ["music", "albums", "artists", "tracks", "album", "artist"]) void queryClient.invalidateQueries({ queryKey: [key] });
+  }
+}
 
 export const usePodcasts = () =>
   useQuery({ queryKey: keys.podcasts, queryFn: () => api<PodcastSummary[]>("/api/podcasts") });

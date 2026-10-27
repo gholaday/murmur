@@ -103,6 +103,8 @@ export function FullPlayer() {
   };
   // Ads only ever exist for episodes; books keep the Chapters tile.
   const showAds = item.type === "episode" && p.adsEnabled;
+  // Songs: previous and next instead of skips and chapters, no speed, no position kept.
+  const song = item.type === "track";
   const adMode = adModeFor(adPrefs, item.podcastId);
   const marks = showAds && adMode !== "off" ? p.ads : [];
   const adIndex = marks.findIndex((a) => pos >= a.startSec && pos < a.endSec);
@@ -121,7 +123,7 @@ export function FullPlayer() {
         <button type="button" className="icon-btn" onClick={() => setExpanded(false)} aria-label="Close player">
           <DownIcon />
         </button>
-        <div className="player-from">Playing from {item.type === "book" ? "Books" : "Podcasts"}</div>
+        <div className="player-from">Playing from {song ? (p.musicContext?.title ?? "Music") : item.type === "book" ? "Books" : "Podcasts"}</div>
         <button type="button" className="icon-btn" onClick={() => setSheet("more")} aria-label="More options">
           <MoreIcon />
         </button>
@@ -185,24 +187,32 @@ export function FullPlayer() {
           </div>
           <div className="player-times">
             <span>{clock(within)}</span>
-            <span>{item.durationSec ? timeLeft(item.durationSec, pos) : ""}</span>
+            <span>{item.durationSec && !song ? timeLeft(item.durationSec, pos) : ""}</span>
             <span>-{clock(spanLen - within)}</span>
           </div>
         </div>
 
         <div className="player-controls">
-          <button
-            type="button"
-            className="icon-btn dim"
-            onClick={() => p.chapterStep(-1)}
-            aria-label={multiChapter ? "Previous chapter" : "Back 30 seconds"}
-          >
-            <PrevChapterIcon />
-          </button>
-          <button type="button" className="skip-btn" onClick={() => p.skipBy(-p.skip.back)} aria-label={`Skip back ${p.skip.back} seconds`}>
-            <SkipBackIcon size={36} />
-            <span>{p.skip.back}</span>
-          </button>
+          {song ? (
+            <button type="button" className="skip-btn" onClick={() => p.trackStep(-1)} aria-label="Previous song">
+              <PrevChapterIcon size={32} />
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="icon-btn dim"
+                onClick={() => p.chapterStep(-1)}
+                aria-label={multiChapter ? "Previous chapter" : "Back 30 seconds"}
+              >
+                <PrevChapterIcon />
+              </button>
+              <button type="button" className="skip-btn" onClick={() => p.skipBy(-p.skip.back)} aria-label={`Skip back ${p.skip.back} seconds`}>
+                <SkipBackIcon size={36} />
+                <span>{p.skip.back}</span>
+              </button>
+            </>
+          )}
           <button
             type="button"
             className="play-btn"
@@ -212,23 +222,31 @@ export function FullPlayer() {
           >
             {p.playing ? <PauseIcon size={32} /> : <PlayIcon size={32} />}
           </button>
-          <button
-            type="button"
-            className="skip-btn"
-            onClick={() => p.skipBy(p.skip.forward)}
-            aria-label={`Skip forward ${p.skip.forward} seconds`}
-          >
-            <SkipForwardIcon size={36} />
-            <span>{p.skip.forward}</span>
-          </button>
-          <button
-            type="button"
-            className="icon-btn dim"
-            onClick={() => p.chapterStep(1)}
-            aria-label={multiChapter ? "Next chapter" : "Forward 30 seconds"}
-          >
-            <NextChapterIcon />
-          </button>
+          {song ? (
+            <button type="button" className="skip-btn" onClick={() => p.trackStep(1)} aria-label="Next song">
+              <NextChapterIcon size={32} />
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="skip-btn"
+                onClick={() => p.skipBy(p.skip.forward)}
+                aria-label={`Skip forward ${p.skip.forward} seconds`}
+              >
+                <SkipForwardIcon size={36} />
+                <span>{p.skip.forward}</span>
+              </button>
+              <button
+                type="button"
+                className="icon-btn dim"
+                onClick={() => p.chapterStep(1)}
+                aria-label={multiChapter ? "Next chapter" : "Forward 30 seconds"}
+              >
+                <NextChapterIcon />
+              </button>
+            </>
+          )}
         </div>
         <div className="player-volume">
           <button
@@ -260,7 +278,7 @@ export function FullPlayer() {
       </div>
 
       <div className="player-tiles">
-        <div className="speed-wrap">
+        <div className="speed-wrap" hidden={song}>
           {speedOpen ? (
             <>
               <div className="speed-scrim" onClick={() => setSpeedOpen(false)} aria-hidden="true" />
@@ -329,7 +347,7 @@ export function FullPlayer() {
             <strong>{AD_MODES.find((m) => m.id === adMode)?.short}</strong>
             <span>Ads</span>
           </button>
-        ) : (
+        ) : song ? null : (
           <button type="button" className="tile" onClick={() => setSheet("chapters")} disabled={!multiChapter}>
             <ListIcon size={20} />
             <span>Chapters</span>
@@ -357,7 +375,7 @@ export function FullPlayer() {
             p.setSleep({ mode: "chapter", endSec: multiChapter && chapter ? chapter.endSec : item.durationSec }),
           )}
         >
-          End of {multiChapter ? "chapter" : item.type === "book" ? "book" : "episode"}
+          End of {multiChapter ? "chapter" : song ? "song" : item.type === "book" ? "book" : "episode"}
         </SheetItem>
       </Sheet>
 
@@ -419,10 +437,14 @@ export function FullPlayer() {
             setExpanded(false);
           }}
         >
-          Go to {item.type === "book" ? "book" : "show"}
+          Go to {song ? "album" : item.type === "book" ? "book" : "show"}
         </Link>
-        <SheetItem onClick={choose(() => p.markCurrent(true))}>Mark as finished</SheetItem>
-        <SheetItem onClick={choose(() => p.markCurrent(false))}>Start from the beginning</SheetItem>
+        {song ? null : (
+          <>
+            <SheetItem onClick={choose(() => p.markCurrent(true))}>Mark as finished</SheetItem>
+            <SheetItem onClick={choose(() => p.markCurrent(false))}>Start from the beginning</SheetItem>
+          </>
+        )}
         <SheetItem danger onClick={choose(() => p.stop())}>
           Stop and close player
         </SheetItem>

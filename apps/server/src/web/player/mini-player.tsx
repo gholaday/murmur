@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Cover } from "../cover";
 import { chapterAt, clock, timeLeft } from "@murmur/shared/client";
-import { PauseIcon, PlayIcon, SkipBackIcon, SkipForwardIcon } from "../icons";
+import { NextChapterIcon, PauseIcon, PlayIcon, PrevChapterIcon, SkipBackIcon, SkipForwardIcon } from "../icons";
 import { usePlayer, usePosition } from "./engine";
 
 /**
@@ -11,7 +11,7 @@ import { usePlayer, usePosition } from "./engine";
  * so you can scrub without opening the full player.
  */
 export function MiniPlayer() {
-  const { item, playing, loading, error, toggle, skipBy, skip, seek, setExpanded } = usePlayer();
+  const { item, playing, loading, error, toggle, skipBy, skip, seek, setExpanded, trackStep } = usePlayer();
   const position = usePosition();
   const [scrub, setScrub] = useState<number | null>(null);
   if (!item) return null;
@@ -22,7 +22,9 @@ export function MiniPlayer() {
   const pct = dur ? Math.min(100, (pos / dur) * 100) : 0;
   // The chapter and time left each get a line rather than one joined string.
   const chapterLine = item.chapters.length > 1 ? chapter?.title : null;
-  const leftLine = dur ? timeLeft(dur, pos) : item.subtitle;
+  // A song shows its artist; a book or episode the time left.
+  const song = item.type === "track";
+  const leftLine = song ? item.subtitle : dur ? timeLeft(dur, pos) : item.subtitle;
   const commit = () => {
     if (scrub !== null) seek(scrub);
     setScrub(null);
@@ -50,17 +52,29 @@ export function MiniPlayer() {
             )}
           </span>
         </button>
-        <button type="button" className="mini-skip" onClick={() => skipBy(-skip.back)} aria-label={`Skip back ${skip.back} seconds`}>
-          <SkipBackIcon size={30} />
-          <span>{skip.back}</span>
-        </button>
+        {song ? (
+          <button type="button" className="mini-skip" onClick={() => trackStep(-1)} aria-label="Previous song">
+            <PrevChapterIcon size={24} />
+          </button>
+        ) : (
+          <button type="button" className="mini-skip" onClick={() => skipBy(-skip.back)} aria-label={`Skip back ${skip.back} seconds`}>
+            <SkipBackIcon size={30} />
+            <span>{skip.back}</span>
+          </button>
+        )}
         <button type="button" className="icon-btn" onClick={toggle} aria-label={playing ? "Pause" : "Play"} data-loading={loading || undefined}>
           {playing ? <PauseIcon /> : <PlayIcon />}
         </button>
-        <button type="button" className="mini-skip" onClick={() => skipBy(skip.forward)} aria-label={`Skip forward ${skip.forward} seconds`}>
-          <SkipForwardIcon size={30} />
-          <span>{skip.forward}</span>
-        </button>
+        {song ? (
+          <button type="button" className="mini-skip" onClick={() => trackStep(1)} aria-label="Next song">
+            <NextChapterIcon size={24} />
+          </button>
+        ) : (
+          <button type="button" className="mini-skip" onClick={() => skipBy(skip.forward)} aria-label={`Skip forward ${skip.forward} seconds`}>
+            <SkipForwardIcon size={30} />
+            <span>{skip.forward}</span>
+          </button>
+        )}
       </div>
       {dur ? (
         <div className="mini-seek">

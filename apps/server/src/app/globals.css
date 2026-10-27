@@ -16,6 +16,7 @@
   --on-accent: #141833;
   --danger: #ff8a8a;
   --stat-2: #f2a65a;
+  --stat-3: #4fb39a;
   --nav: #17181b;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   --radius: 14px;
@@ -41,6 +42,7 @@
   --on-accent: #ffffff;
   --danger: #c43c3c;
   --stat-2: #b8620f;
+  --stat-3: #1e7a63;
   --nav: #ffffff;
   --shadow: 0 8px 24px rgba(20, 20, 30, 0.14);
   color-scheme: light;
@@ -63,6 +65,7 @@
     --on-accent: #ffffff;
     --danger: #c43c3c;
     --stat-2: #b8620f;
+    --stat-3: #1e7a63;
     --nav: #ffffff;
     --shadow: 0 8px 24px rgba(20, 20, 30, 0.14);
     color-scheme: light;
@@ -1076,3 +1079,52 @@ a.episode-show:hover { color: var(--accent); }
 .track-title { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .track-artist { font-size: 12px; color: var(--muted); }
 .track-artist:hover { color: var(--accent); }
+.pill { gap: 5px; }
+.pill .i { color: var(--accent); stroke-width: 3; }
+.show-hero .pills { justify-content: flex-start; }
+.list-row-link { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; }
+.list-row-link:hover .list-row-title { color: var(--accent); }
+
+/* Your music: the Browse row, add buttons and the first-visit screen. */
+.browse-row { display: flex; align-items: center; gap: 14px; padding: 14px; margin-bottom: 14px; border-radius: var(--radius); background: var(--surface); }
+.browse-row:hover { background: var(--surface-2); }
+.browse-row > .i { color: var(--muted); flex-shrink: 0; }
+.browse-row-icon { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--surface-2); color: var(--accent); }
+.new-pill { height: 22px; padding: 0 8px; border-radius: 11px; display: inline-flex; align-items: center; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 800; white-space: nowrap; }
+.add-badge {
+  position: absolute; right: 8px; bottom: 8px; z-index: 2; width: 36px; height: 36px; border-radius: 18px;
+  display: flex; align-items: center; justify-content: center; background: #f3f1ec; color: #141833; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.add-badge[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.add-badge .i, .song-toggle .i { stroke-width: 2.4; }
+.song-toggle { color: var(--muted); flex-shrink: 0; margin-right: -8px; }
+.song-toggle[aria-pressed="true"] { color: var(--accent); }
+.btn-outline { background: none; border: 1px solid var(--track); }
+.add-all { width: 100%; height: 44px; margin-top: 12px; gap: 8px; }
+@media (min-width: 600px) { .add-all { width: auto; padding: 0 22px; } }
+.music-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 48px 16px; text-align: center; }
+.music-empty h2 { font-size: 20px; font-weight: 800; }
+.music-empty p { color: var(--muted); font-size: 14px; line-height: 1.5; max-width: 320px; margin: 0; }
+.music-empty .btn-big { width: 100%; max-width: 300px; }
+.music-empty .btn-big:last-child { background: var(--surface-2); }
+.music-empty-icon { width: 72px; height: 72px; border-radius: 36px; display: flex; align-items: center; justify-content: center; background: var(--surface); color: var(--accent); }
+
+/* You: settings rows that open their own page, like the app. */
+.setting-link:hover .setting-title { color: var(--accent); }
+.setting-value { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 14px; }
+.setting-value span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.setting-value .i { flex-shrink: 0; }
+.settings-page { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.settings-page .section-title { margin-top: 16px; }
+.settings-page > .btn { align-self: flex-start; }
+button.track-title { text-align: left; color: inherit; }
+button.track-title:hover { color: var(--accent); }
+.track-list li.playing .track-title, .track-list li.playing .track-num { color: var(--accent); }
+.list-row-play { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; }
+.list-row-play:hover .list-row-title, .list-row.playing .list-row-title { color: var(--accent); }
+.songs-actions { display: flex; gap: 10px; margin-bottom: 8px; }
+.songs-actions .btn { flex: 1; max-width: 200px; height: 44px; }
+.context-row { width: 100%; }
+.context-row .i { color: var(--muted); transition: transform 0.2s; }
+.context-row[aria-expanded="true"] .i { transform: rotate(180deg); }
+.speed-wrap[hidden] { display: none; }

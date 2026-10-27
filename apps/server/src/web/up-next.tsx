@@ -2,9 +2,10 @@
 
 import { toast } from "sonner";
 import { useState } from "react";
-import { chapterAt, duration, plural, type QueueEntry, queueEntryView, queueRef, timeLeft } from "@murmur/shared/client";
+import { albumCover, chapterAt, duration, plural, type QueueEntry, queueEntryView, queueRef, timeLeft } from "@murmur/shared/client";
 import { Cover } from "./cover";
-import { CloseIcon, DragIcon, PlayIcon } from "./icons";
+import { CloseIcon, DownIcon, DragIcon, PlayIcon } from "./icons";
+import { SongRow } from "./music/music-view";
 import { type Playable, usePlayer, usePosition } from "./player/engine";
 import { QueueRowsSkeleton } from "./skeletons";
 import { useSortable } from "./sortable";
@@ -103,6 +104,7 @@ export function UpNextView() {
       </div>
 
       {item ? <NowPlayingCard item={item} onOpen={() => player.setExpanded(true)} /> : null}
+      <RestOfMusic />
 
       <section className="section">
         {queue.length || !player.queueLoaded ? <div className="eyebrow">Next</div> : null}
@@ -157,5 +159,36 @@ export function UpNextView() {
         )}
       </section>
     </>
+  );
+}
+
+/** The rest of the album or list music is playing from, as one row that opens to show the songs. */
+function RestOfMusic() {
+  const player = usePlayer();
+  const [open, setOpen] = useState(false);
+  const c = player.musicContext;
+  if (!c || player.item?.type !== "track") return null;
+  const rest = c.tracks.slice(c.index + 1);
+  if (!rest.length) return null;
+  const first = rest[0]!;
+  return (
+    <section className="section">
+      <div className="eyebrow">Playing from</div>
+      <button type="button" className="list-row context-row" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <Cover className="thumb" src={albumCover(first.albumId, first.coverHash)} color={null} title={c.title} />
+        <span className="list-row-main" style={{ textAlign: "left" }}>
+          <span className="list-row-title">Rest of {c.title}</span>
+          <span className="list-row-sub">{plural(rest.length, "song")}</span>
+        </span>
+        <DownIcon className="context-chevron" />
+      </button>
+      {open ? (
+        <div className="list">
+          {rest.map((t, i) => (
+            <SongRow key={t.id} track={t} onPlay={() => player.playContextAt(c.index + 1 + i)} />
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }

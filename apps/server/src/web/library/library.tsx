@@ -56,9 +56,10 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: "finished", label: "Finished" },
 ];
 
-/** A titled section of book cards, like "All books": the heading opens that author or series. */
-function GroupGrid({
+/** A titled row of cards, like an author on Books or an artist on Music: the heading opens it. */
+export function GroupGrid({
   title,
+  noun = "book",
   count,
   sub,
   side,
@@ -66,6 +67,8 @@ function GroupGrid({
   children,
 }: {
   title: string;
+  /** What the count counts. */
+  noun?: string;
   count: number;
   sub?: string | null;
   side?: string | null;
@@ -78,7 +81,7 @@ function GroupGrid({
         <div className="group-head">
           <button type="button" className="section-title group-title" onClick={onOpen}>
             {title}
-            <span className="count-pill" aria-label={plural(count, "book")}>
+            <span className="count-pill" aria-label={plural(count, noun)}>
               {count}
             </span>
           </button>
