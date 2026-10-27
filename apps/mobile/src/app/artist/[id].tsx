@@ -1,7 +1,8 @@
 import { Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { albumInMusic, artistSub, plural } from "@murmur/shared/client";
-import { PlusIcon } from "@/components/icons";
+import { albumInMusic, artistImage, artistSub, plural } from "@murmur/shared/client";
+import { Cover } from "@/components/cover";
+import { PlusIcon, ProfileIcon } from "@/components/icons";
 import { Grid, PAD, useGridWidth } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { AlbumCard, SongRow } from "@/components/music";
@@ -13,6 +14,8 @@ import { setInMusic, useArtist } from "@/lib/data";
 import { selectHaptic } from "@/lib/haptics";
 import { playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
+
+const PHOTO = 96;
 
 /** All of an artist's albums, newest first, then songs of theirs on other albums; each can be added. */
 export default function ArtistScreen() {
@@ -28,12 +31,25 @@ export default function ArtistScreen() {
   // Albums not fully in your music yet; the button adds them all.
   const missing = a?.albums.filter((al) => albumInMusic(al) !== "all") ?? [];
   const added = (a?.albums.length ?? 0) - missing.length;
+  const photo = a ? artistImage(a, 600) : null;
 
   let body: React.ReactNode;
   if (a) {
     body = (
       <FadeIn when={fade}>
-        <PageTitle title={a.name} sub={added ? `${artistSub(a)}, ${added} in your music` : artistSub(a)} />
+        {/* Their photo beside the name, like the web; an album cover of theirs, else a person icon. */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+          {photo ? (
+            <Cover path={photo} title={a.name} size={PHOTO} radius={PHOTO / 2} />
+          ) : (
+            <View style={{ width: PHOTO, height: PHOTO, borderRadius: PHOTO / 2, backgroundColor: t.surface, alignItems: "center", justifyContent: "center" }}>
+              <ProfileIcon size={40} color={t.muted} />
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <PageTitle title={a.name} sub={added ? `${artistSub(a)}, ${added} in your music` : artistSub(a)} />
+          </View>
+        </View>
         {missing.length ? (
           <Pressable
             accessibilityRole="button"
@@ -89,7 +105,13 @@ export default function ArtistScreen() {
   } else {
     body = (
       <Skeleton style={{ gap: 16 }}>
-        <Bone width="60%" height={30} style={{ marginTop: 8 }} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+          <Bone width={PHOTO} height={PHOTO} radius={PHOTO / 2} />
+          <View style={{ flex: 1, gap: 10 }}>
+            <Bone width="70%" height={30} />
+            <Bone width="45%" height={14} />
+          </View>
+        </View>
         <CoverGridBones count={4} columns={2} />
       </Skeleton>
     );
