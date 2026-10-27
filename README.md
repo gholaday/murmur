@@ -97,6 +97,7 @@ pnpm test
 | `packages/shared` | Types and schemas shared by server and app |
 | `addons/adscan` | Optional ad detection add-on (Python) |
 | `docs/SPEC.md` | How Murmur works and why |
+| `docs/DESIGN.md` | Colours, type, components and wording |
 
 **Releasing:** push a tag like `v0.3.0` and GitHub Actions publishes the Murmur and add-on images, and attaches the signed Android APK to a GitHub release (the tag sets the app's version). The release notes, which Settings' What's new opens, are the tagged commit's message minus its title line, so describe the changes there in plain words. Signing needs the `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` repository secrets.
 
