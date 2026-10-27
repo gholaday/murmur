@@ -38,7 +38,7 @@ import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
 import { Chip, IconButton, Text } from "@/components/ui";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdDetection, useAdPrefs, type AdMode } from "@/player/ad-prefs";
-import { chapterStep, markCurrent, seek, setSleep, setSpeed, skipBy, stop, toggle, usePlayer, usePosition } from "@/player/engine";
+import { chapterStep, markCurrent, type Playable, seek, setSleep, setSpeed, skipBy, stop, toggle, trackStep, usePlayer, usePosition } from "@/player/engine";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fonts, mixColor, useTheme } from "@/theme";
 
@@ -60,6 +60,8 @@ export default function Player() {
   const [speedDraft, setSpeedDraft] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const { item } = p;
+  // A song plays at 1x with no chapters: previous and next step through the songs.
+  const song = item?.type === "track";
 
   // The sleep countdown ticks once a second.
   useEffect(() => {
@@ -112,7 +114,7 @@ export default function Player() {
             <DownIcon color={t.text} />
           </IconButton>
           <Text variant="caption" style={{ fontSize: 12, letterSpacing: 0.6, textTransform: "uppercase" }}>
-            Playing from {item.type === "book" ? "Library" : "Podcasts"}
+            Playing from {song ? (p.context?.title ?? "Music") : item.type === "book" ? "Library" : "Podcasts"}
           </Text>
           <IconButton label="More options" onPress={() => setSheet("more")}>
             <MoreIcon color={t.text} />
@@ -222,7 +224,7 @@ export default function Player() {
               <Text variant="small" style={{ fontVariant: ["tabular-nums"] }}>
                 {clock(within)}
               </Text>
-              {item.durationSec ? (
+              {item.durationSec && !song ? (
                 <Text variant="small">{timeLeft(item.durationSec, pos)}</Text>
               ) : null}
               <Text variant="small" style={{ fontVariant: ["tabular-nums"] }}>
@@ -231,13 +233,21 @@ export default function Player() {
             </View>
           </View>
 
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <IconButton label={multiChapter ? "Previous chapter" : "Back 30 seconds"} onPress={() => chapterStep(-1)}>
-              <PrevChapterIcon color={t.muted} />
-            </IconButton>
-            <SkipButton seconds={p.skip.back} label={`Skip back ${p.skip.back} seconds`} onPress={() => skipBy(-p.skip.back)}>
-              <SkipBackIcon size={40} color={t.text} />
-            </SkipButton>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: song ? "space-evenly" : "space-between" }}>
+            {song ? (
+              <IconButton label="Previous song" style={{ width: 56, height: 56 }} onPress={() => trackStep(-1)}>
+                <PrevChapterIcon size={36} color={t.text} />
+              </IconButton>
+            ) : (
+              <>
+                <IconButton label={multiChapter ? "Previous chapter" : "Back 30 seconds"} onPress={() => chapterStep(-1)}>
+                  <PrevChapterIcon color={t.muted} />
+                </IconButton>
+                <SkipButton seconds={p.skip.back} label={`Skip back ${p.skip.back} seconds`} onPress={() => skipBy(-p.skip.back)}>
+                  <SkipBackIcon size={40} color={t.text} />
+                </SkipButton>
+              </>
+            )}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={p.playing ? "Pause" : "Play"}
@@ -260,12 +270,20 @@ export default function Player() {
                 <PlayIcon size={34} color={t.onAccent} />
               )}
             </Pressable>
-            <SkipButton seconds={p.skip.forward} label={`Skip forward ${p.skip.forward} seconds`} onPress={() => skipBy(p.skip.forward)}>
-              <SkipForwardIcon size={40} color={t.text} />
-            </SkipButton>
-            <IconButton label={multiChapter ? "Next chapter" : "Forward 30 seconds"} onPress={() => chapterStep(1)}>
-              <NextChapterIcon color={t.muted} />
-            </IconButton>
+            {song ? (
+              <IconButton label="Next song" style={{ width: 56, height: 56 }} onPress={() => trackStep(1)}>
+                <NextChapterIcon size={36} color={t.text} />
+              </IconButton>
+            ) : (
+              <>
+                <SkipButton seconds={p.skip.forward} label={`Skip forward ${p.skip.forward} seconds`} onPress={() => skipBy(p.skip.forward)}>
+                  <SkipForwardIcon size={40} color={t.text} />
+                </SkipButton>
+                <IconButton label={multiChapter ? "Next chapter" : "Forward 30 seconds"} onPress={() => chapterStep(1)}>
+                  <NextChapterIcon color={t.muted} />
+                </IconButton>
+              </>
+            )}
           </View>
           {p.error ? (
             <Text variant="small" style={{ color: t.danger, textAlign: "center" }}>
@@ -275,9 +293,11 @@ export default function Player() {
         </View>
 
         <View style={{ flexDirection: "row", gap: 8 }}>
-          <Tile label="Speed" onPress={() => setSheet("speed")} active={p.speed !== 1}>
-            <Text style={{ fontFamily: fonts.extrabold, fontSize: 16, color: p.speed !== 1 ? t.accent : t.text }}>{speedText(p.speed)}</Text>
-          </Tile>
+          {song ? null : (
+            <Tile label="Speed" onPress={() => setSheet("speed")} active={p.speed !== 1}>
+              <Text style={{ fontFamily: fonts.extrabold, fontSize: 16, color: p.speed !== 1 ? t.accent : t.text }}>{speedText(p.speed)}</Text>
+            </Tile>
+          )}
           <Tile label={sleepLabel(p.sleep, now)} onPress={() => setSheet("sleep")} active={p.sleep.mode !== "off"}>
             <MoonIcon size={20} color={p.sleep.mode !== "off" ? t.accent : t.text} />
           </Tile>
@@ -285,7 +305,7 @@ export default function Player() {
             <Tile label="Ads" onPress={() => setSheet("ads")}>
               <Text style={{ fontFamily: fonts.extrabold, fontSize: 16, color: t.text }}>{AD_MODES.find((m) => m.id === adMode)?.short}</Text>
             </Tile>
-          ) : (
+          ) : song ? null : (
             <Tile label="Chapters" onPress={() => setSheet("chapters")} disabled={!multiChapter}>
               <ListIcon size={20} color={t.text} />
             </Tile>
@@ -345,7 +365,7 @@ export default function Player() {
           <SheetItem key={m} label={`${m} minutes`} onPress={choose(() => setSleep({ mode: "timer", endsAt: Date.now() + m * 60_000 }))} />
         ))}
         <SheetItem
-          label={`End of ${multiChapter ? "chapter" : item.type === "book" ? "book" : "episode"}`}
+          label={`End of ${song ? "song" : multiChapter ? "chapter" : item.type === "book" ? "book" : "episode"}`}
           active={p.sleep.mode === "chapter"}
           disabled={!(multiChapter && chapter) && !item.durationSec}
           onPress={choose(() => setSleep({ mode: "chapter", endSec: multiChapter && chapter ? chapter.endSec : item.durationSec }))}
@@ -406,10 +426,36 @@ export default function Player() {
       </Sheet>
 
       <Sheet open={sheet === "more"} onClose={() => setSheet(null)} title={item.title}>
+        {song ? (
+          <SheetItem
+            label="Go to album"
+            disabled={!item.album}
+            onPress={() => {
+              setSheet(null);
+              router.back();
+              if (item.album) router.push(`/album/${item.album.id}`);
+            }}
+          />
+        ) : (
+          <MoreItems item={item} close={() => setSheet(null)} />
+        )}
+      </Sheet>
+    </View>
+  );
+}
+
+/** A book's or episode's More sheet: go to it, mark it, or stop. */
+function MoreItems({ item, close }: { item: Playable; close: () => void }) {
+  const choose = (fn: () => void) => () => {
+    fn();
+    close();
+  };
+  return (
+    <>
         <SheetItem
           label={item.type === "book" ? "Go to book" : "Go to podcast"}
           onPress={() => {
-            setSheet(null);
+            close();
             router.back();
             if (item.type === "book") router.push(`/book/${item.id}`);
             else if (item.podcastId) router.push(`/show/${item.podcastId}`);
@@ -423,12 +469,11 @@ export default function Player() {
           label="Stop playback"
           danger
           onPress={() => {
-            setSheet(null);
+            close();
             stop();
           }}
         />
-      </Sheet>
-    </View>
+    </>
   );
 }
 

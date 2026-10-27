@@ -18,8 +18,9 @@ const PERIODS: { id: StatsPeriod; label: string; last: string; this: string }[] 
   { id: "all", label: "All time", last: "", this: "all time" },
 ];
 
-/** Podcasts' share of the split; books use the accent. */
+/** Podcasts' and music's shares of the split; books use the accent. */
 const PODCAST_COLOR = { dark: "#f2a65a", light: "#c9731f" };
+const MUSIC_COLOR = { dark: "#4fb39a", light: "#1e7a63" };
 
 const BARS_HEIGHT = 96;
 
@@ -42,7 +43,6 @@ export function ListeningStats() {
   const stats = useStats(period);
   const p = PERIODS.find((x) => x.id === period)!;
   const s = stats.data;
-  const podcastColor = t.isDark ? PODCAST_COLOR.dark : PODCAST_COLOR.light;
 
   return (
     <View style={{ gap: 14 }}>
@@ -61,7 +61,7 @@ export function ListeningStats() {
               {s.previousSec !== null && s.totalSec + s.previousSec > 0 ? <Text variant="small">{compare(s.totalSec, s.previousSec, p.last)}</Text> : null}
             </View>
             <Bars stats={s} />
-            <SplitBar books={s.split.book} podcasts={s.split.episode} podcastColor={podcastColor} />
+            <SplitBar split={s.split} />
           </>
         ) : stats.isError ? (
           <Text variant="small">{"Couldn't load your listening."}</Text>
@@ -158,15 +158,18 @@ function Bars({ stats }: { stats: StatsDto }) {
   );
 }
 
-function SplitBar({ books, podcasts, podcastColor }: { books: number; podcasts: number; podcastColor: string }) {
+function SplitBar({ split }: { split: StatsDto["split"] }) {
   const t = useTheme();
   const rows = [
-    { label: "Books", sec: books, color: t.accent },
-    { label: "Podcasts", sec: podcasts, color: podcastColor },
+    { label: "Books", sec: split.book, color: t.accent },
+    { label: "Podcasts", sec: split.episode, color: t.isDark ? PODCAST_COLOR.dark : PODCAST_COLOR.light },
+    // Music only shows once you've listened to some.
+    ...(split.music > 0 ? [{ label: "Music", sec: split.music, color: t.isDark ? MUSIC_COLOR.dark : MUSIC_COLOR.light }] : []),
   ];
+  const total = rows.reduce((sum, r) => sum + r.sec, 0);
   return (
     <View style={{ gap: 12 }}>
-      <View style={{ flexDirection: "row", height: 8, borderRadius: 4, overflow: "hidden", gap: 2, backgroundColor: books + podcasts ? undefined : t.track }}>
+      <View style={{ flexDirection: "row", height: 8, borderRadius: 4, overflow: "hidden", gap: 2, backgroundColor: total ? undefined : t.track }}>
         {rows.map((r) => (r.sec > 0 ? <View key={r.label} style={{ flex: r.sec, backgroundColor: r.color }} /> : null))}
       </View>
       <View style={{ gap: 8 }}>

@@ -3,10 +3,10 @@ import { router } from "expo-router";
 import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { chapterAt, timeLeft } from "@murmur/shared/client";
-import { skipBy, toggle, usePlayer, usePosition } from "@/player/engine";
+import { skipBy, toggle, trackStep, usePlayer, usePosition } from "@/player/engine";
 import { fonts, mixColor, useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { PauseIcon, PlayIcon, SkipBackIcon, SkipForwardIcon } from "./icons";
+import { NextChapterIcon, PauseIcon, PlayIcon, PrevChapterIcon, SkipBackIcon, SkipForwardIcon } from "./icons";
 import { Marquee } from "./marquee";
 import { Text } from "./ui";
 
@@ -23,6 +23,8 @@ export function MiniPlayer() {
   const chapter = item.chapters.length > 1 ? item.chapters[chapterAt(item.chapters, position)] : undefined;
   const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
   const book = item.type === "book";
+  // A song shows its artist and steps through the songs instead of skipping.
+  const song = item.type === "track";
 
   return (
     <Animated.View
@@ -80,14 +82,20 @@ export function MiniPlayer() {
               </Marquee>
             ) : (
               <Text variant="small" numberOfLines={1}>
-                {dur ? timeLeft(dur, position) : item.subtitle}
+                {dur && !song ? timeLeft(dur, position) : item.subtitle}
               </Text>
             )}
           </View>
         </Pressable>
-        <SkipButton label={`Skip back ${skip.back} seconds`} seconds={skip.back} onPress={() => skipBy(-skip.back)}>
-          <SkipBackIcon size={30} color={t.text} />
-        </SkipButton>
+        {song ? (
+          <StepButton label="Previous song" onPress={() => trackStep(-1)}>
+            <PrevChapterIcon size={26} color={t.text} />
+          </StepButton>
+        ) : (
+          <SkipButton label={`Skip back ${skip.back} seconds`} seconds={skip.back} onPress={() => skipBy(-skip.back)}>
+            <SkipBackIcon size={30} color={t.text} />
+          </SkipButton>
+        )}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={playing ? "Pause" : "Play"}
@@ -102,9 +110,15 @@ export function MiniPlayer() {
             <PlayIcon size={26} color={t.text} />
           )}
         </Pressable>
-        <SkipButton label={`Skip forward ${skip.forward} seconds`} seconds={skip.forward} onPress={() => skipBy(skip.forward)}>
-          <SkipForwardIcon size={30} color={t.text} />
-        </SkipButton>
+        {song ? (
+          <StepButton label="Next song" onPress={() => trackStep(1)}>
+            <NextChapterIcon size={26} color={t.text} />
+          </StepButton>
+        ) : (
+          <SkipButton label={`Skip forward ${skip.forward} seconds`} seconds={skip.forward} onPress={() => skipBy(skip.forward)}>
+            <SkipForwardIcon size={30} color={t.text} />
+          </SkipButton>
+        )}
       </View>
       {/* A faint track under the fill, so early on (when the fill is tucked into the rounded
           corner) the bar still reads as progress. */}
@@ -131,6 +145,19 @@ function SkipButton({ label, seconds, onPress, children }: { label: string; seco
       <View pointerEvents="none" style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center" }}>
         <Text style={{ fontFamily: fonts.bold, fontSize: 9, lineHeight: 10, includeFontPadding: false, color: t.text }}>{seconds}</Text>
       </View>
+    </Pressable>
+  );
+}
+
+function StepButton({ label, onPress, children }: { label: string; onPress: () => void; children: React.ReactNode }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+    >
+      {children}
     </Pressable>
   );
 }

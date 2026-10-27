@@ -11,6 +11,7 @@ import { Bone, CoverGridBones, FadeIn, Skeleton, useJustLoaded } from "@/compone
 import { Text } from "@/components/ui";
 import { setInMusic, useArtist } from "@/lib/data";
 import { selectHaptic } from "@/lib/haptics";
+import { playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
 /** All of an artist's albums, newest first, then songs of theirs on other albums; each can be added. */
@@ -72,7 +73,12 @@ export default function ArtistScreen() {
           <>
             <SectionTitle title="Appears on" count={a.appearsOn.length} />
             {a.appearsOn.map((tr) => (
-              <SongRow key={tr.id} track={tr} toggle />
+              <SongRow
+                key={tr.id}
+                track={tr}
+                toggle
+                onPlay={() => playMusic({ kind: "artist", refId: a.id, title: a.name, tracks: a.appearsOn }, a.appearsOn.indexOf(tr))}
+              />
             ))}
           </>
         ) : null}

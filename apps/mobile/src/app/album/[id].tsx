@@ -1,22 +1,27 @@
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { albumCover, albumDiscs, albumInMusic, albumPills, plural, songNumber } from "@murmur/shared/client";
+import { albumCover, type AlbumDetail, albumDiscs, albumInMusic, albumPills, plural, songNumber, type TrackDto } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
-import { DownloadIcon, MoreIcon, PlayIcon, PlusIcon, ShuffleIcon } from "@/components/icons";
+import { CheckIcon, DownloadIcon, MoreIcon, PlayIcon, PlusIcon, ShuffleIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { openArtist, Pill, TrackRow } from "@/components/music";
+import { ActionButton, openArtist, Pill, SongSheet, TrackRow } from "@/components/music";
 import { BackRow, Empty, SectionTitle, useBottomPad, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
-import { Sheet, SheetItem } from "@/components/sheet";
+import { RemoveDownloadSheet, Sheet, SheetItem } from "@/components/sheet";
 import { Bone, FadeIn, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { IconButton, Text } from "@/components/ui";
 import { setInMusic, useAlbum } from "@/lib/data";
+import { downloadAlbum, removeDownload, useDownload } from "@/lib/downloads";
 import { selectHaptic } from "@/lib/haptics";
+import { playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
 const COVER = 140;
+
+const playAlbum = (a: AlbumDetail, index: number, shuffle = false) =>
+  playMusic({ kind: "album", refId: a.id, title: a.title, tracks: a.tracks }, index, shuffle);
 
 /** One album: cover, title, artist, year and length, then its songs in order. */
 export default function AlbumScreen() {
@@ -30,6 +35,7 @@ export default function AlbumScreen() {
   const a = album.data;
   const state = a ? albumInMusic(a) : "none";
   const [more, setMore] = useState(false);
+  const [song, setSong] = useState<TrackDto | null>(null);
 
   let body: React.ReactNode;
   if (a) {
@@ -58,12 +64,11 @@ export default function AlbumScreen() {
           </View>
         </View>
 
-        {/* TODO(music part B): play, shuffle and download the album. */}
         {state === "all" ? (
           <View style={{ flexDirection: "row", gap: 10 }}>
-            <ActionButton label="Play" primary icon={<PlayIcon size={20} color={t.onAccent} />} />
-            <ActionButton label="Shuffle" icon={<ShuffleIcon size={20} color={t.text} />} />
-            <ActionButton label="Download album" icon={<DownloadIcon size={20} color={t.text} />} round />
+            <ActionButton label="Play" primary icon={<PlayIcon size={20} color={t.onAccent} />} onPress={() => playAlbum(a, 0)} />
+            <ActionButton label="Shuffle" icon={<ShuffleIcon size={20} color={t.text} />} onPress={() => playAlbum(a, -1, true)} />
+            <AlbumDownloadButton album={a} />
           </View>
         ) : (
           <View style={{ gap: 10 }}>
@@ -77,7 +82,7 @@ export default function AlbumScreen() {
                   void setInMusic({ albums: [a] }, true);
                 }}
               />
-              <ActionButton label="Play" icon={<PlayIcon size={20} color={t.text} />} round />
+              <ActionButton label="Play" icon={<PlayIcon size={20} color={t.text} />} round onPress={() => playAlbum(a, 0)} />
             </View>
             <Text variant="small" style={{ textAlign: "center" }}>
               {state === "some"
@@ -92,7 +97,14 @@ export default function AlbumScreen() {
           <View key={d.disc ?? "all"}>
             {d.disc !== null ? <SectionTitle title={`Disc ${d.disc}`} /> : null}
             {d.tracks.map((tr, i) => (
-              <TrackRow key={tr.id} track={tr} n={songNumber(tr, i)} albumArtistId={a.artistId} />
+              <TrackRow
+                key={tr.id}
+                track={tr}
+                n={songNumber(tr, i)}
+                albumArtistId={a.artistId}
+                onPlay={() => playAlbum(a, a.tracks.indexOf(tr))}
+                onMore={() => setSong(tr)}
+              />
             ))}
           </View>
         ))}
@@ -156,47 +168,37 @@ export default function AlbumScreen() {
           ) : null}
         </Sheet>
       ) : null}
+      <SongSheet track={song} onClose={() => setSong(null)} />
     </View>
   );
 }
 
-/** The album's buttons. Without `onPress` it's drawn but disabled: Play, Shuffle and Download work in part B. */
-function ActionButton({
-  label,
-  icon,
-  primary,
-  round,
-  onPress,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  primary?: boolean;
-  round?: boolean;
-  onPress?: () => void;
-}) {
+/** The round download button: download, progress (tap to cancel), or downloaded (tap to remove). */
+function AlbumDownloadButton({ album }: { album: AlbumDetail }) {
   const t = useTheme();
+  const d = useDownload("album", album.id);
+  const [confirm, setConfirm] = useState(false);
+  const pct = d ? Math.round(d.progress * 100) : 0;
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled: !onPress }}
-      disabled={!onPress}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        flex: round ? undefined : 1,
-        width: round ? 48 : undefined,
-        height: 48,
-        borderRadius: 24,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        backgroundColor: primary ? t.accent : t.surface2,
-        opacity: !onPress ? 0.5 : pressed ? 0.85 : 1,
-      })}
-    >
-      {icon}
-      {round ? null : <Text style={{ fontFamily: fonts.bold, fontSize: 15, color: primary ? t.onAccent : t.text }}>{label}</Text>}
-    </Pressable>
+    <>
+      {d?.status === "done" ? (
+        <ActionButton label="Remove download" round icon={<CheckIcon size={20} color={t.accent} />} onPress={() => setConfirm(true)} />
+      ) : d?.status === "downloading" ? (
+        <ActionButton
+          label={`Downloading ${pct}%, tap to cancel`}
+          round
+          icon={<Text style={{ fontFamily: fonts.bold, fontSize: 12, color: t.accent }}>{`${pct}%`}</Text>}
+          onPress={() => removeDownload("album", album.id)}
+        />
+      ) : (
+        <ActionButton
+          label={d?.status === "error" ? "Download failed, try again" : "Download album"}
+          round
+          icon={<DownloadIcon size={20} color={d?.status === "error" ? t.danger : t.text} />}
+          onPress={() => downloadAlbum(album)}
+        />
+      )}
+      <RemoveDownloadSheet open={confirm} title={album.title} onConfirm={() => removeDownload("album", album.id)} onClose={() => setConfirm(false)} />
+    </>
   );
 }

@@ -15,15 +15,16 @@ import {
   sortAlbums,
   type TrackDto,
 } from "@murmur/shared/client";
-import { BrowseIcon, ChevronIcon, CloseIcon, FilterIcon, MusicIcon, SearchIcon } from "@/components/icons";
+import { BrowseIcon, ChevronIcon, CloseIcon, FilterIcon, MusicIcon, PlayIcon, SearchIcon, ShuffleIcon } from "@/components/icons";
 import { GAP, Group, PAD, useGridWidth } from "@/components/library";
 import { Eyebrow } from "@/components/listening";
-import { AlbumAddRow, AlbumCard, AlbumSortSheet, openArtist, SongRow, useAlbumSort } from "@/components/music";
+import { ActionButton, AlbumAddRow, AlbumCard, AlbumSortSheet, openArtist, SongRow, SongSheet, useAlbumSort } from "@/components/music";
 import { Empty, PageTitle, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, ListRowBone, SectionBone, Skeleton } from "@/components/skeleton";
 import { Button, Chip, IconButton, Text } from "@/components/ui";
 import { setInMusic, useAlbums, useArtists, useMusicSummary, useTracks } from "@/lib/data";
+import { playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
 type View_ = "albums" | "artists" | "songs";
@@ -41,6 +42,9 @@ type Item =
   | { kind: "head"; key: string; title: string }
   | { kind: "addAlbum"; key: string; album: AlbumSummary };
 
+const playSongs = (tracks: TrackDto[], index: number, shuffle = false) =>
+  playMusic({ kind: "songs", refId: null, title: "Your songs", tracks }, index, shuffle);
+
 // Defined once: an inline component here would be a new type each render.
 const RowGap = () => <View style={{ height: 18 }} />;
 
@@ -57,6 +61,7 @@ export default function Music() {
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   const [sortOpen, setSortOpen] = useState(false);
+  const [song, setSong] = useState<TrackDto | null>(null);
   const sort = useAlbumSort();
   const summary = useMusicSummary();
   const mine = summary.data?.mine;
@@ -151,6 +156,12 @@ export default function Music() {
           ))}
         </View>
       )}
+      {view === "songs" && !q && tracks.data?.length ? (
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <ActionButton label="Play all" primary icon={<PlayIcon size={20} color={t.onAccent} />} onPress={() => playSongs(tracks.data, 0)} />
+          <ActionButton label="Shuffle" icon={<ShuffleIcon size={20} color={t.text} />} onPress={() => playSongs(tracks.data, -1, true)} />
+        </View>
+      ) : null}
     </View>
   );
 
@@ -214,11 +225,18 @@ export default function Music() {
           ) : item.kind === "addAlbum" ? (
             <AlbumAddRow album={item.album} />
           ) : (
-            <SongRow track={item.track} toggle={item.toggle} />
+            // Your own songs play the whole list from that one; songs you could add open their album.
+            <SongRow
+              track={item.track}
+              toggle={item.toggle}
+              onPlay={item.toggle || !tracks.data ? undefined : () => playSongs(tracks.data, tracks.data.indexOf(item.track))}
+              onMore={item.toggle ? undefined : () => setSong(item.track)}
+            />
           )
         }
       />
       <AlbumSortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
+      <SongSheet track={song} onClose={() => setSong(null)} goToAlbum />
     </View>
   );
 }

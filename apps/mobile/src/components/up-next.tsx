@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { chapterAt, duration, type QueueEntry, queueEntryView, queueRef, timeLeft } from "@murmur/shared/client";
-import { type Playable, playRef, queueReplace, refreshQueue, usePlayer, usePosition } from "@/player/engine";
+import { albumCover, chapterAt, duration, plural, type QueueEntry, queueEntryView, queueRef, timeLeft } from "@murmur/shared/client";
+import { type Playable, playContextAt, playRef, queueReplace, refreshQueue, usePlayer, usePosition } from "@/player/engine";
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { CloseIcon, DragIcon } from "./icons";
+import { CloseIcon, DownIcon, DragIcon } from "./icons";
 import { PAD } from "./library";
 import { Eyebrow, ListMeta } from "./listening";
+import { SongRow } from "./music";
 import { Empty, useTopInset } from "./page";
 import { Sheet, SheetItem } from "./sheet";
 import { Bone, FadeIn, ListRowBone, Skeleton, useJustLoaded } from "./skeleton";
@@ -100,6 +101,7 @@ export function UpNextView({ header }: { header: React.ReactNode }) {
             </Pressable>
           </View>
         ) : null}
+        <RestOfMusic />
 
         {!queueLoaded ? (
           <Skeleton style={{ marginTop: 24 }}>
@@ -155,6 +157,40 @@ export function UpNextView({ header }: { header: React.ReactNode }) {
           </>
         ) : null}
       </Sheet>
+    </View>
+  );
+}
+
+/** The rest of the album or list music is playing from, as one row that opens to show the songs. */
+function RestOfMusic() {
+  const t = useTheme();
+  const { item, context: c } = usePlayer();
+  const [open, setOpen] = useState(false);
+  if (!c || item?.type !== "track") return null;
+  const rest = c.tracks.slice(c.index + 1);
+  if (!rest.length) return null;
+  const first = rest[0]!;
+  return (
+    <View style={{ marginTop: 24 }}>
+      <Eyebrow>Playing from</Eyebrow>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen((o) => !o)}
+        style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, opacity: pressed ? 0.7 : 1 })}
+      >
+        <Cover path={albumCover(first.albumId, first.coverHash)} title={c.title} size={52} radius={8} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 14 }}>
+            Rest of {c.title}
+          </Text>
+          <Text variant="small">{plural(rest.length, "song")}</Text>
+        </View>
+        <View style={{ transform: [{ rotate: open ? "180deg" : "0deg" }] }}>
+          <DownIcon size={20} color={t.muted} />
+        </View>
+      </Pressable>
+      {open ? rest.map((s, i) => <SongRow key={s.id} track={s} onPlay={() => playContextAt(c.index + 1 + i)} />) : null}
     </View>
   );
 }

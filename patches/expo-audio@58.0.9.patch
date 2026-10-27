@@ -1,5 +1,29 @@
+diff --git a/android/src/main/java/expo/modules/audio/AudioPlayer.kt b/android/src/main/java/expo/modules/audio/AudioPlayer.kt
+index fb2d0b57fb8718df04e5c073b70837b2658f2c16..ae056b33c4bd059842c1b0b880d51b1217666b2d 100644
+--- a/android/src/main/java/expo/modules/audio/AudioPlayer.kt
++++ b/android/src/main/java/expo/modules/audio/AudioPlayer.kt
+@@ -72,6 +72,19 @@ class AudioPlayer(
+   override val isLive: Boolean
+     get() = ref.isCurrentMediaItemLive
+ 
++  // Murmur: a single player can show previous and next on the notification (when the lock screen
++  // options ask for them) and hands the taps to JS, which picks the song.
++  override val supportsNextTrack = true
++  override val supportsPreviousTrack = true
++
++  override fun nextTrack() {
++    emit("remoteTrack", mapOf("direction" to 1))
++  }
++
++  override fun previousTrack() {
++    emit("remoteTrack", mapOf("direction" to -1))
++  }
++
+   val currentOffsetFromLive: Double?
+     get() {
+       val offset = ref.currentLiveOffset
 diff --git a/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt b/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt
-index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..a757f05df7a831b4586185c1539a49dcc21dd179 100644
+index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..41d709fc08b647fdbd235e7fef6a50a8f3d4fde7 100644
 --- a/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt
 +++ b/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt
 @@ -19,8 +19,10 @@ import androidx.media3.common.ForwardingPlayer
@@ -29,7 +53,44 @@ index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..a757f05df7a831b4586185c1539a49dc
    private var sessionMetadataPlayer: MetadataInjectingPlayer? = null
    private var currentMetadata: Metadata? = null
    private var currentPlayable: LockScreenPlayable? = null
-@@ -419,17 +423,15 @@ class AudioControlsService : MediaSessionService() {
+@@ -383,7 +387,35 @@ class AudioControlsService : MediaSessionService() {
+   }
+ 
+   private fun resolveSessionPlayer(playable: LockScreenPlayable, options: AudioLockScreenOptions?): Player {
+-    val player = PlayRequestingPlayer(playable.player) { playable.requestPlay() }
++    val requesting = PlayRequestingPlayer(playable.player) { playable.requestPlay() }
++    // Murmur: a single-item player has no "next" of its own, so the system shade only offered
++    // previous (and that just restarted the item). When the options ask for track buttons, offer
++    // both and hand them to the playable, which tells JS.
++    val wantsNext = options?.showNextTrack == true && playable.supportsNextTrack
++    val wantsPrevious = options?.showPreviousTrack == true && playable.supportsPreviousTrack
++    val player: Player = if (!wantsNext && !wantsPrevious) {
++      requesting
++    } else {
++      object : ForwardingPlayer(requesting) {
++        private val trackCommands = buildList {
++          if (wantsNext) addAll(listOf(Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
++          if (wantsPrevious) addAll(listOf(Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
++        }
++
++        override fun getAvailableCommands(): Player.Commands =
++          super.getAvailableCommands().buildUpon().addAll(*trackCommands.toIntArray()).build()
++
++        override fun isCommandAvailable(command: Int): Boolean = command in trackCommands || super.isCommandAvailable(command)
++
++        override fun seekToNext() = if (wantsNext) playable.nextTrack() else super.seekToNext()
++
++        override fun seekToNextMediaItem() = if (wantsNext) playable.nextTrack() else super.seekToNextMediaItem()
++
++        override fun seekToPrevious() = if (wantsPrevious) playable.previousTrack() else super.seekToPrevious()
++
++        override fun seekToPreviousMediaItem() = if (wantsPrevious) playable.previousTrack() else super.seekToPreviousMediaItem()
++      }
++    }
+     val isLive = options?.isLiveStream ?: playable.isLive
+     if (!isLive) {
+       return player
+@@ -419,17 +451,15 @@ class AudioControlsService : MediaSessionService() {
        sessionMetadataPlayer = null
  
        appContext?.mainQueue?.launch {
@@ -50,7 +111,7 @@ index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..a757f05df7a831b4586185c1539a49dc
  
          // Replace the basic media session with a session connected to our playback service.
          playable.mediaSession.release()
-@@ -476,10 +478,33 @@ class AudioControlsService : MediaSessionService() {
+@@ -476,10 +506,33 @@ class AudioControlsService : MediaSessionService() {
      stopForeground(STOP_FOREGROUND_REMOVE)
    }
  
@@ -85,7 +146,7 @@ index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..a757f05df7a831b4586185c1539a49dc
    override fun onBind(intent: Intent?): IBinder {
      super.onBind(intent)
      return binder
-@@ -502,14 +527,12 @@ class AudioControlsService : MediaSessionService() {
+@@ -502,14 +555,12 @@ class AudioControlsService : MediaSessionService() {
        mediaSession?.release()
        sessionMetadataPlayer = null
        appContext?.mainQueue?.launch {
@@ -103,7 +164,7 @@ index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..a757f05df7a831b4586185c1539a49dc
  
          playable.mediaSession.release()
          playable.mediaSession = session
-@@ -593,11 +616,15 @@ class AudioControlsService : MediaSessionService() {
+@@ -593,11 +644,15 @@ class AudioControlsService : MediaSessionService() {
  
      loadArtworkFromUrl(artworkUrl) { bitmap ->
        currentArtwork = bitmap

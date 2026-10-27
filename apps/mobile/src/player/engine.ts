@@ -1,10 +1,11 @@
 import { useSyncExternalStore } from "react";
 import { AppState } from "react-native";
-import { type AudioMetadata, createAudioPlayer, setAudioModeAsync, type AudioStatus } from "expo-audio";
+import { type AudioLockScreenOptions, type AudioMetadata, type AudioPlayer, createAudioPlayer, setAudioModeAsync, type AudioStatus } from "expo-audio";
 import { File, Directory, Paths } from "expo-file-system";
 import { onlineManager } from "@tanstack/react-query";
 import {
   ADS_POLL_MS,
+  albumCover,
   apiPaths,
   type BookDetail,
   chapterAt,
@@ -12,22 +13,26 @@ import {
   clampSpeed,
   type EpisodeAdsDto,
   type EpisodeWithShow,
-  type ItemType,
   type ListeningStore,
   ListeningTracker,
   NOW_PLAYING_KEY,
   parseSkip,
+  PLAY_COUNTS_AFTER_SEC,
+  type PlayContextDto,
+  type PlayType,
   type ProgressItem,
   type QueueEntry,
   type QueueRef,
   SAVE_EVERY_MS,
+  shuffled,
   SKIP_KEY,
   type SkipSettings,
   type SleepTimer,
+  type TrackDto,
 } from "@murmur/shared/client";
 import { absolute, api, authHeaders } from "@/lib/api";
 import { fetchBook, fetchEpisode, invalidateListening, keys } from "@/lib/data";
-import { getDownload, localUri, saveDownloadAds } from "@/lib/downloads";
+import { getDownload, localTrackUri, localUri, savedTrack, saveDownloadAds } from "@/lib/downloads";
 import { tapHaptic } from "@/lib/haptics";
 import { isIOS } from "@/lib/platform";
 import { queryClient } from "@/lib/query";
@@ -54,9 +59,9 @@ export interface PlayableFile {
   durationSec: number;
 }
 
-/** Anything the player can play: a book (one or more files on one timeline) or an episode. */
+/** Anything the player can play: a book (one or more files on one timeline), an episode or a song. */
 export interface Playable {
-  type: ItemType;
+  type: PlayType;
   id: string;
   title: string;
   subtitle: string | null;
@@ -67,9 +72,14 @@ export interface Playable {
   files: PlayableFile[];
   chapters: ChapterDto[];
   podcastId: string | null;
+  /** A song's album, for "Go to album" and the lock screen. */
+  album: { id: string; title: string } | null;
   startAt: number;
   speed: number;
 }
+
+/** What was playing, saved on this phone so a restart picks it up. */
+type PlayRef = { itemType: PlayType; itemId: string };
 
 export function bookToPlayable(b: BookDetail): Playable {
   return {
@@ -84,6 +94,7 @@ export function bookToPlayable(b: BookDetail): Playable {
     files: b.files.map((f) => ({ path: apiPaths.bookFileUrl(b.id, f.index), startSec: f.startSec, durationSec: f.durationSec })),
     chapters: b.chapters,
     podcastId: null,
+    album: null,
     startAt: b.progress && !b.progress.finished ? b.progress.positionSec : 0,
     speed: clampSpeed(b.progress?.speed ?? 1),
   };
@@ -103,8 +114,29 @@ export function episodeToPlayable(e: EpisodeWithShow): Playable {
     files: [{ path: apiPaths.episodeUrl(e.id), startSec: 0, durationSec: dur }],
     chapters: [],
     podcastId: e.podcastId,
+    album: null,
     startAt: e.progress && !e.progress.finished ? e.progress.positionSec : 0,
     speed: clampSpeed(e.speed),
+  };
+}
+
+/** A song: always from the start, at 1x, with no position kept. */
+export function trackToPlayable(t: TrackDto): Playable {
+  return {
+    type: "track",
+    id: t.id,
+    title: t.title,
+    subtitle: t.artist,
+    coverPath: albumCover(t.albumId, t.coverHash),
+    coverPathLarge: albumCover(t.albumId, t.coverHash, 600),
+    color: null,
+    durationSec: t.durationSec,
+    files: [{ path: apiPaths.trackUrl(t.id), startSec: 0, durationSec: t.durationSec }],
+    chapters: [],
+    podcastId: null,
+    album: { id: t.albumId, title: t.album },
+    startAt: 0,
+    speed: 1,
   };
 }
 
@@ -112,13 +144,22 @@ export function episodeToPlayable(e: EpisodeWithShow): Playable {
  * Loads an item's details, falling back to the download's saved copy offline. Progress not yet
  * sent to the server (listened offline) is newer than either, so it wins.
  */
-export async function loadPlayable(ref: QueueRef): Promise<Playable> {
+export async function loadPlayable(ref: PlayRef): Promise<Playable> {
   const it = await loadPlayableDetails(ref);
   const unsent = getJson<Outbox>(OUTBOX_KEY)?.[`${ref.itemType}:${ref.itemId}`];
   return unsent && !unsent.finished ? { ...it, startAt: unsent.positionSec } : it;
 }
 
-async function loadPlayableDetails(ref: QueueRef): Promise<Playable> {
+async function loadPlayableDetails(ref: PlayRef): Promise<Playable> {
+  if (ref.itemType === "track") {
+    try {
+      return trackToPlayable(await api<TrackDto>(apiPaths.track(ref.itemId)));
+    } catch (err) {
+      const saved = savedTrack(ref.itemId);
+      if (saved) return trackToPlayable(saved);
+      throw err;
+    }
+  }
   const dl = getDownload(ref.itemType, ref.itemId);
   if (ref.itemType === "book") {
     try {
@@ -149,6 +190,16 @@ export interface PlayerState {
   queueLoaded: boolean;
   /** Ad detection for the current episode; null for books and until the server answers. */
   ads: EpisodeAdsDto | null;
+  /** The album, artist or song list music is playing from; null for books and episodes. */
+  context: PlayContextDto | null;
+}
+
+/** Where music plays from, as the album, artist and Songs screens hand it to the player. */
+export interface MusicSource {
+  kind: PlayContextDto["kind"];
+  refId: string | null;
+  title: string;
+  tracks: TrackDto[];
 }
 
 // ---------- Store ----------
@@ -164,6 +215,7 @@ let state: PlayerState = {
   queue: [],
   queueLoaded: false,
   ads: null,
+  context: null,
 };
 let position = 0;
 const stateListeners = new Set<() => void>();
@@ -188,7 +240,7 @@ function setPosition(p: number) {
   if (appActive) positionListeners.forEach((l) => l());
   // The lock screen names the chapter playing, so it changes as a chapter ends.
   const it = state.item;
-  if (lockScreenActive && it && it.chapters.length > 1 && chapterAt(it.chapters, p) !== lockScreenChapter) void showOnLockScreen(it);
+  if (lockScreenOn && it && it.chapters.length > 1 && chapterAt(it.chapters, p) !== lockScreenChapter) void showOnLockScreen(it);
 }
 
 export function usePlayer(): PlayerState {
@@ -216,7 +268,7 @@ export function usePosition(): number {
  * The position while this item is the one loaded, else null. Rows in long lists use this so
  * only the playing row re-renders on each tick, not every row on screen.
  */
-export function useItemPosition(type: ItemType, id: string): number | null {
+export function useItemPosition(type: PlayType, id: string): number | null {
   return useSyncExternalStore(
     (l) => {
       positionListeners.add(l);
@@ -318,11 +370,17 @@ function skipAdCrossed(prev: number, pos: number, undoTo?: number) {
 }
 
 export const getPosition = () => position;
-export const isCurrent = (s: PlayerState, type: ItemType, id: string) => s.item?.type === type && s.item.id === id;
+export const isCurrent = (s: PlayerState, type: PlayType, id: string) => s.item?.type === type && s.item.id === id;
 
 // ---------- Audio ----------
 
-const player = createAudioPlayer(null, { updateInterval: 500, keepAudioSessionActive: true });
+// Two players: `player` is the one playing; the other loads the next song ahead of time so it
+// can take over the moment the current one ends. Events from the spare one are ignored.
+const players = [0, 1].map(() => createAudioPlayer(null, { updateInterval: 500, keepAudioSessionActive: true }));
+let player: AudioPlayer = players[0]!;
+const spare = () => (player === players[0] ? players[1]! : players[0]!);
+/** The song the spare player has loaded, ready to go. */
+let preloaded: string | null = null;
 void setAudioModeAsync({ shouldPlayInBackground: true, interruptionMode: "doNotMix", playsInSilentMode: true });
 
 let fileIndex = 0;
@@ -332,23 +390,29 @@ let seeking = false;
 /** Whether the loaded file is the phone's downloaded copy rather than the server's stream. */
 let playingLocal = false;
 let lastSaved = 0;
-let lockScreenActive = false;
+/** The player the lock screen and notification are bound to, and whether they show song buttons. */
+let lockScreenOn: AudioPlayer | null = null;
+let lockScreenSongs = false;
 /** The chapter the lock screen shows, or -1 for an item without chapters. */
 let lockScreenChapter = -1;
 let lockScreenMetadata: AudioMetadata | undefined;
 
-/** The lock screen's skip buttons jump as far as the player's own (iOS; Android has its own). */
-const lockScreenOptions = () => ({
-  showSeekBackward: true,
-  showSeekForward: true,
-  seekBackwardInterval: state.skip.back,
-  seekForwardInterval: state.skip.forward,
-});
+/**
+ * Songs get previous and next on the lock screen; books and episodes get the skip buttons,
+ * jumping as far as the player's own (iOS; Android has its own).
+ */
+const lockScreenOptions = (): AudioLockScreenOptions =>
+  state.item?.type === "track"
+    ? { showSeekBackward: false, showSeekForward: false, showPreviousTrack: true, showNextTrack: true }
+    : { showSeekBackward: true, showSeekForward: true, seekBackwardInterval: state.skip.back, seekForwardInterval: state.skip.forward };
 
 const fileAt = (it: Playable, sec: number) => Math.max(0, it.files.findLastIndex((f) => f.startSec <= sec));
 
+/** The downloaded copy of a file, if this phone has one. */
+const localFor = (it: Playable, idx: number) => (it.type === "track" ? localTrackUri(it.id) : localUri(it.type, it.id, idx));
+
 function sourceFor(it: Playable, idx: number) {
-  const local = localUri(it.type, it.id, idx);
+  const local = localFor(it, idx);
   if (local) return { uri: local };
   const f = it.files[idx];
   return f ? { uri: absolute(f.path), headers: authHeaders() } : null;
@@ -361,17 +425,29 @@ function load(it: Playable, at: number, autoplay: boolean) {
   autoplayAfterLoad = autoplay;
   setPosition(at);
   set({ error: null, loading: true });
-  playingLocal = !!localUri(it.type, it.id, idx);
+  playingLocal = !!localFor(it, idx);
   player.replace(sourceFor(it, idx));
   // Playback starts once the position is restored (see the status listener).
 }
 
-player.addListener("playbackStatusUpdate", (s: AudioStatus) => {
+// The patched expo-audio sends the notification's previous and next taps as "remoteTrack".
+type RemoteTrackEmitter = { addListener(event: "remoteTrack", fn: (e: { direction: number }) => void): unknown };
+
+for (const p of players) {
+  p.addListener("playbackStatusUpdate", (s: AudioStatus) => {
+    if (p === player) onStatus(s);
+  });
+  (p as unknown as RemoteTrackEmitter).addListener("remoteTrack", ({ direction }) => {
+    if (p === player) trackStep(direction < 0 ? -1 : 1);
+  });
+}
+
+function onStatus(s: AudioStatus) {
   const it = state.item;
   if (!it) return;
   if (s.error) {
     // Downloaded while streaming, then the connection went: carry on from the saved copy.
-    if (!playingLocal && localUri(it.type, it.id, fileIndex)) {
+    if (!playingLocal && localFor(it, fileIndex)) {
       load(it, position, state.playing || autoplayAfterLoad);
       return;
     }
@@ -409,6 +485,7 @@ player.addListener("playbackStatusUpdate", (s: AudioStatus) => {
     if (s.playing) {
       maybeSkipAd(prev, pos);
       countListening(it, pos - prev);
+      if (it.type === "track") musicTick(it, pos, pos - prev);
     } else {
       lastTickAt = 0;
       lastListenAt = 0;
@@ -426,10 +503,132 @@ player.addListener("playbackStatusUpdate", (s: AudioStatus) => {
       load(it, it.files[next]!.startSec, true);
       return;
     }
+    if (it.type === "track") {
+      save();
+      // "End of song" on the sleep timer stops here rather than going on.
+      if (state.sleep.mode === "chapter") return set({ sleep: { mode: "off" } });
+      // On to the next song in the album or list, then to Up Next once it's done.
+      const c = state.context;
+      if (c && c.index + 1 < c.tracks.length) return playContextAt(c.index + 1);
+      void advance();
+      return;
+    }
     save(true);
     void advance();
   }
-});
+}
+
+// ---------- Music ----------
+
+/** Start the next song loading this long before the current one ends, so it follows without a gap. */
+const PRELOAD_SEC = 10;
+/** Seconds of the current song heard, toward counting it as played; sent once per play. */
+let heardSec = 0;
+let counted = false;
+
+/** While a song plays: count it once heard long enough, and preload the next one near its end. */
+function musicTick(it: Playable, pos: number, heard: number) {
+  if (heard > 0 && heard < 5) heardSec += heard;
+  const dur = it.durationSec || player.duration || 0;
+  const needed = dur > 0 ? Math.min(PLAY_COUNTS_AFTER_SEC, dur / 2) : PLAY_COUNTS_AFTER_SEC;
+  if (!counted && heardSec >= needed) {
+    counted = true;
+    void api(apiPaths.trackPlays, { method: "POST", body: { trackId: it.id } }).catch(() => undefined);
+  }
+  const c = state.context;
+  const next = c?.tracks[c.index + 1];
+  if (next && dur > 0 && dur - pos < PRELOAD_SEC) preload(next);
+}
+
+/** The spare player starts loading `track`, so it can take over the moment the current song ends. */
+function preload(track: TrackDto) {
+  if (preloaded === track.id) return;
+  preloaded = track.id;
+  const p = spare();
+  p.replace(sourceFor(trackToPlayable(track), 0));
+  p.setPlaybackRate(1);
+}
+
+/** Drops whatever the spare player loaded ahead. */
+function dropPreloaded() {
+  if (!preloaded) return;
+  preloaded = null;
+  spare().replace(null);
+}
+
+/** Plays song `index` of the current context and tells the server where it is now. */
+export function playContextAt(index: number) {
+  if (!state.context?.tracks[index]) return;
+  startContextSong(index);
+  void api(apiPaths.playContext, { method: "PATCH", body: { index } }).catch(() => undefined);
+}
+
+/** Plays song `index` of the current context, from the spare player when it has it ready. */
+function startContextSong(index: number) {
+  const c = state.context;
+  const track = c?.tracks[index];
+  if (!c || !track) return;
+  const it = trackToPlayable(track);
+  if (preloaded === track.id) {
+    // The gapless hand-over: the spare player already has the song loaded.
+    const old = player;
+    player = spare();
+    preloaded = null;
+    fileIndex = 0;
+    pendingSeek = null;
+    seeking = false;
+    autoplayAfterLoad = false;
+    playingLocal = !!localFor(it, 0);
+    lastTickAt = 0;
+    lastListenAt = 0;
+    heardSec = 0;
+    counted = false;
+    setPosition(0);
+    player.setPlaybackRate(1);
+    player.play();
+    old.pause();
+    old.replace(null);
+    // "End of song" was for the one that just ended; a plain timer carries on.
+    set({ item: it, speed: 1, error: null, ...(state.sleep.mode === "chapter" ? { sleep: { mode: "off" } as const } : {}) });
+    setJson(NOW_PLAYING_KEY, { itemType: it.type, itemId: it.id } satisfies PlayRef);
+    void showOnLockScreen(it);
+  } else {
+    dropPreloaded();
+    play(it, 0);
+  }
+  set({ context: { ...c, index } });
+}
+
+/**
+ * Starts music from an album, an artist or a list of songs, from song `index`. Shuffled, that song
+ * goes first, or any song when `index` is -1.
+ */
+export function playMusic(source: MusicSource, index: number, shuffle = false) {
+  if (!source.tracks.length) return;
+  const first = source.tracks[index];
+  const tracks = shuffle ? shuffled(source.tracks, index >= 0 ? first : undefined) : source.tracks;
+  const at = shuffle ? 0 : Math.max(0, index);
+  set({ context: { kind: source.kind, refId: source.refId, title: source.title, tracks, index: at, shuffled: shuffle } });
+  dropPreloaded();
+  startContextSong(at);
+  void api(apiPaths.playContext, {
+    method: "PUT",
+    body: { kind: source.kind, refId: source.refId, title: source.title, trackIds: tracks.map((t) => t.id), index: at, shuffled: shuffle },
+  }).catch(() => undefined);
+}
+
+/** Previous and next for songs. Previous restarts the song once it's more than 3 s in. */
+export function trackStep(dir: -1 | 1) {
+  const c = state.context;
+  const it = state.item;
+  if (!it || it.type !== "track") return;
+  tapHaptic();
+  if (dir === -1 && position > 3) return seek(0);
+  const index = (c?.index ?? 0) + dir;
+  if (c && index >= 0 && index < c.tracks.length) playContextAt(index);
+  else if (dir === -1) seek(0);
+  else void advance();
+}
 
 // ---------- Lock screen ----------
 
@@ -457,14 +656,18 @@ async function showOnLockScreen(it: Playable) {
   const metadata: AudioMetadata = {
     title: chapter?.title ?? it.title,
     artist: chapter ? it.title : (it.subtitle ?? undefined),
-    albumTitle: it.type === "book" ? it.title : (it.subtitle ?? undefined),
+    albumTitle: it.type === "book" ? it.title : (it.album?.title ?? it.subtitle ?? undefined),
     artworkUrl: await artworkFor(it),
   };
   if (state.item !== it && state.item?.id !== it.id) return;
   lockScreenMetadata = metadata;
-  if (lockScreenActive) player.updateLockScreenMetadata(metadata);
+  // A new song can be on the other player, and songs show different buttons, so either means
+  // setting the controls up again rather than just changing the text.
+  const songs = it.type === "track";
+  if (lockScreenOn === player && lockScreenSongs === songs) player.updateLockScreenMetadata(metadata);
   else player.setActiveForLockScreen(true, metadata, lockScreenOptions());
-  lockScreenActive = true;
+  lockScreenOn = player;
+  lockScreenSongs = songs;
 }
 
 // ---------- Progress (saved to an outbox first, so offline listening syncs later) ----------
@@ -474,6 +677,13 @@ type Outbox = Record<string, ProgressItem>;
 function save(finished = false, refreshLists = finished || !state.playing) {
   const it = state.item;
   if (!it) return;
+  if (it.type === "track") {
+    // Songs keep no position; only the listening time goes to the server.
+    lastSaved = Date.now();
+    listening.persist();
+    void flush();
+    return;
+  }
   const dur = it.durationSec || player.duration || 0;
   const entry: ProgressItem = {
     itemType: it.type,
@@ -595,14 +805,23 @@ export function play(it: Playable, startAt?: number) {
     return;
   }
   if (cur && state.playing) save();
+  heardSec = 0;
+  counted = false;
   set({ item: it, speed: it.speed, sleep: { mode: "off" } });
   load(it, startAt ?? it.startAt, true);
-  setJson(NOW_PLAYING_KEY, { itemType: it.type, itemId: it.id } satisfies QueueRef);
-  removeFromQueue({ itemType: it.type, itemId: it.id });
+  setJson(NOW_PLAYING_KEY, { itemType: it.type, itemId: it.id } satisfies PlayRef);
   void showOnLockScreen(it);
+  if (it.type === "track") return;
+  removeFromQueue({ itemType: it.type, itemId: it.id });
+  // A book or episode takes over from music, so the rest of the album leaves Up Next.
+  dropPreloaded();
+  if (state.context) {
+    set({ context: null });
+    void api(apiPaths.playContext, { method: "DELETE" }).catch(() => undefined);
+  }
 }
 
-export async function playRef(ref: QueueRef, startAt?: number) {
+export async function playRef(ref: PlayRef, startAt?: number) {
   try {
     play(await loadPlayable(ref), startAt);
   } catch (err) {
@@ -653,9 +872,11 @@ export function skipBy(delta: number) {
   if (delta > 0) skipAdCrossed(from, position, position);
 }
 
+/** Previous and next: the chapter for books, the song for music. */
 export function chapterStep(dir: -1 | 1) {
   const it = state.item;
   if (!it) return;
+  if (it.type === "track") return trackStep(dir);
   if (it.chapters.length === 0) return skipBy(dir * 30);
   tapHaptic();
   const i = chapterAt(it.chapters, position);
@@ -701,7 +922,7 @@ export function setSkip(s: SkipSettings) {
   set({ skip: s });
   setJson(SKIP_KEY, s);
   // iOS reads the intervals when the lock screen controls are set up, so set them up again.
-  if (isIOS && lockScreenActive) player.setActiveForLockScreen(true, lockScreenMetadata, lockScreenOptions());
+  if (isIOS && lockScreenOn === player) player.setActiveForLockScreen(true, lockScreenMetadata, lockScreenOptions());
 }
 
 /** Marks the current item finished (or not) and saves it. */
@@ -726,11 +947,12 @@ export function stop() {
 function clear() {
   set({ item: null, playing: false, loading: false, error: null });
   player.pause();
-  player.clearLockScreenControls();
-  lockScreenActive = false;
+  if (lockScreenOn) lockScreenOn.clearLockScreenControls();
+  lockScreenOn = null;
   lockScreenChapter = -1;
   lockScreenMetadata = undefined;
   player.replace(null);
+  dropPreloaded();
   removeKey(NOW_PLAYING_KEY);
 }
 
@@ -738,8 +960,17 @@ function clear() {
 export async function restorePlayer() {
   void flush();
   void refreshQueue();
-  const saved = getJson<QueueRef>(NOW_PLAYING_KEY);
+  const saved = getJson<PlayRef>(NOW_PLAYING_KEY);
   if (!saved || state.item) return;
+  // A song comes back with the album or list it was playing from, so next and Up Next work.
+  if (saved.itemType === "track") {
+    api<PlayContextDto | null>(apiPaths.playContext)
+      .then((c) => {
+        const at = c ? c.tracks.findIndex((t) => t.id === saved.itemId) : -1;
+        if (c && at >= 0 && !state.context) set({ context: { ...c, index: at } });
+      })
+      .catch(() => undefined);
+  }
   try {
     const it = await loadPlayable(saved);
     if (state.item) return;

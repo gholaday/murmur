@@ -14,7 +14,9 @@ import {
 } from "@murmur/shared/client";
 import { setInMusic } from "@/lib/data";
 import { selectHaptic } from "@/lib/haptics";
+import { downloadTrack, removeDownload, useDownload, useInAlbumDownload } from "@/lib/downloads";
 import { getJson, setJson } from "@/lib/storage";
+import { isCurrent, usePlayer } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { CheckIcon, PlusIcon } from "./icons";
@@ -129,19 +131,116 @@ export const AlbumCard = memo(function AlbumCard({ album, width, sub, badge }: {
   );
 });
 
-/** A song with its album's cover, title, "Artist, Album" and length; `toggle` adds a + / ✓ at the end. */
-export const SongRow = memo(function SongRow({ track, toggle }: { track: TrackDto; toggle?: boolean }) {
+/** Play, Shuffle and the like over a list of songs. Without `onPress` it's drawn but disabled. */
+export function ActionButton({
+  label,
+  icon,
+  primary,
+  round,
+  onPress,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  primary?: boolean;
+  round?: boolean;
+  onPress?: () => void;
+}) {
   const t = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityHint="Opens its album"
-      onPress={() => openAlbum(track.albumId)}
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !onPress }}
+      disabled={!onPress}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flex: round ? undefined : 1,
+        width: round ? 48 : undefined,
+        height: 48,
+        borderRadius: 24,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        backgroundColor: primary ? t.accent : t.surface2,
+        opacity: !onPress ? 0.5 : pressed ? 0.85 : 1,
+      })}
+    >
+      {icon}
+      {round ? null : <Text style={{ fontFamily: fonts.bold, fontSize: 15, color: primary ? t.onAccent : t.text }}>{label}</Text>}
+    </Pressable>
+  );
+}
+
+/**
+ * A song's long-press sheet: download it on its own (or remove that copy). `goToAlbum` adds a way
+ * to its album, for lists outside the album screen.
+ */
+export function SongSheet({ track, onClose, goToAlbum }: { track: TrackDto | null; onClose: () => void; goToAlbum?: boolean }) {
+  return (
+    <Sheet open={track !== null} onClose={onClose} title={track?.title}>
+      {track ? <SongSheetItems track={track} onClose={onClose} goToAlbum={goToAlbum} /> : null}
+    </Sheet>
+  );
+}
+
+function SongSheetItems({ track, onClose, goToAlbum }: { track: TrackDto; onClose: () => void; goToAlbum?: boolean }) {
+  const own = useDownload("track", track.id);
+  const withAlbum = useInAlbumDownload(track);
+  const close = (fn: () => void) => () => {
+    fn();
+    onClose();
+  };
+  return (
+    <>
+      {own ? (
+        <SheetItem
+          label={own.status === "downloading" ? `Cancel download, ${Math.round(own.progress * 100)}%` : "Remove download"}
+          danger={own.status !== "downloading"}
+          onPress={close(() => removeDownload("track", track.id))}
+        />
+      ) : withAlbum ? (
+        <SheetItem label="Downloaded with the album" disabled onPress={onClose} />
+      ) : (
+        <SheetItem label="Download song" onPress={close(() => downloadTrack(track))} />
+      )}
+      {goToAlbum ? <SheetItem label="Go to album" onPress={close(() => openAlbum(track.albumId))} /> : null}
+    </>
+  );
+}
+
+/** Whether this song is the one playing, for drawing it in the accent colour. */
+const usePlayingSong = (id: string) => isCurrent(usePlayer(), "track", id);
+
+/**
+ * A song with its album's cover, title, "Artist, Album" and length; `toggle` adds a + / ✓ at the
+ * end. With `onPlay` a tap plays it, otherwise it opens its album.
+ */
+export const SongRow = memo(function SongRow({
+  track,
+  toggle,
+  onPlay,
+  onMore,
+}: {
+  track: TrackDto;
+  toggle?: boolean;
+  onPlay?: () => void;
+  /** Long press: the song's sheet (download). */
+  onMore?: () => void;
+}) {
+  const t = useTheme();
+  const playing = usePlayingSong(track.id);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityHint={onPlay ? "Plays this song" : "Opens its album"}
+      onPress={onPlay ?? (() => openAlbum(track.albumId))}
+      onLongPress={onMore}
       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, borderBottomWidth: 1, borderBottomColor: t.line, opacity: pressed ? 0.7 : 1 })}
     >
       <Cover path={albumCover(track.albumId, track.coverHash)} title="" size={44} radius={6} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 15 }}>
+        <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 15, color: playing ? t.accent : t.text }}>
           {track.title}
         </Text>
         <Text variant="small" numberOfLines={1}>
@@ -155,23 +254,50 @@ export const SongRow = memo(function SongRow({ track, toggle }: { track: TrackDt
 });
 
 /** A numbered song on an album: number, title (and its own artist when it differs), length, + / ✓. */
-export function TrackRow({ track, n, albumArtistId }: { track: TrackDto; n: number; albumArtistId: string }) {
+export function TrackRow({
+  track,
+  n,
+  albumArtistId,
+  onPlay,
+  onMore,
+}: {
+  track: TrackDto;
+  n: number;
+  albumArtistId: string;
+  onPlay?: () => void;
+  /** Long press: the song's sheet (download). */
+  onMore?: () => void;
+}) {
   const t = useTheme();
   const guest = guestArtist(track, albumArtistId);
+  const playing = usePlayingSong(track.id);
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56, borderBottomWidth: 1, borderBottomColor: t.line }}>
-      <Text style={{ width: 24, textAlign: "right", fontFamily: fonts.semibold, fontSize: 13, color: t.muted, fontVariant: ["tabular-nums"] }}>{n}</Text>
-      <View style={{ flex: 1, gap: 2, paddingVertical: 8 }}>
-        <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 15, color: t.text }}>
-          {track.title}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityHint="Plays the album from this song. Long press for more options"
+        disabled={!onPlay}
+        onPress={onPlay}
+        onLongPress={onMore}
+        style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}
+      >
+        <Text
+          style={{ width: 24, textAlign: "right", fontFamily: fonts.semibold, fontSize: 13, color: playing ? t.accent : t.muted, fontVariant: ["tabular-nums"] }}
+        >
+          {n}
         </Text>
-        {guest ? (
-          <Text variant="small" numberOfLines={1}>
-            {guest}
+        <View style={{ flex: 1, gap: 2, paddingVertical: 8 }}>
+          <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 15, color: playing ? t.accent : t.text }}>
+            {track.title}
           </Text>
-        ) : null}
-      </View>
-      <Length track={track} />
+          {guest ? (
+            <Text variant="small" numberOfLines={1}>
+              {guest}
+            </Text>
+          ) : null}
+        </View>
+        <Length track={track} />
+      </Pressable>
       <InMusicToggle track={track} />
     </View>
   );

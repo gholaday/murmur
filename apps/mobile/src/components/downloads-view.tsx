@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { router } from "expo-router";
-import { apiPaths } from "@murmur/shared/client";
+import { albumCover, apiPaths, plural } from "@murmur/shared/client";
 import { formatBytes, removeAllDownloads, removeDownload, useDownload, useDownloads, type Download } from "@/lib/downloads";
-import { bookToPlayable, episodeToPlayable, play } from "@/player/engine";
+import { bookToPlayable, episodeToPlayable, play, playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { CloseIcon, PlayIcon } from "./icons";
@@ -20,6 +20,7 @@ export function DownloadsView({ header }: { header: React.ReactNode }) {
   const all = Object.values(useDownloads()).sort((a, b) => b.savedAt - a.savedAt);
   const books = all.filter((d) => d.type === "book");
   const episodes = all.filter((d) => d.type === "episode");
+  const music = all.filter((d) => d.type === "album" || d.type === "track");
   const bytes = all.reduce((sum, d) => sum + d.bytes, 0);
   const [removing, setRemoving] = useState<Download | null>(null);
   const [removingAll, setRemovingAll] = useState(false);
@@ -56,6 +57,14 @@ export function DownloadsView({ header }: { header: React.ReactNode }) {
             ))}
           </>
         ) : null}
+        {music.length ? (
+          <>
+            <SectionTitle title="Music" count={music.length} />
+            {music.map((d) => (
+              <DownloadRow key={`${d.type}:${d.id}`} download={d} onRemove={() => onRemove(d)} />
+            ))}
+          </>
+        ) : null}
       </ScrollView>
 
       <RemoveDownloadSheet
@@ -67,7 +76,7 @@ export function DownloadsView({ header }: { header: React.ReactNode }) {
       <ConfirmSheet
         open={removingAll}
         title="Remove all downloads?"
-        message="Everything downloaded is deleted from this phone. Books and episodes stay on the server, so you can download them again."
+        message="Everything downloaded is deleted from this phone. It all stays on the server, so you can download it again."
         confirmLabel="Remove all"
         onConfirm={removeAllDownloads}
         onClose={() => setRemovingAll(false)}
@@ -83,43 +92,86 @@ export function DownloadsView({ header }: { header: React.ReactNode }) {
 }
 
 function titleOf(d: Download) {
-  return d.type === "book" ? d.book.title : d.episode.title;
+  switch (d.type) {
+    case "book":
+      return d.book.title;
+    case "episode":
+      return d.episode.title;
+    case "album":
+      return d.album.title;
+    case "track":
+      return d.track.title;
+  }
+}
+
+/** Cover, subtitle, what it is, where it opens and how it plays, for each kind of download. */
+function describe(d: Download) {
+  switch (d.type) {
+    case "book":
+      return {
+        cover: d.book.coverHash ? apiPaths.coverUrl(d.book.id, d.book.coverHash, 200) : null,
+        color: d.book.coverColor,
+        sub: d.book.author ?? "Unknown author",
+        kind: null,
+        open: () => router.push(`/book/${d.book.id}`),
+        play: () => play(bookToPlayable(d.book)),
+      };
+    case "episode":
+      return {
+        cover: d.episode.podcastCoverHash ? apiPaths.podcastCoverUrl(d.episode.podcastId, d.episode.podcastCoverHash, 200) : null,
+        color: d.episode.podcastCoverColor,
+        sub: d.episode.podcastTitle,
+        kind: null,
+        open: () => router.push(`/show/${d.episode.podcastId}`),
+        play: () => play(episodeToPlayable(d.episode)),
+      };
+    case "album":
+      return {
+        cover: albumCover(d.album.id, d.album.coverHash),
+        color: d.album.coverColor,
+        sub: d.album.artist,
+        kind: `Album, ${plural(d.album.tracks.length, "song")}`,
+        open: () => router.push(`/album/${d.album.id}`),
+        play: () => playMusic({ kind: "album", refId: d.album.id, title: d.album.title, tracks: d.album.tracks }, 0),
+      };
+    case "track":
+      return {
+        cover: albumCover(d.track.albumId, d.track.coverHash),
+        color: null,
+        sub: d.track.artist,
+        kind: "Song",
+        open: () => router.push(`/album/${d.track.albumId}`),
+        play: () => playMusic({ kind: "album", refId: d.track.albumId, title: d.track.album, tracks: [d.track] }, 0),
+      };
+  }
 }
 
 function DownloadRow({ download, onRemove }: { download: Download; onRemove: () => void }) {
   const t = useTheme();
   const d = useDownload(download.type, download.id) ?? download;
-  const book = d.type === "book" ? d.book : null;
-  const episode = d.type === "episode" ? d.episode : null;
-  const cover = book
-    ? book.coverHash
-      ? apiPaths.coverUrl(book.id, book.coverHash, 200)
-      : null
-    : episode?.podcastCoverHash
-      ? apiPaths.podcastCoverUrl(episode.podcastId, episode.podcastCoverHash, 200)
-      : null;
+  const v = describe(d);
   const title = titleOf(d);
-  const sub = book ? (book.author ?? "Unknown author") : (episode?.podcastTitle ?? "");
-  const open = () => router.push(book ? `/book/${book.id}` : `/show/${episode!.podcastId}`);
+  // Music says what it is too: "Album, 13 songs, 118 MB".
+  const size = v.kind ? `${v.kind}, ${formatBytes(d.bytes)}` : formatBytes(d.bytes);
 
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: t.line }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={open} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <Cover path={cover} title={title} color={book ? book.coverColor : (episode?.podcastCoverColor ?? null)} size={56} radius={8} />
+      <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={v.open} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <Cover path={v.cover} title={title} color={v.color ?? null} size={56} radius={8} />
         <View style={{ flex: 1, gap: 2 }}>
           <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 15, lineHeight: 20 }}>
             {title}
           </Text>
           <Text variant="small" numberOfLines={1}>
-            {sub}
+            {v.sub}
           </Text>
           <Text variant="small" style={d.status === "error" ? { color: t.danger } : d.status === "downloading" ? { color: t.accent } : undefined}>
-            {d.status === "downloading" ? `Downloading ${Math.round(d.progress * 100)}%` : d.status === "error" ? "Download failed" : formatBytes(d.bytes)}
+            {d.status === "downloading" ? `Downloading ${Math.round(d.progress * 100)}%` : d.status === "error" ? "Download failed" : size}
           </Text>
         </View>
       </Pressable>
       {d.status === "done" ? (
-        <IconButton label={`Play ${title}`} onPress={() => play(book ? bookToPlayable(book) : episodeToPlayable(episode!))}>
+        <IconButton label={`Play ${title}`} onPress={v.play}>
           <PlayIcon size={20} color={t.text} />
         </IconButton>
       ) : null}
