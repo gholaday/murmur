@@ -27,12 +27,29 @@ const saved = getJson<DehydratedState>(CACHE_KEY);
 if (saved) hydrate(queryClient, saved);
 
 /**
- * Only what the app needs to open offline is saved: library, podcasts, Up Next and the pages
- * behind them. Searches, previews and admin screens refetch, which keeps the saved copy (read
- * in full at every launch) small.
+ * Only what the app needs to open offline is saved: library, podcasts, your music, Up Next and
+ * the pages behind them. Searches, previews, Browse and admin screens refetch, which keeps the
+ * saved copy (read in full at every launch) small.
  */
-const PERSISTED = new Set(["books", "book", "podcasts", "podcast", "episodes", "episode", "newEpisodes", "continueEpisodes", "queue", "prefs"]);
-const persisted = (key: readonly unknown[]) => PERSISTED.has(key[0] as string);
+const PERSISTED = new Set([
+  "books",
+  "book",
+  "podcasts",
+  "podcast",
+  "episodes",
+  "episode",
+  "newEpisodes",
+  "continueEpisodes",
+  "queue",
+  "prefs",
+  "music",
+  "album",
+  "artist",
+]);
+// Albums, artists and songs come in two scopes; only your own ("mine") is kept, not Browse's "all".
+const SCOPED = new Set(["albums", "artists", "tracks"]);
+const persisted = (key: readonly unknown[]) =>
+  PERSISTED.has(key[0] as string) || (SCOPED.has(key[0] as string) && key[1] === "mine");
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 queryClient.getQueryCache().subscribe((event) => {
