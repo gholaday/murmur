@@ -1,0 +1,41 @@
+diff --git a/build/global-state/routingQueueContext.js b/build/global-state/routingQueueContext.js
+index 54629aa..1ff1084 100644
+--- a/build/global-state/routingQueueContext.js
++++ b/build/global-state/routingQueueContext.js
+@@ -59,7 +59,9 @@ const _useClientLayoutEffect = require("../react-navigation/core/useClientLayout
+ const _router = require("./router");
+ const _routingQueue = require("./routingQueue");
+ const EMPTY = [];
+-let boundBridges = 0;
++// Routers of the mounted bridges, newest last. On Android a relaunched activity can mount a new
++// root before the old one unmounts, so unmounting must fall back to the newest one left.
++const boundRouters = [];
+ const throwMissingRoutingQueue = ()=>{
+     throw new Error('Attempted to navigate from a component rendered outside the Expo Router root. Render the component inside `ExpoRoot`. If this happened inside `ExpoRoot`, please report a bug at https://github.com/expo/expo/issues.');
+ };
+@@ -122,19 +124,20 @@ function useSetRoutingTransitionMode() {
+ }
+ function ImperativeRoutingQueueBridge({ enqueue, setTransitionMode }) {
+     (0, _useClientLayoutEffect.useClientLayoutEffect)(()=>{
+-        if (__DEV__ && boundBridges > 0) {
++        if (__DEV__ && boundRouters.length > 0) {
+             console.error([
+                 'Looks like you have multiple navigation containers consuming the shared imperative routing queue. Only one container will receive queued actions. Make sure that:',
+                 "- You don't have multiple NavigationContainers in the app",
+                 '- Only a single instance of the root component is rendered'
+             ].join('\n'));
+         }
+-        boundBridges++;
++        const bound = (0, _router.createImperativeRouter)(enqueue, setTransitionMode);
++        boundRouters.push(bound);
+         // The exported router identity must stay stable, so the bridge mutates it in place.
+-        Object.assign(_router.router, (0, _router.createImperativeRouter)(enqueue, setTransitionMode));
++        Object.assign(_router.router, bound);
+         return ()=>{
+-            boundBridges--;
+-            Object.assign(_router.router, _router.unboundRouter);
++            boundRouters.splice(boundRouters.indexOf(bound), 1);
++            Object.assign(_router.router, boundRouters[boundRouters.length - 1] ?? _router.unboundRouter);
+         };
+     }, [
+         enqueue,

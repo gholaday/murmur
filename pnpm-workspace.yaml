@@ -9,3 +9,4 @@ onlyBuiltDependencies:
 
 patchedDependencies:
   expo-audio@58.0.9: patches/expo-audio@58.0.9.patch
+  expo-router@58.0.23: patches/expo-router@58.0.23.patch
