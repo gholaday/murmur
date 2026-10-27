@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
+  apiPaths,
   adScanStatus,
   errorText,
   gigabytes,
@@ -21,6 +22,9 @@ import {
   type ThemeChoice,
   versionStatus,
   type UserDto,
+  type UserPrefs,
+  type MusicSummaryDto,
+  plural,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { BackIcon, FolderIcon, PlusIcon } from "../icons";
@@ -28,6 +32,7 @@ import { AD_MODES, adPrefsStore, useAdPrefs } from "../player/ad-prefs";
 import { usePlayer } from "../player/engine";
 import { Sheet } from "../sheet";
 import { applyTheme, currentTheme } from "../theme";
+import { ListeningStats } from "./stats";
 
 interface ServerInfo {
   version: string;
@@ -48,7 +53,15 @@ export function ProfileView({
   adsEnabled,
   cache,
   server,
+  shows,
+  tabs,
+  musicFolders,
+  music,
 }: {
+  musicFolders: LibraryFolderDto[];
+  music: MusicSummaryDto;
+  shows: number;
+  tabs: UserPrefs["tabs"];
   user: UserDto;
   users: UserDto[];
   folders: LibraryFolderDto[];
@@ -64,7 +77,7 @@ export function ProfileView({
     <>
       <div className="page-head">
         <div>
-          <h1 className="page-title">Settings</h1>
+          <h1 className="page-title">You</h1>
           <div className="page-sub">{user.username}</div>
         </div>
         <button
@@ -79,6 +92,24 @@ export function ProfileView({
           Sign out
         </button>
       </div>
+
+      <ListeningStats />
+
+      <section className="section">
+        <h2 className="section-title">Your library</h2>
+        <div className="stats-tiles">
+          <div className="stats-tile">
+            <div className="stats-tile-value">{server.books}</div>
+            <div className="muted small">Books</div>
+          </div>
+          {tabs.podcasts ? (
+            <div className="stats-tile">
+              <div className="stats-tile-value">{shows}</div>
+              <div className="muted small">Podcasts</div>
+            </div>
+          ) : null}
+        </div>
+      </section>
 
       <section className="section">
         <h2 className="section-title">Appearance</h2>
@@ -154,7 +185,16 @@ export function ProfileView({
           <section className="section">
             <h2 className="section-title">Library</h2>
             <LibraryCard server={server} onScanned={() => router.refresh()} />
-            <FoldersCard folders={folders} onSaved={() => router.refresh()} />
+            <FoldersCard folders={folders} otherPaths={musicFolders.map((f) => f.path)} onSaved={() => router.refresh()} />
+          </section>
+          <section className="section">
+            <h2 className="section-title">Music</h2>
+            {musicFolders.length === 0 ? (
+              <p className="muted small" style={{ margin: 0 }}>
+                Add a folder of music to turn on the Music tab. Albums come from the songs' tags, or from Artist/Album folders when there are none.
+              </p>
+            ) : null}
+            <FoldersCard kind="music" folders={musicFolders} otherPaths={folders.map((f) => f.path)} onSaved={() => router.refresh()} />
           </section>
           <section className="section">
             <h2 className="section-title">Users</h2>
@@ -177,7 +217,43 @@ export function ProfileView({
           </div>
         </div>
       </section>
+
+      <section className="section">
+        <h2 className="section-title">Tabs</h2>
+        <TabsCard tabs={tabs} music={music} onSaved={() => router.refresh()} />
+      </section>
     </>
+  );
+}
+
+/** Which optional tabs show, saved to your account so every device matches. */
+function TabsCard({ tabs, music, onSaved }: { tabs: UserPrefs["tabs"]; music: MusicSummaryDto; onSaved: () => void }) {
+  const [shown, setShown] = useState(tabs);
+  const toggle = (tab: keyof UserPrefs["tabs"], on: boolean) => {
+    const next = { ...shown, [tab]: on };
+    setShown(next);
+    api(apiPaths.prefs, { method: "PUT", body: { tabs: next } }).then(onSaved, (err: unknown) => {
+      setShown(shown);
+      toast.error(errorText(err));
+    });
+  };
+  return (
+    <div className="card-box">
+      <label className="switch">
+        <span className="setting-title">Podcasts</span>
+        <input type="checkbox" role="switch" aria-label="Podcasts tab" checked={shown.podcasts} onChange={(e) => toggle("podcasts", e.target.checked)} />
+      </label>
+      {/* Music can only be shown once the server has some. */}
+      {music.enabled ? (
+        <label className="switch">
+          <span className="setting-text">
+            <span className="setting-title">Music</span>
+            <span className="setting-sub">{plural(music.albums, "album")} on your server</span>
+          </span>
+          <input type="checkbox" role="switch" aria-label="Music tab" checked={shown.music} onChange={(e) => toggle("music", e.target.checked)} />
+        </label>
+      ) : null}
+    </div>
   );
 }
 
@@ -432,7 +508,24 @@ function EpisodeCacheCard({ cache, onChanged }: { cache: EpisodeCacheStatusDto; 
   );
 }
 
-function FoldersCard({ folders, onSaved }: { folders: LibraryFolderDto[]; onSaved: () => void }) {
+const FOLDER_KINDS = {
+  books: { url: "/api/library/folders", item: "book", things: "books", title: "Add a library folder", min: 1 },
+  music: { url: "/api/music/folders", item: "album", things: "albums", title: "Add a music folder", min: 0 },
+};
+
+function FoldersCard({
+  kind = "books",
+  folders,
+  otherPaths,
+  onSaved,
+}: {
+  kind?: keyof typeof FOLDER_KINDS;
+  folders: LibraryFolderDto[];
+  /** The other kind's folders, which these may not overlap. */
+  otherPaths: string[];
+  onSaved: () => void;
+}) {
+  const k = FOLDER_KINDS[kind];
   const [busy, setBusy] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
@@ -440,7 +533,7 @@ function FoldersCard({ folders, onSaved }: { folders: LibraryFolderDto[]; onSave
   const save = async (paths: string[], done: string) => {
     setBusy(true);
     try {
-      await api<LibraryFolderDto[]>("/api/library/folders", { method: "PUT", body: { paths } });
+      await api<LibraryFolderDto[]>(k.url, { method: "PUT", body: { paths } });
       toast(done);
       onSaved();
       setTimeout(onSaved, 3000);
@@ -460,10 +553,10 @@ function FoldersCard({ folders, onSaved }: { folders: LibraryFolderDto[]; onSave
           <span className="setting-text">
             <span className="folder-path">{f.path}</span>
             <span className={`setting-sub ${f.reachable ? "" : "error"}`}>
-              {f.reachable ? `${f.books} ${f.books === 1 ? "book" : "books"}` : "The server can't open this folder."}
+              {f.reachable ? `${f.books} ${f.books === 1 ? k.item : k.things}` : "The server can't open this folder."}
             </span>
           </span>
-          {folders.length > 1 ? (
+          {folders.length > k.min ? (
             confirmRemove === f.id ? (
               <span style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                 <button type="button" className="btn" onClick={() => setConfirmRemove(null)}>
@@ -476,7 +569,7 @@ function FoldersCard({ folders, onSaved }: { folders: LibraryFolderDto[]; onSave
                   onClick={async () => {
                     await save(
                       folders.filter((o) => o.id !== f.id).map((o) => o.path),
-                      "Folder removed. Its books leave the library after the rescan.",
+                      `Folder removed. Its ${k.things} leave the library after the rescan.`,
                     );
                     setConfirmRemove(null);
                   }}
@@ -498,11 +591,11 @@ function FoldersCard({ folders, onSaved }: { folders: LibraryFolderDto[]; onSave
           Add folder
         </button>
       </div>
-      <Sheet open={adding} onClose={() => setAdding(false)} title="Add a library folder">
+      <Sheet open={adding} onClose={() => setAdding(false)} title={k.title}>
         {adding ? (
           <AddFolderForm
-            others={folders.map((f) => f.path)}
-            start={folders[0]?.path ?? ""}
+            others={[...folders.map((f) => f.path), ...otherPaths]}
+            start={folders[0]?.path ?? otherPaths[0] ?? ""}
             busy={busy}
             onAdd={async (path) => {
               if (await save([...folders.map((f) => f.path), path], "Folder added. Scanning it now.")) setAdding(false);

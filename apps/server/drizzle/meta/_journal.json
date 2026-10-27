@@ -57,6 +57,20 @@
       "when": 1792455824850,
       "tag": "0007_episode_cache",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793072446929,
+      "tag": "0008_listening_days",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793075261605,
+      "tag": "0009_music",
+      "breakpoints": true
     }
   ]
 }

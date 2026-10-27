@@ -73,7 +73,7 @@ export function UpNextSkeleton() {
     <div className="skeleton">
       <div className="page-head" style={{ alignItems: "flex-end" }}>
         <div>
-          <h1 className="page-title">Up Next</h1>
+          <h1 className="page-title">Listening</h1>
           <div className="skel skel-line" style={{ width: 110, height: 11, marginTop: 6 }} />
         </div>
       </div>
@@ -88,7 +88,7 @@ export function UpNextSkeleton() {
 export function LibrarySkeleton() {
   return (
     <div className="skeleton" aria-busy="true" aria-label="Loading library">
-      <Head title="Library" />
+      <Head title="Books" />
       <div className="chips">
         {[76, 84, 72, 84].map((w, i) => (
           <div key={i} className="skel skel-pill" style={{ width: w }} />
@@ -121,7 +121,7 @@ export function PodcastsSkeleton() {
 export function SettingsSkeleton() {
   return (
     <div className="skeleton" aria-busy="true" aria-label="Loading settings">
-      <Head title="Settings" />
+      <Head title="You" />
       {[2, 2, 3].map((rows, s) => (
         <section key={s} className="section">
           <Line width={110} height={16} />

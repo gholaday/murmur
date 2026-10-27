@@ -13,8 +13,12 @@ const nextConfig: NextConfig = {
   // the code. A container's own environment can't then report an older one.
   ...(process.env.MURMUR_VERSION ? { env: { MURMUR_VERSION: process.env.MURMUR_VERSION } } : {}),
   images: { unoptimized: true },
-  // Profile was renamed Settings; keep old bookmarks working.
-  redirects: async () => [{ source: "/profile", destination: "/settings", permanent: true }],
+  // Renamed pages; keep old bookmarks working.
+  redirects: async () => [
+    { source: "/profile", destination: "/you", permanent: true },
+    { source: "/settings", destination: "/you", permanent: true },
+    { source: "/up-next", destination: "/listening", permanent: true },
+  ],
 };
 
 export default nextConfig;

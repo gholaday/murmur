@@ -40,9 +40,27 @@ export const PodcastIcon = (p: IconProps) => (
     <Path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
   </Icon>
 );
+export const MusicIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Path d="M9 18V5l12-2v13" />
+    <Circle cx="6" cy="18" r="3" />
+    <Circle cx="18" cy="16" r="3" />
+  </Icon>
+);
+export const ShuffleIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+  </Icon>
+);
 export const QueueIcon = (p: IconProps) => (
   <Icon {...p}>
     <Path d="M4 6h16M4 12h16M4 18h10" />
+  </Icon>
+);
+export const ListeningIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Path d="M3 6h13M3 12h9M3 18h9" />
+    <Path d="M16 12l5 3.5-5 3.5z" />
   </Icon>
 );
 export const ProfileIcon = (p: IconProps) => (
@@ -75,6 +93,11 @@ export const MinusIcon = (p: IconProps) => (
 export const BackIcon = (p: IconProps) => (
   <Icon {...p}>
     <Path d="M19 12H5M11 18l-6-6 6-6" />
+  </Icon>
+);
+export const ChevronIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Path d="M9 6l6 6-6 6" />
   </Icon>
 );
 export const DownIcon = (p: IconProps) => (

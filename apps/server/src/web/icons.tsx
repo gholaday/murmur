@@ -22,6 +22,18 @@ export const PodcastIcon = (p: IconProps) => (
     <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
   </Icon>
 );
+export const MusicIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M9 18V5l12-2v13" />
+    <circle cx="6" cy="18" r="3" />
+    <circle cx="18" cy="16" r="3" />
+  </Icon>
+);
+export const ShuffleIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+  </Icon>
+);
 export const QueueIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M4 6h16M4 12h16M4 18h10" />

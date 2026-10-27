@@ -78,7 +78,7 @@ export function UpNextView() {
       <div className="page-head" style={{ alignItems: "flex-end" }}>
         <div>
           <h1 className="page-title">
-            Up Next
+            Listening
             {queue.length ? (
               <span className="count-pill" aria-label={plural(queue.length, "item")}>
                 {queue.length}

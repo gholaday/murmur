@@ -3,23 +3,27 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDragToScroll } from "./drag-scroll";
-import { AppIcon, LibraryIcon, PodcastIcon, QueueIcon, SettingsIcon } from "./icons";
+import type { UserPrefs } from "@murmur/shared/client";
+import { AppIcon, LibraryIcon, MusicIcon, PodcastIcon, ProfileIcon, QueueIcon } from "./icons";
 import { FullPlayer } from "./player/full-player";
 import { MiniPlayer } from "./player/mini-player";
 import { usePlayer } from "./player/engine";
 
 const TABS = [
-  { href: "/", label: "Library", Icon: LibraryIcon, match: (p: string) => p === "/" || p.startsWith("/book") },
+  { href: "/", label: "Books", Icon: LibraryIcon, match: (p: string) => p === "/" || p.startsWith("/book") },
   { href: "/podcasts", label: "Podcasts", Icon: PodcastIcon, match: (p: string) => p.startsWith("/podcasts") },
-  { href: "/up-next", label: "Up Next", Icon: QueueIcon, match: (p: string) => p.startsWith("/up-next") },
-  { href: "/settings", label: "Settings", Icon: SettingsIcon, match: (p: string) => p.startsWith("/settings") },
+  { href: "/music", label: "Music", Icon: MusicIcon, match: (p: string) => p.startsWith("/music") },
+  { href: "/listening", label: "Listening", Icon: QueueIcon, match: (p: string) => p.startsWith("/listening") },
+  { href: "/you", label: "You", Icon: ProfileIcon, match: (p: string) => p.startsWith("/you") },
 ];
 
 /** Bottom tabs on phones, a sidebar on wide screens, and the player on top of both. */
-export function Shell({ children }: { children: React.ReactNode }) {
+export function Shell({ tabs, hasMusic, children }: { tabs: UserPrefs["tabs"]; hasMusic: boolean; children: React.ReactNode }) {
   const pathname = usePathname();
   const { item, queue } = usePlayer();
   useDragToScroll();
+  // Podcasts and Music can be switched off in You; Music also needs music on the server.
+  const shown = TABS.filter((t) => (t.href !== "/podcasts" || tabs.podcasts) && (t.href !== "/music" || (tabs.music && hasMusic)));
   return (
     <div className={`shell ${item ? "has-player" : ""}`}>
       <nav className="tabs" aria-label="Main">
@@ -27,11 +31,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <AppIcon />
           Murmur
         </div>
-        {TABS.map(({ href, label, Icon, match }) => (
+        {shown.map(({ href, label, Icon, match }) => (
           <Link key={href} href={href} className="tab" aria-current={match(pathname) ? "page" : undefined}>
             <Icon />
             <span>{label}</span>
-            {href === "/up-next" && queue.length > 0 ? <span className="tab-count">{queue.length}</span> : null}
+            {href === "/listening" && queue.length > 0 ? <span className="tab-count">{queue.length}</span> : null}
           </Link>
         ))}
       </nav>

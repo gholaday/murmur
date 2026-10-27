@@ -32,6 +32,7 @@ import {
   SkipBackIcon,
   SkipForwardIcon,
 } from "@/components/icons";
+import { openUpNext } from "@/components/listening";
 import { useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
@@ -293,7 +294,7 @@ export default function Player() {
             label={p.queue.length ? `Up Next ${p.queue.length}` : "Up Next"}
             onPress={() => {
               router.back();
-              router.navigate("/up-next");
+              openUpNext();
             }}
           >
             <QueueIcon size={20} color={t.text} />

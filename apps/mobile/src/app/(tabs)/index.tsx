@@ -100,7 +100,7 @@ export default function Library() {
   const header = (
     <View style={{ paddingTop: top }}>
       <PageTitle
-        title="Library"
+        title="Books"
         right={
           <>
             {tab === "books" ? (

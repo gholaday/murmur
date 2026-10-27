@@ -50,6 +50,33 @@ export const progressBatchSchema = z.object({
 });
 export type ProgressBatch = z.input<typeof progressBatchSchema>;
 
+const daySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD.");
+
+/** One device's running listening totals per day and item; see ListeningTracker. */
+export const listeningReportSchema = z.object({
+  clientId: z.string().min(8).max(64),
+  items: z
+    .array(
+      z.object({
+        day: daySchema,
+        itemType: itemTypeSchema,
+        itemId: z.string().min(1).max(64),
+        listenedSec: z.number().min(0).max(86_400),
+        contentSec: z.number().min(0).max(86_400 * 4),
+      }),
+    )
+    .min(1)
+    .max(500),
+});
+
+export const statsQuerySchema = z.object({
+  period: z.enum(["week", "month", "year", "all"]).default("week"),
+  /** The listener's today, so periods follow their calendar. */
+  today: daySchema,
+  /** The listener's offset from UTC in minutes (east positive), for counting books finished. */
+  tz: z.coerce.number().int().min(-14 * 60).max(14 * 60).default(0),
+});
+
 export const subscribeSchema = z.object({
   feedUrl: z.url({ protocol: /^https?$/ }).trim().max(2000),
 });
@@ -72,6 +99,12 @@ const folderPathSchema = z.string().trim().min(1).max(1024);
 export const libraryFoldersSchema = z.object({
   paths: z.array(folderPathSchema).min(1, "Keep at least one library folder.").max(20),
 });
+/** Replaces the music folder list (admin). An empty list turns music off. */
+export const musicFoldersSchema = z.object({
+  paths: z.array(folderPathSchema).max(20),
+});
+export const albumSortSchema = z.enum(["added", "name", "artist", "year"]).catch("added");
+
 export const folderCheckSchema = z.object({
   path: folderPathSchema,
   /** The other folders in the list, to catch overlaps before saving. */
@@ -102,6 +135,8 @@ export const userPrefsSchema = z.object({
   bookSections: z
     .array(z.object({ id: z.enum(BOOK_SECTION_IDS), hidden: z.boolean() }))
     .max(BOOK_SECTION_IDS.length * 2),
+  /** Optional tabs you've chosen to show. Books, Listening and You are always there. */
+  tabs: z.object({ podcasts: z.boolean(), music: z.boolean().default(true) }),
 });
 export type UserPrefs = z.infer<typeof userPrefsSchema>;
 export const userPrefsPatchSchema = userPrefsSchema.partial();
@@ -609,7 +644,9 @@ export * from "./ads";
 export * from "./api-paths";
 export * from "./format";
 export * from "./library";
+export * from "./music";
 export * from "./player";
 export * from "./podcasts";
 export * from "./settings";
 export * from "./shelves";
+export * from "./stats";

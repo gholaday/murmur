@@ -77,8 +77,8 @@ export function SectionBone({ width = 140 }: { width?: number }) {
 }
 
 /** Covers three across, each with two lines under it, like the book and podcast grids. */
-export function CoverGridBones({ count = 9 }: { count?: number }) {
-  const width = useGridWidth();
+export function CoverGridBones({ count = 9, columns = 3 }: { count?: number; columns?: number }) {
+  const width = useGridWidth(columns);
   return (
     <Grid>
       {Array.from({ length: count }, (_, i) => (

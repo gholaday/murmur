@@ -11,6 +11,8 @@ import {
   type ChapterDto,
   type EpisodeWithShow,
   type ItemType,
+  type ListeningStore,
+  ListeningTracker,
   type ProgressItem,
   type QueueEntry,
   type QueueRef,
@@ -28,6 +30,29 @@ import {
 import { api } from "../api";
 import { adModeFor, adPrefsStore, adToSkip, playedThrough } from "./ad-prefs";
 import { effectiveVolume, volumeStore } from "./volume";
+
+const LISTENING_KEY = "murmur.listening";
+let listeningTracker: ListeningTracker | null = null;
+
+/** Time spent listening per day, for the stats; sent along with progress. Browser only. */
+function listening(): ListeningTracker {
+  return (listeningTracker ??= new ListeningTracker(
+    () => {
+      try {
+        return JSON.parse(localStorage.getItem(LISTENING_KEY) ?? "null") as ListeningStore | null;
+      } catch {
+        return null;
+      }
+    },
+    (data) => {
+      try {
+        localStorage.setItem(LISTENING_KEY, JSON.stringify(data));
+      } catch {
+        // Storage blocked: totals still go to the server while this tab is open.
+      }
+    },
+  ));
+}
 
 export interface PlayableFile {
   url: string;
@@ -213,6 +238,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const adsAllowed = useRef(new Set<number>());
   const lastTick = useRef(0);
   const lastTickAt = useRef(0);
+  /** The item the last listening tick was for; the first tick after a change counts nothing. */
+  const lastListenKey = useRef("");
   // skipBy is memoized but needs the current ads and prefs, so it calls through this.
   const skipAdCrossedRef = useRef<(prev: number, pos: number, undoTo?: number) => void>(() => {});
 
@@ -238,10 +265,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const flush = useCallback(async () => {
     const pending = unsaved.current;
-    if (!pending) return;
     try {
-      await api("/api/progress", { method: "PUT", body: { items: [pending] }, keepalive: true });
-      if (unsaved.current === pending) unsaved.current = null;
+      if (pending) {
+        await api("/api/progress", { method: "PUT", body: { items: [pending] }, keepalive: true });
+        if (unsaved.current === pending) unsaved.current = null;
+      }
+      const report = listening().pending();
+      if (report) {
+        await api("/api/listening", { method: "PUT", body: report, keepalive: true });
+        listening().sent(report);
+      }
     } catch {
       // Kept in `unsaved`; the next save or coming back online retries it.
     }
@@ -262,6 +295,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         updatedAt: Date.now(),
       };
       lastSaved.current = Date.now();
+      listening().persist();
       return flush();
     },
     [flush],
@@ -779,7 +813,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             const elapsedSec = (performance.now() - lastTickAt.current) / 1000;
             lastTick.current = pos;
             lastTickAt.current = performance.now();
-            if (!e.currentTarget.paused) maybeSkipAd(prev, pos, elapsedSec);
+            if (!e.currentTarget.paused) {
+              maybeSkipAd(prev, pos, elapsedSec);
+              const key = `${it.type}:${it.id}`;
+              if (lastListenKey.current === key) listening().add(it.type, it.id, elapsedSec, pos - prev, speedRef.current);
+              lastListenKey.current = key;
+            }
             positionRef.current = pos;
             setPosition(pos);
             updatePositionState(pos);

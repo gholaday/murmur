@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { backupDatabase, openDatabase, type Db, type Sqlite } from "./db";
 import { env } from "./env";
-import { ensureDefaultFolder, listFolders, saveFolders, type LibraryFolder } from "./library/folders";
+import { ensureDefaultFolder, ensureDefaultMusicFolder, listFolders, saveFolders, type LibraryFolder } from "./library/folders";
+import { createMusicScanner, type MusicScanner } from "./music/scanner";
 import { createScanState, createScanner, type ScanState, type Scanner } from "./library/scanner";
 import { startWatcher, type LibraryWatcher } from "./library/watcher";
 import { createLogger, errorMessage, type Logger } from "./log";
@@ -20,6 +21,13 @@ export interface AppContext {
   library: {
     folders: () => LibraryFolder[];
     /** Replaces the folder list, restarts the watcher and starts a rescan. */
+    saveFolders: (paths: string[]) => Promise<LibraryFolder[]>;
+  };
+  music: {
+    scanner: MusicScanner;
+    state: ScanState;
+    folders: () => LibraryFolder[];
+    /** Replaces the music folder list, restarts its watcher and starts a rescan. */
     saveFolders: (paths: string[]) => Promise<LibraryFolder[]>;
   };
   podcasts: PodcastService;
@@ -83,7 +91,14 @@ async function boot(): Promise<AppContext> {
       log: watchLog,
     });
   let currentWatcher = startWatch();
-  const watcher: LibraryWatcher = { mode: () => currentWatcher.mode(), close: () => currentWatcher.close() };
+  const watcher: LibraryWatcher = {
+    mode: () => currentWatcher.mode(),
+    // Closes the music watcher too, which is set up below.
+    close: async () => {
+      await currentWatcher.close();
+      await musicWatcher.close();
+    },
+  };
   const library: AppContext["library"] = {
     folders: () => listFolders(db),
     saveFolders: async (paths) => {
@@ -91,6 +106,41 @@ async function boot(): Promise<AppContext> {
       await currentWatcher.close();
       currentWatcher = startWatch();
       void scanner.scan();
+      return saved;
+    },
+  };
+
+  ensureDefaultMusicFolder(db, env.musicDir);
+  const musicState = createScanState();
+  const musicScanner = createMusicScanner({
+    sqlite,
+    folders: () => listFolders(db, "music"),
+    coversDir: env.coversDir,
+    probeConcurrency: env.probeConcurrency,
+    missingGraceMs: env.missingGraceMs,
+    log: createLogger("music"),
+    state: musicState,
+  });
+  // Music has its own watcher: any change rescans the music folders, which only probes what changed.
+  const startMusicWatch = () =>
+    startWatcher({
+      folders: listFolders(db, "music").map((f) => f.path),
+      polling: env.watchPolling,
+      debounceMs: env.watchDebounceMs,
+      periodicMs: env.periodicScanMs,
+      onChange: () => void musicScanner.scan(),
+      log: watchLog,
+    });
+  let musicWatcher = startMusicWatch();
+  const music: AppContext["music"] = {
+    scanner: musicScanner,
+    state: musicState,
+    folders: () => listFolders(db, "music"),
+    saveFolders: async (paths) => {
+      const saved = saveFolders(db, paths, "music");
+      await musicWatcher.close();
+      musicWatcher = startMusicWatch();
+      void musicScanner.scan();
       return saved;
     },
   };
@@ -121,15 +171,17 @@ async function boot(): Promise<AppContext> {
   registerShutdown(sqlite, watcher);
   startUpdateChecks();
 
-  void scanner.scan(); // initial scan runs in the background; the server is usable meanwhile
+  void scanner.scan(); // initial scans run in the background; the server is usable meanwhile
+  void musicScanner.scan();
   log.info("murmur started", {
     version: env.version,
     ms: Date.now() - started,
     library: listFolders(db).map((f) => f.path),
+    music: listFolders(db, "music").map((f) => f.path),
     data: env.dataDir,
     watcher: watcher.mode(),
   });
-  return { db, sqlite, scanner, scanState, watcher, library, podcasts, episodeCache, startedAt: started };
+  return { db, sqlite, scanner, scanState, watcher, library, music, podcasts, episodeCache, startedAt: started };
 }
 
 /** Episodes used to be downloaded to DATA_DIR/podcasts; the episode cache has its own folder now. */

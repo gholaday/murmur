@@ -1,6 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import {
+  type AlbumDetail,
+  type AlbumSummary,
   apiPaths,
+  type ArtistDetail,
+  type ArtistSummary,
+  type MusicSummaryDto,
+  type TrackDto,
   type BookDetail,
   type BookSection,
   bookSections,
@@ -11,6 +17,7 @@ import {
   type PodcastSummary,
   type QueueEntry,
   type UserPrefs,
+  type UserPrefsPatch,
   EPISODE_PAGE,
 } from "@murmur/shared/client";
 import { toast } from "@/components/toast";
@@ -27,34 +34,65 @@ export const keys = {
   continueEpisodes: ["continueEpisodes"] as const,
   queue: ["queue"] as const,
   prefs: ["prefs"] as const,
+  music: ["music"] as const,
+  albums: ["albums"] as const,
+  album: (id: string) => ["album", id] as const,
+  artists: ["artists"] as const,
+  artist: (id: string) => ["artist", id] as const,
+  tracks: ["tracks"] as const,
 };
 
-/**
- * Your Books tab layout (section order and which are hidden), saved on the server so the web
- * and the app share it. Until it loads, or on a server without it, the default order shows.
- */
+// Your own settings (Books tab layout, which tabs show), saved on the server so the web and the
+// app share them. Until they load, or on a server without them, the defaults apply.
+const usePrefs = () => useQuery({ queryKey: keys.prefs, queryFn: () => api<UserPrefs>(apiPaths.prefs) });
+
 export function useBookSections(): BookSection[] {
-  const prefs = useQuery({ queryKey: keys.prefs, queryFn: () => api<UserPrefs>(apiPaths.prefs) });
-  return bookSections(prefs.data?.bookSections);
+  return bookSections(usePrefs().data?.bookSections);
 }
 
-/** Saves a new layout, showing it at once; puts the old one back if the server says no. */
-export function saveBookSections(next: BookSection[]) {
+/** Optional tabs; each is on unless you've switched it off. */
+export function useTabPrefs(): UserPrefs["tabs"] {
+  const tabs = usePrefs().data?.tabs;
+  return { podcasts: tabs?.podcasts ?? true, music: tabs?.music ?? true };
+}
+
+/** Saves a change, showing it at once; puts the old prefs back if the server says no. */
+function savePrefs(patch: UserPrefsPatch, failed: string) {
   const previous = queryClient.getQueryData<UserPrefs>(keys.prefs);
-  queryClient.setQueryData<UserPrefs>(keys.prefs, { ...previous, bookSections: next });
-  api<UserPrefs>(apiPaths.prefs, { method: "PUT", body: { bookSections: next } })
+  if (previous) queryClient.setQueryData<UserPrefs>(keys.prefs, { ...previous, ...patch } as UserPrefs);
+  api<UserPrefs>(apiPaths.prefs, { method: "PUT", body: patch })
     .then((saved) => queryClient.setQueryData(keys.prefs, saved))
     .catch((err: unknown) => {
-      toast.error(err instanceof Error ? err.message : "Couldn't save the layout.");
+      toast.error(err instanceof Error ? err.message : failed);
       if (previous) queryClient.setQueryData(keys.prefs, previous);
       else void queryClient.resetQueries({ queryKey: keys.prefs });
     });
 }
 
+export const saveBookSections = (next: BookSection[]) => savePrefs({ bookSections: next }, "Couldn't save the layout.");
+
+export const saveTabPrefs = (tabs: UserPrefs["tabs"]) => savePrefs({ tabs }, "Couldn't save the tabs.");
+
 export const useBooks = () => useQuery({ queryKey: keys.books, queryFn: () => api<BookSummary[]>("/api/books") });
 
 export const useBook = (id: string) =>
   useQuery({ queryKey: keys.book(id), queryFn: () => api<BookDetail>(`/api/books/${id}`) });
+
+/** Whether the server has music; everything about music hides until it says so. */
+export const useMusicSummary = () => useQuery({ queryKey: keys.music, queryFn: () => api<MusicSummaryDto>(apiPaths.music) });
+
+/** Every album, newest first; the Music tab sorts them on the phone, so a sort change needs no refetch. */
+export const useAlbums = () => useQuery({ queryKey: keys.albums, queryFn: () => api<AlbumSummary[]>(apiPaths.albums("added")) });
+
+export const useAlbum = (id: string) => useQuery({ queryKey: keys.album(id), queryFn: () => api<AlbumDetail>(apiPaths.album(id)) });
+
+export const useArtists = (enabled = true) =>
+  useQuery({ queryKey: keys.artists, queryFn: () => api<ArtistSummary[]>(apiPaths.artists), enabled });
+
+export const useArtist = (id: string) => useQuery({ queryKey: keys.artist(id), queryFn: () => api<ArtistDetail>(apiPaths.artist(id)) });
+
+/** Every song, A to Z; the Songs list filters it on the phone. */
+export const useTracks = (enabled = true) => useQuery({ queryKey: keys.tracks, queryFn: () => api<TrackDto[]>(apiPaths.tracks()), enabled });
 
 export const usePodcasts = () =>
   useQuery({ queryKey: keys.podcasts, queryFn: () => api<PodcastSummary[]>("/api/podcasts") });

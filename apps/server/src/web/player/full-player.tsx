@@ -121,7 +121,7 @@ export function FullPlayer() {
         <button type="button" className="icon-btn" onClick={() => setExpanded(false)} aria-label="Close player">
           <DownIcon />
         </button>
-        <div className="player-from">Playing from {item.type === "book" ? "Library" : "Podcasts"}</div>
+        <div className="player-from">Playing from {item.type === "book" ? "Books" : "Podcasts"}</div>
         <button type="button" className="icon-btn" onClick={() => setSheet("more")} aria-label="More options">
           <MoreIcon />
         </button>
@@ -335,7 +335,7 @@ export function FullPlayer() {
             <span>Chapters</span>
           </button>
         )}
-        <Link href="/up-next" className="tile" onClick={() => setExpanded(false)}>
+        <Link href="/listening" className="tile" onClick={() => setExpanded(false)}>
           <QueueIcon size={20} />
           <span>Up Next{p.queue.length ? ` (${p.queue.length})` : ""}</span>
         </Link>

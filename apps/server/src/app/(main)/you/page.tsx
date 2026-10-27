@@ -4,6 +4,8 @@ import { env } from "@/server/env";
 import { adsEnabled } from "@/server/ads";
 import { folderList } from "@/server/library/folders";
 import { cacheStatus } from "@/server/podcasts/cache-status";
+import { musicSummary } from "@/server/music/queries";
+import { getPrefs } from "@/server/prefs";
 import { requirePageUser } from "@/server/session";
 import { updateStatus } from "@/server/updates";
 import { ProfileView } from "@/web/profile/profile-view";
@@ -19,9 +21,15 @@ export default async function ProfilePage() {
       }>).map((u) => ({ id: u.id, username: u.username, isAdmin: u.is_admin === 1 }))
     : [];
   const bookCount = (ctx.sqlite.prepare("SELECT COUNT(*) AS n FROM books WHERE missing_since IS NULL").get() as { n: number }).n;
+  const shows = (ctx.sqlite.prepare("SELECT COUNT(*) AS n FROM subscriptions WHERE user_id = ?").get(user.id) as { n: number }).n;
   const folders = user.isAdmin ? await folderList(ctx.db, ctx.sqlite) : [];
+  const musicFolders = user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "music") : [];
   return (
     <ProfileView
+      music={musicSummary(ctx)}
+      musicFolders={musicFolders}
+      shows={shows}
+      tabs={getPrefs(ctx, user.id).tabs}
       user={user}
       users={users}
       folders={folders}

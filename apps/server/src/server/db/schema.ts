@@ -26,11 +26,12 @@ export const sessions = sqliteTable(
   (t) => [index("sessions_user_idx").on(t.userId)],
 );
 
-/** Folders the scanner reads books from; set by an admin in Settings. */
+/** Folders the scanners read books or music from; set by an admin in Settings. */
 export const libraryFolders = sqliteTable("library_folders", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   /** Absolute path as the server sees it (inside the container when run in Docker). */
   path: text("path").notNull().unique(),
+  kind: text("kind", { enum: ["books", "music"] }).notNull().default("books"),
   createdAt: integer("created_at").notNull(),
 });
 
@@ -101,6 +102,75 @@ export const chapters = sqliteTable(
     endSec: real("end_sec").notNull(),
   },
   (t) => [uniqueIndex("chapters_book_idx").on(t.bookId, t.idx)],
+);
+
+// ---------- Music ----------
+// Albums are grouped by their tags, not by folder: album artist plus album title. `name_key`
+// and `title_key` are the lower-cased, space-collapsed forms used to match them.
+
+export const artists = sqliteTable(
+  "artists",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    nameKey: text("name_key").notNull().unique(),
+    /** For sorting: without a leading "The". */
+    sortName: text("sort_name").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("artists_sort_idx").on(t.sortName)],
+);
+
+export const albums = sqliteTable(
+  "albums",
+  {
+    id: text("id").primaryKey(),
+    /** The album artist ("Various Artists" for compilations). */
+    artistId: text("artist_id")
+      .notNull()
+      .references(() => artists.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    titleKey: text("title_key").notNull(),
+    year: text("year"),
+    genre: text("genre"),
+    coverHash: text("cover_hash"),
+    addedAt: integer("added_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("albums_artist_title_idx").on(t.artistId, t.titleKey), index("albums_added_idx").on(t.addedAt)],
+);
+
+export const tracks = sqliteTable(
+  "tracks",
+  {
+    id: text("id").primaryKey(),
+    albumId: text("album_id")
+      .notNull()
+      .references(() => albums.id, { onDelete: "cascade" }),
+    /** The song's own artist, which differs from the album's on compilations and features. */
+    artistId: text("artist_id")
+      .notNull()
+      .references(() => artists.id, { onDelete: "cascade" }),
+    /** Null once its music folder is removed; the next scan then removes the track. */
+    folderId: integer("folder_id").references(() => libraryFolders.id, { onDelete: "set null" }),
+    /** Relative to the music folder, forward slashes. */
+    relPath: text("rel_path").notNull(),
+    title: text("title").notNull(),
+    discNo: integer("disc_no"),
+    trackNo: integer("track_no"),
+    durationSec: real("duration_sec").notNull(),
+    size: integer("size").notNull(),
+    mtimeMs: integer("mtime_ms").notNull(),
+    mimeType: text("mime_type").notNull(),
+    hasEmbeddedCover: integer("has_embedded_cover", { mode: "boolean" }).notNull().default(false),
+    addedAt: integer("added_at").notNull(),
+    missingSince: integer("missing_since"),
+  },
+  (t) => [
+    uniqueIndex("tracks_folder_path_idx").on(t.folderId, t.relPath),
+    index("tracks_album_idx").on(t.albumId),
+    index("tracks_artist_idx").on(t.artistId),
+  ],
 );
 
 /** One row per feed, shared by every user subscribed to it. */
@@ -201,6 +271,30 @@ export const queueItems = sqliteTable(
     addedAt: integer("added_at").notNull(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.itemType, t.itemId] }), index("queue_user_pos_idx").on(t.userId, t.position)],
+);
+
+/**
+ * Listening time per calendar day (the listener's own), item and device. Each device sends its
+ * running totals and the larger value is kept, so a resent report never counts twice. Like
+ * `progress`, no foreign key to books or episodes, so stats outlive a removed book.
+ */
+export const listeningDays = sqliteTable(
+  "listening_days",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    clientId: text("client_id").notNull(),
+    day: text("day").notNull(),
+    itemType: text("item_type", { enum: ["book", "episode"] }).notNull(),
+    itemId: text("item_id").notNull(),
+    listenedSec: real("listened_sec").notNull(),
+    contentSec: real("content_sec").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.clientId, t.day, t.itemType, t.itemId] }),
+    index("listening_days_user_day_idx").on(t.userId, t.day),
+  ],
 );
 
 export const episodeArchives = sqliteTable(

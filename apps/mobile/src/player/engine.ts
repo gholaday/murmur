@@ -13,6 +13,8 @@ import {
   type EpisodeAdsDto,
   type EpisodeWithShow,
   type ItemType,
+  type ListeningStore,
+  ListeningTracker,
   NOW_PLAYING_KEY,
   parseSkip,
   type ProgressItem,
@@ -38,6 +40,13 @@ import { adModeFor, adPrefsStore, adToSkip, playedThrough } from "./ad-prefs";
 // Mirrors the web player's engine (apps/server/src/web/player/engine.tsx).
 
 const OUTBOX_KEY = "murmur.progressOutbox";
+const LISTENING_KEY = "murmur.listening";
+
+/** Time spent listening per day, for the stats; sent along with progress. */
+const listening = new ListeningTracker(
+  () => getJson<ListeningStore>(LISTENING_KEY),
+  (data) => setJson(LISTENING_KEY, data),
+);
 
 export interface PlayableFile {
   path: string;
@@ -260,6 +269,16 @@ function watchAds() {
 }
 
 let lastTickAt = 0;
+let lastListenAt = 0;
+let lastListenKey = "";
+
+function countListening(it: Playable, moved: number) {
+  const now = Date.now();
+  const key = `${it.type}:${it.id}`;
+  if (lastListenAt && key === lastListenKey) listening.add(it.type, it.id, (now - lastListenAt) / 1000, moved, state.speed, now);
+  lastListenAt = now;
+  lastListenKey = key;
+}
 
 /**
  * Auto-skip: jumps past an ad break when playback runs into it, never when you seek into one.
@@ -387,8 +406,13 @@ player.addListener("playbackStatusUpdate", (s: AudioStatus) => {
     const pos = (it.files[fileIndex]?.startSec ?? 0) + s.currentTime;
     const prev = position;
     setPosition(pos);
-    if (s.playing) maybeSkipAd(prev, pos);
-    else lastTickAt = 0;
+    if (s.playing) {
+      maybeSkipAd(prev, pos);
+      countListening(it, pos - prev);
+    } else {
+      lastTickAt = 0;
+      lastListenAt = 0;
+    }
     if (s.playing && Date.now() - lastSaved > SAVE_EVERY_MS) save();
     const sl = state.sleep;
     if (sl.mode === "chapter" && pos >= sl.endSec - 0.3) {
@@ -461,6 +485,7 @@ function save(finished = false, refreshLists = finished || !state.playing) {
     updatedAt: Date.now(),
   };
   lastSaved = Date.now();
+  listening.persist();
   const outbox = getJson<Outbox>(OUTBOX_KEY) ?? {};
   outbox[`${it.type}:${it.id}`] = entry;
   setJson(OUTBOX_KEY, outbox);
@@ -480,20 +505,29 @@ async function flush(refreshLists = false) {
   flushing = true;
   let sent = false;
   try {
-    do {
-      flushAgain = false;
-      const items = Object.values(getJson<Outbox>(OUTBOX_KEY) ?? {});
-      if (items.length === 0) break;
-      await api("/api/progress", { method: "PUT", body: { items } });
-      sent = true;
-      // Drop what was sent unless it changed meanwhile.
-      const now = getJson<Outbox>(OUTBOX_KEY) ?? {};
-      for (const i of items) {
-        const k = `${i.itemType}:${i.itemId}`;
-        if (now[k]?.updatedAt === i.updatedAt) delete now[k];
+    for (;;) {
+      do {
+        flushAgain = false;
+        const items = Object.values(getJson<Outbox>(OUTBOX_KEY) ?? {});
+        if (items.length === 0) break;
+        await api("/api/progress", { method: "PUT", body: { items } });
+        sent = true;
+        // Drop what was sent unless it changed meanwhile.
+        const now = getJson<Outbox>(OUTBOX_KEY) ?? {};
+        for (const i of items) {
+          const k = `${i.itemType}:${i.itemId}`;
+          if (now[k]?.updatedAt === i.updatedAt) delete now[k];
+        }
+        setJson(OUTBOX_KEY, now);
+      } while (flushAgain);
+      const report = listening.pending();
+      if (report) {
+        await api("/api/listening", { method: "PUT", body: report });
+        listening.sent(report);
       }
-      setJson(OUTBOX_KEY, now);
-    } while (flushAgain);
+      // Progress saved during the listening upload goes out now, not at the next save.
+      if (!flushAgain) break;
+    }
     // Lists showing finished state or progress refresh once the server has it. With nothing
     // sent (e.g. just coming back to the app) they're left to React Query's own staleness checks.
     if (refreshAfterFlush && sent) {

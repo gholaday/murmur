@@ -1,12 +1,13 @@
 import { memo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { apiPaths, type BookDetail, chapterAt, duration, plural, timeLeft } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { HeroBackdrop } from "@/components/hero";
 import { CheckIcon, DownloadIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "@/components/icons";
 import { openGroup, PAD } from "@/components/library";
+import { openUpNext } from "@/components/listening";
 import { BackRow, Empty, useBottomPad, SectionTitle, useTopInset } from "@/components/page";
 import { RemoveDownloadSheet, Sheet, SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
@@ -203,7 +204,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
               active={queued}
               filled={queued}
               disabled={current}
-              onPress={() => (queued ? router.navigate("/up-next") : void queue("last"))}
+              onPress={() => (queued ? openUpNext() : void queue("last"))}
             >
               <QueueAddIcon size={22} queued={queued} color={queued ? t.onAccent : t.text} />
             </RoundButton>

@@ -105,13 +105,18 @@ function flattenTags(meta: IAudioMetadata): Record<string, string> {
   };
   set("title", c.title);
   set("album", c.album);
-  set("artist", c.artist);
+  // ID3v2.3 and older split the artist on "/", so "AC/DC" comes back as AC and DC. Put it back when
+  // the album artist says that's one name; real duets keep the "A feat. B" form.
+  const rejoined = c.artists?.join("/");
+  set("artist", rejoined && c.albumartist && rejoined.toLowerCase() === c.albumartist.toLowerCase() ? rejoined : c.artist);
   set("album_artist", c.albumartist);
   set("composer", c.composer?.join(", "));
   set("date", c.date ?? c.year);
   set("originaldate", c.originaldate);
   set("track", c.track.no);
   set("disc", c.disk.no);
+  set("genre", c.genre?.[0]);
+  set("compilation", c.compilation ? "1" : null);
   set("comment", textOf(c.comment?.[0]));
   set("description", c.longDescription ?? c.description?.join("\n"));
   return tags;

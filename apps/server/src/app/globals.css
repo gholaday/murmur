@@ -15,6 +15,7 @@
   --accent: #8e9bff;
   --on-accent: #141833;
   --danger: #ff8a8a;
+  --stat-2: #f2a65a;
   --nav: #17181b;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   --radius: 14px;
@@ -39,6 +40,7 @@
   --accent: #4f5bd5;
   --on-accent: #ffffff;
   --danger: #c43c3c;
+  --stat-2: #b8620f;
   --nav: #ffffff;
   --shadow: 0 8px 24px rgba(20, 20, 30, 0.14);
   color-scheme: light;
@@ -60,6 +62,7 @@
     --accent: #4f5bd5;
     --on-accent: #ffffff;
     --danger: #c43c3c;
+    --stat-2: #b8620f;
     --nav: #ffffff;
     --shadow: 0 8px 24px rgba(20, 20, 30, 0.14);
     color-scheme: light;
@@ -221,7 +224,9 @@ select.input { appearance: none; }
   background: var(--nav);
   border-top: 1px solid var(--line);
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* One column per shown tab: Podcasts and Music can be switched off. */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
 }
 .tabs-brand { display: none; }
 .tab {
@@ -1037,3 +1042,37 @@ a.episode-show:hover { color: var(--accent); }
 .bulk-covers img, .bulk-nocover { aspect-ratio: 1; object-fit: cover; }
 .bulk-nocover { background: var(--chip); }
 @media (max-width: 600px) { .bulk-covers > :first-child, .bulk-covers > span { display: none; } }
+
+/* ---------- Listening stats (You) ---------- */
+
+.stats-card { display: flex; flex-direction: column; gap: 16px; padding: 18px; }
+.stats-total { font-size: 34px; font-weight: 800; letter-spacing: -0.8px; }
+.stats-bars { display: grid; gap: 6px; height: 132px; }
+.stats-bar { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; min-width: 0; height: 100%; }
+.stats-bar-fill { width: 100%; min-height: 2px; border-radius: 5px; background: color-mix(in srgb, var(--accent) 30%, var(--surface-2)); }
+.stats-bar-fill.now { background: var(--accent); }
+.stats-bar-label { font-size: 11px; font-weight: 600; color: var(--muted); height: 14px; white-space: nowrap; }
+.stats-split { display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; }
+.stats-legend { display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: 600; }
+.stats-legend > div { display: flex; align-items: center; gap: 10px; }
+.stats-legend > div > span:nth-child(2) { flex: 1; }
+.stats-dot { width: 10px; height: 10px; border-radius: 5px; flex-shrink: 0; }
+.stats-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.stats-tile { background: var(--surface); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 4px; }
+.stats-tile-value { font-size: 22px; font-weight: 800; }
+.stats-top { gap: 12px; justify-content: flex-start; min-height: 68px; }
+.stats-top .setting-text { flex: 1; }
+.stats-top-cover { width: 44px; height: 44px; border-radius: 8px; flex-shrink: 0; }
+
+/* ---------- Music ---------- */
+
+.thumb.round { border-radius: 50%; }
+.pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.pill { height: 24px; padding: 0 10px; border-radius: 12px; display: inline-flex; align-items: center; background: var(--chip); color: var(--text-2); font-size: 12px; font-weight: 600; }
+.track-list { list-style: none; margin: 0; padding: 0; }
+.track-list li { display: flex; align-items: center; gap: 12px; min-height: 52px; border-bottom: 1px solid var(--line); }
+.track-num { width: 24px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.track-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.track-title { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.track-artist { font-size: 12px; color: var(--muted); }
+.track-artist:hover { color: var(--accent); }

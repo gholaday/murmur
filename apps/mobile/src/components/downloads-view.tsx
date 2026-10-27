@@ -2,18 +2,19 @@ import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { apiPaths } from "@murmur/shared/client";
-import { Cover } from "@/components/cover";
-import { CloseIcon, PlayIcon } from "@/components/icons";
-import { PAD } from "@/components/library";
-import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
-import { ConfirmSheet, RemoveDownloadSheet } from "@/components/sheet";
-import { IconButton, Text } from "@/components/ui";
 import { formatBytes, removeAllDownloads, removeDownload, useDownload, useDownloads, type Download } from "@/lib/downloads";
 import { bookToPlayable, episodeToPlayable, play } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
+import { Cover } from "./cover";
+import { CloseIcon, PlayIcon } from "./icons";
+import { PAD } from "./library";
+import { ListMeta } from "./listening";
+import { Empty, SectionTitle, useTopInset } from "./page";
+import { ConfirmSheet, RemoveDownloadSheet } from "./sheet";
+import { IconButton, Text } from "./ui";
 
-/** Everything saved on this phone for offline listening, with sizes and a remove action. */
-export default function Downloads() {
+/** The Listening tab's Downloaded: everything saved on this phone, with sizes and a remove action. */
+export function DownloadsView({ header }: { header: React.ReactNode }) {
   const t = useTheme();
   const top = useTopInset();
   const all = Object.values(useDownloads()).sort((a, b) => b.savedAt - a.savedAt);
@@ -26,21 +27,19 @@ export default function Downloads() {
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: 24 }}>
-        <PageTitle
-          title="Downloads"
-          count={all.length || undefined}
-          sub={bytes > 0 ? `${formatBytes(bytes)} on this phone` : null}
-          right={
-            all.length ? (
-              <Pressable accessibilityRole="button" onPress={() => setRemovingAll(true)} hitSlop={10} style={{ paddingBottom: 6 }}>
+        {header}
+        {all.length ? (
+          <ListMeta
+            text={bytes > 0 ? `${formatBytes(bytes)} on this phone` : ""}
+            action={
+              <Pressable accessibilityRole="button" onPress={() => setRemovingAll(true)} hitSlop={10} style={{ paddingVertical: 10 }}>
                 <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: t.danger }}>Remove all</Text>
               </Pressable>
-            ) : null
-          }
-        />
-        {all.length === 0 ? (
+            }
+          />
+        ) : (
           <Empty title="Nothing downloaded" />
-        ) : null}
+        )}
         {books.length ? (
           <>
             <SectionTitle title="Books" count={books.length} />

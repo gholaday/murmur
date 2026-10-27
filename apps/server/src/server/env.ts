@@ -29,6 +29,8 @@ export const env = {
   /** How often each feed is checked when healthy; failing feeds back off up to 24 hours. */
   feedCheckMs: intEnv("FEED_CHECK_MINUTES", 30) * 60_000,
   libraryDir: path.resolve(/*turbopackIgnore: true*/ process.env.LIBRARY_DIR ?? "/audiobooks"),
+  /** Seeds the music folder list on first start; music stays off without it until an admin adds a folder. */
+  musicDir: process.env.MUSIC_DIR ? path.resolve(/*turbopackIgnore: true*/ process.env.MUSIC_DIR) : null,
   migrationsDir: path.resolve(/*turbopackIgnore: true*/ process.env.MIGRATIONS_DIR ?? "./drizzle"),
   /** Use polling instead of filesystem events (for network mounts that don't emit events). */
   watchPolling: process.env.WATCH_POLLING === "true",

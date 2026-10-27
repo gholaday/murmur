@@ -250,7 +250,7 @@ const WARN_DOT = "#f0b45a";
  * version, so an old APK is easy to spot.
  */
 export function ServerSection() {
-  const query = useQuery({ queryKey: ["server-version"], queryFn: () => api<ServerVersionDto>("/api/server/version") });
+  const query = useServerVersion();
   const v = query.data;
   const status = v ? versionStatus(v) : null;
   const update = v?.updates?.update;
@@ -276,10 +276,17 @@ export function ServerSection() {
 
 const libraryKeys = { health: ["health"], folders: ["library-folders"], users: ["users"], cache: ["episode-cache"] } as const;
 
+// Shared by the sections and the You tab's rows, which show a short value from them.
+export const useServerVersion = () => useQuery({ queryKey: ["server-version"], queryFn: () => api<ServerVersionDto>("/api/server/version") });
+export const useHealth = (enabled = true) => useQuery({ queryKey: libraryKeys.health, queryFn: () => api<HealthDto>("/api/health"), enabled });
+export const useEpisodeCache = (enabled = true) =>
+  useQuery({ queryKey: libraryKeys.cache, queryFn: () => api<EpisodeCacheStatusDto>("/api/server/cache"), enabled });
+export const useUsers = (enabled = true) => useQuery({ queryKey: libraryKeys.users, queryFn: () => api<UserDto[]>("/api/users"), enabled });
+
 /** Admin: how many recent episodes the server keeps ready per show, and how ad detection is doing. */
 export function EpisodeCacheSection() {
   const t = useTheme();
-  const cache = useQuery({ queryKey: libraryKeys.cache, queryFn: () => api<EpisodeCacheStatusDto>("/api/server/cache") });
+  const cache = useEpisodeCache();
   const [busy, setBusy] = useState(false);
   const refresh = () => void queryClient.invalidateQueries({ queryKey: libraryKeys.cache });
 
@@ -379,7 +386,7 @@ function scanStatus(h: HealthDto) {
 
 /** Book count, last scan, Rescan, and the folders the server reads books from. */
 export function LibrarySection() {
-  const health = useQuery({ queryKey: libraryKeys.health, queryFn: () => api<HealthDto>("/api/health") });
+  const health = useHealth();
   const folders = useQuery({ queryKey: libraryKeys.folders, queryFn: () => api<LibraryFolderDto[]>("/api/library/folders") });
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<LibraryFolderDto | null>(null);
@@ -603,7 +610,7 @@ function FolderLine({ icon, label, selected, onPress }: { icon: "back" | "folder
 // ---------- Admin: users ----------
 
 export function UsersSection({ me }: { me: UserDto }) {
-  const users = useQuery({ queryKey: libraryKeys.users, queryFn: () => api<UserDto[]>("/api/users") });
+  const users = useUsers();
   const [removing, setRemoving] = useState<UserDto | null>(null);
   const [adding, setAdding] = useState(false);
   const [username, setUsername] = useState("");

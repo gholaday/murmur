@@ -233,7 +233,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
     return (
       <>
         <div className="page-head">
-          <h1 className="page-title">Library</h1>
+          <h1 className="page-title">Books</h1>
         </div>
         <div className="empty">
           <strong>No books yet</strong>
@@ -397,7 +397,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
   return (
     <>
       <div className="page-head">
-        <h1 className="page-title">Library</h1>
+        <h1 className="page-title">Books</h1>
         <div className="head-actions">
           {tab === "books" ? (
             <button

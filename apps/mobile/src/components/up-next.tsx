@@ -2,16 +2,17 @@ import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { chapterAt, duration, type QueueEntry, queueEntryView, queueRef, timeLeft } from "@murmur/shared/client";
-import { Cover } from "@/components/cover";
-import { CloseIcon, DragIcon } from "@/components/icons";
-import { PAD } from "@/components/library";
-import { Empty, PageTitle, useTopInset } from "@/components/page";
-import { Sheet, SheetItem } from "@/components/sheet";
-import { Bone, FadeIn, ListRowBone, Skeleton, useJustLoaded } from "@/components/skeleton";
-import { DragHandle, SortableList, SortableScrollView } from "@/components/sortable-list";
-import { Bar, IconButton, Text } from "@/components/ui";
 import { type Playable, playRef, queueReplace, refreshQueue, usePlayer, usePosition } from "@/player/engine";
 import { useTheme } from "@/theme";
+import { Cover } from "./cover";
+import { CloseIcon, DragIcon } from "./icons";
+import { PAD } from "./library";
+import { Eyebrow, ListMeta } from "./listening";
+import { Empty, useTopInset } from "./page";
+import { Sheet, SheetItem } from "./sheet";
+import { Bone, FadeIn, ListRowBone, Skeleton, useJustLoaded } from "./skeleton";
+import { DragHandle, SortableList, SortableScrollView } from "./sortable-list";
+import { Bar, IconButton, Text } from "./ui";
 
 /** Title, chapter and progress of what's playing; on its own so only this re-renders as it plays. */
 function NowPlayingText({ item }: { item: Playable }) {
@@ -37,7 +38,8 @@ function NowPlayingText({ item }: { item: Playable }) {
 
 const keyOf = (e: QueueEntry) => `${e.itemType}:${e.itemId}`;
 
-export default function UpNext() {
+/** The Listening tab's Up Next: what's playing, then the queue to reorder. */
+export function UpNextView({ header }: { header: React.ReactNode }) {
   const t = useTheme();
   const top = useTopInset();
   const { item, queue, queueLoaded } = usePlayer();
@@ -66,30 +68,26 @@ export default function UpNext() {
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <SortableScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: 24 }}>
-        <PageTitle
-          title="Up Next"
-          count={queue.length || undefined}
-          sub={queue.length ? `${duration(total)} to listen` : null}
-          below={
-            queueLoaded ? undefined : (
-              <Skeleton>
-                <Bone width={120} height={13} style={{ marginTop: 4 }} />
-              </Skeleton>
-            )
-          }
-          right={
-            queue.length ? (
-              <Pressable onPress={() => save([])} hitSlop={8} style={{ paddingHorizontal: 8, paddingVertical: 10 }}>
+        {header}
+        {!queueLoaded ? (
+          <Skeleton style={{ marginTop: 12 }}>
+            <Bone width={120} height={13} />
+          </Skeleton>
+        ) : queue.length ? (
+          <ListMeta
+            text={`${duration(total)} to listen`}
+            action={
+              <Pressable accessibilityRole="button" onPress={() => save([])} hitSlop={8} style={{ paddingHorizontal: 8, paddingVertical: 10, marginRight: -8 }}>
                 <Text variant="bodyStrong" style={{ color: t.accent }}>
                   Clear
                 </Text>
               </Pressable>
-            ) : undefined
-          }
-        />
+            }
+          />
+        ) : null}
 
         {item ? (
-          <View style={{ marginTop: 12 }}>
+          <View style={{ marginTop: 16 }}>
             <Eyebrow>Now playing</Eyebrow>
             <Pressable
               accessibilityRole="button"
@@ -111,31 +109,31 @@ export default function UpNext() {
             ))}
           </Skeleton>
         ) : (
-        <FadeIn when={fade} style={{ marginTop: 24 }}>
-          {queue.length ? <Eyebrow>Next</Eyebrow> : null}
-          {error ? (
-            <Text variant="small" style={{ color: t.danger, marginBottom: 8 }}>
-              {error}
-            </Text>
-          ) : null}
-          {queue.length === 0 ? (
-            <Empty title="Your queue is empty" />
-          ) : (
-            <View style={{ marginHorizontal: -8 }}>
-              <SortableList
-                items={queue}
-                keyOf={keyOf}
-                onReorder={(keys) => {
-                  const byKey = new Map(queue.map((e) => [keyOf(e), e]));
-                  save(keys.flatMap((k) => byKey.get(k) ?? []));
-                }}
-                renderRow={(e, i) => (
-                  <QueueRow entry={e} onMenu={() => setMenu(i)} onRemove={() => save(queue.filter((_, j) => j !== i))} />
-                )}
-              />
-            </View>
-          )}
-        </FadeIn>
+          <FadeIn when={fade} style={{ marginTop: 24 }}>
+            {queue.length ? <Eyebrow>Next</Eyebrow> : null}
+            {error ? (
+              <Text variant="small" style={{ color: t.danger, marginBottom: 8 }}>
+                {error}
+              </Text>
+            ) : null}
+            {queue.length === 0 ? (
+              <Empty title="Your queue is empty" />
+            ) : (
+              <View style={{ marginHorizontal: -8 }}>
+                <SortableList
+                  items={queue}
+                  keyOf={keyOf}
+                  onReorder={(keys) => {
+                    const byKey = new Map(queue.map((e) => [keyOf(e), e]));
+                    save(keys.flatMap((k) => byKey.get(k) ?? []));
+                  }}
+                  renderRow={(e, i) => (
+                    <QueueRow entry={e} onMenu={() => setMenu(i)} onRemove={() => save(queue.filter((_, j) => j !== i))} />
+                  )}
+                />
+              </View>
+            )}
+          </FadeIn>
         )}
       </SortableScrollView>
 
@@ -192,13 +190,5 @@ function QueueRow({ entry, onMenu, onRemove }: { entry: QueueEntry; onMenu: () =
         <DragIcon size={20} color={t.muted} />
       </DragHandle>
     </View>
-  );
-}
-
-function Eyebrow({ children }: { children: string }) {
-  return (
-    <Text variant="caption" style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>
-      {children}
-    </Text>
   );
 }
