@@ -343,7 +343,7 @@ The books pattern, for albums: "Match metadata…" in an album's menu, and Match
 
 ## Android app
 
-The layout follows the familiar podcast-app pattern: bottom tabs, a persistent mini player, and a full-screen player tinted from the cover art. Design mockups are in `docs/mockups/`.
+The layout follows the familiar podcast-app pattern: bottom tabs, a persistent mini player, and a full-screen player tinted from the cover art. The design system is in [DESIGN.md](DESIGN.md).
 
 **Screens**
 

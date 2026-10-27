@@ -35,7 +35,7 @@ import {
 import { Sheet, SheetItem } from "../sheet";
 import { Chip, Chips } from "../ui";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } from "./ad-prefs";
-import { usePlayer, usePosition } from "./engine";
+import { usePlayer, usePosition, useTint } from "./engine";
 import { effectiveVolume, useVolume, volumeStore } from "./volume";
 
 /** Matches the `sink` animation in globals.css. */
@@ -51,6 +51,7 @@ export function FullPlayer() {
   const [speedDraft, setSpeedDraft] = useState<number | null>(null);
   const [scrub, setScrub] = useState<number | null>(null);
   const { item, expanded, setExpanded } = p;
+  const tint = useTint(item);
   const speedOpenRef = useRef(false);
   speedOpenRef.current = speedOpen;
   // Minimizing plays the opening animation in reverse before the player unmounts.
@@ -118,8 +119,15 @@ export function FullPlayer() {
       role="dialog"
       aria-modal="true"
       aria-label="Player"
-      style={{ "--tint": item.color ?? "#3b4a6e" } as React.CSSProperties}
+      style={
+        {
+          "--tint": tint ?? "#3b4a6e",
+          "--art": item.coverUrlLarge ? `url("${item.coverUrlLarge}")` : "none",
+        } as React.CSSProperties
+      }
     >
+      {/* A blurred copy of the cover bleeding out behind it, below the top bar. */}
+      <div className="player-bleed" aria-hidden="true" />
       <div className="player-top">
         <button type="button" className="icon-btn" onClick={() => setExpanded(false)} aria-label="Close player">
           <DownIcon />

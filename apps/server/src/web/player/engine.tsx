@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   apiPaths,
   type AdSpan,
+  type AlbumDetail,
   type BookDetail,
   type EpisodeAdsDto,
   type ChapterDto,
@@ -36,6 +37,27 @@ import {
 import { api } from "../api";
 import { adModeFor, adPrefsStore, adToSkip, playedThrough } from "./ad-prefs";
 import { effectiveVolume, volumeStore } from "./volume";
+
+/** Album cover colours, looked up once per album: songs carry none of their own. */
+const albumColors = new Map<string, string | null>();
+
+/** The colour to tint the player with: the item's own, or a song's album cover colour. */
+export function useTint(item: Playable | null): string | null {
+  const albumId = item?.color ? undefined : item?.albumId;
+  const [, loaded] = useState(0);
+  useEffect(() => {
+    if (!albumId || albumColors.has(albumId)) return;
+    albumColors.set(albumId, null);
+    api<AlbumDetail>(apiPaths.album(albumId)).then(
+      (a) => {
+        albumColors.set(albumId, a.coverColor);
+        loaded((n) => n + 1);
+      },
+      () => albumColors.delete(albumId),
+    );
+  }, [albumId]);
+  return item?.color ?? (albumId ? (albumColors.get(albumId) ?? null) : null);
+}
 
 const LISTENING_KEY = "murmur.listening";
 let listeningTracker: ListeningTracker | null = null;
@@ -75,6 +97,8 @@ export interface Playable {
   coverUrl: string | null;
   coverUrlLarge: string | null;
   color: string | null;
+  /** A song's album, whose cover colour it takes (see useTint). */
+  albumId?: string;
   href: string;
   durationSec: number;
   files: PlayableFile[];
@@ -136,6 +160,7 @@ export function trackToPlayable(t: TrackDto): Playable {
     coverUrl: albumCover(t.albumId, t.coverHash),
     coverUrlLarge: albumCover(t.albumId, t.coverHash, 600),
     color: null,
+    albumId: t.albumId,
     href: `/music/album/${t.albumId}`,
     durationSec: t.durationSec,
     files: [{ url: apiPaths.trackUrl(t.id), startSec: 0, durationSec: t.durationSec }],

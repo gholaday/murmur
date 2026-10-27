@@ -2,7 +2,7 @@
 
 Murmur is quiet and dark by default, close to a podcast app: covers do the colour work, one periwinkle accent marks what is selected or playing, and everything else stays out of the way. Follow what already exists. A new screen reuses these tokens and components before it invents anything, on the web and in the Android app alike.
 
-The values below come from [`apps/server/src/app/globals.css`](../apps/server/src/app/globals.css) (web) and [`apps/mobile/src/theme.ts`](../apps/mobile/src/theme.ts) (app), which are the source of truth. Change a value there and here together. Screen mockups are in [`docs/mockups/`](mockups/).
+The values below come from [`apps/server/src/app/globals.css`](../apps/server/src/app/globals.css) (web) and [`apps/mobile/src/theme.ts`](../apps/mobile/src/theme.ts) (app), which are the source of truth. Change a value there and here together.
 
 ## Writing
 

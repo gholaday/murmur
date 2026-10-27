@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Cover } from "../cover";
 import { chapterAt, clock, timeLeft } from "@murmur/shared/client";
 import { NextChapterIcon, PauseIcon, PlayIcon, PrevChapterIcon, SkipBackIcon, SkipForwardIcon } from "../icons";
-import { usePlayer, usePosition } from "./engine";
+import { usePlayer, usePosition, useTint } from "./engine";
 
 /**
  * Floating player above the tabs. On desktop it grows on hover to reveal a seek bar,
@@ -14,6 +14,7 @@ export function MiniPlayer() {
   const { item, playing, loading, error, toggle, skipBy, skip, seek, setExpanded, trackStep } = usePlayer();
   const position = usePosition();
   const [scrub, setScrub] = useState<number | null>(null);
+  const tint = useTint(item);
   if (!item) return null;
 
   const pos = scrub ?? position;
@@ -35,7 +36,12 @@ export function MiniPlayer() {
       className="mini"
       role="region"
       aria-label="Now playing"
-      style={item.color ? ({ "--tint": item.color } as React.CSSProperties) : undefined}
+      style={
+        {
+          ...(tint ? { "--tint": tint } : {}),
+          ...(item.coverUrl ? { "--art": `url("${item.coverUrl}")` } : {}),
+        } as React.CSSProperties
+      }
     >
       <div className="mini-row">
         <button type="button" className="mini-open" onClick={() => setExpanded(true)} aria-label={`Open player: ${item.title}`}>

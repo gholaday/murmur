@@ -11,7 +11,7 @@ Murmur is a self-hosted audiobook, podcast and music server with a web player an
 - Unit tests only for key logic (parsing, ordering, timing). No integration tests and no test spam. Check changes by running the app.
 - If a change doesn't show up on the Android emulator, assume Metro broke: force a reload before debugging the code.
 - Never commit secrets, keys or passwords.
-- Make a mockup before building a new screen or a big UI change, and a plan before a big feature.
+- Make a mockup before building a new screen or a big UI change, as an artifact in the chat (not in the repo), and a plan before a big feature.
 - Keep it fast and light. It should just work, every time.
 - Optional features (ad detection, music) fail on their own: if one breaks, everything else keeps working.
 - Logic that the web and the app both need goes in `packages/shared`, not in two copies.
@@ -47,4 +47,4 @@ Murmur is a self-hosted audiobook, podcast and music server with a web player an
 
 - No Play Store or App Store release. The APK is installed from GitHub releases.
 - No iPhone app for now. The web player covers it.
-- Keep the docs in step with changes: the spec, the design system, README, Getting started and the mockups in `docs/mockups/`.
+- Keep the docs in step with changes: the spec, the design system, README and Getting started.

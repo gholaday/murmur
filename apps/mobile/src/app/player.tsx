@@ -93,6 +93,8 @@ export default function Player() {
   // The page's tint, strongest at the top; the blurred cover fades into it a little lower down.
   const tintTop = mixColor(tint, t.bg, t.isDark ? 0.42 : 0.36);
   const tintBottom = mixColor(tint, t.bg, t.isDark ? 0.1 : 0.12);
+  // Secondary text: muted grey fades into the tinted light page, so it's darker there.
+  const soft = t.isDark ? t.muted : t.text2;
   // The blurred cover starts below the top bar, so "Playing from" and its buttons stay clear.
   const bleedTop = top + 48;
   const bleedBottom = top + 560;
@@ -130,7 +132,7 @@ export default function Player() {
           <IconButton label="Close player" onPress={() => router.back()}>
             <DownIcon color={t.text} />
           </IconButton>
-          <Caption style={{ letterSpacing: 0.6 }}>Playing from {song ? (p.context?.title ?? "Music") : item.type === "book" ? "Library" : "Podcasts"}</Caption>
+          <Caption style={{ letterSpacing: 0.6, color: soft }}>Playing from {song ? (p.context?.title ?? "Music") : item.type === "book" ? "Library" : "Podcasts"}</Caption>
           <IconButton label="More options" onPress={() => setSheet("more")}>
             <MoreIcon color={t.text} />
           </IconButton>
@@ -188,7 +190,7 @@ export default function Player() {
             <Text variant="title" style={{ fontSize: 22 }} numberOfLines={2}>
               {item.title}
             </Text>
-            <Text variant="small" numberOfLines={1} style={{ fontSize: 14 }}>
+            <Text variant="small" numberOfLines={1} style={{ fontSize: 14, color: soft }}>
               {multiChapter && chapter ? chapter.title : item.subtitle}
             </Text>
           </View>
@@ -236,13 +238,15 @@ export default function Player() {
             />
             </View>
             <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-              <Text variant="small" style={{ fontVariant: ["tabular-nums"] }}>
+              <Text variant="small" style={{ fontVariant: ["tabular-nums"], color: soft }}>
                 {clock(within)}
               </Text>
               {item.durationSec && !song ? (
-                <Text variant="small">{timeLeft(item.durationSec, pos)}</Text>
+                <Text variant="small" style={{ color: soft }}>
+                  {timeLeft(item.durationSec, pos)}
+                </Text>
               ) : null}
-              <Text variant="small" style={{ fontVariant: ["tabular-nums"] }}>
+              <Text variant="small" style={{ fontVariant: ["tabular-nums"], color: soft }}>
                 -{clock(spanLen - within)}
               </Text>
             </View>

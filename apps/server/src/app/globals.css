@@ -663,13 +663,25 @@ a.episode-show:hover { color: var(--accent); }
   height: var(--mini-h);
   border-radius: var(--radius);
   /* Tinted by the playing cover, like the Now playing card; plain surface without one. */
-  background: color-mix(in srgb, var(--tint, var(--surface-2)) 22%, var(--surface-2));
+  background: color-mix(in srgb, var(--tint, var(--surface-2)) 30%, var(--surface-2));
   transition: background-color 400ms ease;
+  isolation: isolate;
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
   padding: 0 8px 0 10px;
   overflow: hidden;
+}
+/* The cover blurred behind the card, so its colours bleed across it. */
+.mini::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -40px;
+  background: var(--art, none) center / cover;
+  filter: blur(24px) saturate(1.4);
+  opacity: 0.28;
+  pointer-events: none;
 }
 .mini-row { display: flex; align-items: center; gap: 2px; height: var(--mini-h); flex-shrink: 0; }
 .mini-skip { width: 44px; height: 44px; position: relative; display: flex; align-items: center; justify-content: center; color: var(--text-2); border-radius: 22px; flex-shrink: 0; }
@@ -717,16 +729,34 @@ a.episode-show:hover { color: var(--accent); }
 /* ---------- Full player ---------- */
 
 .player {
+  --tint-top: 42%;
+  --tint-bottom: 10%;
   position: fixed;
   z-index: 40;
   inset: 0;
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--tint) 24%, var(--bg)), color-mix(in srgb, var(--tint) 6%, var(--bg)));
+  isolation: isolate;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--tint) var(--tint-top), var(--bg)), color-mix(in srgb, var(--tint) var(--tint-bottom), var(--bg)));
   color: var(--text);
   display: flex;
   flex-direction: column;
   padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  overflow-x: hidden;
   overflow-y: auto;
   animation: rise 0.22s ease-out;
+}
+/* Starts below the top bar, so "Playing from" and its buttons stay on plain tint. */
+.player-bleed {
+  position: absolute;
+  z-index: -1;
+  top: calc(env(safe-area-inset-top) + 64px);
+  left: 0;
+  right: 0;
+  height: 520px;
+  background: var(--art) center top / min(100%, 560px) auto no-repeat;
+  filter: blur(60px) saturate(1.5);
+  opacity: 0.75;
+  mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 50%, transparent);
+  pointer-events: none;
 }
 @keyframes rise { from { transform: translateY(24px); opacity: 0; } }
 .player.closing { animation: sink 0.2s ease-in forwards; pointer-events: none; }
@@ -769,6 +799,29 @@ a.episode-show:hover { color: var(--accent); }
 .tile span { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .tile[aria-pressed="true"] { color: var(--accent); }
 .tile[aria-pressed="true"] span { color: var(--accent); }
+
+/*
+ * Light mode: a lighter tint and bleed, frosted white tiles (a grey wash disappears into the
+ * tinted page), and darker sub lines on the tinted mini player.
+ */
+:root[data-theme="light"] .player { --tint-top: 36%; --tint-bottom: 12%; }
+:root[data-theme="light"] .player-bleed { opacity: 0.56; }
+:root[data-theme="light"] .tile { background: rgba(255, 255, 255, 0.65); }
+:root[data-theme="light"] .tile span { color: var(--text-2); }
+:root[data-theme="light"] .mini { background: color-mix(in srgb, var(--tint, var(--surface-2)) 20%, var(--surface-2)); }
+:root[data-theme="light"] .mini::before { opacity: 0.18; }
+:root[data-theme="light"] .mini-sub:not(.error) { color: var(--text-2); }
+:root[data-theme="light"] .player-from { color: var(--text-2); }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .player { --tint-top: 36%; --tint-bottom: 12%; }
+  :root:not([data-theme="dark"]) .player-bleed { opacity: 0.56; }
+  :root:not([data-theme="dark"]) .tile { background: rgba(255, 255, 255, 0.65); }
+  :root:not([data-theme="dark"]) .tile span { color: var(--text-2); }
+  :root:not([data-theme="dark"]) .mini { background: color-mix(in srgb, var(--tint, var(--surface-2)) 20%, var(--surface-2)); }
+  :root:not([data-theme="dark"]) .mini::before { opacity: 0.18; }
+  :root:not([data-theme="dark"]) .mini-sub:not(.error) { color: var(--text-2); }
+  :root:not([data-theme="dark"]) .player-from { color: var(--text-2); }
+}
 
 .scrubber { width: 100%; height: 20px; margin: 0; appearance: none; background: transparent; cursor: pointer; }
 .scrubber::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--text) var(--pct), color-mix(in srgb, var(--text) 18%, transparent) var(--pct)); }
@@ -1106,6 +1159,9 @@ a.episode-show:hover { color: var(--accent); }
 /* Your music: the Browse row, add buttons and the first-visit screen. */
 .browse-row { display: flex; align-items: center; gap: 14px; padding: 14px; margin-bottom: 14px; border-radius: var(--radius); background: var(--surface); }
 .browse-row:hover { background: var(--surface-2); }
+/* White on a near-white page needs an edge to read as a card. */
+:root[data-theme="light"] .browse-row { box-shadow: inset 0 0 0 1px var(--line); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .browse-row { box-shadow: inset 0 0 0 1px var(--line); } }
 .browse-row > .i { color: var(--muted); flex-shrink: 0; }
 .browse-row-icon { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--surface-2); color: var(--accent); }
 .new-pill { height: 22px; padding: 0 8px; border-radius: 11px; display: inline-flex; align-items: center; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 800; white-space: nowrap; }
