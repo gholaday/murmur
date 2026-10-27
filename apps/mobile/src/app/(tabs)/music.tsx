@@ -124,7 +124,6 @@ export default function Music() {
     <View style={{ paddingTop: top, marginBottom: 18, gap: 14 }}>
       <PageTitle
         title="Music"
-        count={nothingYet ? undefined : mine?.albums}
         right={
           nothingYet ? null : (
             <>
