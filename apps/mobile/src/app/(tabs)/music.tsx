@@ -292,7 +292,18 @@ function BrowseRow({ notAdded, fresh }: { notAdded: number; fresh: number }) {
       accessibilityRole="button"
       accessibilityLabel={fresh ? `Browse, ${fresh} new` : "Browse"}
       onPress={() => router.push("/browse")}
-      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: 14, backgroundColor: t.surface, opacity: pressed ? 0.75 : 1 })}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 14,
+        padding: 14,
+        borderRadius: 14,
+        backgroundColor: t.surface,
+        // White on the light page needs an edge to read as a card.
+        borderWidth: t.isDark ? 0 : 1,
+        borderColor: t.line,
+        opacity: pressed ? 0.75 : 1,
+      })}
     >
       <View style={{ width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: t.surface2 }}>
         <BrowseIcon size={22} color={t.accent} />

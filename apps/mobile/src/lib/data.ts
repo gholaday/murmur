@@ -99,6 +99,17 @@ export const useAlbum = (id: string) => useQuery({ queryKey: keys.album(id), que
 export const useArtists = (scope: MusicScope, enabled = true) =>
   useQuery({ queryKey: keys.artists(scope), queryFn: () => api<ArtistSummary[]>(apiPaths.artists(scope)), enabled });
 
+/** An album's cover colour from what's already loaded (its page or an album list); songs carry none of their own. */
+export function cachedAlbumColor(id: string): string | null {
+  const detail = queryClient.getQueryData<AlbumDetail>(keys.album(id));
+  if (detail) return detail.coverColor;
+  for (const [, list] of queryClient.getQueriesData<AlbumSummary[]>({ queryKey: ["albums"] })) {
+    const found = list?.find((a) => a.id === id);
+    if (found) return found.coverColor;
+  }
+  return null;
+}
+
 /** All of an artist's albums and songs, each marked with how much is in your music. */
 export const useArtist = (id: string) => useQuery({ queryKey: keys.artist(id), queryFn: () => api<ArtistDetail>(apiPaths.artist(id)) });
 

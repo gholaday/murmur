@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import Slider from "@react-native-community/slider";
@@ -17,6 +17,7 @@ import {
   timeLeft,
 } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
+import { HeroBackdrop } from "@/components/hero";
 import {
   DownIcon,
   ListIcon,
@@ -37,6 +38,7 @@ import { useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
 import { Caption, Chips, IconButton, Text } from "@/components/ui";
+import { cachedAlbumColor } from "@/lib/data";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdDetection, useAdPrefs, type AdMode } from "@/player/ad-prefs";
 import { chapterStep, markCurrent, type Playable, seek, setSleep, setSpeed, skipBy, stop, toggle, trackStep, usePlayer, usePosition } from "@/player/engine";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -51,6 +53,7 @@ export default function Player() {
   const t = useTheme();
   const top = useTopInset(4);
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
   const p = usePlayer();
   const position = usePosition();
   const adPrefs = useAdPrefs();
@@ -86,7 +89,15 @@ export default function Player() {
   const spanLen = Math.max(1, span.end - span.start);
   const within = Math.min(spanLen, Math.max(0, pos - span.start));
   const speed = speedDraft ?? p.speed;
-  const tint = item.color ?? "#3b4a6e";
+  const tint = item.color ?? (item.album ? cachedAlbumColor(item.album.id) : null) ?? "#3b4a6e";
+  // The page's tint, strongest at the top; the blurred cover fades into it a little lower down.
+  const tintTop = mixColor(tint, t.bg, t.isDark ? 0.42 : 0.36);
+  const tintBottom = mixColor(tint, t.bg, t.isDark ? 0.1 : 0.12);
+  // The blurred cover starts below the top bar, so "Playing from" and its buttons stay clear.
+  const bleedTop = top + 48;
+  const bleedBottom = top + 560;
+  /** The page's tint at `y` from the top. */
+  const tintAt = (y: number) => mixColor(tintBottom, tintTop, Math.min(1, y / height));
   // Not yet known (never online since installing): the episode's own ad times say so.
   const showAds = item.type === "episode" && (adDetection ?? !!p.ads?.enabled);
   const adMode = adModeFor(adPrefs, item.podcastId);
@@ -104,9 +115,15 @@ export default function Player() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <LinearGradient
-        colors={[mixColor(tint, t.bg, t.isDark ? 0.3 : 0.24), mixColor(tint, t.bg, 0.06)]}
-        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+      <LinearGradient colors={[tintTop, tintBottom]} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} />
+      <HeroBackdrop
+        path={item.coverPathLarge}
+        color={tint}
+        top={bleedTop}
+        height={bleedBottom - bleedTop}
+        strength={1.4}
+        fadeFrom={tintAt(bleedTop)}
+        fade={tintAt(bleedBottom)}
       />
       <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: top, paddingBottom: insets.bottom + 16, paddingHorizontal: 24 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: -10 }}>
@@ -504,12 +521,13 @@ function Tile({ label, onPress, active, disabled, children }: { label: string; o
         alignItems: "center",
         justifyContent: "center",
         gap: 4,
-        backgroundColor: t.isDark ? (pressed ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.07)") : pressed ? "rgba(0,0,0,0.1)" : "rgba(0,0,0,0.05)",
+        // Frosted white in light mode: a grey wash disappears into the tinted page.
+        backgroundColor: t.isDark ? (pressed ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.07)") : pressed ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.65)",
         opacity: disabled ? 0.4 : 1,
       })}
     >
       {children}
-      <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 11, color: active ? t.accent : t.muted }}>
+      <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 11, color: active ? t.accent : t.isDark ? t.muted : t.text2 }}>
         {label}
       </Text>
     </Pressable>

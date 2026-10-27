@@ -1,8 +1,11 @@
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { router } from "expo-router";
+import { Image } from "expo-image";
 import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { chapterAt, timeLeft } from "@murmur/shared/client";
+import { absolute, authHeaders } from "@/lib/api";
+import { cachedAlbumColor } from "@/lib/data";
 import { skipBy, toggle, trackStep, usePlayer, usePosition } from "@/player/engine";
 import { fonts, mixColor, useTheme } from "@/theme";
 import { Cover } from "./cover";
@@ -16,7 +19,11 @@ export function MiniPlayer() {
   const { item, playing, loading, error, skip } = usePlayer();
   const position = usePosition();
   // Tinted with what's playing, like the web's Now playing card; eases over when the item changes.
-  const surface = item?.color ? mixColor(item.color, t.surface2, 0.22) : t.surface2;
+  // A song takes its album's colour.
+  const color = item?.color ?? (item?.album ? cachedAlbumColor(item.album.id) : null);
+  const surface = color ? mixColor(color, t.surface2, t.isDark ? 0.3 : 0.2) : t.surface2;
+  // The grey sub line fades into a tinted light card; the darker text keeps it readable.
+  const sub = t.isDark ? undefined : { color: t.text2 };
   const tint = useAnimatedStyle(() => ({ backgroundColor: withTiming(surface, { duration: 400 }) }));
   if (!item) return null;
   const dur = item.durationSec || 0;
@@ -43,6 +50,18 @@ export function MiniPlayer() {
         tint,
       ]}
     >
+      {item.coverPath ? (
+        // The cover blurred behind the card, so its colours bleed across it.
+        <Image
+          pointerEvents="none"
+          source={{ uri: absolute(item.coverPath), headers: authHeaders(), cacheKey: item.coverPath }}
+          cachePolicy="disk"
+          blurRadius={40}
+          contentFit="cover"
+          // Larger than the card: Android caps the blur, so the image's own edges must stay hidden.
+          style={{ position: "absolute", top: -60, bottom: -60, left: -60, right: -60, opacity: t.isDark ? 0.28 : 0.18 }}
+        />
+      ) : null}
       <View style={{ flexDirection: "row", alignItems: "center", paddingLeft: 8, paddingRight: 4, minHeight: 64, paddingVertical: 6, gap: 4 }}>
         <Pressable
           accessibilityRole="button"
@@ -71,17 +90,17 @@ export function MiniPlayer() {
               // A book's chapter and time left share a line, which scrolls as one when it's long.
               // Tabular digits keep the time's width steady as it ticks, so the scroll runs on.
               <Marquee>
-                <Text variant="small" numberOfLines={1}>
+                <Text variant="small" numberOfLines={1} style={sub}>
                   {chapter.title}
                 </Text>
                 {dur ? (
-                  <Text variant="small" numberOfLines={1} style={{ marginLeft: 14, fontVariant: ["tabular-nums"] }}>
+                  <Text variant="small" numberOfLines={1} style={[{ marginLeft: 14, fontVariant: ["tabular-nums"] }, sub]}>
                     {timeLeft(dur, position)}
                   </Text>
                 ) : null}
               </Marquee>
             ) : (
-              <Text variant="small" numberOfLines={1}>
+              <Text variant="small" numberOfLines={1} style={sub}>
                 {dur && !song ? timeLeft(dur, position) : item.subtitle}
               </Text>
             )}
