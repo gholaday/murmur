@@ -34,7 +34,7 @@ Copy [`docker-compose.yml`](../docker-compose.yml) to your server and change the
 | Folder | What it's for |
 | --- | --- |
 | `/path/to/audiobooks` | Your library, mounted read-only |
-| `/path/to/music` | Optional: your music, mounted read-only. Uncomment it and `MUSIC_DIR=/music` to turn on the Music tab |
+| `/path/to/music` | Optional: your music, mounted read-only. Uncomment it to turn on the Music tab |
 | `/path/to/murmur/data` | Database, covers and nightly backups. Back this up |
 | `/path/to/murmur/cache` | Podcast episodes kept on the server. Safe to lose |
 

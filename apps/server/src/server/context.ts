@@ -111,7 +111,7 @@ async function boot(): Promise<AppContext> {
     },
   };
 
-  ensureDefaultMusicFolder(db, env.musicDir);
+  await ensureDefaultMusicFolder(db, sqlite, env.musicDir);
   const musicState = createScanState();
   const musicScanner = createMusicScanner({
     sqlite,

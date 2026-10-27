@@ -4,11 +4,12 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import type { LibraryFolderDto } from "@murmur/shared";
 import type { Db, Sqlite } from "../db";
 import { books, libraryFolders } from "../db/schema";
+import { readState, writeState } from "../settings";
 import { isIgnoredName } from "./parse";
 
 // The folders the library is read from, books and music each with their own list. An admin
 // manages them in Settings; on first start the book list is seeded with LIBRARY_DIR so existing
-// setups keep working unchanged, and the music list with MUSIC_DIR when that's set.
+// setups keep working unchanged, and the music list with MUSIC_DIR once that's mounted.
 
 export type FolderKind = "books" | "music";
 
@@ -40,11 +41,19 @@ export function ensureDefaultFolder(db: Db, defaultDir: string) {
   });
 }
 
-/** Seeds the music folder list with MUSIC_DIR, when it's set and the list is empty. */
-export function ensureDefaultMusicFolder(db: Db, musicDir: string | null) {
-  if (!musicDir || listFolders(db, "music").length > 0) return;
-  if (allFolderPaths(db).some((f) => f.path === musicDir)) return;
-  db.insert(libraryFolders).values({ path: musicDir, kind: "music", createdAt: Date.now() }).run();
+/**
+ * Adds MUSIC_DIR (/music by default) as the first music folder once it's mounted. It's added only
+ * once, so a folder an admin removes stays removed; with nothing mounted there, music stays off.
+ */
+export async function ensureDefaultMusicFolder(db: Db, sqlite: Sqlite, musicDir: string) {
+  if (readState<boolean>(sqlite, "musicFolderSeeded")) return;
+  if (listFolders(db, "music").length === 0) {
+    const mounted = await fs.stat(musicDir).then((s) => s.isDirectory(), () => false);
+    if (!mounted) return;
+    if (allFolderPaths(db).some((f) => f.path === musicDir)) return;
+    db.insert(libraryFolders).values({ path: musicDir, kind: "music", createdAt: Date.now() }).run();
+  }
+  writeState(sqlite, "musicFolderSeeded", true);
 }
 
 /** Normalises what an admin typed: absolute, no trailing slash. */

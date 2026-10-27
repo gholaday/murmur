@@ -39,7 +39,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 
 **Music** (optional; see Music)
 
-- Music folders managed by the admin under You > Library (seeded from `MUSIC_DIR`); with none, music doesn't show anywhere
+- Music folders managed by the admin under You > Library (`/music` is added on its own once it's mounted); with none, music doesn't show anywhere
 - Albums, artists and songs from the tags, with covers from the folder or the files
 - Your music: each person adds the albums or songs they want, and Browse has the rest
 - Play or shuffle an album, an artist's songs, your songs or a playlist, with the next song loaded early so albums play without a gap
@@ -290,7 +290,7 @@ Edits are stored in the same override row as a match, so a rescan keeps them and
 
 ## Music
 
-Music is optional. It comes from one or more music folders, managed by the admin under You > Library, next to the book folders. The first is seeded from `MUSIC_DIR`, and no folder may sit inside another of either kind, so nothing is scanned twice. With no music folder, nothing about music shows anywhere.
+Music is optional. It comes from one or more music folders, managed by the admin under You > Library, next to the book folders. The first, `MUSIC_DIR` (`/music` by default), is added once something is mounted there, and only once, so a folder the admin removes stays removed. No folder may sit inside another of either kind, so nothing is scanned twice. With no music folder, nothing about music shows anywhere.
 
 **Scanning**
 
@@ -475,7 +475,7 @@ One Docker Compose stack; see `docker-compose.yml` in the repo root and [Getting
 | Mount | Purpose | Notes |
 | --- | --- | --- |
 | `/audiobooks` | The audiobook library (`LIBRARY_DIR`, the first library folder) | Read-only: Murmur never writes to or renames your files. Mount more folders and add them under You > Library |
-| `/music` | Optional music folder (`MUSIC_DIR`, the first music folder) | Read-only, like the audiobooks. Leave it out and music doesn't show |
+| `/music` | Optional music folder (`MUSIC_DIR`, the first music folder, added once it's mounted) | Read-only, like the audiobooks. Leave it out and music doesn't show |
 | `/data` | SQLite database, cover cache and backups | The only thing to back up |
 | `/cache` | Cached podcast episodes | Without it episodes are relayed. Not worth backing up. The ad add-on mounts it read-only |
 

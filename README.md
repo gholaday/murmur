@@ -34,7 +34,6 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      # - MUSIC_DIR=/music
     volumes:
       - /path/to/audiobooks:/audiobooks:ro
       # - /path/to/music:/music:ro
@@ -57,7 +56,7 @@ All optional.
 | `PUID` / `PGID` | `1000` | User and group that own the files in `/data` and `/cache` |
 | `TZ` | `UTC` | Time zone, for the nightly backup hour |
 | `LIBRARY_DIR` | `/audiobooks` | First library folder; more can be added under You > Library |
-| `MUSIC_DIR` | | First music folder, such as `/music`; more can be added under You > Library. Without one, music doesn't show |
+| `MUSIC_DIR` | `/music` | First music folder, added once something is mounted there; more can be added under You > Library. Without one, music doesn't show |
 | `DATA_DIR` | `/data` | Database, covers and backups |
 | `AUDIBLE_REGION` | `us` | Store used by Match: `us`, `uk`, `ca`, `au`, `de`, `fr`, `it`, `es`, `in`, `jp` |
 | `GOOGLE_BOOKS_API_KEY` | | Optional, free from the [Google Cloud console](https://console.cloud.google.com/apis/library/books.googleapis.com) (enable the Books API, then create an API key). Without one, Match shares Google's small per-address quota and may be told to wait |
