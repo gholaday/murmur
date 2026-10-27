@@ -365,11 +365,17 @@ function BooksTab({
   const day = todayKey();
   const continuing = useMemo(() => continueListening(books), [books]);
   const shelves = useMemo(
-    () => ({ next: shelfBooks("next", books, day), added: shelfBooks("added", books, day), unstarted: shelfBooks("unstarted", books, day) }),
+    () => ({
+      playnext: shelfBooks("playnext", books, day),
+      next: shelfBooks("next", books, day),
+      added: shelfBooks("added", books, day),
+      unstarted: shelfBooks("unstarted", books, day),
+    }),
     [books, day],
   );
   const counts: Record<BookSectionId, number> = {
     continue: continuing.length,
+    playnext: shelves.playnext.length,
     next: shelves.next.length,
     added: shelves.added.length,
     unstarted: shelves.unstarted.length,

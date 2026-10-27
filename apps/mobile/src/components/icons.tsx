@@ -64,10 +64,11 @@ export const QueueIcon = (p: IconProps) => (
     <Path d="M4 6h16M4 12h16M4 18h10" />
   </Icon>
 );
-export const ListeningIcon = (p: IconProps) => (
+/** A bookmark with a plus, or a check once the book is on Play next. */
+export const PlayNextAddIcon = ({ on, ...p }: IconProps & { on?: boolean }) => (
   <Icon {...p}>
-    <Path d="M3 6h13M3 12h9M3 18h9" />
-    <Path d="M16 12l5 3.5-5 3.5z" />
+    <Path d="M6 4h12v16l-6-4-6 4z" />
+    {on ? <Path d="M9.5 10l2 2 3.5-3.5" /> : <Path d="M12 8v5M9.5 10.5h5" />}
   </Icon>
 );
 export const ProfileIcon = (p: IconProps) => (
@@ -230,12 +231,6 @@ export const QueueAddIcon = ({ queued, ...p }: IconProps & { queued?: boolean })
     <Path d="M8 3h10a3 3 0 0 1 3 3v10" />
     <Rect x="3" y="7" width="14" height="14" rx="3" />
     {queued ? <Path d="M7 14l2.5 2.5L13 12" /> : <Path d="M10 11v6M7 14h6" />}
-  </Icon>
-);
-export const PlayNextIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <Path d="M3 6h10M3 12h7M3 18h7" />
-    <Path d="M17 20V9M13 13l4-4 4 4" />
   </Icon>
 );
 /** A circled check, filled once played; `checkColor` draws the check on the fill. */

@@ -514,7 +514,8 @@ function onStatus(s: AudioStatus) {
       return;
     }
     save(true);
-    void advance();
+    // A book ends there; nothing starts on its own. An episode goes on to Up Next.
+    if (it.type === "episode") void advance();
   }
 }
 
@@ -797,7 +798,7 @@ async function advance() {
 
 /**
  * Plays an Up Next item. A song plays on its own: it leaves the queue, and the album or list it
- * interrupts ends. Books and episodes leave the queue as they start, in `play`.
+ * interrupts ends. Episodes leave the queue as they start, in `play`.
  */
 export async function playQueued(ref: QueueRef) {
   await playRef(ref);
@@ -808,28 +809,6 @@ export async function playQueued(ref: QueueRef) {
     set({ context: null });
     void api(apiPaths.playContext, { method: "DELETE" }).catch(() => undefined);
   }
-}
-
-/**
- * "Play next" for a song. While an album or list plays, it goes in right after the current song
- * (taken out of wherever it already was), so it shows in the rest of the album. Otherwise it goes
- * to the front of Up Next.
- */
-export async function playNext(track: TrackDto) {
-  const c = state.context;
-  if (!c || state.item?.type !== "track") return queueAdd({ itemType: "track", itemId: track.id }, "next");
-  const current = c.tracks[c.index];
-  if (!current || current.id === track.id) return;
-  const before = c.tracks.slice(0, c.index).filter((t) => t.id !== track.id);
-  const after = c.tracks.slice(c.index + 1).filter((t) => t.id !== track.id);
-  const index = before.length;
-  const tracks = [...before, current, track, ...after];
-  dropPreloaded();
-  set({ context: { ...c, tracks, index } });
-  await api(apiPaths.playContext, {
-    method: "PUT",
-    body: { kind: c.kind, refId: c.refId, title: c.title, trackIds: tracks.map((t) => t.id), index, shuffled: c.shuffled },
-  });
 }
 
 // ---------- Controls ----------
@@ -849,7 +828,7 @@ export function play(it: Playable, startAt?: number) {
   setJson(NOW_PLAYING_KEY, { itemType: it.type, itemId: it.id } satisfies PlayRef);
   void showOnLockScreen(it);
   if (it.type === "track") return;
-  removeFromQueue({ itemType: it.type, itemId: it.id });
+  if (it.type === "episode") removeFromQueue({ itemType: it.type, itemId: it.id });
   // A book or episode takes over from music, so the rest of the album leaves Up Next.
   dropPreloaded();
   if (state.context) {

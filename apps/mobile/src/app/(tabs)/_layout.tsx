@@ -2,14 +2,14 @@ import { useEffect } from "react";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Tabs, type BottomTabBarProps } from "expo-router/js-tabs";
-import { LibraryIcon, ListeningIcon, MusicIcon, PodcastIcon, ProfileIcon } from "@/components/icons";
+import { LibraryIcon, MusicIcon, PodcastIcon, ProfileIcon } from "@/components/icons";
 import { MiniPlayer } from "@/components/mini-player";
-import { NumberBadge, Text } from "@/components/ui";
+import { Text } from "@/components/ui";
 import { useMusicSummary, useTabPrefs } from "@/lib/data";
-import { restorePlayer, usePlayer } from "@/player/engine";
+import { restorePlayer } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
-const ICONS = { index: LibraryIcon, podcasts: PodcastIcon, music: MusicIcon, listening: ListeningIcon, you: ProfileIcon } as const;
+const ICONS = { index: LibraryIcon, podcasts: PodcastIcon, music: MusicIcon, you: ProfileIcon } as const;
 
 export default function TabsLayout() {
   const t = useTheme();
@@ -23,7 +23,6 @@ export default function TabsLayout() {
         <Tabs.Screen name="index" options={{ title: "Books" }} />
         <Tabs.Screen name="podcasts" options={{ title: "Podcasts" }} />
         <Tabs.Screen name="music" options={{ title: "Music" }} />
-        <Tabs.Screen name="listening" options={{ title: "Listening" }} />
         <Tabs.Screen name="you" options={{ title: "You" }} />
       </Tabs>
       {/* Lists scroll under the status bar; this keeps the clock and icons readable. */}
@@ -36,7 +35,6 @@ export default function TabsLayout() {
 function TabBar({ state, descriptors, navigateToTab }: BottomTabBarProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const queued = usePlayer().queue.length;
   const tabs = useTabPrefs();
   const music = !!useMusicSummary().data?.enabled;
   return (
@@ -64,16 +62,11 @@ function TabBar({ state, descriptors, navigateToTab }: BottomTabBarProps) {
               key={route.key}
               accessibilityRole="tab"
               accessibilityState={{ selected: focused }}
-              accessibilityLabel={route.name === "listening" && queued > 0 ? `${label}, ${queued} queued` : label}
+              accessibilityLabel={label}
               onPress={() => navigateToTab(route.key)}
               style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 3, height: 64 }}
             >
-              <View>
-                <Icon size={24} color={color} />
-                {route.name === "listening" && queued > 0 ? (
-                  <NumberBadge tone="new" value={queued > 99 ? "99+" : queued} style={{ position: "absolute", top: -6, left: 14 }} />
-                ) : null}
-              </View>
+              <Icon size={24} color={color} />
               <Text style={{ fontFamily: focused ? fonts.bold : fonts.semibold, fontSize: 12, color }}>{label}</Text>
             </Pressable>
           );

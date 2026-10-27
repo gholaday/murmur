@@ -19,6 +19,7 @@ import {
 import { Cover } from "@/components/cover";
 import { HeroBackdrop } from "@/components/hero";
 import {
+  CheckIcon,
   DownIcon,
   ListIcon,
   MinusIcon,
@@ -33,14 +34,14 @@ import {
   SkipBackIcon,
   SkipForwardIcon,
 } from "@/components/icons";
-import { openUpNext } from "@/components/listening";
 import { useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
-import { Caption, Chips, IconButton, Text } from "@/components/ui";
+import { Caption, Chips, IconButton, NumberBadge, Text } from "@/components/ui";
+import { UpNextSheet } from "@/components/up-next";
 import { cachedAlbumColor } from "@/lib/data";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdDetection, useAdPrefs, type AdMode } from "@/player/ad-prefs";
-import { chapterStep, markCurrent, type Playable, seek, setSleep, setSpeed, skipBy, stop, toggle, trackStep, usePlayer, usePosition } from "@/player/engine";
+import { chapterStep, markCurrent, play, type Playable, seek, setSleep, setSpeed, skipBy, stop, toggle, trackStep, usePlayer, usePosition } from "@/player/engine";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fonts, mixColor, useTheme } from "@/theme";
 
@@ -58,7 +59,7 @@ export default function Player() {
   const position = usePosition();
   const adPrefs = useAdPrefs();
   const adDetection = useAdDetection();
-  const [sheet, setSheet] = useState<null | "speed" | "sleep" | "chapters" | "ads" | "more">(null);
+  const [sheet, setSheet] = useState<null | "speed" | "sleep" | "chapters" | "ads" | "more" | "upnext">(null);
   const [scrub, setScrub] = useState<number | null>(null);
   const [speedDraft, setSpeedDraft] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -114,6 +115,8 @@ export default function Player() {
     fn();
     setSheet(null);
   };
+  // A book that played to its end waits there: nothing starts on its own, so it offers a replay.
+  const ended = item.type === "book" && !p.playing && !p.loading && item.durationSec > 0 && pos >= item.durationSec - 1;
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -180,7 +183,12 @@ export default function Player() {
           </View>
 
           <View style={{ gap: 4 }}>
-            {multiChapter ? (
+            {ended ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <CheckIcon size={16} color={t.accent} />
+                <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.accent }}>Finished</Text>
+              </View>
+            ) : multiChapter ? (
               <Pressable onPress={() => setSheet("chapters")} hitSlop={6} style={{ alignSelf: "flex-start" }}>
                 <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.accent }}>
                   Chapter {ci + 1} of {item.chapters.length}
@@ -252,8 +260,8 @@ export default function Player() {
             </View>
           </View>
 
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: song ? "space-evenly" : "space-between" }}>
-            {song ? (
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: ended ? "center" : song ? "space-evenly" : "space-between" }}>
+            {ended ? null : song ? (
               <IconButton label="Previous song" style={{ width: 56, height: 56 }} onPress={() => trackStep(-1)}>
                 <PrevChapterIcon size={36} color={t.text} />
               </IconButton>
@@ -269,8 +277,8 @@ export default function Player() {
             )}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={p.playing ? "Pause" : "Play"}
-              onPress={toggle}
+              accessibilityLabel={ended ? "Play from the start" : p.playing ? "Pause" : "Play"}
+              onPress={ended ? () => play(item, 0) : toggle}
               style={({ pressed }) => ({
                 width: 80,
                 height: 80,
@@ -289,7 +297,7 @@ export default function Player() {
                 <PlayIcon size={34} color={t.onAccent} />
               )}
             </Pressable>
-            {song ? (
+            {ended ? null : song ? (
               <IconButton label="Next song" style={{ width: 56, height: 56 }} onPress={() => trackStep(1)}>
                 <NextChapterIcon size={36} color={t.text} />
               </IconButton>
@@ -329,13 +337,7 @@ export default function Player() {
               <ListIcon size={20} color={t.text} />
             </Tile>
           )}
-          <Tile
-            label={p.queue.length ? `Up Next ${p.queue.length}` : "Up Next"}
-            onPress={() => {
-              router.back();
-              openUpNext();
-            }}
-          >
+          <Tile label="Up Next" count={p.queue.length} onPress={() => setSheet("upnext")}>
             <QueueIcon size={20} color={t.text} />
           </Tile>
         </View>
@@ -458,6 +460,8 @@ export default function Player() {
           <MoreItems item={item} close={() => setSheet(null)} />
         )}
       </Sheet>
+
+      <UpNextSheet open={sheet === "upnext"} onClose={() => setSheet(null)} />
     </View>
   );
 }
@@ -509,12 +513,27 @@ function SkipButton({ seconds, label, onPress, children }: { seconds: number; la
   );
 }
 
-function Tile({ label, onPress, active, disabled, children }: { label: string; onPress: () => void; active?: boolean; disabled?: boolean; children: React.ReactNode }) {
+function Tile({
+  label,
+  count,
+  onPress,
+  active,
+  disabled,
+  children,
+}: {
+  label: string;
+  /** A grey count in the corner, e.g. how much is in Up Next. */
+  count?: number;
+  onPress: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
   const t = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={count ? `${label}, ${count}` : label}
       accessibilityState={{ disabled, selected: active }}
       disabled={disabled}
       onPress={onPress}
@@ -534,6 +553,7 @@ function Tile({ label, onPress, active, disabled, children }: { label: string; o
       <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 11, color: active ? t.accent : t.isDark ? t.muted : t.text2 }}>
         {label}
       </Text>
+      {count ? <NumberBadge value={count > 99 ? "99+" : count} style={{ position: "absolute", top: 6, right: 8 }} /> : null}
     </Pressable>
   );
 }

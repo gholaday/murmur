@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Dimensions, Keyboard, Modal, Pressable, type ScrollViewInstance, View } from "react-native";
 import { GestureDetector, GestureHandlerRootView, ScrollView, usePanGesture } from "react-native-gesture-handler";
-import Animated, { Easing, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { Easing, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
 import { fonts, useTheme } from "@/theme";
 import { CheckIcon } from "./icons";
+import { type SortableScroll, SortableScrollProvider } from "./sortable-list";
 import { Button, InSheet, Text } from "./ui";
 
 /** "Are you sure?" for actions that delete something: a message, then Cancel and the action. */
@@ -72,12 +73,15 @@ export function Sheet({
   open,
   onClose,
   title,
+  head,
   keepInView,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title?: string;
+  /** Drawn in place of the title, for a heading with a count or an action beside it. */
+  head?: React.ReactNode;
   /**
    * A row to have in view when the sheet opens, e.g. the current chapter. The list only starts
    * scrolled when the row would be out of sight, since a scrolled list spends the start of a
@@ -88,9 +92,13 @@ export function Sheet({
 }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const scroll = useRef<ScrollViewInstance>(null);
+  const scroll = useAnimatedRef<ScrollViewInstance>();
   const keyboard = useKeyboardHeight();
   const listY = useSharedValue(0);
+  // So a SortableList in the sheet can scroll it while a row is dragged near its edges.
+  const viewport = useSharedValue(0);
+  const content = useSharedValue(0);
+  const sortable: SortableScroll = { ref: scroll as unknown as SortableScroll["ref"], offset: listY, viewport, content };
   /** Where the list starts within the sheet, and whether the current pull started on it. */
   const listTop = useSharedValue(0);
   const inList = useSharedValue(false);
@@ -223,7 +231,9 @@ export function Sheet({
             {/* The list starts where the handle and title end. */}
             <View onLayout={(e) => listTop.set(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
               <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: t.track, marginBottom: 10 }} />
-              {title ? (
+              {head ? (
+                <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>{head}</View>
+              ) : title ? (
                 <Text variant="heading" numberOfLines={2} style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
                   {title}
                 </Text>
@@ -234,10 +244,12 @@ export function Sheet({
               // A tap on a result works straight away instead of first only closing the keyboard.
               keyboardShouldPersistTaps="handled"
               onContentSizeChange={(_, h) => {
+                content.set(h);
                 fit.current.content = h;
                 bringIntoView();
               }}
               onLayout={(e) => {
+                viewport.set(e.nativeEvent.layout.height);
                 fit.current.view = e.nativeEvent.layout.height;
                 bringIntoView();
               }}
@@ -246,7 +258,9 @@ export function Sheet({
               simultaneousWith={pan}
               ref={scroll}
             >
-              <InSheet.Provider value>{children}</InSheet.Provider>
+              <SortableScrollProvider value={sortable}>
+                <InSheet.Provider value>{children}</InSheet.Provider>
+              </SortableScrollProvider>
             </SheetScroll>
           </Animated.View>
         </GestureDetector>

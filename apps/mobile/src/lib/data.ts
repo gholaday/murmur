@@ -265,3 +265,72 @@ export async function setFinished(itemType: "book" | "episode", itemId: string, 
   });
   invalidateListening();
 }
+
+// ---------- Play next: books lined up to start, in your order ----------
+
+/** The shelf's books in order, as the cached list has them. */
+function playNextOrder(): string[] {
+  const books = queryClient.getQueryData<BookSummary[]>(keys.books) ?? [];
+  return books
+    .filter((b) => b.playNext != null)
+    .sort((a, b) => a.playNext! - b.playNext!)
+    .map((b) => b.id);
+}
+
+/** Shows a new order at once, in the book list and on book pages. */
+function showPlayNext(order: string[]) {
+  const at = new Map(order.map((id, i) => [id, i]));
+  const place = <T extends BookSummary>(b: T): T => ({ ...b, playNext: at.get(b.id) ?? null });
+  queryClient.setQueryData<BookSummary[]>(keys.books, (list) => list?.map(place));
+  queryClient.setQueriesData<BookDetail>({ queryKey: ["book"] }, (b) => b && place(b));
+}
+
+async function changePlayNext(order: string[], send: () => Promise<unknown>) {
+  const before = playNextOrder();
+  showPlayNext(order);
+  try {
+    await send();
+  } catch (err) {
+    showPlayNext(before);
+    throw err;
+  } finally {
+    void queryClient.invalidateQueries({ queryKey: keys.books });
+  }
+}
+
+/** Sets the shelf's order, e.g. after a drag. */
+export function orderPlayNext(bookIds: string[]) {
+  return changePlayNext(bookIds, () => api(apiPaths.playNextOrder, { method: "PUT", body: { bookIds } }));
+}
+
+/**
+ * Puts a book on the shelf (at the end) or takes it off, with a toast to undo it. Undoing a
+ * removal puts the book back where it was.
+ */
+export async function setPlayNext(bookId: string, on: boolean, undoing = false) {
+  const before = playNextOrder();
+  try {
+    if (on) {
+      await changePlayNext(before.includes(bookId) ? before : [...before, bookId], () => api(apiPaths.bookPlayNext(bookId), { method: "POST" }));
+    } else {
+      await changePlayNext(
+        before.filter((id) => id !== bookId),
+        () => api(apiPaths.bookPlayNext(bookId), { method: "DELETE" }),
+      );
+    }
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : "Couldn't change Play next.");
+    return;
+  }
+  if (undoing) return;
+  toast.show(on ? "Added to Play next" : "Removed from Play next", {
+    action: {
+      label: "Undo",
+      onPress: () => {
+        // Re-adding goes to the end; the old order puts it back in its place.
+        if (on) void setPlayNext(bookId, false, true);
+        else void setPlayNext(bookId, true, true).then(() => orderPlayNext(before).catch(() => undefined));
+      },
+    },
+  });
+}

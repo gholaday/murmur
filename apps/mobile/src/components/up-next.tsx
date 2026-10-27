@@ -1,162 +1,132 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
-import { router } from "expo-router";
-import { albumCover, chapterAt, duration, plural, type QueueEntry, queueEntryView, queueRef, timeLeft, type TrackDto } from "@murmur/shared/client";
+import { albumCover, duration, plural, type QueueEntry, queueEntryView, queueRef, timeLeft, type TrackDto } from "@murmur/shared/client";
 import { type Playable, playContextAt, playQueued, queueReplace, refreshQueue, usePlayer, usePosition } from "@/player/engine";
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { CloseIcon, DownIcon, DragIcon } from "./icons";
-import { PAD } from "./library";
-import { Eyebrow, ListMeta } from "./listening";
+import { Eyebrow } from "./listening";
 import { SongRow, SongSheet } from "./music";
-import { Empty, useTopInset } from "./page";
-import { Sheet, SheetItem } from "./sheet";
-import { Bone, FadeIn, ListRowBone, Skeleton, useJustLoaded } from "./skeleton";
-import { DragHandle, SortableList, SortableScrollView } from "./sortable-list";
-import { Bar, IconButton, Text } from "./ui";
-
-/** Title, chapter and progress of what's playing; on its own so only this re-renders as it plays. */
-function NowPlayingText({ item }: { item: Playable }) {
-  const position = usePosition();
-  const nowChapter = item.chapters.length > 1 ? item.chapters[chapterAt(item.chapters, position)] : undefined;
-  return (
-    <View style={{ flex: 1, gap: 4 }}>
-      <Text variant="bodyStrong" numberOfLines={2}>
-        {item.title}
-      </Text>
-      <Text variant="small" numberOfLines={1}>
-        {nowChapter?.title ?? item.subtitle}
-      </Text>
-      {item.durationSec ? (
-        <>
-          <Bar pct={(position / item.durationSec) * 100} />
-          <Text variant="small">{timeLeft(item.durationSec, position)}</Text>
-        </>
-      ) : null}
-    </View>
-  );
-}
+import { Empty } from "./page";
+import { Sheet } from "./sheet";
+import { Bone, Skeleton } from "./skeleton";
+import { DragHandle, SortableList } from "./sortable-list";
+import { CountPill, IconButton, Text } from "./ui";
 
 const keyOf = (e: QueueEntry) => `${e.itemType}:${e.itemId}`;
 
-/** The Listening tab's Up Next: what's playing, then the queue to reorder. */
-export function UpNextView({ header }: { header: React.ReactNode }) {
+/**
+ * Up Next, opened from the full player: what's playing, then the episodes and songs lined up
+ * after it, to reorder or remove. It's kept on the server, so closing the player keeps it.
+ */
+export function UpNextSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useTheme();
-  const top = useTopInset();
   const { item, queue, queueLoaded } = usePlayer();
-  const [menu, setMenu] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const fade = useJustLoaded(queueLoaded);
 
   const save = (entries: QueueEntry[]) => {
     setError(null);
     queueReplace(entries.map(queueRef)).catch((err: unknown) => {
-      setError(err instanceof Error ? err.message : "Couldn't save the queue.");
+      setError(err instanceof Error ? err.message : "Couldn't save Up Next.");
       void refreshQueue();
     });
   };
-  const move = (from: number, to: number) => {
-    if (from === to || to < 0 || to >= queue.length) return;
-    const next = [...queue];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved!);
-    save(next);
-  };
-
   const total = queue.reduce((sum, e) => sum + queueEntryView(e).remaining, 0);
-  const picked = menu !== null ? queue[menu] : undefined;
+
+  const head = (
+    <View>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 40 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Text variant="heading">Up Next</Text>
+          {queue.length ? <CountPill count={queue.length} /> : null}
+        </View>
+        {queue.length ? (
+          <Pressable accessibilityRole="button" onPress={() => save([])} hitSlop={8} style={{ paddingHorizontal: 4, paddingVertical: 10, marginRight: -4 }}>
+            <Text variant="bodyStrong" style={{ fontSize: 14, color: t.accent }}>
+              Clear
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+      {queue.length ? <Text variant="small">{`${duration(total)} to listen`}</Text> : null}
+    </View>
+  );
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <SortableScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: 24 }}>
-        {header}
-        {!queueLoaded ? (
-          <Skeleton style={{ marginTop: 12 }}>
-            <Bone width={120} height={13} />
-          </Skeleton>
-        ) : queue.length ? (
-          <ListMeta
-            text={`${duration(total)} to listen`}
-            action={
-              <Pressable accessibilityRole="button" onPress={() => save([])} hitSlop={8} style={{ paddingHorizontal: 8, paddingVertical: 10, marginRight: -8 }}>
-                <Text variant="bodyStrong" style={{ color: t.accent }}>
-                  Clear
-                </Text>
-              </Pressable>
-            }
-          />
-        ) : null}
-
+    <Sheet open={open} onClose={onClose} head={head}>
+      <View style={{ paddingHorizontal: 12 }}>
         {item ? (
-          <View style={{ marginTop: 16 }}>
+          <View style={{ marginTop: 8 }}>
             <Eyebrow>Now playing</Eyebrow>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Open player: ${item.title}`}
-              onPress={() => router.push("/player")}
-              style={{ flexDirection: "row", gap: 14, alignItems: "center", padding: 12, borderRadius: 14, backgroundColor: t.surface }}
-            >
-              <Cover path={item.coverPath} title={item.title} color={item.color} size={64} radius={8} />
-              <NowPlayingText item={item} />
+            <Pressable accessibilityRole="button" accessibilityLabel={`Back to the player: ${item.title}`} onPress={onClose}>
+              <NowPlayingRow item={item} />
             </Pressable>
           </View>
         ) : null}
         <RestOfMusic />
 
-        {!queueLoaded ? (
-          <Skeleton style={{ marginTop: 24 }}>
-            <Eyebrow>Next</Eyebrow>
-            {[0, 1, 2, 3, 4].map((i) => (
-              <ListRowBone key={i} lines={3} buttons={2} />
-            ))}
-          </Skeleton>
-        ) : (
-          <FadeIn when={fade} style={{ marginTop: 24 }}>
-            {queue.length ? <Eyebrow>Next</Eyebrow> : null}
-            {error ? (
-              <Text variant="small" style={{ color: t.danger, marginBottom: 8 }}>
-                {error}
-              </Text>
-            ) : null}
-            {queue.length === 0 ? (
-              <Empty title="Your queue is empty" />
-            ) : (
-              <View style={{ marginHorizontal: -8 }}>
-                <SortableList
-                  items={queue}
-                  keyOf={keyOf}
-                  onReorder={(keys) => {
-                    const byKey = new Map(queue.map((e) => [keyOf(e), e]));
-                    save(keys.flatMap((k) => byKey.get(k) ?? []));
-                  }}
-                  renderRow={(e, i) => (
-                    <QueueRow entry={e} onMenu={() => setMenu(i)} onRemove={() => save(queue.filter((_, j) => j !== i))} />
-                  )}
-                />
-              </View>
-            )}
-          </FadeIn>
-        )}
-      </SortableScrollView>
+        <View style={{ marginTop: 20 }}>
+          {!queueLoaded ? (
+            <Skeleton>
+              <Eyebrow>Next</Eyebrow>
+              {[0, 1, 2].map((i) => (
+                <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64 }}>
+                  <Bone width={44} height={44} radius={8} />
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Bone width="70%" height={14} />
+                    <Bone width="40%" height={12} />
+                  </View>
+                </View>
+              ))}
+            </Skeleton>
+          ) : queue.length === 0 ? (
+            <Empty title="Your queue is empty" />
+          ) : (
+            <>
+              <Eyebrow>Next</Eyebrow>
+              {error ? (
+                <Text variant="small" style={{ color: t.danger, marginBottom: 8 }}>
+                  {error}
+                </Text>
+              ) : null}
+              <SortableList
+                items={queue}
+                keyOf={keyOf}
+                liftInset={8}
+                onReorder={(keys) => {
+                  const byKey = new Map(queue.map((e) => [keyOf(e), e]));
+                  save(keys.flatMap((k) => byKey.get(k) ?? []));
+                }}
+                renderRow={(e, i) => <QueueRow entry={e} onRemove={() => save(queue.filter((_, j) => j !== i))} />}
+              />
+            </>
+          )}
+        </View>
+      </View>
+    </Sheet>
+  );
+}
 
-      <Sheet open={picked !== undefined} onClose={() => setMenu(null)} title={picked ? queueEntryView(picked).title : undefined}>
-        {menu !== null ? (
-          <>
-            <SheetItem label="Move to top" disabled={menu === 0} onPress={() => (move(menu, 0), setMenu(null))} />
-            <SheetItem label="Move up" disabled={menu === 0} onPress={() => (move(menu, menu - 1), setMenu(menu - 1))} />
-            <SheetItem label="Move down" disabled={menu === queue.length - 1} onPress={() => (move(menu, menu + 1), setMenu(menu + 1))} />
-            <SheetItem label="Move to bottom" disabled={menu === queue.length - 1} onPress={() => (move(menu, queue.length - 1), setMenu(null))} />
-            <SheetItem
-              label="Remove from Up Next"
-              danger
-              onPress={() => {
-                save(queue.filter((_, j) => j !== menu));
-                setMenu(null);
-              }}
-            />
-          </>
-        ) : null}
-      </Sheet>
+/** What's playing, with the time left; on its own so only this re-renders as it plays. */
+function NowPlayingRow({ item }: { item: Playable }) {
+  const t = useTheme();
+  const position = usePosition();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, borderBottomWidth: 1, borderBottomColor: t.line }}>
+      <Cover path={item.coverPath} title={item.title} color={item.color} size={44} radius={8} />
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <Text variant="bodyStrong" numberOfLines={1} style={{ color: t.accent }}>
+          {item.title}
+        </Text>
+        <Text variant="small" numberOfLines={1}>
+          {item.subtitle}
+        </Text>
+      </View>
+      {item.durationSec ? (
+        <Text variant="small" style={{ fontVariant: ["tabular-nums"] }}>
+          {timeLeft(item.durationSec, position)}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -172,17 +142,17 @@ function RestOfMusic() {
   if (!rest.length) return null;
   const first = rest[0]!;
   return (
-    <View style={{ marginTop: 24 }}>
+    <View style={{ marginTop: 20 }}>
       <Eyebrow>Playing from</Eyebrow>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen((o) => !o)}
-        style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, opacity: pressed ? 0.7 : 1 })}
+        style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, opacity: pressed ? 0.7 : 1 })}
       >
-        <Cover path={albumCover(first.albumId, first.coverHash)} title={c.title} size={52} radius={8} />
+        <Cover path={albumCover(first.albumId, first.coverHash)} title={c.title} size={44} radius={8} />
         <View style={{ flex: 1, gap: 2 }}>
-          <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 14 }}>
+          <Text variant="bodyStrong" numberOfLines={1}>
             Rest of {c.title}
           </Text>
           <Text variant="small">{plural(rest.length, "song")}</Text>
@@ -197,36 +167,38 @@ function RestOfMusic() {
   );
 }
 
-function QueueRow({ entry, onMenu, onRemove }: { entry: QueueEntry; onMenu: () => void; onRemove: () => void }) {
+function QueueRow({ entry, onRemove }: { entry: QueueEntry; onRemove: () => void }) {
   const t = useTheme();
   const v = queueEntryView(entry);
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, paddingHorizontal: 8 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, borderBottomWidth: 1, borderBottomColor: t.line }}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Play ${v.title}`}
-        accessibilityHint="Long press for more options"
         onPress={() => void playQueued(queueRef(entry))}
-        onLongPress={onMenu}
-        style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12 }}
+        style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 12 }}
       >
-        <Cover path={v.cover} title={v.title} color={v.color} size={52} radius={8} />
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text variant="caption" numberOfLines={1} style={{ fontSize: 12 }}>
-            {v.kind}
-          </Text>
-          <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 14 }}>
+        <Cover path={v.cover} title={v.title} color={v.color} size={44} radius={8} />
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text variant="bodyStrong" numberOfLines={1}>
             {v.title}
           </Text>
-          <Text variant="small">{v.length}</Text>
+          <Text variant="small" numberOfLines={1}>
+            {v.kind}
+          </Text>
         </View>
+        <Text variant="small" style={{ fontVariant: ["tabular-nums"] }}>
+          {v.length}
+        </Text>
       </Pressable>
-      <IconButton label={`Remove ${v.title}`} onPress={onRemove}>
+      <IconButton label={`Remove ${v.title}`} onPress={onRemove} style={{ width: 36 }}>
         <CloseIcon size={20} color={t.muted} />
       </IconButton>
-      <DragHandle label={`Drag to reorder ${v.title}`}>
-        <DragIcon size={20} color={t.muted} />
-      </DragHandle>
+      <View style={{ marginRight: -8 }}>
+        <DragHandle label={`Drag to reorder ${v.title}`}>
+          <DragIcon size={20} color={t.muted} />
+        </DragHandle>
+      </View>
     </View>
   );
 }

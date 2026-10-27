@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect } from "react";
 import { View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import Animated, {
+  measure,
   scrollTo,
   useAnimatedReaction,
   useAnimatedRef,
@@ -55,6 +56,7 @@ type Scroll = {
   viewport: SharedValue<number>;
   content: SharedValue<number>;
 };
+export type SortableScroll = Scroll;
 const ScrollContext = createContext<Scroll | null>(null);
 
 /** A scroll view that a SortableList inside can scroll while a row is dragged near its edges. */
@@ -164,7 +166,8 @@ export function SortableList<T>({
   // Near the top or bottom edge, scroll and keep the lifted row under the finger.
   useFrameCallback(() => {
     if (active.get() === null) return;
-    const y = pointerY.get();
+    // The finger's place within the scroll view, which in a sheet starts well down the screen.
+    const y = pointerY.get() - (measure(scroll.ref)?.pageY ?? 0);
     const viewport = scroll.viewport.get();
     let delta = 0;
     if (y < EDGE) delta = -EDGE_SPEED * (1 - Math.max(0, y) / EDGE);

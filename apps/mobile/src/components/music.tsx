@@ -16,7 +16,7 @@ import { setInMusic } from "@/lib/data";
 import { selectHaptic } from "@/lib/haptics";
 import { downloadTrack, removeDownload, useDownload, useInAlbumDownload } from "@/lib/downloads";
 import { getJson, setJson } from "@/lib/storage";
-import { isCurrent, playNext, queueAdd, usePlayer } from "@/player/engine";
+import { isCurrent, queueAdd, usePlayer } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { CheckIcon, MoreIcon, PlayIcon, PlusIcon, ShuffleIcon } from "./icons";
@@ -230,7 +230,6 @@ function SongSheetItems({ track, onClose, hideAlbum, onAddToPlaylist }: { track:
     );
   return (
     <>
-      <SheetItem label="Play next" onPress={run(() => playNext(track), "Playing next")} />
       <SheetItem label="Add to Up Next" onPress={run(() => queueAdd({ itemType: "track", itemId: track.id }, "last"), "Added to Up Next")} />
       <SheetItem label="Add to playlist…" onPress={onAddToPlaylist} />
       {hideAlbum ? null : <SheetItem label="Go to album" onPress={close(() => openAlbum(track.albumId))} />}

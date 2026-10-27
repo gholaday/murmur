@@ -16,7 +16,7 @@ import {
   sortAlbums,
   type TrackDto,
 } from "@murmur/shared/client";
-import { BrowseIcon, ChevronIcon, CloseIcon, FilterIcon, MusicIcon, PlusIcon, SearchIcon } from "@/components/icons";
+import { BrowseIcon, CloseIcon, FilterIcon, MusicIcon, PlusIcon, SearchIcon } from "@/components/icons";
 import { GAP, Group, PAD, useGridWidth } from "@/components/library";
 import { Eyebrow } from "@/components/listening";
 import { AlbumAddRow, AlbumCard, AlbumSortSheet, openArtist, PlayButton, ShuffleButton, SongRow, SongSheet, useAlbumSort } from "@/components/music";
@@ -24,7 +24,7 @@ import { Empty, PageTitle, useTopInset } from "@/components/page";
 import { NamePlaylistSheet, openPlaylist, PlaylistCard } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, ListRowBone, SectionBone, Skeleton } from "@/components/skeleton";
-import { Button, Chips, IconButton, Text } from "@/components/ui";
+import { Button, CardLink, Chips, IconButton, Text } from "@/components/ui";
 import { createPlaylist, setInMusic, useAlbums, useArtists, useMusicSummary, usePlaylists, useTracks } from "@/lib/data";
 import { playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
@@ -288,39 +288,20 @@ export default function Music() {
 function BrowseRow({ notAdded, fresh }: { notAdded: number; fresh: number }) {
   const t = useTheme();
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={fresh ? `Browse, ${fresh} new` : "Browse"}
+    <CardLink
+      icon={<BrowseIcon size={22} color={t.accent} />}
+      title="Browse"
+      sub={notAdded > 0 ? `${plural(notAdded, "album")} you haven't added` : "Everything is in your music"}
+      label={fresh ? `Browse, ${fresh} new` : "Browse"}
       onPress={() => router.push("/browse")}
-      style={({ pressed }) => ({
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 14,
-        padding: 14,
-        borderRadius: 14,
-        backgroundColor: t.surface,
-        // White on the light page needs an edge to read as a card.
-        borderWidth: t.isDark ? 0 : 1,
-        borderColor: t.line,
-        opacity: pressed ? 0.75 : 1,
-      })}
-    >
-      <View style={{ width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: t.surface2 }}>
-        <BrowseIcon size={22} color={t.accent} />
-      </View>
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text variant="bodyStrong">Browse</Text>
-        <Text variant="small" numberOfLines={1}>
-          {notAdded > 0 ? `${plural(notAdded, "album")} you haven't added` : "Everything is in your music"}
-        </Text>
-      </View>
-      {fresh > 0 ? (
-        <View style={{ height: 22, paddingHorizontal: 8, borderRadius: 11, justifyContent: "center", backgroundColor: t.accent }}>
-          <Text style={{ fontFamily: fonts.extrabold, fontSize: 11, color: t.onAccent }}>{`${fresh} new`}</Text>
-        </View>
-      ) : null}
-      <ChevronIcon size={20} color={t.faint} />
-    </Pressable>
+      badge={
+        fresh > 0 ? (
+          <View style={{ height: 22, paddingHorizontal: 8, borderRadius: 11, justifyContent: "center", backgroundColor: t.accent }}>
+            <Text style={{ fontFamily: fonts.extrabold, fontSize: 11, color: t.onAccent }}>{`${fresh} new`}</Text>
+          </View>
+        ) : null
+      }
+    />
   );
 }
 

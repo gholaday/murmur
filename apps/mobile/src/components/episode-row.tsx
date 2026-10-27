@@ -7,7 +7,7 @@ import { downloadEpisode, removeDownload, useDownload } from "@/lib/downloads";
 import { episodeToPlayable, isCurrent, markCurrent, play, queueAdd, queueReplace, toggle, useItemPosition, usePlayer } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { AdsCheckedIcon, DownloadIcon, PauseIcon, PlayedIcon, PlayIcon, PlayNextIcon, QueueAddIcon } from "./icons";
+import { AdsCheckedIcon, DownloadIcon, PauseIcon, PlayedIcon, PlayIcon, QueueAddIcon } from "./icons";
 import { RemoveDownloadSheet } from "./sheet";
 import { toast } from "./toast";
 import { IconButton, NumberBadge, Text } from "./ui";
@@ -184,9 +184,6 @@ export const EpisodeRow = memo(function EpisodeRow({
               <View style={{ width: `${pct}%`, height: "100%", backgroundColor: t.accent }} />
             </View>
           ) : null}
-          <ActionIcon label="Play next" disabled={busy || current} onPress={() => void run(() => queueAdd(ref, "next"), "Plays next")}>
-            <PlayNextIcon size={20} color={t.text2} />
-          </ActionIcon>
           <ActionIcon label={queued ? "Remove from Up Next" : "Add to Up Next"} selected={queued} disabled={busy || current} onPress={() => void toggleQueue()}>
             <QueueAddIcon size={20} queued={queued} color={queued ? t.accent : t.text2} />
           </ActionIcon>

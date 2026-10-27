@@ -9,14 +9,16 @@ import { Cover } from "./cover";
 import { CloseIcon, PlayIcon } from "./icons";
 import { PAD } from "./library";
 import { ListMeta } from "./listening";
-import { Empty, SectionTitle, useTopInset } from "./page";
+import { BottomMiniPlayer } from "./mini-player";
+import { Empty, NestedHead, SectionTitle, useBottomPad, useTopInset } from "./page";
 import { ConfirmSheet, RemoveDownloadSheet } from "./sheet";
 import { IconButton, Text } from "./ui";
 
-/** The Listening tab's Downloaded: everything saved on this phone, with sizes and a remove action. */
-export function DownloadsView({ header }: { header: React.ReactNode }) {
+/** Downloads, opened from You: everything saved on this phone, with sizes and a remove action. */
+export function DownloadsView() {
   const t = useTheme();
   const top = useTopInset();
+  const bottom = useBottomPad();
   const all = Object.values(useDownloads()).sort((a, b) => b.savedAt - a.savedAt);
   const books = all.filter((d) => d.type === "book");
   const episodes = all.filter((d) => d.type === "episode");
@@ -27,8 +29,8 @@ export function DownloadsView({ header }: { header: React.ReactNode }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: 24 }}>
-        {header}
+      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }}>
+        <NestedHead title="Downloads" />
         {all.length ? (
           <ListMeta
             text={bytes > 0 ? `${formatBytes(bytes)} on this phone` : ""}
@@ -66,6 +68,7 @@ export function DownloadsView({ header }: { header: React.ReactNode }) {
           </>
         ) : null}
       </ScrollView>
+      <BottomMiniPlayer />
 
       <RemoveDownloadSheet
         open={removing !== null}

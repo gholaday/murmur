@@ -1,10 +1,10 @@
 import { memo, useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { apiPaths, type BookSummary, progressPct } from "@murmur/shared/client";
-import { fetchBook, setFinished } from "@/lib/data";
+import { apiPaths, bookStarted, type BookSummary, progressPct } from "@murmur/shared/client";
+import { fetchBook, setFinished, setPlayNext } from "@/lib/data";
 import { useDownload } from "@/lib/downloads";
-import { bookToPlayable, isCurrent, markCurrent, play, queueAdd, toggle, usePlayer } from "@/player/engine";
+import { bookToPlayable, isCurrent, markCurrent, play, toggle, usePlayer } from "@/player/engine";
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { CheckIcon, DownloadIcon } from "./icons";
@@ -63,7 +63,6 @@ function BookMenu({ book, started, onClose }: { book: BookSummary; started: bool
   const player = usePlayer();
   const current = isCurrent(player, "book", book.id);
   const finished = !!book.progress?.finished;
-  const queued = player.queue.some((q) => q.itemType === "book" && q.itemId === book.id);
 
   const run = (fn: () => Promise<unknown> | void, done?: string) => async () => {
     onClose();
@@ -85,12 +84,12 @@ function BookMenu({ book, started, onClose }: { book: BookSummary; started: bool
           play(bookToPlayable(await fetchBook(book.id)), finished ? 0 : undefined);
         })}
       />
-      <SheetItem label="Play next" disabled={current} onPress={run(() => queueAdd({ itemType: "book", itemId: book.id }, "next"), "Plays next")} />
-      <SheetItem
-        label={queued ? "In Up Next" : "Add to Up Next"}
-        disabled={current || queued}
-        onPress={run(() => queueAdd({ itemType: "book", itemId: book.id }, "last"), "Added to Up Next")}
-      />
+      {bookStarted(book) || current ? null : (
+        <SheetItem
+          label={book.playNext != null ? "Remove from Play next" : "Add to Play next"}
+          onPress={run(() => setPlayNext(book.id, book.playNext == null))}
+        />
+      )}
       <SheetItem
         label={finished ? "Mark as not finished" : "Mark as finished"}
         onPress={run(

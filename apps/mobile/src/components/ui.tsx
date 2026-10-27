@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { selectHaptic } from "@/lib/haptics";
 import { fonts, useTheme, type Theme } from "@/theme";
+import { ChevronIcon } from "./icons";
 
 type Variant = "title" | "heading" | "body" | "bodyStrong" | "small" | "caption";
 
@@ -258,6 +259,54 @@ export function Caption({ children, style }: { children: React.ReactNode; style?
     <Text variant="caption" style={[{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.8 }, style]}>
       {children}
     </Text>
+  );
+}
+
+/** A card that opens a screen: an icon tile, a title over a sub line, an optional badge and a chevron. */
+export function CardLink({
+  icon,
+  title,
+  sub,
+  label,
+  badge,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  sub: string;
+  label?: string;
+  badge?: React.ReactNode;
+  onPress: () => void;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label ?? title}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 14,
+        padding: 14,
+        borderRadius: 14,
+        backgroundColor: t.surface,
+        // White on the light page needs an edge to read as a card.
+        borderWidth: t.isDark ? 0 : 1,
+        borderColor: t.line,
+        opacity: pressed ? 0.75 : 1,
+      })}
+    >
+      <View style={{ width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: t.surface2 }}>{icon}</View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text variant="bodyStrong">{title}</Text>
+        <Text variant="small" numberOfLines={1}>
+          {sub}
+        </Text>
+      </View>
+      {badge}
+      <ChevronIcon size={20} color={t.faint} />
+    </Pressable>
   );
 }
 

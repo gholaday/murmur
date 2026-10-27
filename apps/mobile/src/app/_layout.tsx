@@ -67,6 +67,7 @@ function Navigation() {
           <Stack.Screen name="episode-cache" />
           <Stack.Screen name="users" />
           <Stack.Screen name="tab-settings" />
+          <Stack.Screen name="downloads" />
           <Stack.Screen name="player" options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>

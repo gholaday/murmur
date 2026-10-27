@@ -5,22 +5,20 @@ import { apiPaths, type BookDetail, chapterAt, duration, plural, timeLeft } from
 import { Cover } from "@/components/cover";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { HeroBackdrop } from "@/components/hero";
-import { CheckIcon, DownloadIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "@/components/icons";
+import { CheckIcon, DownloadIcon, MoreIcon, PauseIcon, PlayIcon, PlayNextAddIcon } from "@/components/icons";
 import { openGroup, PAD } from "@/components/library";
-import { openUpNext } from "@/components/listening";
 import { BackRow, Empty, NestedFallback, useBottomPad, SectionTitle, useTopInset } from "@/components/page";
 import { RemoveDownloadSheet, Sheet, SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { Bar, IconButton, Text } from "@/components/ui";
-import { setFinished, useBook } from "@/lib/data";
+import { setFinished, setPlayNext, useBook } from "@/lib/data";
 import { downloadBook, getDownload, removeDownload, useDownload, type Download } from "@/lib/downloads";
 import {
   bookToPlayable,
   isCurrent,
   markCurrent,
   play,
-  queueAdd,
   toggle,
   useItemPosition,
   usePlayer,
@@ -65,7 +63,9 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
   const started = position > 5;
   const pct = book.durationSec ? Math.min(100, (position / book.durationSec) * 100) : 0;
   const currentChapter = started || current ? chapterAt(book.chapters, position) : -1;
-  const queued = player.queue.some((q) => q.itemType === "book" && q.itemId === book.id);
+  // Only a book not yet started can wait on Play next; it leaves the shelf once it starts.
+  const canPlayNext = !started && !current && !book.progress?.finished;
+  const onPlayNext = book.playNext != null;
   const left = timeLeft(book.durationSec, position);
   const [playLabel, playSub] = current
     ? player.playing
@@ -87,16 +87,6 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
       toast.show(done ? "Marked as finished" : "Marked as not finished");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't save that.");
-    }
-  };
-
-  const queue = async (at: "next" | "last") => {
-    setMenu(false);
-    try {
-      await queueAdd({ itemType: "book", itemId: book.id }, at);
-      toast.show(at === "next" ? "Plays next" : "Added to Up Next");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't add that to Up Next.");
     }
   };
 
@@ -194,15 +184,16 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
                 {playSub}
               </Text>
             </Pressable>
-            <RoundButton
-              label={queued ? "In Up Next" : "Add to Up Next"}
-              active={queued}
-              filled={queued}
-              disabled={current}
-              onPress={() => (queued ? openUpNext() : void queue("last"))}
-            >
-              <QueueAddIcon size={22} queued={queued} color={queued ? t.onAccent : t.text} />
-            </RoundButton>
+            {canPlayNext ? (
+              <RoundButton
+                label={onPlayNext ? "Remove from Play next" : "Add to Play next"}
+                active={onPlayNext}
+                filled={onPlayNext}
+                onPress={() => void setPlayNext(book.id, !onPlayNext)}
+              >
+                <PlayNextAddIcon size={22} on={onPlayNext} color={onPlayNext ? t.onAccent : t.text} />
+              </RoundButton>
+            ) : null}
             <RoundButton label={downloadLabel} active={download?.status === "done"} onPress={toggleDownload}>
               {download?.status === "downloading" ? (
                 <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: t.accent }}>{Math.round(download.progress * 100)}%</Text>
@@ -241,8 +232,15 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
 
       <BottomMiniPlayer />
       <Sheet open={menu} onClose={() => setMenu(false)} title={book.title}>
-        <SheetItem label="Play next" disabled={current} onPress={() => void queue("next")} />
-        <SheetItem label="Add to end of Up Next" disabled={current} onPress={() => void queue("last")} />
+        {canPlayNext ? (
+          <SheetItem
+            label={onPlayNext ? "Remove from Play next" : "Add to Play next"}
+            onPress={() => {
+              setMenu(false);
+              void setPlayNext(book.id, !onPlayNext);
+            }}
+          />
+        ) : null}
         <SheetItem label={downloadLabel} onPress={toggleDownload} />
         <SheetItem label={book.progress?.finished ? "Mark as not finished" : "Mark as finished"} onPress={() => void mark(!book.progress?.finished)} />
         {book.progress && !book.progress.finished ? <SheetItem label="Reset progress" onPress={() => void mark(false)} /> : null}

@@ -1,11 +1,15 @@
 import { ScrollView, View } from "react-native";
+import { router } from "expo-router";
 import { plural, THEME_CHOICES } from "@murmur/shared/client";
+import { DownloadIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { PageTitle, useTopInset } from "@/components/page";
 import { Card, useEpisodeCache, useHealth, useServerVersion, useUsers } from "@/components/settings";
 import { NavRow } from "@/components/settings-page";
 import { Eyebrow } from "@/components/listening";
 import { LibraryTiles, ListeningStats } from "@/components/stats";
+import { CardLink } from "@/components/ui";
+import { formatBytes, useDownloads } from "@/lib/downloads";
 import { useSession } from "@/lib/session";
 import { useTheme, useThemeMode } from "@/theme";
 
@@ -21,6 +25,10 @@ export default function You() {
         <PageTitle title="You" sub={user?.username} />
 
         <View style={{ marginTop: 16 }}>
+          <DownloadsRow />
+        </View>
+
+        <View style={{ marginTop: 24 }}>
           <ListeningStats />
           <LibraryTiles />
         </View>
@@ -31,6 +39,21 @@ export default function You() {
         </View>
       </ScrollView>
     </View>
+  );
+}
+
+/** The way into Downloads: how many are on this phone and their size. */
+function DownloadsRow() {
+  const t = useTheme();
+  const all = Object.values(useDownloads());
+  const bytes = all.reduce((sum, d) => sum + d.bytes, 0);
+  return (
+    <CardLink
+      icon={<DownloadIcon size={22} color={t.accent} />}
+      title="Downloads"
+      sub={all.length ? `${all.length} on this phone, ${formatBytes(bytes)}` : "Nothing downloaded"}
+      onPress={() => router.push("/downloads")}
+    />
   );
 }
 
