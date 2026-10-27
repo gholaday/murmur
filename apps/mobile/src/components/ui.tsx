@@ -253,6 +253,43 @@ export function Chips<T extends string | number | boolean | null>({
   );
 }
 
+/** Full-width tabs on a track, for switching a screen between views; the picked one is raised. */
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  style,
+}: {
+  options: readonly { id: T; label: string }[];
+  value: T;
+  onChange: (id: T) => void;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const t = useTheme();
+  return (
+    <View accessibilityRole="tablist" style={[{ flexDirection: "row", gap: 4, padding: 4, borderRadius: 12, backgroundColor: t.surface }, style]}>
+      {options.map((o) => {
+        const selected = o.id === value;
+        return (
+          <Pressable
+            key={o.id}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            onPress={() => {
+              if (selected) return;
+              selectHaptic();
+              onChange(o.id);
+            }}
+            style={{ flex: 1, height: 40, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: selected ? t.surface2 : "transparent" }}
+          >
+            <RNText style={{ fontFamily: selected ? fonts.bold : fonts.semibold, fontSize: 14, color: selected ? t.text : t.muted }}>{o.label}</RNText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 /** Small uppercase label: a field's name, "Playlist" over a title, "Playing from…". */
 export function Caption({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
   return (

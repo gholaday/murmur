@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   apiPaths,
@@ -32,7 +32,7 @@ import { AD_MODES, adPrefsStore, useAdPrefs } from "../player/ad-prefs";
 import { usePlayer } from "../player/engine";
 import { Sheet } from "../sheet";
 import { applyTheme, currentTheme } from "../theme";
-import { BackRow, Chip, Chips, ConfirmRemove, EmptyState, Setting, SettingLink, SettingsCard, SettingSub, StatTile, SwitchRow } from "../ui";
+import { BackRow, Chip, Chips, ConfirmRemove, EmptyState, Segmented, Setting, SettingLink, SettingsCard, SettingSub, StatTile, SwitchRow } from "../ui";
 import { SECTIONS, type SettingsSection } from "./sections";
 import { ListeningStats } from "./stats";
 
@@ -75,8 +75,12 @@ export function ProfileView({
   server: ServerInfo;
 }) {
   const router = useRouter();
+  const params = useSearchParams();
   const player = usePlayer();
   const [theme, setTheme] = useState<ThemeChoice>("system");
+  const view = params.get("tab") === "settings" ? "settings" : "stats";
+  // Same as the library tabs: no server round trip, and Next keeps useSearchParams in step.
+  const show = (next: "stats" | "settings") => window.history.pushState(null, "", next === "stats" ? "/you" : "/you?tab=settings");
   useEffect(() => setTheme(currentTheme()), []);
 
   if (section) {
@@ -155,31 +159,41 @@ export function ProfileView({
   return (
     <>
       <div className="page-head">
-        <div>
-          <h1 className="page-title">You</h1>
-          <div className="page-sub">{user.username}</div>
-        </div>
+        <h1 className="page-title">You</h1>
       </div>
 
-      <ListeningStats tabs={tabs} />
+      <Segmented
+        label="You view"
+        options={[
+          { id: "stats", label: "Stats" },
+          { id: "settings", label: "Settings" },
+        ]}
+        value={view}
+        onChange={show}
+      />
 
-      <section className="section">
-        <h2 className="section-title">Your library</h2>
-        <div className="stats-tiles">
-          <StatTile value={server.books} label="Books" />
-          {tabs.podcasts ? <StatTile value={shows} label="Podcasts" /> : null}
-          {tabs.music && music.enabled ? <StatTile value={music.mine.albums} label="Albums" /> : null}
-        </div>
-      </section>
+      {view === "stats" ? (
+        <>
+          <ListeningStats tabs={tabs} />
 
-      <section className="section">
-        <h2 className="section-title">Settings</h2>
-        <SettingsCard>
-          {SECTIONS.filter((s) => (user.isAdmin || !s.admin) && (s.id !== "podcasts" || tabs.podcasts || user.isAdmin)).map((s) => (
-            <SettingLink key={s.id} title={s.title} value={values[s.id]} href={`/you/${s.id}`} />
-          ))}
-        </SettingsCard>
-      </section>
+          <section className="section">
+            <h2 className="section-title">Your library</h2>
+            <div className="stats-tiles">
+              <StatTile value={server.books} label="Books" />
+              {tabs.podcasts ? <StatTile value={shows} label="Podcasts" /> : null}
+              {tabs.music && music.enabled ? <StatTile value={music.mine.albums} label="Albums" /> : null}
+            </div>
+          </section>
+        </>
+      ) : (
+        <section className="section">
+          <SettingsCard>
+            {SECTIONS.filter((s) => (user.isAdmin || !s.admin) && (s.id !== "podcasts" || tabs.podcasts || user.isAdmin)).map((s) => (
+              <SettingLink key={s.id} title={s.title} value={values[s.id]} href={`/you/${s.id}`} />
+            ))}
+          </SettingsCard>
+        </section>
+      )}
     </>
   );
 }

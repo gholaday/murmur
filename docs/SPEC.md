@@ -355,7 +355,7 @@ The layout follows the familiar podcast-app pattern: bottom tabs, a persistent m
 | Books | Home shelves, then books by title, author or series, and finished; search and filters |
 | Podcasts | Subscribed shows with unplayed counts and new episodes; search or add a show by RSS URL |
 | Music | Your albums, artists, songs and playlists, with Browse for the rest |
-| You | Downloaded at the top in the app (what's saved on the phone, with its size), then listening stats, account, appearance, playback, server, tabs, and admin settings |
+| You | Downloaded at the top in the app (what's saved on the phone, with its size), then Stats and Settings tabs: Stats has the listening stats and your library counts, Settings has account, appearance, playback, server, tabs, and admin settings |
 | Book, show, album, artist or playlist page | Header with cover and colour band, description, chapters, episodes or songs, download and play buttons |
 | Full-screen player | Large cover, chapter or song name, scrubber, speed, sleep timer, skip buttons, chapter list, and an Up Next tile with its count that opens the queue (episodes and songs, drag to reorder, remove, Clear) |
 

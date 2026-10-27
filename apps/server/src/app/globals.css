@@ -302,6 +302,11 @@ select.input { appearance: none; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* Full-width tabs that switch a whole screen (Segmented). */
+.segmented { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface); }
+.segmented button { flex: 1; height: 40px; border-radius: 9px; font-size: 14px; font-weight: 600; color: var(--muted); transition: background 0.15s, color 0.15s; }
+.segmented button[aria-selected="true"] { background: var(--surface-2); color: var(--text); font-weight: 700; }
+.segmented button:hover:not([aria-selected="true"]) { color: var(--text); }
 .count-pill { background: var(--chip); color: var(--muted); margin-left: 8px; vertical-align: 3px; }
 .tab-count, .badge-count, .episode-more { background: var(--accent); color: var(--on-accent); }
 .section-link { font-size: 12px; font-weight: 700; color: var(--accent); }

@@ -39,12 +39,11 @@ export const QueueIcon = (p: IconProps) => (
     <path d="M4 6h16M4 12h16M4 18h10" />
   </Icon>
 );
-/** A card on a stack: plus to add to Up Next, check once it's queued. */
+/** The Up Next list with a plus to add to it, or a check once it's queued. */
 export const QueueAddIcon = ({ queued, ...p }: IconProps & { queued?: boolean }) => (
   <Icon {...p}>
-    <path d="M8 3h10a3 3 0 0 1 3 3v10" />
-    <rect x="3" y="7" width="14" height="14" rx="3" />
-    {queued ? <path d="M7 14l2.5 2.5L13 12" /> : <path d="M10 11v6M7 14h6" />}
+    <path d="M4 6h16M4 12h9M4 18h7" />
+    {queued ? <path d="M14.5 17l2.5 2.5 4.5-5" /> : <path d="M18 13v8M14 17h8" />}
   </Icon>
 );
 /** A bookmark: plus to add a book to Play next, check once it's on the shelf. */

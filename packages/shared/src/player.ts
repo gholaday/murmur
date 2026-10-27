@@ -1,5 +1,5 @@
 import { apiPaths } from "./api-paths";
-import { clock, duration, timeLeft } from "./format";
+import { clock, duration } from "./format";
 import type { ChapterDto, QueueEntry, QueueRef } from "./index";
 
 // Player rules shared by the web player and the app's, so both behave the same.
@@ -92,7 +92,7 @@ export function queueEntryView(e: QueueEntry) {
   return {
     kind: ep.podcastTitle,
     title: ep.title,
-    length: pos > 5 && dur ? timeLeft(dur, pos) : duration(dur),
+    length: duration(pos > 5 && dur ? Math.max(0, dur - pos) : dur),
     cover: ep.podcastCoverHash ? apiPaths.podcastCoverUrl(ep.podcastId, ep.podcastCoverHash, 200) : null,
     color: ep.podcastCoverColor,
     remaining: Math.max(0, dur - pos),

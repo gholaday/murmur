@@ -228,9 +228,8 @@ export const SparkIcon = (p: IconProps) => (
 );
 export const QueueAddIcon = ({ queued, ...p }: IconProps & { queued?: boolean }) => (
   <Icon {...p}>
-    <Path d="M8 3h10a3 3 0 0 1 3 3v10" />
-    <Rect x="3" y="7" width="14" height="14" rx="3" />
-    {queued ? <Path d="M7 14l2.5 2.5L13 12" /> : <Path d="M10 11v6M7 14h6" />}
+    <Path d="M4 6h16M4 12h9M4 18h7" />
+    {queued ? <Path d="M14.5 17l2.5 2.5 4.5-5" /> : <Path d="M18 13v8M14 17h8" />}
   </Icon>
 );
 /** A circled check, filled once played; `checkColor` draws the check on the fill. */

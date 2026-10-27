@@ -105,6 +105,7 @@ export function SettingsSkeleton() {
   return (
     <div className="skeleton" aria-busy="true" aria-label="Loading settings">
       <Head title="You" />
+      <div className="skel" style={{ height: 48, borderRadius: 12 }} />
       {[2, 2, 3].map((rows, s) => (
         <section key={s} className="section">
           <Line width={110} height={16} />

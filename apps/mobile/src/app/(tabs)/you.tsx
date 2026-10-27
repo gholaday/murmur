@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { plural, THEME_CHOICES } from "@murmur/shared/client";
@@ -6,37 +7,48 @@ import { PAD } from "@/components/library";
 import { PageTitle, useTopInset } from "@/components/page";
 import { Card, useEpisodeCache, useHealth, useServerVersion, useUsers } from "@/components/settings";
 import { NavRow } from "@/components/settings-page";
-import { Eyebrow } from "@/components/listening";
 import { LibraryTiles, ListeningStats } from "@/components/stats";
-import { CardLink } from "@/components/ui";
+import { CardLink, Segmented } from "@/components/ui";
 import { formatBytes, useDownloads } from "@/lib/downloads";
 import { useSession } from "@/lib/session";
 import { useTheme, useThemeMode } from "@/theme";
 
-/** Your listening stats and library at the top, then a row for each group of settings. */
+const VIEWS = [
+  { id: "stats", label: "Stats" },
+  { id: "settings", label: "Settings" },
+] as const;
+
+/**
+ * Downloads at the top, then Stats (your listening and library) or Settings (a row for each
+ * group). The tab stays mounted, so the one you're on is kept when you come back.
+ */
 export default function You() {
   const t = useTheme();
   const top = useTopInset();
   const user = useSession().user;
+  const [view, setView] = useState<(typeof VIEWS)[number]["id"]>("stats");
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: 32 }}>
-        <PageTitle title="You" sub={user?.username} />
+        <PageTitle title="You" />
 
         <View style={{ marginTop: 16 }}>
           <DownloadsRow />
         </View>
 
-        <View style={{ marginTop: 24 }}>
-          <ListeningStats />
-          <LibraryTiles />
-        </View>
+        <Segmented options={VIEWS} value={view} onChange={setView} style={{ marginTop: 16 }} />
 
-        <View style={{ gap: 10, marginTop: 24 }}>
-          <Eyebrow>Settings</Eyebrow>
-          <SettingsRows admin={!!user?.isAdmin} username={user?.username} />
-        </View>
+        {view === "stats" ? (
+          <View style={{ marginTop: 24 }}>
+            <ListeningStats />
+            <LibraryTiles />
+          </View>
+        ) : (
+          <View style={{ marginTop: 16 }}>
+            <SettingsRows admin={!!user?.isAdmin} username={user?.username} />
+          </View>
+        )}
       </ScrollView>
     </View>
   );

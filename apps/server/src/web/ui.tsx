@@ -338,6 +338,29 @@ export function ConfirmRemove({
   );
 }
 
+/** Full-width tabs for switching a whole screen between two or three views, like Stats and Settings on You. */
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  options: { id: T; label: string }[];
+  value: T;
+  onChange: (id: T) => void;
+  label: string;
+}) {
+  return (
+    <div className="segmented" role="tablist" aria-label={label}>
+      {options.map((o) => (
+        <button key={o.id} type="button" role="tab" aria-selected={o.id === value} onClick={() => o.id !== value && onChange(o.id)}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** A big number with its label under it. */
 export function StatTile({ value, label }: { value: React.ReactNode; label: React.ReactNode }) {
   return (

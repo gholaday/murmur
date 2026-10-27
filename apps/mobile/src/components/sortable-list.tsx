@@ -10,7 +10,6 @@ import Animated, {
   useFrameCallback,
   useScrollOffset,
   useSharedValue,
-  withDelay,
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
@@ -32,8 +31,6 @@ type Drag = {
   heights: SharedValue<Record<string, number>>;
   /** Every row has been measured once, so rows can glide; until then they're hidden and placed directly. */
   ready: SharedValue<boolean>;
-  /** 1 a moment after ready, once rows are pinned; only then do moves animate. */
-  glide: SharedValue<number>;
   active: SharedValue<string | null>;
   /** The lifted row's top, in list coordinates. */
   activeTop: SharedValue<number>;
@@ -131,7 +128,6 @@ export function SortableList<T>({
   const heights = useSharedValue<Record<string, number>>({});
   const unlocked = useSharedValue(!locked);
   const ready = useSharedValue(false);
-  const glide = useSharedValue(0);
   const active = useSharedValue<string | null>(null);
   const activeTop = useSharedValue(0);
   const pointerY = useSharedValue(0);
@@ -144,22 +140,15 @@ export function SortableList<T>({
   useEffect(() => {
     if (active.get() === null) order.set(keysId ? keysId.split("\n") : []);
     unlocked.set(!locked);
-    if (locked) {
-      ready.set(false);
-      glide.set(0);
-    }
-  }, [keysId, locked, order, active, unlocked, ready, glide]);
+    if (locked) ready.set(false);
+  }, [keysId, locked, order, active, unlocked, ready]);
 
-  // Rows measure one by one on mount; animating then would slide each down as the ones above
-  // it arrive. Once all are measured (and placed directly), later moves glide.
+  // Rows measure one by one on mount; until all are, they stay in plain flow. Then each is
+  // pinned where it is, and only later moves glide (see Row).
   useAnimatedReaction(
     () => unlocked.get() && !ready.get() && order.get().every((k) => heights.get()[k] !== undefined),
     (measured) => {
-      if (measured) {
-        ready.set(true);
-        // Pinned rows start where they were; gliding from their old top would slide them in from 0.
-        glide.set(withDelay(50, withTiming(1, { duration: 0 })));
-      }
+      if (measured) ready.set(true);
     },
   );
 
@@ -211,7 +200,6 @@ export function SortableList<T>({
     order,
     heights,
     ready,
-    glide,
     active,
     activeTop,
     pointerY,
@@ -250,7 +238,19 @@ const RowKey = createContext("");
 function Row({ id, liftInset, children }: { id: string; liftInset: number; children: React.ReactNode }) {
   const t = useTheme();
   const drag = useContext(DragContext)!;
-  const { order, heights, ready, glide, active, activeTop } = drag;
+  const { order, heights, ready, active, activeTop } = drag;
+  // Where the row sits, -1 until pinned. Its first place is set directly and later ones glide,
+  // from a reaction rather than a timer: a frame can be skipped (a sheet opening in a new window
+  // is one), and gliding then would slide every row in from the top.
+  const top = useSharedValue(-1);
+  useAnimatedReaction(
+    () => (ready.value && heights.value[id] !== undefined ? topOf(order.value, heights.value, id) : null),
+    (target) => {
+      if (target === null) top.value = -1;
+      else if (top.value < 0) top.value = target;
+      else top.value = withTiming(target, { duration: active.value === null ? DROP_MS : SLIDE_MS });
+    },
+  );
   const style = useAnimatedStyle(() => {
     const measured = heights.value[id] !== undefined;
     // Until every row is measured they lay out in order as plain views, so the list shows at
@@ -273,10 +273,9 @@ function Row({ id, liftInset, children }: { id: string; liftInset: number; child
         transform: [{ scale: withTiming(1.02, { duration: 120 }) }],
       };
     }
-    const top = topOf(order.value, heights.value, id);
     return {
       position: "absolute",
-      top: measured && glide.value === 1 ? withTiming(top, { duration: active.value === null ? DROP_MS : SLIDE_MS }) : top,
+      top: Math.max(0, top.value),
       left: 0,
       right: 0,
       paddingHorizontal: 0,
@@ -295,6 +294,9 @@ function Row({ id, liftInset, children }: { id: string; liftInset: number; child
         style={[{ left: 0, right: 0 }, style]}
         onLayout={(e) => {
           const h = e.nativeEvent.layout.height;
+          // A sheet's first layout pass reports rows 0 high; counting that as measured pins them
+          // all at the top, and they then glide down to their places.
+          if (h === 0) return;
           // Rows lay out together; merging on the UI thread keeps one row's write from dropping another's.
           heights.modify((sizes) => {
             "worklet";
