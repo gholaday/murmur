@@ -6,7 +6,6 @@ import { Card, useEpisodeCache, useHealth, useServerVersion, useUsers } from "@/
 import { NavRow } from "@/components/settings-page";
 import { Eyebrow } from "@/components/listening";
 import { LibraryTiles, ListeningStats } from "@/components/stats";
-import { useTabPrefs } from "@/lib/data";
 import { useSession } from "@/lib/session";
 import { useTheme, useThemeMode } from "@/theme";
 
@@ -15,7 +14,6 @@ export default function You() {
   const t = useTheme();
   const top = useTopInset();
   const user = useSession().user;
-  const tabs = useTabPrefs();
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -24,7 +22,7 @@ export default function You() {
 
         <View style={{ marginTop: 16 }}>
           <ListeningStats />
-          <LibraryTiles podcasts={tabs.podcasts} />
+          <LibraryTiles />
         </View>
 
         <View style={{ gap: 10, marginTop: 24 }}>

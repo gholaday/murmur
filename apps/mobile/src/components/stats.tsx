@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { apiPaths, duration, localDay, plural, type StatsDto, type StatsPeriod, type StatsTop, statsTopLabel } from "@murmur/shared/client";
 import { api } from "@/lib/api";
-import { useBooks, usePodcasts } from "@/lib/data";
+import { useBooks, useMusicSummary, usePodcasts, useTabPrefs } from "@/lib/data";
 import { fonts, mixColor, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { Eyebrow } from "./listening";
@@ -36,13 +36,19 @@ function useStats(period: StatsPeriod) {
   });
 }
 
-/** The You tab's listening stats: total and bars for a period, the split, tiles and most played. */
+/**
+ * The You tab's listening stats: total and bars for a period, the split, tiles and most played.
+ * Podcasts and music leave the split, tiles and most played while their tabs are off; the total
+ * still counts them.
+ */
 export function ListeningStats() {
   const t = useTheme();
+  const tabs = useTabPrefs();
   const [period, setPeriod] = useState<StatsPeriod>("week");
   const stats = useStats(period);
   const p = PERIODS.find((x) => x.id === period)!;
   const s = stats.data;
+  const top = (s?.top ?? []).filter((x) => (x.kind !== "podcast" || tabs.podcasts) && ((x.kind !== "album" && x.kind !== "song") || tabs.music));
 
   return (
     <View style={{ gap: 14 }}>
@@ -61,7 +67,7 @@ export function ListeningStats() {
               {s.previousSec !== null && s.totalSec + s.previousSec > 0 ? <Text variant="small">{compare(s.totalSec, s.previousSec, p.last)}</Text> : null}
             </View>
             <Bars stats={s} />
-            <SplitBar split={s.split} />
+            <SplitBar split={s.split} podcasts={tabs.podcasts} music={tabs.music} />
           </>
         ) : stats.isError ? (
           <Text variant="small">{"Couldn't load your listening."}</Text>
@@ -78,15 +84,15 @@ export function ListeningStats() {
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
           <Tile value={plural(s.streakDays, "day")} label="Listening streak" />
           <Tile value={plural(s.finishedBooks, "book")} label={`Finished ${p.this}`} />
-          <Tile value={plural(s.episodesPlayed, "episode")} label={`Played ${p.this}`} />
+          {tabs.podcasts ? <Tile value={plural(s.episodesPlayed, "episode")} label={`Played ${p.this}`} /> : null}
           {s.savedSec > 0 ? <Tile value={duration(s.savedSec)} label="Saved by playing faster" /> : null}
         </View>
       ) : null}
 
-      {s?.top.length ? (
+      {top.length ? (
         <View style={{ marginTop: 12 }}>
           <Eyebrow>{`Most played ${p.this}`}</Eyebrow>
-          {s.top.map((x) => (
+          {top.map((x) => (
             <Pressable
               key={`${x.kind}:${x.id}`}
               accessibilityRole="button"
@@ -168,13 +174,13 @@ function Bars({ stats }: { stats: StatsDto }) {
   );
 }
 
-function SplitBar({ split }: { split: StatsDto["split"] }) {
+function SplitBar({ split, podcasts, music }: { split: StatsDto["split"]; podcasts: boolean; music: boolean }) {
   const t = useTheme();
   const rows = [
     { label: "Books", sec: split.book, color: t.accent },
-    { label: "Podcasts", sec: split.episode, color: t.isDark ? PODCAST_COLOR.dark : PODCAST_COLOR.light },
+    ...(podcasts ? [{ label: "Podcasts", sec: split.episode, color: t.isDark ? PODCAST_COLOR.dark : PODCAST_COLOR.light }] : []),
     // Music only shows once you've listened to some.
-    ...(split.music > 0 ? [{ label: "Music", sec: split.music, color: t.isDark ? MUSIC_COLOR.dark : MUSIC_COLOR.light }] : []),
+    ...(music && split.music > 0 ? [{ label: "Music", sec: split.music, color: t.isDark ? MUSIC_COLOR.dark : MUSIC_COLOR.light }] : []),
   ];
   const total = rows.reduce((sum, r) => sum + r.sec, 0);
   return (
@@ -209,19 +215,27 @@ function Tile({ value, label, sub }: { value: string; label: string; sub?: strin
   );
 }
 
-/** Counts from lists the app already has: books (and how many finished) and shows (and new episodes). */
-export function LibraryTiles({ podcasts: showPodcasts }: { podcasts: boolean }) {
+/**
+ * Counts from lists the app already has: books (and how many finished), shows (and new episodes)
+ * and your albums. Podcasts and albums follow their tabs being on.
+ */
+export function LibraryTiles() {
+  const tabs = useTabPrefs();
   const books = useBooks().data;
   const shows = usePodcasts().data;
+  const music = useMusicSummary().data;
   if (!books && !shows) return null;
   const finished = books?.filter((b) => b.progress?.finished).length ?? 0;
   const fresh = shows?.reduce((sum, s) => sum + s.unplayedCount, 0) ?? 0;
   return (
     <View style={{ gap: 14, marginTop: 12 }}>
       <Eyebrow>Library</Eyebrow>
-      <View style={{ flexDirection: "row", gap: 10, marginTop: -4 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: -4 }}>
         {books ? <Tile value={String(books.length)} label={books.length === 1 ? "Book" : "Books"} sub={`${finished} finished`} /> : null}
-        {showPodcasts && shows ? <Tile value={String(shows.length)} label={shows.length === 1 ? "Podcast" : "Podcasts"} sub={`${fresh} new`} /> : null}
+        {tabs.podcasts && shows ? <Tile value={String(shows.length)} label={shows.length === 1 ? "Podcast" : "Podcasts"} sub={`${fresh} new`} /> : null}
+        {tabs.music && music?.enabled ? (
+          <Tile value={String(music.mine.albums)} label={music.mine.albums === 1 ? "Album" : "Albums"} sub={plural(music.mine.tracks, "song")} />
+        ) : null}
       </View>
     </View>
   );
