@@ -25,13 +25,16 @@ Audiobooks/
 
 Murmur only reads this folder. It never renames, moves or edits your files.
 
+**Music (optional)** goes in a folder of its own. Albums and artists come from the songs' tags, so any layout works. Untagged songs are read as `Artist/Album/01 - Title.mp3`, with `CD 1` or `Disc 2` folders counted as part of the album above them. A `cover.jpg`, `folder.jpg` or `front.jpg` in the album folder is used as the cover, otherwise the embedded art.
+
 ## 2. Start the server
 
-Copy [`docker-compose.yml`](../docker-compose.yml) to your server and change the three `/path/to/...` folders:
+Copy [`docker-compose.yml`](../docker-compose.yml) to your server and change the `/path/to/...` folders:
 
 | Folder | What it's for |
 | --- | --- |
 | `/path/to/audiobooks` | Your library, mounted read-only |
+| `/path/to/music` | Optional: your music, mounted read-only. Uncomment it and `MUSIC_DIR=/music` to turn on the Music tab |
 | `/path/to/murmur/data` | Database, covers and nightly backups. Back this up |
 | `/path/to/murmur/cache` | Podcast episodes kept on the server. Safe to lose |
 
@@ -45,7 +48,7 @@ docker compose up -d
 
 Open `http://<server>:3333` and create an account. The first account becomes the admin, and a library scan starts right away; a large library takes a few minutes the first time.
 
-Other users can be added in **Settings > Users**. Each has their own progress, podcasts and Up Next.
+Other users can be added in **You > Users**. Each has their own progress, podcasts, music and Up Next.
 
 ## 3. Reach it from outside your network
 
@@ -92,7 +95,7 @@ Chrome only offers a full-screen install when Murmur is served over HTTPS, so se
 
 In **Podcasts**, search by name or paste an RSS feed URL. To bring your shows over from another podcast app, use **Import OPML** in the same place.
 
-Feeds are checked every 30 minutes, and the newest 3 episodes of each show are kept on the server so they start instantly. Admins can change the 3 in **Settings > Podcasts**.
+Feeds are checked every 30 minutes, and the newest 3 episodes of each show are kept on the server so they start instantly. Admins can change the 3 in **You > Podcasts**.
 
 ## 6. Optional: ad detection
 
@@ -117,7 +120,7 @@ In Portainer, use **Update the stack** as described in step 2. Database changes 
 
 ## When something's wrong
 
-- **Books are missing:** check that the library folder is mounted and readable inside the container, and look at **Settings > Library**, which shows each folder's status. Network shares that don't report file changes need `WATCH_POLLING=true`.
+- **Books are missing:** check that the library folder is mounted and readable inside the container, and look at **You > Library**, which shows each folder's status. Network shares that don't report file changes need `WATCH_POLLING=true`.
 - **The app can't connect:** open the same address in the phone's browser. If that works, check for a login gateway that needs the `/api/*` bypass.
 - **Health check:** `http://<server>:3333/api/health` reports the database, library, scans and version.
 - **Logs:** `docker logs murmur` (and `docker logs murmur-adscan` for the add-on).

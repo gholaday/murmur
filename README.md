@@ -1,15 +1,24 @@
 # Murmur
 
-A self-hosted audiobook and podcast server with a web player and an Android app.
+A self-hosted audiobook, podcast and music server with a web player and an Android app.
 
-Murmur reads your audiobook folders (the Audiobookshelf layout, `Author/[Series]/Title/`), follows podcasts by RSS, and keeps your listening position in sync across devices. It runs as one Docker container, and your library is mounted read-only: Murmur never changes your files.
+Murmur reads your audiobook folders (the Audiobookshelf layout, `Author/[Series]/Title/`), follows podcasts by RSS, plays your music, and keeps your listening position in sync across devices. It runs as one Docker container, and your library is mounted read-only: Murmur never changes your files.
+
+<p>
+  <img src="docs/screenshots/books.webp" width="24%" alt="Books tab with Continue listening, Next in series and Recently added">
+  <img src="docs/screenshots/music.webp" width="24%" alt="Music tab with Browse and album covers">
+  <img src="docs/screenshots/player.webp" width="24%" alt="Full-screen player">
+  <img src="docs/screenshots/stats.webp" width="24%" alt="Listening stats on You">
+</p>
 
 Murmur is inspired by [Audiobookshelf](https://www.audiobookshelf.org/), and reads the same library layout, so an existing Audiobookshelf library works without moving anything. It aims for a smaller feature set that's simple to run.
 
 - **Audiobooks:** single-file `.m4b` and multi-file books, chapters, series, home shelves, and optional metadata matching from Audible (always confirmed by you).
 - **Podcasts:** search or add by RSS URL, OPML import and export, Up Next, and the newest episodes kept on the server.
+- **Music (optional):** albums, artists and songs read from their tags, your own music and playlists for each person, songs in Up Next, and album matching from MusicBrainz and Deezer.
+- **Listening stats:** time listened by week, month, year or all time, your streak, and what you played most.
 - **Players:** a web player and an Android app with background playback, offline downloads, speed control and a sleep timer. On an iPhone, the web player can be added to the home screen to open like an app.
-- **Multiple users,** each with their own progress, subscriptions and queue.
+- **Multiple users,** each with their own progress, subscriptions, queue and music. Podcasts and Music can each be hidden by anyone who doesn't use them.
 - **Optional podcast ad skipping:** a separate add-on finds the ads in episodes. Each device then chooses to play them as usual, mark them on the seek bar with a Skip ad button, or skip them automatically with Undo. Set up in [addons/adscan](addons/adscan/README.md).
 
 ## Get started
@@ -25,8 +34,10 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
+      # - MUSIC_DIR=/music
     volumes:
       - /path/to/audiobooks:/audiobooks:ro
+      # - /path/to/music:/music:ro
       - /path/to/murmur/data:/data
       - /path/to/murmur/cache:/cache
 ```
@@ -45,7 +56,8 @@ All optional.
 | --- | --- | --- |
 | `PUID` / `PGID` | `1000` | User and group that own the files in `/data` and `/cache` |
 | `TZ` | `UTC` | Time zone, for the nightly backup hour |
-| `LIBRARY_DIR` | `/audiobooks` | First library folder; more can be added in Settings |
+| `LIBRARY_DIR` | `/audiobooks` | First library folder; more can be added under You > Library |
+| `MUSIC_DIR` | | First music folder, such as `/music`; more can be added under You > Library. Without one, music doesn't show |
 | `DATA_DIR` | `/data` | Database, covers and backups |
 | `AUDIBLE_REGION` | `us` | Store used by Match: `us`, `uk`, `ca`, `au`, `de`, `fr`, `it`, `es`, `in`, `jp` |
 | `GOOGLE_BOOKS_API_KEY` | | Optional, free from the [Google Cloud console](https://console.cloud.google.com/apis/library/books.googleapis.com) (enable the Books API, then create an API key). Without one, Match shares Google's small per-address quota and may be told to wait |

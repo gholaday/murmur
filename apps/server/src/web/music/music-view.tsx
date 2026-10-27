@@ -304,12 +304,7 @@ export function MusicView({
   return (
     <>
       <div className="page-head">
-        <h1 className="page-title">
-          Music
-          <span className="count-pill" aria-label={plural(albums.length, "album")}>
-            {albums.length}
-          </span>
-        </h1>
+        <h1 className="page-title">Music</h1>
         <div className="head-actions">
           <button
             type="button"

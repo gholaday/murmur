@@ -17,11 +17,14 @@ services:
       - EPISODE_CACHE_MAX_GB=20
       # Match searches Google Books too. Optional free key so it isn't held to Google's shared quota.
       # - GOOGLE_BOOKS_API_KEY=
+      # Music (optional): uncomment this and the /music volume below. Leaving it out hides music.
+      # - MUSIC_DIR=/music
       # Ad detection (optional): uncomment, set any long random value, and add the same value to
       # murmur-adscan below. Leaving it out turns ad detection off.
       # - ADDON_SECRET=change-me-to-a-long-random-string
     volumes:
       - /path/to/audiobooks:/audiobooks:ro
+      # - /path/to/music:/music:ro
       - /path/to/murmur/data:/data
       # Cached podcast episodes. Not worth backing up.
       - /path/to/murmur/cache:/cache

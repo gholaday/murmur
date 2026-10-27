@@ -4,7 +4,7 @@ How Murmur works and why. For installing it, see [Getting started](GETTING_START
 
 ## Overview
 
-Murmur is a self-hosted server for audiobooks and podcasts, with a web player and an Android app. It reads an existing audiobook folder (the Audiobookshelf layout), follows podcasts by RSS, and keeps listening progress in sync across devices. It runs as one Docker container.
+Murmur is a self-hosted server for audiobooks, podcasts and music, with a web player and an Android app. It reads an existing audiobook folder (the Audiobookshelf layout), follows podcasts by RSS, plays music from a folder of albums, and keeps listening progress in sync across devices. It runs as one Docker container.
 
 It trades breadth for reliability: fewer features than larger media servers, each one solid.
 
@@ -12,7 +12,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 
 - **Phone first.** The Android app is the main way to listen; the web player covers the desktop and admin work.
 - **One container, one volume of state.** No separate database, cache or worker containers. Optional add-ons (ad detection) run beside it, and Murmur works the same without them.
-- **Files are the source of truth.** Folder names and embedded tags decide metadata. Online lookups happen only when an admin asks for them and confirms the result.
+- **Files are the source of truth.** Folder names and embedded tags decide metadata. Online lookups happen only when an admin asks for them and confirms the result. The one exception is artist photos, which are looked up by name after a music scan (see Music).
 - **Boring to run.** Pinned versions, updates are a redeploy, backups are copying one folder.
 - **One language.** TypeScript across server, web and app.
 
@@ -25,7 +25,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 - Book page: cover, author, narrator, series and position, description, duration, chapter list
 - Single-file `.m4b` and multi-file books, played as one continuous timeline
 - Automatic rescan when files are added, moved or removed
-- One or more library folders, managed by the admin in Settings (seeded from `LIBRARY_DIR` on first start), each checked before it's saved
+- One or more library folders, managed by the admin under You > Library (seeded from `LIBRARY_DIR` on first start), each checked before it's saved
 - Mark finished, reset progress
 - Metadata Match and editing for admins (see Metadata)
 
@@ -36,6 +36,21 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 - Episodes stream through the server, which keeps the newest episodes of each followed show on disk (see Podcast episode cache and ad detection); the phone can download any episode
 - Up Next queue, and played, unplayed and archived states per episode
 - Optional ad detection: ads marked on the seek bar, Skip ad, or Auto-skip with Undo
+
+**Music** (optional; see Music)
+
+- Music folders managed by the admin under You > Library (seeded from `MUSIC_DIR`); with none, music doesn't show anywhere
+- Albums, artists and songs from the tags, with covers from the folder or the files
+- Your music: each person adds the albums or songs they want, and Browse has the rest
+- Play or shuffle an album, an artist's songs, your songs or a playlist, with the next song loaded early so albums play without a gap
+- Playlists of your own, and single songs in Up Next
+- Download albums or songs to the phone
+- Album Match and artist photos for admins
+
+**Listening stats**
+
+- On You: time listened this week, month, year or all time against the period before, a chart, the split between books, podcasts and music, your streak, and what you played most
+- Podcasts and Music can each be hidden per person under Tabs; their tabs and their parts of You go away
 
 **Player**
 
@@ -54,7 +69,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 
 **Accounts**
 
-- Multiple users, each with their own progress, subscriptions and queue
+- Multiple users, each with their own progress, subscriptions, queue, music and playlists
 - The first account is the admin, who manages users and library settings
 - Login with username and password; the app keeps a long-lived token
 
@@ -273,6 +288,59 @@ Edits are stored in the same override row as a match, so a rescan keeps them and
 
 **Podcasts:** show and episode titles, artwork, descriptions and durations come from the RSS feed itself.
 
+## Music
+
+Music is optional. It comes from one or more music folders, managed by the admin under You > Library, next to the book folders. The first is seeded from `MUSIC_DIR`, and no folder may sit inside another of either kind, so nothing is scanned twice. With no music folder, nothing about music shows anywhere.
+
+**Scanning**
+
+- Music is read file by file, not folder by folder, and a file is probed again only when its size or modified time changes. It has its own watcher and the same missing-file grace period as books.
+- Albums are grouped by album artist plus album title. The album artist falls back to the song's artist. A song by someone other than the album artist (a compilation or a feature) is filed under the album and listed on its own artist's page under Appears on.
+- **Untagged files:** the folder is the album, its parent folder the artist, and the file name the title. A leading `01 - ` is the track number, and `CD 1` or `Disc 2` folders belong to the album above them.
+- **Covers:** `cover.jpg`, `folder.jpg` or `front.jpg` in the album folder, else the first song's embedded picture.
+- Older ID3 tags split "AC/DC" on the slash. The parts are joined back when the joined name is the album artist.
+- The grouping rules are in `music/parse.ts`, with unit tests.
+
+**Your music**
+
+- Music is per person: a list of songs (`user_tracks`), and everyone starts with none. Adding an album adds its songs. Album and artist state is worked out from the songs, so nothing else is stored.
+- The Music tab shows your music as Albums, Artists, Songs and Playlists. Browse, above the chips, has every album, filtered to All, Not added, or New (found in the last 14 days). The UI never mentions the server.
+- Lists take `scope=mine` or `scope=all`; the server defaults to `all`.
+- There's no following of artists, so songs the server gets later aren't added for you.
+
+**Playback**
+
+- A song always plays from the start at 1×, keeps no position and is never marked finished. It counts as played after 30 seconds or half its length, whichever is shorter (`track_plays`, kept per person with no foreign key, like progress).
+- Playing an album, an artist's songs, your songs or a playlist saves a play context (`play_context`, one row per person). Up Next shows the rest of it as one row that opens up. When a song ends, the next one in the context plays, then Up Next.
+- Two players take turns: the spare one loads the next song 10 seconds before the end and takes over at once.
+- Previous and next step through songs in the player, the media session and the notification. Speed is hidden.
+- Song time counts in the listening stats as Music.
+
+**Playlists and Up Next**
+
+- Playlists are each person's own (`playlists`, `playlist_tracks`). A playlist plays as its own context, and its songs can be reordered by dragging, removed, renamed or deleted. `.m3u` files in the music folders are not read.
+- Every song has a menu: Play next, Add to Up Next, Add to playlist, Go to album.
+- Up Next takes single songs. Play next during an album or playlist puts the song right after the current one in that context. With nothing playing from a context, it goes to the front of Up Next. A song played from Up Next plays on its own and ends the context.
+
+**Downloads (app):** a whole album or one song. Downloaded has a Music section, and downloaded music plays offline.
+
+**Matching (admins)**
+
+The books pattern, for albums: "Match metadata…" in an album's menu, and Match all under Browse's Not matched filter, with the same dialog, compare table and review screen as books.
+
+- **Sources:** MusicBrainz (covers from the Cover Art Archive) and Deezer are searched together. Apple Music is asked only when neither has a result scoring 70 or more. All three are free with no key, and go through the 30-day provider cache. On a tie, MusicBrainz wins, because Deezer and Apple often list a reissue's year. MusicBrainz is held to one request a second, with one retry when it's busy.
+- **Scoring** (`music/match-score.ts`, with tests): title 40, artist 35, song count 25. Edition words ("Deluxe", "Remastered") and catalog numbers ("[2156]") are left out. A different song count is never suggested.
+- **Fields:** cover (only when bigger), title, year, genre, and song titles and numbers. Songs are offered only in a single album's Match, and only when the result has the same number of songs; they're paired by position. Match all only fills a missing year or genre and never touches songs.
+- Values go in `album_overrides` and `track_overrides`, so a rescan keeps them. Undo match removes both.
+
+**Artist photos**
+
+- After each music scan, Deezer is searched by name for album artists with no photo. A match counts only when the names are the same once normalised; with several, the one with the most fans wins. Nothing found is tried again after 30 days.
+- Photos are kept in `artist_photos` by name key, so a rescan that recreates the artist keeps them. Without one, the artist shows their newest album's cover.
+- "Change photo…" on the artist page (admins) picks another or goes back to the album cover.
+
+**Rejected:** audio fingerprinting (AcoustID needs `fpcalc` in the image and decoding every file), and TheAudioDB and fanart.tv (both need API keys).
+
 ## Android app
 
 The layout follows the familiar podcast-app pattern: bottom tabs, a persistent mini player, and a full-screen player tinted from the cover art. Design mockups are in `docs/mockups/`.
@@ -281,13 +349,15 @@ The layout follows the familiar podcast-app pattern: bottom tabs, a persistent m
 
 | Tab or screen | Contents |
 | --- | --- |
-| Library | Home shelves, then books by title, author or series, finished, and downloaded; search and filters |
+| Books | Home shelves, then books by title, author or series, and finished; search and filters |
 | Podcasts | Subscribed shows with unplayed counts and new episodes; search or add a show by RSS URL |
-| Up Next | The queue across books and episodes, drag to reorder |
-| Downloads | Books and episodes saved on the phone, with their size |
-| Settings | Server and account, playback defaults, ad handling on this device, and admin settings |
-| Book or show page | Header with cover and colour band, description, chapters or episode list, download and play buttons |
-| Full-screen player | Large cover, chapter name, scrubber, speed, sleep timer, skip buttons, chapter list |
+| Music | Your albums, artists, songs and playlists, with Browse for the rest |
+| Listening | Up Next (books, episodes and songs, drag to reorder) and Downloaded (what's saved on the phone, with its size) |
+| You | Listening stats, then account, appearance, playback, server, tabs, and admin settings |
+| Book, show, album, artist or playlist page | Header with cover and colour band, description, chapters, episodes or songs, download and play buttons |
+| Full-screen player | Large cover, chapter or song name, scrubber, speed, sleep timer, skip buttons, chapter list |
+
+Podcasts and Music can be turned off under You > Tabs; Books, Listening and You are always there.
 
 **Look and feel:** dark theme by default with a light option; periwinkle accent (#8E9BFF on dark, #4F5BD5 on light); the player background takes its colour from the cover; large touch targets.
 
@@ -404,7 +474,8 @@ One Docker Compose stack; see `docker-compose.yml` in the repo root and [Getting
 
 | Mount | Purpose | Notes |
 | --- | --- | --- |
-| `/audiobooks` | The audiobook library (`LIBRARY_DIR`, the first library folder) | Read-only: Murmur never writes to or renames your files. Mount more folders and add them in Settings |
+| `/audiobooks` | The audiobook library (`LIBRARY_DIR`, the first library folder) | Read-only: Murmur never writes to or renames your files. Mount more folders and add them under You > Library |
+| `/music` | Optional music folder (`MUSIC_DIR`, the first music folder) | Read-only, like the audiobooks. Leave it out and music doesn't show |
 | `/data` | SQLite database, cover cache and backups | The only thing to back up |
 | `/cache` | Cached podcast episodes | Without it episodes are relayed. Not worth backing up. The ad add-on mounts it read-only |
 
@@ -424,7 +495,8 @@ These are left out on purpose; each can be added later if it earns its place.
 
 **Not planned**
 
-- Automatic or bulk online metadata matching (matching is manual and confirmed)
+- Automatic online metadata matching for books (Match and Match all are started by an admin and confirmed)
+- Reading `.m3u` playlists from the music folders
 - Transcoding or format conversion; files are served as they are
 - Editing tags or moving files
 - Ebooks and comics
@@ -435,7 +507,8 @@ These are left out on purpose; each can be added later if it earns its place.
 
 - Android Auto through a small native Media3 module
 - Bookmarks and clips with notes
-- Listening stats and yearly recap
+- A yearly listening recap
+- Smart music mixes, and trimming silence between songs
 - Smart shelves and collections
 - Home screen widget and Chromecast
 - Skip ad in the mini player

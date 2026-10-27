@@ -20,12 +20,11 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 <div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #111214; color: #F3F1EC; font-family: 'Plus Jakarta Sans', sans-serif;">
 
 <div style="padding: 28px 20px 0 20px; display: flex; flex-direction: column; gap: 18px;">
-<div style="display: flex; align-items: flex-end; justify-content: space-between;">
-<div style="display: flex; flex-direction: column; gap: 4px;">
-<div style="display: flex; align-items: center; gap: 8px;"><h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.5px;">Up Next</h1><span style="display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 10px; background: #212226; color: #A9A7A2; font-size: 12px; font-weight: 700;">4</span></div>
-<span style="font-size: 13px; color: #A9A7A2;">8h 34m total</span>
-</div>
-<button style="height: 44px; padding: 0 4px; font-size: 14px; font-weight: 700; color: #8E9BFF;">Clear</button>
+<h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.5px;">Listening</h1>
+
+<div role="tablist" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: #1A1B1F;">
+<button role="tab" aria-selected="true" style="height: 40px; border-radius: 10px; background: #26272C; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 700;">Up Next<span style="display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #8E9BFF; color: #141833; font-size: 12px; font-weight: 800;">4</span></button>
+<button role="tab" aria-selected="false" style="height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 600; color: #A9A7A2;">Downloaded<span style="display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #212226; color: #A9A7A2; font-size: 12px; font-weight: 700;">7</span></button>
 </div>
 
 <div style="display: flex; flex-direction: column; gap: 10px;">
@@ -69,11 +68,12 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 <div style="position: absolute; left: 0; bottom: 0; height: 2px; width: 62%; background: #8E9BFF;"></div>
 </a>
 
-<nav style="position: absolute; left: 0; right: 0; bottom: 0; height: 72px; background: #17181B; border-top: 1px solid #26272B; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));">
-<a href="Main.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #9A9AA0; font-size: 11px; font-weight: 600;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v14"></path><path d="M3 5.5A1.5 1.5 0 0 1 4.5 4H9a3 3 0 0 1 3 3 3 3 0 0 1 3-3h4.5A1.5 1.5 0 0 1 21 5.5v11a1.5 1.5 0 0 1-1.5 1.5H15a3 3 0 0 0-3 3 3 3 0 0 0-3-3H4.5A1.5 1.5 0 0 1 3 16.5z"></path></svg>Library</a>
-<a href="Podcasts.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #9A9AA0; font-size: 11px; font-weight: 600;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>Podcasts</a>
-<a href="UpNext.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #8E9BFF; font-size: 11px; font-weight: 700;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>Up Next</a>
-<a href="Main.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #9A9AA0; font-size: 11px; font-weight: 600;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>Settings</a>
+<nav style="position: absolute; left: 0; right: 0; bottom: 0; height: 72px; background: #17181B; border-top: 1px solid #26272B; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));">
+<a href="Main.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #9A9AA0; font-size: 12px; font-weight: 600;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v14"></path><path d="M3 5.5A1.5 1.5 0 0 1 4.5 4H9a3 3 0 0 1 3 3 3 3 0 0 1 3-3h4.5A1.5 1.5 0 0 1 21 5.5v11a1.5 1.5 0 0 1-1.5 1.5H15a3 3 0 0 0-3 3 3 3 0 0 0-3-3H4.5A1.5 1.5 0 0 1 3 16.5z"></path></svg>Books</a>
+<a href="Podcasts.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #9A9AA0; font-size: 12px; font-weight: 600;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>Podcasts</a>
+<a href="Music.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #9A9AA0; font-size: 12px; font-weight: 600;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>Music</a>
+<a href="Listening.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #8E9BFF; font-size: 12px; font-weight: 700;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h13M3 12h9M3 18h9"></path><path d="M16 12l5 3.5-5 3.5z"></path></svg>Listening</a>
+<a href="You.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #9A9AA0; font-size: 12px; font-weight: 600;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>You</a>
 </nav>
 </div>
 </x-dc>
@@ -84,6 +84,7 @@ return {
 queue: [
 { kind: '99% Invisible', title: 'The Shape of Sound', sub: '42 min', downloaded: true, color: '#2F5F5A' },
 { kind: 'Darknet Diaries', title: 'The Vending Machine Hack', sub: '58 min', downloaded: false, color: '#44506B' },
+{ kind: 'Fleetwood Mac', title: 'Dreams', sub: '4 min', downloaded: true, color: '#6B4F2E' },
 { kind: 'Susanna Clarke', title: 'Piranesi', sub: '5h 12m left', downloaded: false, color: '#2F5F5A' },
 { kind: 'The Rest Is History', title: 'The Fall of Constantinople, Part 1', sub: '1h 2m', downloaded: false, color: '#8A6A2E' }
 ]
