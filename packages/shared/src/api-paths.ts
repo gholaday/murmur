@@ -13,6 +13,10 @@ export const apiPaths = {
   episodeAds: (episodeId: string) => `/api/episodes/${episodeId}/ads`,
   /** GET your settings, PUT the ones that changed. */
   prefs: "/api/me/prefs",
+  /** POST adds the book to the end of your Play next shelf, DELETE takes it off. */
+  bookPlayNext: (bookId: string) => `/api/books/${bookId}/play-next`,
+  /** PUT { bookIds } sets the shelf's order. */
+  playNextOrder: "/api/play-next",
 
   /** MusicSummaryDto: whether there's music, and how much. */
   music: "/api/music",

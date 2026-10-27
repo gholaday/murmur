@@ -20,6 +20,7 @@ interface BookRow {
   p_finished: number | null;
   p_updated: number | null;
   p_speed: number | null;
+  play_next: number | null;
 }
 
 // Matched or edited values (book_overrides) win over scanned ones; a null override keeps the
@@ -31,11 +32,14 @@ const SUMMARY_COLUMNS = `
   CASE WHEN o.series IS NOT NULL THEN o.series_position ELSE b.series_position END AS series_position,
   b.duration_sec, COALESCE(o.cover_hash, b.cover_hash) AS cover_hash, b.added_at, b.missing_since,
   (o.provider IS NOT NULL OR o.marked_matched = 1) AS matched, COALESCE(o.marked_matched, 0) AS marked_matched,
-  p.position_sec AS p_position, p.finished AS p_finished, p.updated_at AS p_updated, p.speed AS p_speed`;
+  p.position_sec AS p_position, p.finished AS p_finished, p.updated_at AS p_updated, p.speed AS p_speed,
+  pn.position AS play_next`;
 
+/** Takes the user's id twice: once for progress, once for Play next. */
 const JOINS = `
   LEFT JOIN book_overrides o ON o.book_id = b.id
-  LEFT JOIN progress p ON p.user_id = ? AND p.item_type = 'book' AND p.item_id = b.id`;
+  LEFT JOIN progress p ON p.user_id = ? AND p.item_type = 'book' AND p.item_id = b.id
+  LEFT JOIN play_next pn ON pn.user_id = ? AND pn.book_id = b.id`;
 
 function toSummary(r: BookRow, colors: Map<string, string>): BookSummary {
   return {
@@ -52,6 +56,7 @@ function toSummary(r: BookRow, colors: Map<string, string>): BookSummary {
     missingSince: r.missing_since,
     matched: r.matched === 1,
     markedMatched: r.marked_matched === 1,
+    playNext: r.play_next,
     progress:
       r.p_updated === null
         ? null
@@ -72,7 +77,7 @@ export async function listBooks(ctx: AppContext, userId: number): Promise<BookSu
        WHERE b.missing_since IS NULL OR b.missing_since > ?
        ORDER BY b.added_at DESC, b.title`,
     )
-    .all(userId, Date.now() - env.missingGraceMs) as BookRow[];
+    .all(userId, userId, Date.now() - env.missingGraceMs) as BookRow[];
   const colors = await coverColors(env.coversDir, rows.map((r) => r.cover_hash));
   return rows.map((r) => toSummary(r, colors));
 }
@@ -82,7 +87,7 @@ export async function booksByIds(ctx: AppContext, ids: string[], userId: number)
   if (ids.length === 0) return [];
   const rows = ctx.sqlite
     .prepare(`SELECT ${SUMMARY_COLUMNS} FROM books b ${JOINS} WHERE b.id IN (${ids.map(() => "?").join(",")})`)
-    .all(userId, ...ids) as BookRow[];
+    .all(userId, userId, ...ids) as BookRow[];
   const colors = await coverColors(env.coversDir, rows.map((r) => r.cover_hash));
   return rows.map((r) => toSummary(r, colors));
 }
@@ -95,7 +100,7 @@ export async function getBook(ctx: AppContext, id: string, userId: number): Prom
          o.provider AS o_provider, o.provider_id AS o_provider_id, o.matched_at AS o_matched_at
        FROM books b ${JOINS} WHERE b.id = ?`,
     )
-    .get(userId, id) as
+    .get(userId, userId, id) as
     | (BookRow & {
         description: string | null;
         year: string | null;

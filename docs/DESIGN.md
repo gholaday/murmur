@@ -9,7 +9,7 @@ The values below come from [`apps/server/src/app/globals.css`](../apps/server/sr
 - **Plain words, sentence case.** Titles, buttons and labels are sentence case ("Continue listening", "Add to playlist"). Eyebrow labels are typed in sentence case and uppercased by CSS.
 - **Talk to the listener as "you".** "Your music", "Your queue is empty", "48 albums you haven't added". Never "the user", never "I".
 - **Name things the way a listener does.** Say "server" or "Downloaded", never "NAS". The music screens never mention the server at all.
-- **Controls say exactly what they do, and toasts confirm it.** "Play next", "Add to Up Next", "Remove from this playlist", then a toast "Removed from the playlist" with Undo. "Delete playlist" is the danger item, and the toast says "Deleted Road trip".
+- **Controls say exactly what they do, and toasts confirm it.** "Add to Play next", "Add to Up Next", "Remove from this playlist", then a toast "Removed from the playlist" with Undo. "Delete playlist" is the danger item, and the toast says "Deleted Road trip".
 - **Empty states say what's missing and how to fix it.** A bold line, then one muted sentence: "No songs yet" / "Add songs from the menu on any song, with Add to playlist."
 - **No dot separators.** Never join metadata as "4 books · Recently added". Use a count pill beside the heading, a second line, or a few pills.
 - **Don't repeat what's already on screen.** The sort order lives on the sort button, not in the heading.
@@ -83,7 +83,7 @@ Use tabular figures wherever numbers sit in a column or tick over.
 
 ## Layout
 
-- Phones get a bottom tab bar: Books, Podcasts, Music, Listening, You. The mini player floats 8px above it.
+- Phones get a bottom tab bar: Books, Podcasts, Music, You. The mini player floats 8px above it.
 - From 900px wide the tabs become a 220px sidebar with the Murmur mark, and the page is a centred column of at most 1080px.
 - Podcasts and Music can be hidden per person. When one is, its tab and its parts of You go away.
 - **Nested screens:** the back arrow sits alone on the top row, with the title on the row below it, never beside it. A ⋯ menu may share the arrow's row on the right.
@@ -118,8 +118,9 @@ Web class names are in `globals.css`; the app has matching components under `app
 - **List row** (`.list-row`, `.queue-row`). Thumbnail, bold title, one muted sub line, trailing controls (length, ⋯ menu, drag handle). The left part is the tap target. The playing row's title is `accent`.
 - **Track list** (`.track-list`, `.chapter-list`). Numbered rows for an album's songs or a book's chapters, numbers right-aligned and tabular, no thumbnails.
 - **Mini player** (`.mini`). Cover, title, sub line, transport and a 2px accent progress line. Books and episodes get skip back 10 / forward 30; songs get previous / next, never speed or skip-seconds.
-- **Tab bar** (`.tabs`). The five tabs in a fixed order with their icons; Listening carries the queue count. Settings live on You, not in the bar.
-- **Sheet** (`Sheet`, `SheetItem` in `web/sheet.tsx`). Rises from the bottom for item menus and one- or two-field forms. Items are verbs; a danger item goes last. Close it before acting and confirm with a toast. No browser dialogs.
+- **Tab bar** (`.tabs`). The four tabs in a fixed order with their icons. Settings live on You, not in the bar.
+- **Sheet** (`Sheet`, `SheetItem` in `web/sheet.tsx`). Rises from the bottom for item menus, one- or two-field forms and lists like Up Next. Items are verbs; a danger item goes last. Close it before acting and confirm with a toast. No browser dialogs. A sheet can carry a grey count, a sub line and one action (like Clear) in its title row; the title row stays put and only the content under it scrolls, at most 85% of the screen tall.
+- **Player tiles** (`.tile`). Speed, Sleep, Chapters or Ads, and Up Next with a grey count; each opens its control in place or in a sheet.
 - **Settings card** (`SettingsCard`, `Setting`, `SettingSub`, `SettingLink`, `SwitchRow`, `StatusDot`; `.card-box`, `.setting`). Rows with a title, optional sub line, and a value with chevron, a switch or a button. One setting per row. A status dot before the title is green when fine, amber when it needs a look.
 - **Confirm remove** (`ConfirmRemove`). A danger button that turns into Keep and the confirm button on the first click, for removing a folder or a user.
 - **Form controls** (`.input`, `.switch`, checkboxes). 44px inputs on `surface` with a `line` border that turns `accent` on focus. Placeholders say what to type ("Playlist name"). Each form has one primary button.

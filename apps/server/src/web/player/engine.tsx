@@ -172,7 +172,7 @@ export function trackToPlayable(t: TrackDto): Playable {
 }
 
 /** What was playing, saved on this device so a reload picks it up. */
-type PlayRef = { itemType: PlayType; itemId: string };
+export type PlayRef = { itemType: PlayType; itemId: string };
 
 async function loadPlayable(ref: PlayRef): Promise<Playable> {
   if (ref.itemType === "book") return bookToPlayable(await api<BookDetail>(`/api/books/${ref.itemId}`));
@@ -217,11 +217,9 @@ interface PlayerApi {
   playContextAt: (index: number) => void;
   /** Previous and next song: back restarts the song unless it's just begun. */
   trackStep: (dir: -1 | 1) => void;
-  /** A song to play right after the current one: into the playing album or list, else the front of Up Next. */
-  playNext: (track: TrackDto) => Promise<void>;
   /** Plays an item, resuming where you left off unless `startAt` is given. */
   play: (item: Playable, startAt?: number) => void;
-  playRef: (ref: QueueRef, startAt?: number) => Promise<void>;
+  playRef: (ref: PlayRef, startAt?: number) => Promise<void>;
   toggle: () => void;
   pause: () => void;
   seek: (sec: number) => void;
@@ -507,7 +505,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         // private mode
       }
       if (it.type === "track") return;
-      removeFromQueue({ itemType: it.type, itemId: it.id });
+      if (it.type === "episode") removeFromQueue({ itemType: "episode", itemId: it.id });
       // A book or episode takes over from music, so its "rest of the album" leaves Up Next.
       if (contextRef.current) {
         setMusicContext(null);
@@ -605,7 +603,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   );
 
   const playRef = useCallback(
-    async (ref: QueueRef, startAt?: number) => {
+    async (ref: PlayRef, startAt?: number) => {
       try {
         play(await loadPlayable(ref), startAt);
       } catch (err) {
@@ -614,7 +612,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
       if (ref.itemType !== "track") return;
       // A song from Up Next plays on its own: it leaves the queue, and any album it interrupts ends.
-      removeFromQueue(ref);
+      removeFromQueue({ itemType: "track", itemId: ref.itemId });
       if (contextRef.current) {
         setMusicContext(null);
         void api(apiPaths.playContext, { method: "DELETE" }).catch(() => undefined);
@@ -623,31 +621,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     [play, removeFromQueue, setMusicContext],
   );
 
-  /**
-   * "Play next" for a song: while an album or list plays, it goes in right after the current
-   * song, so it shows in the rest of the album. Otherwise it goes to the front of Up Next.
-   */
-  const playNext = useCallback(
-    async (track: TrackDto) => {
-      const c = contextRef.current;
-      if (!c || itemRef.current?.type !== "track") return queueAdd({ itemType: "track", itemId: track.id }, "next");
-      const current = c.tracks[c.index];
-      if (current?.id === track.id) return;
-      // Taken out wherever it already was, then put back right after the current song.
-      const before = c.tracks.slice(0, c.index).filter((t) => t.id !== track.id);
-      const after = c.tracks.slice(c.index + 1).filter((t) => t.id !== track.id);
-      const index = before.length;
-      const tracks = [...before, current!, track, ...after];
-      const next: PlayContextDto = { ...c, tracks, index };
-      setMusicContext(next);
-      preloaded.current = null;
-      await api(apiPaths.playContext, {
-        method: "PUT",
-        body: { kind: next.kind, refId: next.refId, title: next.title, trackIds: tracks.map((t) => t.id), index, shuffled: next.shuffled },
-      });
-    },
-    [queueAdd, setMusicContext],
-  );
 
   /** Plays the next thing in Up Next, if anything. */
   const advance = useCallback(async () => {
@@ -995,7 +968,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       playMusic,
       playContextAt,
       trackStep,
-      playNext,
       isCurrent,
       play,
       playRef,
@@ -1030,7 +1002,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       playMusic,
       playContextAt,
       trackStep,
-      playNext,
       isCurrent,
       play,
       playRef,
@@ -1137,7 +1108,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               return;
             }
             void save(true)?.then(() => router.refresh());
-            void advance();
+            // A finished book just stops: Up Next is for episodes and songs, never what follows a book.
+            if (it.type === "episode") void advance();
           }}
           onError={(e) => {
             if (e.currentTarget !== audio.current) return;

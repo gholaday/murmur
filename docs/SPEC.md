@@ -21,7 +21,8 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 **Audiobooks**
 
 - Library with covers, sorted and filtered by author, series, recently added and progress
-- Home shelves: Continue listening, Next in series, Recently added and Not started, each opening a full list. Users can reorder and hide them, saved on the server so web and app match
+- Home shelves: Continue listening, Play next, Next in series, Recently added and Not started, each opening a full list. Users can reorder and hide them, saved on the server so web and app match
+- Play next: books you haven't started, added from a book's menu and dragged into order in the full list (`play_next`, per person). A book leaves it once it's started, since it's in Continue listening from then on. Books never go in Up Next, and when a book ends, playback stops
 - Book page: cover, author, narrator, series and position, description, duration, chapter list
 - Single-file `.m4b` and multi-file books, played as one continuous timeline
 - Automatic rescan when files are added, moved or removed
@@ -129,7 +130,8 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | `podcasts` | Feed URL, title, author, artwork, last checked |
 | `episodes` | GUID, title, publish date, duration, audio URL |
 | `progress` | Per user and item: position, finished flag, last updated, speed |
-| `queue` | Per user: ordered Up Next items |
+| `queue` | Per user: ordered Up Next episodes and songs |
+| `play_next` | Per user: the ordered Play next books |
 | `episode_files`, `episode_ads`, `ad_scans` | The episode cache and ad times (see Podcast episode cache and ad detection) |
 
 **API** (all under `/api`, JSON, token or cookie auth)
@@ -143,6 +145,7 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | Podcasts | `GET/POST /podcasts`, `GET /podcasts/search?q=` (directory search, marks podcasts you follow), `GET /podcasts/preview?feedUrl=` (reads a feed without subscribing), `DELETE /podcasts/:id`, `GET /podcasts/:id/episodes`, `POST /podcasts/:id/refresh`, OPML import and export |
 | Progress | `GET /progress?since=`, `PUT /progress` (batched, newest update wins) |
 | Queue | `GET /queue`, `PUT /queue` |
+| Play next | `POST/DELETE /books/:id/play-next`, `PUT /play-next` (order) |
 | Admin | `GET/POST/DELETE /users`, `GET/PUT /library/folders`, `POST /library/folders/check`, `GET /library/browse?path=` |
 | Episode cache and ads | `GET /episodes/:id/ads`; admin: `GET/PUT /server/cache`, `POST /server/ads/retry` |
 | Add-on (shared secret) | `POST /addon/ads/next`, `POST /addon/ads/:fileId`, `POST /addon/status` |
@@ -274,7 +277,7 @@ The same book always gets the same answer, and a weak answer is shown as weak in
 
 **Layer 3: editing by hand** (admin only, web)
 
-Every book card has an options menu (Play, Add to Up Next, Mark as finished, and for admins Edit details, Change cover, Match metadata, Rescan files). The edit dialog has five tabs:
+Every book card has an options menu (Play, Add to Play next for books not yet started, Mark as finished, and for admins Edit details, Change cover, Match metadata, Rescan files). The edit dialog has five tabs:
 
 | Tab | What it does |
 | --- | --- |
@@ -319,8 +322,8 @@ Music is optional. It comes from one or more music folders, managed by the admin
 **Playlists and Up Next**
 
 - Playlists are each person's own (`playlists`, `playlist_tracks`). A playlist plays as its own context, and its songs can be reordered by dragging, removed, renamed or deleted. `.m3u` files in the music folders are not read.
-- Every song has a menu: Play next, Add to Up Next, Add to playlist, Go to album.
-- Up Next takes single songs. Play next during an album or playlist puts the song right after the current one in that context. With nothing playing from a context, it goes to the front of Up Next. A song played from Up Next plays on its own and ends the context.
+- Every song has a menu: Add to Up Next, Add to playlist, Go to album.
+- Up Next takes single songs, added at the end. A song played from Up Next plays on its own and ends the context.
 
 **Downloads (app):** a whole album or one song. Downloaded has a Music section, and downloaded music plays offline.
 
@@ -352,12 +355,11 @@ The layout follows the familiar podcast-app pattern: bottom tabs, a persistent m
 | Books | Home shelves, then books by title, author or series, and finished; search and filters |
 | Podcasts | Subscribed shows with unplayed counts and new episodes; search or add a show by RSS URL |
 | Music | Your albums, artists, songs and playlists, with Browse for the rest |
-| Listening | Up Next (books, episodes and songs, drag to reorder) and Downloaded (what's saved on the phone, with its size) |
-| You | Listening stats, then account, appearance, playback, server, tabs, and admin settings |
+| You | Downloaded at the top in the app (what's saved on the phone, with its size), then listening stats, account, appearance, playback, server, tabs, and admin settings |
 | Book, show, album, artist or playlist page | Header with cover and colour band, description, chapters, episodes or songs, download and play buttons |
-| Full-screen player | Large cover, chapter or song name, scrubber, speed, sleep timer, skip buttons, chapter list |
+| Full-screen player | Large cover, chapter or song name, scrubber, speed, sleep timer, skip buttons, chapter list, and an Up Next tile with its count that opens the queue (episodes and songs, drag to reorder, remove, Clear) |
 
-Podcasts and Music can be turned off under You > Tabs; Books, Listening and You are always there.
+Podcasts and Music can be turned off under You > Tabs; Books and You are always there.
 
 **Look and feel:** dark theme by default with a light option; periwinkle accent (#8E9BFF on dark, #4F5BD5 on light); the player background takes its colour from the cover; large touch targets.
 

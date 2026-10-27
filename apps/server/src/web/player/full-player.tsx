@@ -34,6 +34,7 @@ import {
 } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
 import { Chip, Chips } from "../ui";
+import { UpNextSheet } from "../up-next";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } from "./ad-prefs";
 import { usePlayer, usePosition, useTint } from "./engine";
 import { effectiveVolume, useVolume, volumeStore } from "./volume";
@@ -43,7 +44,7 @@ const CLOSE_MS = 200;
 
 export function FullPlayer() {
   const p = usePlayer();
-  const [sheet, setSheet] = useState<null | "sleep" | "chapters" | "more" | "ads">(null);
+  const [sheet, setSheet] = useState<null | "sleep" | "chapters" | "more" | "ads" | "upnext">(null);
   const adPrefs = useAdPrefs();
   const volume = useVolume();
   const [speedOpen, setSpeedOpen] = useState(false);
@@ -362,11 +363,16 @@ export function FullPlayer() {
             <span>Chapters</span>
           </button>
         )}
-        <Link href="/listening" className="tile" onClick={() => setExpanded(false)}>
+        <button type="button" className="tile" onClick={() => setSheet("upnext")}>
           <QueueIcon size={20} />
-          <span>Up Next{p.queue.length ? ` (${p.queue.length})` : ""}</span>
-        </Link>
+          <span>
+            Up Next
+            {p.queue.length ? <span className="count-pill">{p.queue.length}</span> : null}
+          </span>
+        </button>
       </div>
+
+      <UpNextSheet open={sheet === "upnext"} onClose={() => setSheet(null)} />
 
       <Sheet open={sheet === "sleep"} onClose={() => setSheet(null)} title="Sleep timer">
         <SheetItem active={p.sleep.mode === "off"} onClick={choose(() => p.setSleep({ mode: "off" }))}>

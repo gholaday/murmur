@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { apiPaths, duration, type EpisodeWithShow, errorText, shortDate, timeLeft } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { AdsCheckedIcon, PauseIcon, PlayedIcon, PlayIcon, PlayNextIcon, QueueAddIcon } from "../icons";
+import { AdsCheckedIcon, PauseIcon, PlayedIcon, PlayIcon, QueueAddIcon } from "../icons";
 import { episodeToPlayable, usePlayer, usePosition } from "../player/engine";
 import { setFinished } from "../progress";
 
@@ -146,15 +146,6 @@ export function EpisodeRow({
               <span style={{ width: `${pct}%` }} />
             </span>
           ) : null}
-          <button
-            type="button"
-            className="episode-icon"
-            aria-label="Play next"
-            disabled={busy || current}
-            onClick={() => void run(() => player.queueAdd({ itemType: "episode", itemId: episode.id }, "next"), "Plays next")}
-          >
-            <PlayNextIcon size={20} />
-          </button>
           <button
             type="button"
             className="episode-icon"

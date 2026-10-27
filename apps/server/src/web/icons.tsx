@@ -47,11 +47,11 @@ export const QueueAddIcon = ({ queued, ...p }: IconProps & { queued?: boolean })
     {queued ? <path d="M7 14l2.5 2.5L13 12" /> : <path d="M10 11v6M7 14h6" />}
   </Icon>
 );
-/** A list with an arrow up: put this at the front of Up Next. */
-export const PlayNextIcon = (p: IconProps) => (
+/** A bookmark: plus to add a book to Play next, check once it's on the shelf. */
+export const BookmarkAddIcon = ({ added, ...p }: IconProps & { added?: boolean }) => (
   <Icon {...p}>
-    <path d="M3 6h10M3 12h7M3 18h7" />
-    <path d="M17 20V9M13 13l4-4 4 4" />
+    <path d="M6 4h12v16l-6-4-6 4z" />
+    {added ? <path d="M9 10l2 2 4-4" /> : <path d="M12 7.5v5M9.5 10h5" />}
   </Icon>
 );
 /** A circled check, filled once played. */

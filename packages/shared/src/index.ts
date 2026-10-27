@@ -153,8 +153,9 @@ export const folderCheckSchema = z.object({
   others: z.array(folderPathSchema).max(20).default([]),
 });
 
+/** Up Next holds episodes and songs; books line up on the Play next shelf instead. */
 export const queueRefSchema = z.object({
-  itemType: playTypeSchema,
+  itemType: z.enum(["episode", "track"]),
   itemId: z.string().min(1).max(64),
 });
 export type QueueRef = z.infer<typeof queueRefSchema>;
@@ -168,6 +169,9 @@ export const queueAddSchema = queueRefSchema.extend({
   at: z.enum(["next", "last"]).default("last"),
 });
 export type QueueAddInput = z.input<typeof queueAddSchema>;
+
+/** The Play next shelf in its new order; books not on it are ignored. */
+export const playNextOrderSchema = z.object({ bookIds: z.array(z.string().min(1).max(64)).max(1000) });
 
 export const archiveSchema = z.object({ archived: z.boolean() });
 
@@ -327,6 +331,8 @@ export interface BookSummary {
   matched: boolean;
   /** An admin marked the book as matched by hand, so it isn't listed as Not matched. */
   markedMatched: boolean;
+  /** The book's place on your Play next shelf, from 0; null when it isn't on it. */
+  playNext: number | null;
   progress: Pick<ProgressDto, "positionSec" | "finished" | "speed" | "updatedAt"> | null;
 }
 
@@ -452,7 +458,6 @@ export interface EpisodeWithShow extends EpisodeDto {
 }
 
 export type QueueEntry =
-  | { itemType: "book"; itemId: string; book: BookSummary }
   | { itemType: "episode"; itemId: string; episode: EpisodeWithShow }
   | { itemType: "track"; itemId: string; track: TrackDto };
 

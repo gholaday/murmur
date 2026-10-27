@@ -377,14 +377,28 @@ export const progress = sqliteTable(
   ],
 );
 
-/** Each user's Up Next queue, in play order. */
+/** Each user's Play next shelf: books lined up to start, in their order. */
+export const playNext = sqliteTable(
+  "play_next",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    bookId: text("book_id").notNull(),
+    position: integer("position").notNull(),
+    addedAt: integer("added_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.bookId] })],
+);
+
+/** Each user's Up Next queue of episodes and songs, in play order. */
 export const queueItems = sqliteTable(
   "queue_items",
   {
     userId: integer("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    itemType: text("item_type", { enum: ["book", "episode", "track"] }).notNull(),
+    itemType: text("item_type", { enum: ["episode", "track"] }).notNull(),
     itemId: text("item_id").notNull(),
     position: integer("position").notNull(),
     addedAt: integer("added_at").notNull(),

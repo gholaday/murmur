@@ -36,6 +36,7 @@ import { useSortable } from "../sortable";
 import { Chip, Chips, EmptyState, NestedHead, SearchBox, SectionTitle } from "../ui";
 import { BookActionsContext, BookCard } from "./book-card";
 import { BulkMatch } from "./bulk-match";
+import { PlayNextList } from "./play-next-list";
 
 type Tab = "books" | "authors" | "series" | "finished" | "attention" | "unmatched";
 
@@ -170,6 +171,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
   const continuing = useMemo(() => continueListening(books), [books]);
   const shelves = useMemo(
     () => ({
+      playnext: shelfBooks("playnext", books, today),
       next: shelfBooks("next", books, today),
       added: shelfBooks("added", books, today),
       unstarted: shelfBooks("unstarted", books, today),
@@ -178,6 +180,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
   );
   const counts: Record<BookSectionId, number> = {
     continue: continuing.length,
+    playnext: shelves.playnext.length,
     next: shelves.next.length,
     added: shelves.added.length,
     unstarted: shelves.unstarted.length,
@@ -245,6 +248,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
   }
 
   // A shelf's full list, opened from its heading.
+  if (shelf === "playnext") return <PlayNextList books={shelves.playnext} />;
   if (shelf) {
     const list = shelfBooks(shelf, books, today);
     return (

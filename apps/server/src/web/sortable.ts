@@ -3,8 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 
 const DROP_MS = 180;
-/** Distance from the top or bottom of the window where dragging scrolls the page. */
+/** Distance from the top or bottom of the scroll area where dragging scrolls it. */
 const EDGE = 90;
+
+/** The nearest ancestor that scrolls, such as a sheet's list, or null when it's the page. */
+function scrollParent(el: HTMLElement | null): HTMLElement | null {
+  for (let p = el?.parentElement; p; p = p.parentElement) {
+    const o = getComputedStyle(p).overflowY;
+    if ((o === "auto" || o === "scroll") && p.scrollHeight > p.clientHeight) return p;
+  }
+  return null;
+}
+
+const scrollTop = (scroller: HTMLElement | null) => (scroller ? scroller.scrollTop : window.scrollY);
 
 interface Drag {
   from: number;
@@ -29,7 +40,14 @@ export function useSortable(onMove: (from: number, to: number) => void) {
   useEffect(() => {
     dragRef.current = drag;
   }, [drag]);
-  const live = useRef<{ startY: number; startScroll: number; pointerY: number; rects: DOMRect[]; raf: number } | null>(null);
+  const live = useRef<{
+    startY: number;
+    scroller: HTMLElement | null;
+    startScroll: number;
+    pointerY: number;
+    rects: DOMRect[];
+    raf: number;
+  } | null>(null);
 
   useEffect(() => () => cancelAnimationFrame(live.current?.raf ?? 0), []);
 
@@ -39,7 +57,7 @@ export function useSortable(onMove: (from: number, to: number) => void) {
     if (!s) return;
     setDrag((d) => {
       if (!d || d.dropping) return d;
-      const dy = s.pointerY - s.startY + (window.scrollY - s.startScroll);
+      const dy = s.pointerY - s.startY + (scrollTop(s.scroller) - s.startScroll);
       const box = s.rects[d.from]!;
       const center = box.top + box.height / 2 + dy;
       let over = 0;
@@ -50,14 +68,19 @@ export function useSortable(onMove: (from: number, to: number) => void) {
     });
   };
 
-  /** Scrolls the page while the pointer is near an edge, faster the closer it gets. */
+  /** Scrolls the page or sheet while the pointer is near its edge, faster the closer it gets. */
   const autoScroll = () => {
     const s = live.current;
     if (!s) return;
-    const bottomEdge = window.innerHeight - EDGE;
-    const step = s.pointerY < EDGE ? -Math.ceil((EDGE - s.pointerY) / 6) : s.pointerY > bottomEdge ? Math.ceil((s.pointerY - bottomEdge) / 6) : 0;
+    const box = s.scroller?.getBoundingClientRect();
+    const top = Math.max(box?.top ?? 0, 0);
+    const bottom = Math.min(box?.bottom ?? window.innerHeight, window.innerHeight);
+    const edge = Math.min(EDGE, (bottom - top) / 4);
+    const step =
+      s.pointerY < top + edge ? -Math.ceil((top + edge - s.pointerY) / 6) : s.pointerY > bottom - edge ? Math.ceil((s.pointerY - bottom + edge) / 6) : 0;
     if (step) {
-      window.scrollBy(0, step);
+      if (s.scroller) s.scroller.scrollBy(0, step);
+      else window.scrollBy(0, step);
       follow();
     }
     s.raf = requestAnimationFrame(autoScroll);
@@ -87,7 +110,8 @@ export function useSortable(onMove: (from: number, to: number) => void) {
       ev.preventDefault();
       ev.currentTarget.setPointerCapture(ev.pointerId);
       const rects = [...(listRef.current?.querySelectorAll<HTMLElement>("[data-row]") ?? [])].map((r) => r.getBoundingClientRect());
-      live.current = { startY: ev.clientY, startScroll: window.scrollY, pointerY: ev.clientY, rects, raf: 0 };
+      const scroller = scrollParent(listRef.current);
+      live.current = { startY: ev.clientY, scroller, startScroll: scrollTop(scroller), pointerY: ev.clientY, rects, raf: 0 };
       setDrag({ from: i, over: i, dy: 0, height: rects[i]?.height ?? 0, dropping: false });
       live.current.raf = requestAnimationFrame(autoScroll);
     },

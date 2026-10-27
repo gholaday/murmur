@@ -1,20 +1,16 @@
 import type { QueueEntry, QueueRef } from "@murmur/shared";
-import { booksByIds } from "./books";
 import type { AppContext } from "./context";
 import { tracksByIds } from "./music/queries";
 import { episodesByIds, shortNotes } from "./podcasts/queries";
 
 /**
- * The queue with each item's details. Items whose book, episode or song no longer exists
- * (or whose show was unsubscribed) are skipped rather than shown broken.
+ * The queue of episodes and songs with each item's details. Items whose episode or song no
+ * longer exists (or whose show was unsubscribed) are skipped rather than shown broken.
  */
 export async function getQueue(ctx: AppContext, userId: number): Promise<QueueEntry[]> {
   const refs = ctx.sqlite
     .prepare("SELECT item_type AS itemType, item_id AS itemId FROM queue_items WHERE user_id = ? ORDER BY position")
     .all(userId) as QueueRef[];
-  const books = new Map(
-    (await booksByIds(ctx, refs.filter((r) => r.itemType === "book").map((r) => r.itemId), userId)).map((b) => [b.id, b]),
-  );
   const episodes = new Map(
     // Queue rows never show the notes, and the whole queue is sent back after every change.
     shortNotes(await episodesByIds(ctx.sqlite, refs.filter((r) => r.itemType === "episode").map((r) => r.itemId), userId)).map(
@@ -24,10 +20,7 @@ export async function getQueue(ctx: AppContext, userId: number): Promise<QueueEn
   const tracks = new Map(tracksByIds(ctx, userId, refs.filter((r) => r.itemType === "track").map((r) => r.itemId)).map((t) => [t.id, t]));
   const out: QueueEntry[] = [];
   for (const r of refs) {
-    if (r.itemType === "book") {
-      const book = books.get(r.itemId);
-      if (book) out.push({ itemType: "book", itemId: r.itemId, book });
-    } else if (r.itemType === "track") {
+    if (r.itemType === "track") {
       const track = tracks.get(r.itemId);
       if (track) out.push({ itemType: "track", itemId: r.itemId, track });
     } else {

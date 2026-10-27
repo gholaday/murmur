@@ -68,23 +68,6 @@ export function QueueRowsSkeleton({ count = 5 }: { count?: number }) {
   );
 }
 
-export function UpNextSkeleton() {
-  return (
-    <div className="skeleton">
-      <div className="page-head" style={{ alignItems: "flex-end" }}>
-        <div>
-          <h1 className="page-title">Listening</h1>
-          <div className="skel skel-line" style={{ width: 110, height: 11, marginTop: 6 }} />
-        </div>
-      </div>
-      <section className="section">
-        <div className="eyebrow">Next</div>
-        <QueueRowsSkeleton />
-      </section>
-    </div>
-  );
-}
-
 export function LibrarySkeleton() {
   return (
     <div className="skeleton" aria-busy="true" aria-label="Loading library">

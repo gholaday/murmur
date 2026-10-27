@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { createContext, memo, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { apiPaths, type BookSummary, errorText, progressPct } from "@murmur/shared/client";
+import { apiPaths, bookStarted, type BookSummary, errorText, progressPct } from "@murmur/shared/client";
 import { api } from "../api";
 import type { EditTab } from "../book/edit-dialog";
 import { setMarkedMatched } from "../book/match-mark";
+import { setPlayNext } from "../book/play-next";
 import { Cover } from "../cover";
 import { CheckIcon, MoreIcon } from "../icons";
 import { usePlayer } from "../player/engine";
@@ -148,17 +149,12 @@ function CardMenuItems({
       >
         {current && player.playing ? "Pause" : started(book) ? "Continue" : "Play"}
       </button>
-      <button
-        type="button"
-        role="menuitem"
-        disabled={current}
-        onClick={choose(async () => {
-          await player.queueAdd({ itemType: "book", itemId: book.id }, "last");
-          toast("Added to Up Next");
-        })}
-      >
-        Add to Up Next
-      </button>
+      {/* Started books are in Continue listening instead. */}
+      {!current && !bookStarted(book) ? (
+        <button type="button" role="menuitem" onClick={choose(() => setPlayNext(book.id, book.playNext === null, () => router.refresh()))}>
+          {book.playNext === null ? "Add to Play next" : "Remove from Play next"}
+        </button>
+      ) : null}
       <button
         type="button"
         role="menuitem"

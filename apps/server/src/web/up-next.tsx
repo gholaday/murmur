@@ -4,48 +4,37 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { albumCover, chapterAt, duration, plural, type QueueEntry, queueEntryView, queueRef, timeLeft } from "@murmur/shared/client";
 import { Cover } from "./cover";
-import { CloseIcon, DownIcon, DragIcon, PlayIcon } from "./icons";
+import { CloseIcon, DownIcon, DragIcon } from "./icons";
 import { SongRow } from "./music/music-view";
 import { type Playable, usePlayer, usePosition } from "./player/engine";
+import { Sheet } from "./sheet";
 import { QueueRowsSkeleton } from "./skeletons";
 import { useSortable } from "./sortable";
-import { CountPill, EmptyState } from "./ui";
+import { EmptyState } from "./ui";
 
-/** Its own component so the playhead ticks redraw this card, not the whole queue below it. */
-function NowPlayingCard({ item, onOpen }: { item: Playable; onOpen: () => void }) {
+/** Its own component so the playhead ticks redraw this row, not the whole queue below it. */
+function NowPlayingRow({ item }: { item: Playable }) {
   const position = usePosition();
   const where = item.chapters[chapterAt(item.chapters, position)]?.title ?? item.subtitle;
   return (
-    <section className="section" style={{ marginTop: 0 }}>
+    <section>
       <div className="eyebrow">Now playing</div>
-      <button
-        type="button"
-        className="now-card"
-        style={{ "--tint": item.color ?? undefined } as React.CSSProperties}
-        onClick={onOpen}
-      >
-        <Cover src={item.coverUrl} color={item.color} title={item.title} />
+      <div className="queue-row playing">
+        <Cover className="thumb" src={item.coverUrl} color={item.color} title={item.title} />
         <span className="list-row-main">
-          <span className="list-row-title">{item.title}</span>
+          <span className="list-row-title" style={{ fontSize: 14 }}>
+            {item.title}
+          </span>
           {where ? <span className="list-row-sub">{where}</span> : null}
           {item.durationSec ? <span className="list-row-sub">{timeLeft(item.durationSec, position)}</span> : null}
-          <span className="bar" style={{ marginTop: 4 }}>
-            <span
-              style={{
-                display: "block",
-                height: "100%",
-                background: "var(--accent)",
-                width: `${item.durationSec ? Math.min(100, (position / item.durationSec) * 100) : 0}%`,
-              }}
-            />
-          </span>
         </span>
-      </button>
+      </div>
     </section>
   );
 }
 
-export function UpNextView() {
+/** Episodes and songs lined up after what's playing, opened from the full player. Books go on Play next instead. */
+export function UpNextSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const player = usePlayer();
   const { item } = player;
   // Shown right away while the server saves, so a dropped row doesn't jump back first.
@@ -76,34 +65,33 @@ export function UpNextView() {
   const total = queue.reduce((sum, e) => sum + queueEntryView(e).remaining, 0);
 
   return (
-    <>
-      <div className="page-head" style={{ alignItems: "flex-end" }}>
-        <div>
-          <h1 className="page-title">
-            Listening
-            {queue.length ? <CountPill count={queue.length} noun="item" /> : null}
-          </h1>
-          {!player.queueLoaded ? (
-            <div className="skel skel-line" style={{ width: 110, height: 11, marginTop: 6 }} />
-          ) : queue.length ? (
-            <div className="page-sub">{duration(total)} to listen</div>
-          ) : null}
-        </div>
-        {queue.length ? (
-          <button type="button" className="btn" style={{ background: "none", color: "var(--accent)" }} onClick={() => {
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Up Next"
+      count={queue.length}
+      sub={queue.length ? `${duration(total)} to listen` : null}
+      action={
+        queue.length ? (
+          <button
+            type="button"
+            className="btn"
+            style={{ background: "none", color: "var(--accent)", padding: 0, minHeight: 0 }}
+            onClick={() => {
               const previous = queue;
               save([]);
               toast("Up Next cleared", { action: { label: "Undo", onClick: () => save(previous) } });
-            }}>
+            }}
+          >
             Clear
           </button>
-        ) : null}
-      </div>
-
-      {item ? <NowPlayingCard item={item} onOpen={() => player.setExpanded(true)} /> : null}
+        ) : null
+      }
+    >
+      {item ? <NowPlayingRow item={item} /> : null}
       <RestOfMusic />
 
-      <section className="section">
+      <section>
         {queue.length || !player.queueLoaded ? <div className="eyebrow">Next</div> : null}
         {!player.queueLoaded ? (
           <QueueRowsSkeleton />
@@ -123,9 +111,6 @@ export function UpNextView() {
                       {v.title}
                     </span>
                     <span className="list-row-sub">{v.length}</span>
-                  </button>
-                  <button type="button" className="icon-btn dim" aria-label={`Play ${v.title} now`} onClick={() => void player.playRef(queueRef(e))}>
-                    <PlayIcon size={18} />
                   </button>
                   <button type="button" className="icon-btn dim" aria-label={`Remove ${v.title}`} onClick={() => save(queue.filter((_, j) => j !== i))}>
                     <CloseIcon size={18} />
@@ -153,7 +138,7 @@ export function UpNextView() {
           </div>
         )}
       </section>
-    </>
+    </Sheet>
   );
 }
 
@@ -167,7 +152,7 @@ function RestOfMusic() {
   if (!rest.length) return null;
   const first = rest[0]!;
   return (
-    <section className="section">
+    <section>
       <div className="eyebrow">Playing from</div>
       <button type="button" className="list-row context-row" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <Cover className="thumb" src={albumCover(first.albumId, first.coverHash)} color={null} title={c.title} />

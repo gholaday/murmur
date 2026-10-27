@@ -4,16 +4,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useState } from "react";
 import { toast } from "sonner";
-import { apiPaths, type BookDetail, type ChapterDto, chapterAt, duration, errorText, plural, timeLeft } from "@murmur/shared/client";
+import { apiPaths, type BookDetail, bookStarted, type ChapterDto, chapterAt, duration, errorText, plural, timeLeft } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { CheckIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "../icons";
+import { BookmarkAddIcon, CheckIcon, MoreIcon, PauseIcon, PlayIcon } from "../icons";
 import { bookToPlayable, usePlayer, usePosition } from "../player/engine";
 import { setFinished } from "../progress";
 import { Sheet, SheetItem } from "../sheet";
 import { BackButton, SectionTitle } from "../ui";
 import { EditBookDialog, type EditTab } from "./edit-dialog";
 import { setMarkedMatched } from "./match-mark";
+import { setPlayNext } from "./play-next";
 
 export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean }) {
   const router = useRouter();
@@ -30,7 +31,9 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
   const started = position > 5;
   const pct = book.durationSec ? Math.min(100, (position / book.durationSec) * 100) : 0;
   const currentChapter = started || current ? chapterAt(book.chapters, position) : -1;
-  const queued = player.queue.some((q) => q.itemType === "book" && q.itemId === book.id);
+  const onPlayNext = book.playNext !== null;
+  // A started book is in Continue listening, so it can't go on Play next.
+  const canPlayNext = !current && !bookStarted(book);
   const playable = () => bookToPlayable(book);
   const { play } = player;
   const playChapter = useCallback((startSec: number) => play(bookToPlayable(book), startSec), [play, book]);
@@ -49,19 +52,9 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
     router.refresh();
   };
 
-  const queue = async (at: "next" | "last") => {
+  const togglePlayNext = () => {
     setMenu(false);
-    await player.queueAdd({ itemType: "book", itemId: book.id }, at);
-    toast(at === "next" ? "Plays next" : "Added to Up Next");
-  };
-
-  const unqueue = async () => {
-    await player.queueReplace(
-      player.queue
-        .filter((q) => !(q.itemType === "book" && q.itemId === book.id))
-        .map((q) => ({ itemType: q.itemType, itemId: q.itemId })),
-    );
-    toast("Removed from Up Next");
+    void setPlayNext(book.id, !onPlayNext, () => router.refresh()).catch((err: unknown) => toast.error(errorText(err)));
   };
 
   const revertMatch = async () => {
@@ -146,16 +139,17 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
           {current && player.playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
           <span>{playSub}</span>
         </button>
-        <button
-          type="button"
-          className="btn-round"
-          aria-label={queued ? "Remove from Up Next" : "Add to Up Next"}
-          aria-pressed={queued}
-          onClick={() => void (queued ? unqueue() : queue("last"))}
-          disabled={current}
-        >
-          <QueueAddIcon queued={queued} />
-        </button>
+        {canPlayNext ? (
+          <button
+            type="button"
+            className="btn-round"
+            aria-label={onPlayNext ? "Remove from Play next" : "Add to Play next"}
+            aria-pressed={onPlayNext}
+            onClick={togglePlayNext}
+          >
+            <BookmarkAddIcon added={onPlayNext} />
+          </button>
+        ) : null}
         <button
           type="button"
           className="btn-round"
@@ -188,12 +182,7 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
       ) : null}
 
       <Sheet open={menu} onClose={() => setMenu(false)} title={book.title}>
-        <SheetItem onClick={() => void queue("next")} disabled={current}>
-          Play next
-        </SheetItem>
-        <SheetItem onClick={() => void queue("last")} disabled={current}>
-          Add to end of Up Next
-        </SheetItem>
+        {canPlayNext ? <SheetItem onClick={togglePlayNext}>{onPlayNext ? "Remove from Play next" : "Add to Play next"}</SheetItem> : null}
         <SheetItem onClick={() => void mark(!finished)}>
           {finished ? "Mark as not finished" : "Mark as finished"}
         </SheetItem>

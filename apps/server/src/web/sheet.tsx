@@ -10,11 +10,20 @@ export function Sheet({
   open,
   onClose,
   title,
+  count,
+  sub,
+  action,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** A grey count beside the title. */
+  count?: number;
+  /** A muted line under the title. */
+  sub?: React.ReactNode;
+  /** A button at the right of the title row. */
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -28,8 +37,17 @@ export function Sheet({
   return (
     <dialog ref={ref} className="sheet" aria-label={title} onClose={onClose} {...backdropClose}>
       <div className="sheet-body">
-        <div className="sheet-title">{title}</div>
-        {open ? children : null}
+        <div className="sheet-head">
+          <div>
+            <div className="sheet-title">
+              {title}
+              {count ? <span className="count-pill">{count}</span> : null}
+            </div>
+            {sub ? <div className="page-sub">{sub}</div> : null}
+          </div>
+          {action}
+        </div>
+        <div className="sheet-scroll">{open ? children : null}</div>
       </div>
     </dialog>
   );

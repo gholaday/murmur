@@ -603,9 +603,8 @@ a.episode-show:hover { color: var(--accent); }
 
 /* ---------- Up Next ---------- */
 
-.now-card { display: flex; gap: 14px; align-items: center; padding: 12px; border-radius: var(--radius); background: color-mix(in srgb, var(--tint, var(--accent)) 22%, var(--surface)); width: 100%; text-align: left; }
-.now-card .cover { width: 64px; flex-shrink: 0; }
 .queue-row { display: flex; gap: 12px; align-items: center; min-height: 72px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.sheet .queue-row { background: var(--surface); }
 /* Drag to reorder (useSortable): the lifted row follows the pointer, the rest slide out of its way. */
 .sorting { user-select: none; cursor: grabbing; }
 .sorting [data-row] { position: relative; transition: transform 200ms cubic-bezier(0.2, 0, 0, 1); }
@@ -797,6 +796,7 @@ a.episode-show:hover { color: var(--accent); }
   font-size: 16px;
 }
 .tile span { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.tile .count-pill { min-width: 16px; height: 16px; padding: 0 5px; margin-left: 5px; vertical-align: 1px; font-size: 10px; }
 .tile[aria-pressed="true"] { color: var(--accent); }
 .tile[aria-pressed="true"] span { color: var(--accent); }
 
@@ -862,8 +862,13 @@ a.episode-show:hover { color: var(--accent); }
 .sheet::backdrop { background: rgba(0, 0, 0, 0.5); }
 .sheet[open] { animation: rise 0.18s ease-out; }
 @media (min-width: 700px) { .sheet { margin: auto; border-radius: 20px; } }
-.sheet-body { padding: 18px 20px calc(20px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; }
+.sheet { overflow: hidden; }
+/* The title row stays put and only what's under it scrolls, so a long list keeps its title and actions in view. */
+.sheet-body { max-height: 85dvh; display: flex; flex-direction: column; padding: 18px 0 calc(20px + env(safe-area-inset-bottom)); }
+.sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 0 20px 14px; }
+.sheet-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 10px; padding: 0 20px; }
 .sheet-title { font-size: 17px; font-weight: 800; padding-bottom: 4px; }
+.sheet-head .sheet-title { padding: 0; }
 .sheet-item {
   display: flex;
   align-items: center;

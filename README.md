@@ -13,7 +13,7 @@ Murmur reads your audiobook folders (the Audiobookshelf layout, `Author/[Series]
 
 Murmur is inspired by [Audiobookshelf](https://www.audiobookshelf.org/), and reads the same library layout, so an existing Audiobookshelf library works without moving anything. It aims for a smaller feature set that's simple to run.
 
-- **Audiobooks:** single-file `.m4b` and multi-file books, chapters, series, home shelves, and optional metadata matching from Audible (always confirmed by you).
+- **Audiobooks:** single-file `.m4b` and multi-file books, chapters, series, home shelves, a Play next shelf you put in order, and optional metadata matching from Audible (always confirmed by you).
 - **Podcasts:** search or add by RSS URL, OPML import and export, Up Next, and the newest episodes kept on the server.
 - **Music (optional):** albums, artists and songs read from their tags, your own music and playlists for each person, songs in Up Next, and album matching from MusicBrainz and Deezer.
 - **Listening stats:** time listened by week, month, year or all time, your streak, and what you played most.

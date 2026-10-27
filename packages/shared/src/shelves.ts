@@ -3,12 +3,13 @@ import type { BookSummary } from "./index";
 // The rows at the top of the Books tab, shared by the web and the app. Each heading opens
 // its full list.
 
-export type ShelfId = "continue" | "next" | "added" | "unstarted";
+export type ShelfId = "continue" | "playnext" | "next" | "added" | "unstarted";
 
-export const SHELF_IDS: ShelfId[] = ["continue", "next", "added", "unstarted"];
+export const SHELF_IDS: ShelfId[] = ["continue", "playnext", "next", "added", "unstarted"];
 
 export const SHELF_TITLES: Record<ShelfId, string> = {
   continue: "Continue listening",
+  playnext: "Play next",
   next: "Next in series",
   added: "Recently added",
   unstarted: "Not started",
@@ -18,7 +19,9 @@ export const SHELF_TITLES: Record<ShelfId, string> = {
 export const SHELF_SIZE = 12;
 
 const present = (b: BookSummary) => b.missingSince === null;
-const started = (b: BookSummary) => !!b.progress && (b.progress.finished || b.progress.positionSec > 5);
+/** Finished, or played past the first few seconds; a started book can't go on Play next. */
+export const bookStarted = (b: BookSummary) => !!b.progress && (b.progress.finished || b.progress.positionSec > 5);
+const started = bookStarted;
 const listening = (b: BookSummary) => !!b.progress && !b.progress.finished && b.progress.positionSec > 5;
 
 /** Books you're part way through, most recently played first. */
@@ -49,6 +52,14 @@ export function nextInSeries(books: BookSummary[]): BookSummary[] {
   return picks.sort((a, b) => b.finishedAt - a.finishedAt).map((p) => p.book);
 }
 
+/**
+ * The books you lined up with Add to Play next, in your order. The server takes a book off
+ * once it's started; started ones are left out here too, until that change arrives.
+ */
+export function playNextBooks(books: BookSummary[]): BookSummary[] {
+  return books.filter((b) => b.playNext !== null && present(b) && !started(b)).sort((a, b) => a.playNext! - b.playNext!);
+}
+
 /** Newest books on the server first. */
 export function recentlyAdded(books: BookSummary[]): BookSummary[] {
   return books.filter(present).sort((a, b) => b.addedAt - a.addedAt);
@@ -71,6 +82,7 @@ export function notStarted(books: BookSummary[], day: string): BookSummary[] {
 
 export function shelfBooks(id: ShelfId, books: BookSummary[], day: string): BookSummary[] {
   if (id === "continue") return continueListening(books);
+  if (id === "playnext") return playNextBooks(books);
   if (id === "next") return nextInSeries(books);
   if (id === "added") return recentlyAdded(books);
   return notStarted(books, day);
@@ -92,11 +104,16 @@ export interface BookSection {
 
 /**
  * A saved Books tab layout made whole: sections that no longer exist are dropped and any
- * the layout doesn't mention yet (added in a later version) go at the end, shown.
+ * the layout doesn't mention yet (added in a later version) go in, shown, right after the
+ * section they follow by default.
  */
 export function bookSections(saved: readonly BookSection[] | null | undefined): BookSection[] {
   const known = new Set<string>(BOOK_SECTION_IDS);
   const out = (saved ?? []).filter((s, i, all) => known.has(s.id) && all.findIndex((o) => o.id === s.id) === i);
-  for (const id of BOOK_SECTION_IDS) if (!out.some((s) => s.id === id)) out.push({ id, hidden: false });
+  BOOK_SECTION_IDS.forEach((id, i) => {
+    if (out.some((s) => s.id === id)) return;
+    const after = i === 0 ? -1 : out.findIndex((s) => s.id === BOOK_SECTION_IDS[i - 1]);
+    out.splice(after + 1, 0, { id, hidden: false });
+  });
   return out;
 }

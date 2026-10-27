@@ -1,5 +1,6 @@
 import type { ProgressDto, ProgressItem } from "@murmur/shared";
 import type { AppContext } from "./context";
+import { dropStartedFromPlayNext } from "./play-next";
 
 /** Clients may not claim timestamps far in the future, or a wrong clock would win every conflict forever. */
 const MAX_CLOCK_SKEW_MS = 60_000;
@@ -35,6 +36,11 @@ export function saveProgress(ctx: AppContext, userId: number, items: ProgressIte
       });
       applied += result.changes;
     }
+    dropStartedFromPlayNext(
+      ctx,
+      userId,
+      items.filter((i) => i.itemType === "book").map((i) => i.itemId),
+    );
   })();
   return applied;
 }

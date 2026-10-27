@@ -75,18 +75,6 @@ export const queueRef = (e: QueueEntry): QueueRef => ({ itemType: e.itemType, it
 
 /** What an Up Next row shows. `kind` is the author or show, which sits above the title. */
 export function queueEntryView(e: QueueEntry) {
-  if (e.itemType === "book") {
-    const b = e.book;
-    const pos = b.progress && !b.progress.finished ? b.progress.positionSec : 0;
-    return {
-      kind: b.author ?? "Audiobook",
-      title: b.title,
-      length: pos > 5 ? timeLeft(b.durationSec, pos) : duration(b.durationSec),
-      cover: b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 200) : null,
-      color: b.coverColor,
-      remaining: Math.max(0, b.durationSec - pos),
-    };
-  }
   if (e.itemType === "track") {
     const t = e.track;
     return {
