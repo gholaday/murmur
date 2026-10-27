@@ -8,6 +8,7 @@ import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { ActionButton, openArtist, Pill, SongSheet, TrackRow } from "@/components/music";
 import { BackRow, Empty, SectionTitle, useBottomPad, useTopInset } from "@/components/page";
+import { AddToPlaylistSheet } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { RemoveDownloadSheet, Sheet, SheetItem } from "@/components/sheet";
 import { Bone, FadeIn, Skeleton, useJustLoaded } from "@/components/skeleton";
@@ -36,6 +37,7 @@ export default function AlbumScreen() {
   const state = a ? albumInMusic(a) : "none";
   const [more, setMore] = useState(false);
   const [song, setSong] = useState<TrackDto | null>(null);
+  const [adding, setAdding] = useState(false);
 
   let body: React.ReactNode;
   if (a) {
@@ -147,8 +149,14 @@ export default function AlbumScreen() {
       </ScrollView>
       <BottomMiniPlayer />
       {a ? (
-        // TODO(music part B): Play next and Add to Up Next.
         <Sheet open={more} onClose={() => setMore(false)} title={a.title}>
+          <SheetItem
+            label="Add to playlist…"
+            onPress={() => {
+              setMore(false);
+              setAdding(true);
+            }}
+          />
           <SheetItem
             label={`Go to ${a.artist}`}
             onPress={() => {
@@ -168,7 +176,8 @@ export default function AlbumScreen() {
           ) : null}
         </Sheet>
       ) : null}
-      <SongSheet track={song} onClose={() => setSong(null)} />
+      <SongSheet track={song} onClose={() => setSong(null)} hideAlbum />
+      {a ? <AddToPlaylistSheet open={adding} onClose={() => setAdding(false)} title={a.title} trackIds={a.tracks.map((tr) => tr.id)} /> : null}
     </View>
   );
 }

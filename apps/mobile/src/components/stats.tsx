@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { apiPaths, duration, localDay, plural, type StatsDto, type StatsPeriod } from "@murmur/shared/client";
+import { apiPaths, duration, localDay, plural, type StatsDto, type StatsPeriod, type StatsTop, statsTopLabel } from "@murmur/shared/client";
 import { api } from "@/lib/api";
 import { useBooks, usePodcasts } from "@/lib/data";
 import { fonts, mixColor, useTheme } from "@/theme";
@@ -90,20 +90,15 @@ export function ListeningStats() {
             <Pressable
               key={`${x.kind}:${x.id}`}
               accessibilityRole="button"
-              onPress={() => router.push(x.kind === "book" ? `/book/${x.id}` : `/show/${x.id}`)}
+              onPress={() => router.push(topHref(x))}
               style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 68, borderBottomWidth: 1, borderBottomColor: t.line }}
             >
-              <Cover
-                path={x.coverHash ? (x.kind === "book" ? apiPaths.coverUrl(x.id, x.coverHash, 200) : apiPaths.podcastCoverUrl(x.id, x.coverHash, 200)) : null}
-                title={x.title}
-                size={44}
-                radius={8}
-              />
+              <Cover path={topCover(x)} title={x.title} size={44} radius={8} />
               <View style={{ flex: 1, gap: 2 }}>
                 <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 15 }}>
                   {x.title}
                 </Text>
-                <Text variant="small">{x.kind === "book" ? "Book" : "Podcast"}</Text>
+                <Text variant="small">{statsTopLabel(x)}</Text>
               </View>
               <Text style={{ fontFamily: fonts.medium, fontSize: 14, color: t.text2 }}>{duration(x.sec)}</Text>
             </Pressable>
@@ -112,6 +107,21 @@ export function ListeningStats() {
       ) : null}
     </View>
   );
+}
+
+/** A song opens its album. */
+function topHref(x: StatsTop): `/book/${string}` | `/show/${string}` | `/album/${string}` {
+  if (x.kind === "book") return `/book/${x.id}`;
+  if (x.kind === "podcast") return `/show/${x.id}`;
+  return `/album/${(x.kind === "song" ? x.albumId : x.id) ?? x.id}`;
+}
+
+/** A song shows its album's cover. */
+function topCover(x: StatsTop): string | null {
+  if (!x.coverHash) return null;
+  if (x.kind === "book") return apiPaths.coverUrl(x.id, x.coverHash, 200);
+  if (x.kind === "podcast") return apiPaths.podcastCoverUrl(x.id, x.coverHash, 200);
+  return apiPaths.albumCoverUrl((x.kind === "song" ? x.albumId : x.id) ?? x.id, x.coverHash, 200);
 }
 
 function compare(total: number, previous: number, last: string): string {

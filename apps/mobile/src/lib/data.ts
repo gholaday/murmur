@@ -8,6 +8,8 @@ import {
   type MusicMineChange,
   type MusicScope,
   type MusicSummaryDto,
+  type PlaylistDetail,
+  type PlaylistSummary,
   type TrackDto,
   type BookDetail,
   type BookSection,
@@ -42,6 +44,8 @@ export const keys = {
   artists: (scope: MusicScope) => ["artists", scope] as const,
   artist: (id: string) => ["artist", id] as const,
   tracks: (scope: MusicScope) => ["tracks", scope] as const,
+  playlists: ["playlists"] as const,
+  playlist: (id: string) => ["playlist", id] as const,
 };
 
 // Your own settings (Books tab layout, which tabs show), saved on the server so the web and the
@@ -138,6 +142,40 @@ export async function setInMusic(change: { albums?: AlbumSummary[]; tracks?: Tra
   } finally {
     for (const key of ["music", "albums", "artists", "tracks", "album", "artist"]) void queryClient.invalidateQueries({ queryKey: [key] });
   }
+}
+
+// ---------- Playlists (each person's own) ----------
+
+/** Your playlists, newest change first. */
+export const usePlaylists = (enabled = true) =>
+  useQuery({ queryKey: keys.playlists, queryFn: () => api<PlaylistSummary[]>(apiPaths.playlists), enabled });
+
+export const usePlaylist = (id: string) => useQuery({ queryKey: keys.playlist(id), queryFn: () => api<PlaylistDetail>(apiPaths.playlist(id)) });
+
+/** Keeps the playlist's page and the list of playlists in step with what the server sent back. */
+function savedPlaylist(p: PlaylistDetail): PlaylistDetail {
+  queryClient.setQueryData(keys.playlist(p.id), p);
+  const { tracks: _tracks, ...summary } = p;
+  queryClient.setQueryData<PlaylistSummary[]>(keys.playlists, (list) => (list ? [summary, ...list.filter((x) => x.id !== p.id)] : list));
+  void queryClient.invalidateQueries({ queryKey: keys.playlists });
+  return p;
+}
+
+export const createPlaylist = async (name: string, trackIds: string[] = []) =>
+  savedPlaylist(await api<PlaylistDetail>(apiPaths.playlists, { method: "POST", body: { name, trackIds } }));
+
+/** Rename it, or give its songs in their new order (reorder and remove are both this). */
+export const updatePlaylist = async (id: string, change: { name?: string; trackIds?: string[] }) =>
+  savedPlaylist(await api<PlaylistDetail>(apiPaths.playlist(id), { method: "PATCH", body: change }));
+
+/** Adds songs to the end; ones already in it stay where they are. */
+export const addToPlaylist = async (id: string, trackIds: string[]) =>
+  savedPlaylist(await api<PlaylistDetail>(apiPaths.playlistTracks(id), { method: "POST", body: { trackIds } }));
+
+export async function deletePlaylist(id: string) {
+  await api(apiPaths.playlist(id), { method: "DELETE" });
+  queryClient.setQueryData<PlaylistSummary[]>(keys.playlists, (list) => list?.filter((x) => x.id !== id));
+  queryClient.removeQueries({ queryKey: keys.playlist(id) });
 }
 
 export const usePodcasts = () =>

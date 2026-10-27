@@ -1,4 +1,4 @@
-import { memo, useSyncExternalStore } from "react";
+import { memo, useState, useSyncExternalStore } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import {
@@ -16,12 +16,14 @@ import { setInMusic } from "@/lib/data";
 import { selectHaptic } from "@/lib/haptics";
 import { downloadTrack, removeDownload, useDownload, useInAlbumDownload } from "@/lib/downloads";
 import { getJson, setJson } from "@/lib/storage";
-import { isCurrent, usePlayer } from "@/player/engine";
+import { isCurrent, playNext, queueAdd, usePlayer } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { CheckIcon, PlusIcon } from "./icons";
+import { CheckIcon, MoreIcon, PlusIcon } from "./icons";
+import { AddToPlaylistSheet } from "./playlists";
 import { Sheet, SheetItem } from "./sheet";
-import { Text } from "./ui";
+import { toast } from "./toast";
+import { IconButton, Text } from "./ui";
 
 // Shared by the Music tab, Album and Artist screens. The text helpers (songSub, albumPills and so
 // on) live in @murmur/shared, so the web and the app say the same thing.
@@ -173,26 +175,65 @@ export function ActionButton({
 }
 
 /**
- * A song's long-press sheet: download it on its own (or remove that copy). `goToAlbum` adds a way
- * to its album, for lists outside the album screen.
+ * A song's ⋯ menu (also a long press): play next, add to Up Next or a playlist, go to its album,
+ * download it on its own (or remove that copy), then any `extra` items.
  */
-export function SongSheet({ track, onClose, goToAlbum }: { track: TrackDto | null; onClose: () => void; goToAlbum?: boolean }) {
+export function SongSheet({
+  track,
+  onClose,
+  hideAlbum,
+  extra,
+}: {
+  track: TrackDto | null;
+  onClose: () => void;
+  /** On the album's own page, where "Go to album" goes nowhere. */
+  hideAlbum?: boolean;
+  /** More items at the end, given the song and a function that closes the menu. */
+  extra?: (track: TrackDto, close: () => void) => React.ReactNode;
+}) {
+  // Kept after the menu closes, so the playlist picker can slide up in its place.
+  const [adding, setAdding] = useState<TrackDto | null>(null);
   return (
-    <Sheet open={track !== null} onClose={onClose} title={track?.title}>
-      {track ? <SongSheetItems track={track} onClose={onClose} goToAlbum={goToAlbum} /> : null}
-    </Sheet>
+    <>
+      <Sheet open={track !== null} onClose={onClose} title={track?.title}>
+        {track ? (
+          <SongSheetItems
+            track={track}
+            onClose={onClose}
+            hideAlbum={hideAlbum}
+            onAddToPlaylist={() => {
+              setAdding(track);
+              onClose();
+            }}
+          />
+        ) : null}
+        {track ? extra?.(track, onClose) : null}
+      </Sheet>
+      <AddToPlaylistSheet open={adding !== null} onClose={() => setAdding(null)} title={adding?.title ?? ""} trackIds={adding ? [adding.id] : []} />
+    </>
   );
 }
 
-function SongSheetItems({ track, onClose, goToAlbum }: { track: TrackDto; onClose: () => void; goToAlbum?: boolean }) {
+function SongSheetItems({ track, onClose, hideAlbum, onAddToPlaylist }: { track: TrackDto; onClose: () => void; hideAlbum?: boolean; onAddToPlaylist: () => void }) {
   const own = useDownload("track", track.id);
   const withAlbum = useInAlbumDownload(track);
   const close = (fn: () => void) => () => {
     fn();
     onClose();
   };
+  const run = (fn: () => Promise<void>, done: string) =>
+    close(() =>
+      fn().then(
+        () => toast.show(done),
+        (err: unknown) => toast.error(err instanceof Error ? err.message : "Couldn't do that."),
+      ),
+    );
   return (
     <>
+      <SheetItem label="Play next" onPress={run(() => playNext(track), "Playing next")} />
+      <SheetItem label="Add to Up Next" onPress={run(() => queueAdd({ itemType: "track", itemId: track.id }, "last"), "Added to Up Next")} />
+      <SheetItem label="Add to playlist…" onPress={onAddToPlaylist} />
+      {hideAlbum ? null : <SheetItem label="Go to album" onPress={close(() => openAlbum(track.albumId))} />}
       {own ? (
         <SheetItem
           label={own.status === "downloading" ? `Cancel download, ${Math.round(own.progress * 100)}%` : "Remove download"}
@@ -204,13 +245,12 @@ function SongSheetItems({ track, onClose, goToAlbum }: { track: TrackDto; onClos
       ) : (
         <SheetItem label="Download song" onPress={close(() => downloadTrack(track))} />
       )}
-      {goToAlbum ? <SheetItem label="Go to album" onPress={close(() => openAlbum(track.albumId))} /> : null}
     </>
   );
 }
 
 /** Whether this song is the one playing, for drawing it in the accent colour. */
-const usePlayingSong = (id: string) => isCurrent(usePlayer(), "track", id);
+export const usePlayingSong = (id: string) => isCurrent(usePlayer(), "track", id);
 
 /**
  * A song with its album's cover, title, "Artist, Album" and length; `toggle` adds a + / ✓ at the
@@ -225,7 +265,7 @@ export const SongRow = memo(function SongRow({
   track: TrackDto;
   toggle?: boolean;
   onPlay?: () => void;
-  /** Long press: the song's sheet (download). */
+  /** The ⋯ button and a long press: the song's menu. */
   onMore?: () => void;
 }) {
   const t = useTheme();
@@ -249,9 +289,19 @@ export const SongRow = memo(function SongRow({
       </View>
       <Length track={track} />
       {toggle ? <InMusicToggle track={track} /> : null}
+      {onMore ? <SongMoreButton track={track} onPress={onMore} last /> : null}
     </Pressable>
   );
 });
+
+export function SongMoreButton({ track, onPress, last }: { track: TrackDto; onPress: () => void; last?: boolean }) {
+  const t = useTheme();
+  return (
+    <IconButton label={`More for ${track.title}`} onPress={onPress} style={{ width: 36, marginLeft: -6, marginRight: last ? -8 : 0 }}>
+      <MoreIcon size={20} color={t.muted} />
+    </IconButton>
+  );
+}
 
 /** A numbered song on an album: number, title (and its own artist when it differs), length, + / ✓. */
 export function TrackRow({
@@ -265,7 +315,7 @@ export function TrackRow({
   n: number;
   albumArtistId: string;
   onPlay?: () => void;
-  /** Long press: the song's sheet (download). */
+  /** The ⋯ button and a long press: the song's menu. */
   onMore?: () => void;
 }) {
   const t = useTheme();
@@ -299,6 +349,7 @@ export function TrackRow({
         <Length track={track} />
       </Pressable>
       <InMusicToggle track={track} />
+      {onMore ? <SongMoreButton track={track} onPress={onMore} last /> : null}
     </View>
   );
 }

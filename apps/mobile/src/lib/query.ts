@@ -45,6 +45,8 @@ const PERSISTED = new Set([
   "music",
   "album",
   "artist",
+  "playlists",
+  "playlist",
 ]);
 // Albums, artists and songs come in two scopes; only your own ("mine") is kept, not Browse's "all".
 const SCOPED = new Set(["albums", "artists", "tracks"]);

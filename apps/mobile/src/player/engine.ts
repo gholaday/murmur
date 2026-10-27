@@ -792,7 +792,44 @@ function removeFromQueue(ref: QueueRef) {
 
 async function advance() {
   const next = state.queue[0];
-  if (next) await playRef({ itemType: next.itemType, itemId: next.itemId });
+  if (next) await playQueued({ itemType: next.itemType, itemId: next.itemId });
+}
+
+/**
+ * Plays an Up Next item. A song plays on its own: it leaves the queue, and the album or list it
+ * interrupts ends. Books and episodes leave the queue as they start, in `play`.
+ */
+export async function playQueued(ref: QueueRef) {
+  await playRef(ref);
+  if (ref.itemType !== "track" || !isCurrent(state, "track", ref.itemId)) return;
+  removeFromQueue(ref);
+  if (state.context) {
+    dropPreloaded();
+    set({ context: null });
+    void api(apiPaths.playContext, { method: "DELETE" }).catch(() => undefined);
+  }
+}
+
+/**
+ * "Play next" for a song. While an album or list plays, it goes in right after the current song
+ * (taken out of wherever it already was), so it shows in the rest of the album. Otherwise it goes
+ * to the front of Up Next.
+ */
+export async function playNext(track: TrackDto) {
+  const c = state.context;
+  if (!c || state.item?.type !== "track") return queueAdd({ itemType: "track", itemId: track.id }, "next");
+  const current = c.tracks[c.index];
+  if (!current || current.id === track.id) return;
+  const before = c.tracks.slice(0, c.index).filter((t) => t.id !== track.id);
+  const after = c.tracks.slice(c.index + 1).filter((t) => t.id !== track.id);
+  const index = before.length;
+  const tracks = [...before, current, track, ...after];
+  dropPreloaded();
+  set({ context: { ...c, tracks, index } });
+  await api(apiPaths.playContext, {
+    method: "PUT",
+    body: { kind: c.kind, refId: c.refId, title: c.title, trackIds: tracks.map((t) => t.id), index, shuffled: c.shuffled },
+  });
 }
 
 // ---------- Controls ----------

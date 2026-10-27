@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { albumCover, chapterAt, duration, plural, type QueueEntry, queueEntryView, queueRef, timeLeft } from "@murmur/shared/client";
-import { type Playable, playContextAt, playRef, queueReplace, refreshQueue, usePlayer, usePosition } from "@/player/engine";
+import { albumCover, chapterAt, duration, plural, type QueueEntry, queueEntryView, queueRef, timeLeft, type TrackDto } from "@murmur/shared/client";
+import { type Playable, playContextAt, playQueued, queueReplace, refreshQueue, usePlayer, usePosition } from "@/player/engine";
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { CloseIcon, DownIcon, DragIcon } from "./icons";
 import { PAD } from "./library";
 import { Eyebrow, ListMeta } from "./listening";
-import { SongRow } from "./music";
+import { SongRow, SongSheet } from "./music";
 import { Empty, useTopInset } from "./page";
 import { Sheet, SheetItem } from "./sheet";
 import { Bone, FadeIn, ListRowBone, Skeleton, useJustLoaded } from "./skeleton";
@@ -166,6 +166,7 @@ function RestOfMusic() {
   const t = useTheme();
   const { item, context: c } = usePlayer();
   const [open, setOpen] = useState(false);
+  const [song, setSong] = useState<TrackDto | null>(null);
   if (!c || item?.type !== "track") return null;
   const rest = c.tracks.slice(c.index + 1);
   if (!rest.length) return null;
@@ -190,7 +191,8 @@ function RestOfMusic() {
           <DownIcon size={20} color={t.muted} />
         </View>
       </Pressable>
-      {open ? rest.map((s, i) => <SongRow key={s.id} track={s} onPlay={() => playContextAt(c.index + 1 + i)} />) : null}
+      {open ? rest.map((s, i) => <SongRow key={s.id} track={s} onPlay={() => playContextAt(c.index + 1 + i)} onMore={() => setSong(s)} />) : null}
+      <SongSheet track={song} onClose={() => setSong(null)} />
     </View>
   );
 }
@@ -204,7 +206,7 @@ function QueueRow({ entry, onMenu, onRemove }: { entry: QueueEntry; onMenu: () =
         accessibilityRole="button"
         accessibilityLabel={`Play ${v.title}`}
         accessibilityHint="Long press for more options"
-        onPress={() => void playRef(queueRef(entry))}
+        onPress={() => void playQueued(queueRef(entry))}
         onLongPress={onMenu}
         style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12 }}
       >

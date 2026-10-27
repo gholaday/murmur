@@ -11,32 +11,36 @@ import {
   artistMatches,
   type ArtistSummary,
   plural,
+  type PlaylistSummary,
   songMatches,
   sortAlbums,
   type TrackDto,
 } from "@murmur/shared/client";
-import { BrowseIcon, ChevronIcon, CloseIcon, FilterIcon, MusicIcon, PlayIcon, SearchIcon, ShuffleIcon } from "@/components/icons";
+import { BrowseIcon, ChevronIcon, CloseIcon, FilterIcon, MusicIcon, PlayIcon, PlusIcon, SearchIcon, ShuffleIcon } from "@/components/icons";
 import { GAP, Group, PAD, useGridWidth } from "@/components/library";
 import { Eyebrow } from "@/components/listening";
 import { ActionButton, AlbumAddRow, AlbumCard, AlbumSortSheet, openArtist, SongRow, SongSheet, useAlbumSort } from "@/components/music";
 import { Empty, PageTitle, useTopInset } from "@/components/page";
+import { NamePlaylistSheet, openPlaylist, PlaylistCard } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, ListRowBone, SectionBone, Skeleton } from "@/components/skeleton";
 import { Button, Chip, IconButton, Text } from "@/components/ui";
-import { setInMusic, useAlbums, useArtists, useMusicSummary, useTracks } from "@/lib/data";
+import { createPlaylist, setInMusic, useAlbums, useArtists, useMusicSummary, usePlaylists, useTracks } from "@/lib/data";
 import { playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
-type View_ = "albums" | "artists" | "songs";
+type View_ = "albums" | "artists" | "songs" | "playlists";
 
 const VIEWS: { id: View_; label: string; placeholder: string }[] = [
   { id: "albums", label: "Albums", placeholder: "Album or artist" },
   { id: "artists", label: "Artists", placeholder: "Artist" },
   { id: "songs", label: "Songs", placeholder: "Song, artist or album" },
+  { id: "playlists", label: "Playlists", placeholder: "Playlist" },
 ];
 
 type Item =
   | { kind: "albums"; key: string; albums: AlbumSummary[] }
+  | { kind: "playlists"; key: string; playlists: PlaylistSummary[] }
   | { kind: "artist"; key: string; artist: ArtistSummary; albums: AlbumSummary[] }
   | { kind: "song"; key: string; track: TrackDto; toggle?: boolean }
   | { kind: "head"; key: string; title: string }
@@ -62,10 +66,13 @@ export default function Music() {
   const [query, setQuery] = useState("");
   const [sortOpen, setSortOpen] = useState(false);
   const [song, setSong] = useState<TrackDto | null>(null);
+  const [naming, setNaming] = useState(false);
   const sort = useAlbumSort();
   const summary = useMusicSummary();
+  const playlists = usePlaylists();
   const mine = summary.data?.mine;
-  const nothingYet = mine?.tracks === 0;
+  // The first-visit screen is for someone with no songs and no playlists either.
+  const nothingYet = mine?.tracks === 0 && !playlists.data?.length;
   const q = query.trim().toLowerCase();
   const albums = useAlbums("mine");
   // Artists and songs load the first time their chip is picked.
@@ -76,11 +83,17 @@ export default function Music() {
   const allAlbums = useAlbums("all", nothingYet || !!q);
   const allTracks = useTracks("all", !!q);
 
-  const current = view === "albums" ? albums : view === "artists" ? artists : tracks;
+  const current = view === "albums" ? albums : view === "artists" ? artists : view === "songs" ? tracks : playlists;
   const refresh = usePullRefresh(() => Promise.all([summary.refetch(), current.refetch()]));
 
   const items = useMemo((): Item[] => {
     const out: Item[] = [];
+    if (view === "playlists") {
+      // Only your playlists; there's nothing to add from elsewhere.
+      const list = (playlists.data ?? []).filter((p) => p.name.toLowerCase().includes(q));
+      for (let i = 0; i < list.length; i += 2) out.push({ kind: "playlists", key: list[i]!.id, playlists: list.slice(i, i + 2) });
+      return out;
+    }
     if (view === "albums") {
       const list = sortAlbums(albums.data ?? [], sort).filter((a) => albumMatches(a, q));
       for (let i = 0; i < list.length; i += 2) out.push({ kind: "albums", key: list[i]!.id, albums: list.slice(i, i + 2) });
@@ -100,7 +113,7 @@ export default function Music() {
     ];
     if (!more.length) return out;
     return [...(out.length ? [{ kind: "head", key: "head:mine", title: "In your music" } as Item] : []), ...out, { kind: "head", key: "head:more", title: "More to add" }, ...more];
-  }, [view, albums.data, artists.data, tracks.data, allAlbums.data, allTracks.data, q, sort]);
+  }, [view, albums.data, artists.data, tracks.data, playlists.data, allAlbums.data, allTracks.data, q, sort]);
 
   const pick = (next: View_) => {
     setView(next);
@@ -162,6 +175,26 @@ export default function Music() {
           <ActionButton label="Shuffle" icon={<ShuffleIcon size={20} color={t.text} />} onPress={() => playSongs(tracks.data, -1, true)} />
         </View>
       ) : null}
+      {view === "playlists" && !q ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setNaming(true)}
+          style={({ pressed }) => ({
+            height: 44,
+            borderRadius: 22,
+            borderWidth: 1,
+            borderColor: t.line,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <PlusIcon size={18} color={t.text} />
+          <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: t.text }}>New playlist</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 
@@ -169,7 +202,7 @@ export default function Music() {
     <StartHere total={summary.data?.albums ?? 0} all={allAlbums.data} />
   ) : current.isPending ? (
     <Skeleton>
-      {view === "albums" ? (
+      {view === "albums" || view === "playlists" ? (
         <CoverGridBones count={4} columns={2} />
       ) : view === "artists" ? (
         [0, 1].map((i) => (
@@ -184,6 +217,8 @@ export default function Music() {
     </Skeleton>
   ) : current.isError ? (
     <Empty title="Couldn't load your music">{current.error.message}</Empty>
+  ) : view === "playlists" ? (
+    <Empty>{q ? `No playlist matches "${query.trim()}".` : "Make a playlist, then add songs to it from the menu on any song."}</Empty>
   ) : q ? (
     <Empty>{`Nothing matches "${query.trim()}".`}</Empty>
   ) : (
@@ -200,7 +235,7 @@ export default function Music() {
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={header}
         ListEmptyComponent={empty}
-        ItemSeparatorComponent={view === "albums" && !q ? RowGap : undefined}
+        ItemSeparatorComponent={(view === "albums" || view === "playlists") && !q ? RowGap : undefined}
         windowSize={7}
         maxToRenderPerBatch={8}
         renderItem={({ item }) =>
@@ -209,6 +244,12 @@ export default function Music() {
               {item.albums.map((a) => (
                 // Albums with only some songs added say how many, instead of the artist.
                 <AlbumCard key={a.id} album={a} width={width} sub={albumInMusic(a) === "some" ? albumInMusicLabel(a) : undefined} />
+              ))}
+            </View>
+          ) : item.kind === "playlists" ? (
+            <View style={{ flexDirection: "row", columnGap: GAP, marginBottom: q ? 18 : 0 }}>
+              {item.playlists.map((p) => (
+                <PlaylistCard key={p.id} playlist={p} width={width} />
               ))}
             </View>
           ) : item.kind === "artist" ? (
@@ -230,13 +271,20 @@ export default function Music() {
               track={item.track}
               toggle={item.toggle}
               onPlay={item.toggle || !tracks.data ? undefined : () => playSongs(tracks.data, tracks.data.indexOf(item.track))}
-              onMore={item.toggle ? undefined : () => setSong(item.track)}
+              onMore={() => setSong(item.track)}
             />
           )
         }
       />
       <AlbumSortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
-      <SongSheet track={song} onClose={() => setSong(null)} goToAlbum />
+      <SongSheet track={song} onClose={() => setSong(null)} />
+      <NamePlaylistSheet
+        open={naming}
+        onClose={() => setNaming(false)}
+        title="New playlist"
+        action="Make playlist"
+        onSubmit={async (name) => openPlaylist((await createPlaylist(name)).id)}
+      />
     </View>
   );
 }

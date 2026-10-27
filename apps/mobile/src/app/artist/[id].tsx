@@ -1,11 +1,12 @@
+import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { albumInMusic, artistImage, artistSub, plural } from "@murmur/shared/client";
+import { albumInMusic, artistImage, artistSub, plural, type TrackDto } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { PlusIcon, ProfileIcon } from "@/components/icons";
 import { Grid, PAD, useGridWidth } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { AlbumCard, SongRow } from "@/components/music";
+import { AlbumCard, SongRow, SongSheet } from "@/components/music";
 import { BackRow, Empty, PageTitle, SectionTitle, useBottomPad, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { Bone, CoverGridBones, FadeIn, Skeleton, useJustLoaded } from "@/components/skeleton";
@@ -32,6 +33,7 @@ export default function ArtistScreen() {
   const missing = a?.albums.filter((al) => albumInMusic(al) !== "all") ?? [];
   const added = (a?.albums.length ?? 0) - missing.length;
   const photo = a ? artistImage(a, 600) : null;
+  const [song, setSong] = useState<TrackDto | null>(null);
 
   let body: React.ReactNode;
   if (a) {
@@ -94,6 +96,7 @@ export default function ArtistScreen() {
                 track={tr}
                 toggle
                 onPlay={() => playMusic({ kind: "artist", refId: a.id, title: a.name, tracks: a.appearsOn }, a.appearsOn.indexOf(tr))}
+                onMore={() => setSong(tr)}
               />
             ))}
           </>
@@ -124,6 +127,7 @@ export default function ArtistScreen() {
         {body}
       </ScrollView>
       <BottomMiniPlayer />
+      <SongSheet track={song} onClose={() => setSong(null)} />
     </View>
   );
 }
