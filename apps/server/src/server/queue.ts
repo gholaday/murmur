@@ -1,10 +1,11 @@
 import type { QueueEntry, QueueRef } from "@murmur/shared";
 import { booksByIds } from "./books";
 import type { AppContext } from "./context";
+import { tracksByIds } from "./music/queries";
 import { episodesByIds, shortNotes } from "./podcasts/queries";
 
 /**
- * The queue with each item's details. Items whose book or episode no longer exists
+ * The queue with each item's details. Items whose book, episode or song no longer exists
  * (or whose show was unsubscribed) are skipped rather than shown broken.
  */
 export async function getQueue(ctx: AppContext, userId: number): Promise<QueueEntry[]> {
@@ -20,11 +21,15 @@ export async function getQueue(ctx: AppContext, userId: number): Promise<QueueEn
       (e) => [e.id, e],
     ),
   );
+  const tracks = new Map(tracksByIds(ctx, userId, refs.filter((r) => r.itemType === "track").map((r) => r.itemId)).map((t) => [t.id, t]));
   const out: QueueEntry[] = [];
   for (const r of refs) {
     if (r.itemType === "book") {
       const book = books.get(r.itemId);
       if (book) out.push({ itemType: "book", itemId: r.itemId, book });
+    } else if (r.itemType === "track") {
+      const track = tracks.get(r.itemId);
+      if (track) out.push({ itemType: "track", itemId: r.itemId, track });
     } else {
       const episode = episodes.get(r.itemId);
       if (episode) out.push({ itemType: "episode", itemId: r.itemId, episode });

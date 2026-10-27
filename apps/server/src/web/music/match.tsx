@@ -33,7 +33,24 @@ export const ALBUM_FIELDS: Array<{ field: AlbumMatchField; label: string; show: 
   { field: "title", label: "Title", show: (v) => v.title },
   { field: "year", label: "Year", show: (v) => v.year },
   { field: "genre", label: "Genre", show: (v) => v.genre },
+  {
+    field: "tracks",
+    label: "Songs",
+    show: (v) =>
+      v.songs.length ? (
+        <ol className="match-songs">
+          {v.songs.map((s, i) => (
+            <li key={i}>
+              <span className="muted">{s.number ?? "–"}</span>
+              {s.title}
+            </li>
+          ))}
+        </ol>
+      ) : null,
+  },
 ];
+
+const songsText = (v: AlbumMatchValues) => v.songs.map((s) => `${s.number}:${s.title.trim()}`).join("\n");
 
 /** The fields last applied from an album match, ticked again at the next review. Kept in this browser. */
 const LAST_FIELDS_KEY = "murmur.albumMatchFields";
@@ -60,12 +77,14 @@ const norm = (s: string | null) => (s ?? "").trim();
 /** The album already has exactly the result's value. Covers can't be told apart from here. */
 function isSame(preview: AlbumMatchPreview, field: AlbumMatchField): boolean {
   if (field === "cover") return false;
+  if (field === "tracks") return preview.proposed.songs.length > 0 && songsText(preview.current) === songsText(preview.proposed);
   return !!preview.proposed[field] && norm(preview.current[field]) === norm(preview.proposed[field]);
 }
 
 function canApply(preview: AlbumMatchPreview, field: AlbumMatchField): boolean {
   const entry = ALBUM_FIELDS.find((f) => f.field === field);
-  return !!entry?.show(preview.proposed) && !isSame(preview, field);
+  const blocked = field === "tracks" && !!preview.songsNote;
+  return !!entry?.show(preview.proposed) && !blocked && !isSame(preview, field);
 }
 
 /** The admin's Match dialog for one album, like the Match tab of a book's edit dialog. */
@@ -225,6 +244,7 @@ function AlbumMatchPanel({ albumId, onApplied }: { albumId: string; onApplied: (
                       <td>
                         <div className="val">{same ? <span className="muted">Same</span> : (proposed ?? <span className="muted">—</span>)}</div>
                         {field === "cover" && preview.proposed.coverWidth ? <div className="muted small">{preview.proposed.coverWidth}px</div> : null}
+                        {field === "tracks" && preview.songsNote ? <div className="small error">{preview.songsNote}</div> : null}
                       </td>
                     </tr>
                   );

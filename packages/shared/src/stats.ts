@@ -144,11 +144,22 @@ export function streakDays(listenedDays: ReadonlySet<string>, today: string): nu
 // ---------- What the server sends ----------
 
 export interface StatsTop {
-  kind: "book" | "podcast";
+  kind: "book" | "podcast" | "album" | "song";
+  /** The book, show, album or song. */
   id: string;
   title: string;
   coverHash: string | null;
   sec: number;
+  /** For a song: its album, whose cover it shows and which it opens. */
+  albumId?: string;
+  /** For a song: how many times you've played it, ever. */
+  plays?: number;
+}
+
+/** The line under a Most played row: "Most played book", or "Most played song, 12 plays". */
+export function statsTopLabel(t: StatsTop): string {
+  const noun = { book: "book", podcast: "show", album: "album", song: "song" }[t.kind];
+  return t.plays ? `Most played ${noun}, ${t.plays === 1 ? "1 play" : `${t.plays} plays`}` : `Most played ${noun}`;
 }
 
 export interface StatsDto {

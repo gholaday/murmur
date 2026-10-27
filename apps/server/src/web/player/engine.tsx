@@ -192,6 +192,8 @@ interface PlayerApi {
   playContextAt: (index: number) => void;
   /** Previous and next song: back restarts the song unless it's just begun. */
   trackStep: (dir: -1 | 1) => void;
+  /** A song to play right after the current one: into the playing album or list, else the front of Up Next. */
+  playNext: (track: TrackDto) => Promise<void>;
   /** Plays an item, resuming where you left off unless `startAt` is given. */
   play: (item: Playable, startAt?: number) => void;
   playRef: (ref: QueueRef, startAt?: number) => Promise<void>;
@@ -583,9 +585,43 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         play(await loadPlayable(ref), startAt);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Couldn't load that.");
+        return;
+      }
+      if (ref.itemType !== "track") return;
+      // A song from Up Next plays on its own: it leaves the queue, and any album it interrupts ends.
+      removeFromQueue(ref);
+      if (contextRef.current) {
+        setMusicContext(null);
+        void api(apiPaths.playContext, { method: "DELETE" }).catch(() => undefined);
       }
     },
-    [play],
+    [play, removeFromQueue, setMusicContext],
+  );
+
+  /**
+   * "Play next" for a song: while an album or list plays, it goes in right after the current
+   * song, so it shows in the rest of the album. Otherwise it goes to the front of Up Next.
+   */
+  const playNext = useCallback(
+    async (track: TrackDto) => {
+      const c = contextRef.current;
+      if (!c || itemRef.current?.type !== "track") return queueAdd({ itemType: "track", itemId: track.id }, "next");
+      const current = c.tracks[c.index];
+      if (current?.id === track.id) return;
+      // Taken out wherever it already was, then put back right after the current song.
+      const before = c.tracks.slice(0, c.index).filter((t) => t.id !== track.id);
+      const after = c.tracks.slice(c.index + 1).filter((t) => t.id !== track.id);
+      const index = before.length;
+      const tracks = [...before, current!, track, ...after];
+      const next: PlayContextDto = { ...c, tracks, index };
+      setMusicContext(next);
+      preloaded.current = null;
+      await api(apiPaths.playContext, {
+        method: "PUT",
+        body: { kind: next.kind, refId: next.refId, title: next.title, trackIds: tracks.map((t) => t.id), index, shuffled: next.shuffled },
+      });
+    },
+    [queueAdd, setMusicContext],
   );
 
   /** Plays the next thing in Up Next, if anything. */
@@ -934,6 +970,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       playMusic,
       playContextAt,
       trackStep,
+      playNext,
       isCurrent,
       play,
       playRef,
@@ -968,6 +1005,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       playMusic,
       playContextAt,
       trackStep,
+      playNext,
       isCurrent,
       play,
       playRef,

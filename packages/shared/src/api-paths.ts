@@ -38,6 +38,12 @@ export const apiPaths = {
   trackPlays: "/api/music/plays",
   /** TrackDto. */
   track: (trackId: string) => `/api/music/tracks/${trackId}`,
+  /** GET PlaylistSummary[] (yours, newest change first), POST a new one: returns PlaylistDetail. */
+  playlists: "/api/music/playlists",
+  /** GET PlaylistDetail, PATCH name or song order, DELETE. */
+  playlist: (playlistId: string) => `/api/music/playlists/${playlistId}`,
+  /** POST { trackIds } adds songs to the end: returns PlaylistDetail. */
+  playlistTracks: (playlistId: string) => `/api/music/playlists/${playlistId}/tracks`,
   /** A song's audio; supports range requests. */
   trackUrl: (trackId: string) => `/api/stream/track/${trackId}`,
 };

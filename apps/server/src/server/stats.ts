@@ -10,6 +10,7 @@ import {
 } from "@murmur/shared";
 import { booksByIds } from "./books";
 import type { AppContext } from "./context";
+import { tracksByIds } from "./music/queries";
 
 /** Days more than this far past the server's date are a wrong clock, not a time zone. */
 const MAX_DAYS_AHEAD = 2;
@@ -118,17 +119,19 @@ export async function getStats(ctx: AppContext, userId: number, period: StatsPer
   };
 }
 
-/** The most played book and the most played show in the period. */
+/** The most played book, show, album and song in the period. */
 async function topItems(ctx: AppContext, userId: number, byItem: Map<string, number>): Promise<StatsTop[]> {
   const top: StatsTop[] = [];
   let book: [string, number] | null = null;
   const shows = new Map<string, number>();
   const episodeIds: string[] = [];
+  const trackIds: string[] = [];
   for (const [key, sec] of byItem) {
     const [type, id] = key.split(":") as [string, string];
     if (type === "book") {
       if (!book || sec > book[1]) book = [id, sec];
-    } else episodeIds.push(id);
+    } else if (type === "track") trackIds.push(id);
+    else episodeIds.push(id);
   }
   if (book) {
     const [summary] = await booksByIds(ctx, [book[0]], userId);
@@ -147,5 +150,25 @@ async function topItems(ctx: AppContext, userId: number, byItem: Map<string, num
       if (show) top.push({ kind: "podcast", ...show, sec: Math.round(best[1]) });
     }
   }
+  top.push(...topMusic(ctx, userId, trackIds, byItem));
   return top;
+}
+
+/** The album you spent longest on, and the song, with how many times you've played it. */
+function topMusic(ctx: AppContext, userId: number, trackIds: string[], byItem: Map<string, number>): StatsTop[] {
+  const tracks = tracksByIds(ctx, userId, trackIds);
+  if (!tracks.length) return [];
+  const secOf = (id: string) => byItem.get(`track:${id}`) ?? 0;
+  const albums = new Map<string, number>();
+  for (const t of tracks) albums.set(t.albumId, (albums.get(t.albumId) ?? 0) + secOf(t.id));
+  const [albumId, albumSec] = [...albums].sort((a, b) => b[1] - a[1])[0]!;
+  const album = tracks.find((t) => t.albumId === albumId)!;
+  const song = [...tracks].sort((a, b) => secOf(b.id) - secOf(a.id))[0]!;
+  const plays = ctx.sqlite.prepare("SELECT count FROM track_plays WHERE user_id = ? AND track_id = ?").get(userId, song.id) as
+    | { count: number }
+    | undefined;
+  return [
+    { kind: "album", id: albumId, title: album.album, coverHash: album.coverHash, sec: Math.round(albumSec) },
+    { kind: "song", id: song.id, title: song.title, coverHash: song.coverHash, albumId: song.albumId, plays: plays?.count ?? 0, sec: Math.round(secOf(song.id)) },
+  ];
 }

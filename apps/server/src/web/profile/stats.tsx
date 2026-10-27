@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiPaths, duration, localDay, plural, type StatsDto, type StatsPeriod } from "@murmur/shared/client";
+import { apiPaths, duration, localDay, plural, type StatsDto, type StatsPeriod, type StatsTop, statsTopLabel } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 
@@ -129,16 +129,11 @@ export function ListeningStats() {
           {stats.top.length ? (
             <div className="card-box">
               {stats.top.map((t) => (
-                <a key={`${t.kind}:${t.id}`} className="setting stats-top" href={t.kind === "book" ? `/book/${t.id}` : `/podcasts/${t.id}`}>
-                  <Cover
-                    src={t.coverHash ? (t.kind === "book" ? apiPaths.coverUrl(t.id, t.coverHash, 200) : apiPaths.podcastCoverUrl(t.id, t.coverHash, 200)) : null}
-                    color={null}
-                    title={t.title}
-                    className="stats-top-cover"
-                  />
+                <a key={`${t.kind}:${t.id}`} className="setting stats-top" href={topHref(t)}>
+                  <Cover src={topCover(t)} color={null} title={t.title} className="stats-top-cover" />
                   <span className="setting-text">
                     <span className="setting-title">{t.title}</span>
-                    <span className="setting-sub">Most played {t.kind === "book" ? "book" : "show"}</span>
+                    <span className="setting-sub">{statsTopLabel(t)}</span>
                   </span>
                   <span className="muted small">{duration(t.sec)}</span>
                 </a>
@@ -149,6 +144,19 @@ export function ListeningStats() {
       ) : null}
     </section>
   );
+}
+
+function topHref(t: StatsTop): string {
+  if (t.kind === "book") return `/book/${t.id}`;
+  if (t.kind === "podcast") return `/podcasts/${t.id}`;
+  return `/music/album/${t.kind === "song" ? t.albumId : t.id}`;
+}
+
+function topCover(t: StatsTop): string | null {
+  if (!t.coverHash) return null;
+  if (t.kind === "book") return apiPaths.coverUrl(t.id, t.coverHash, 200);
+  if (t.kind === "podcast") return apiPaths.podcastCoverUrl(t.id, t.coverHash, 200);
+  return apiPaths.albumCoverUrl(t.kind === "song" ? t.albumId! : t.id, t.coverHash, 200);
 }
 
 function StatTile({ value, label }: { value: string; label: string }) {

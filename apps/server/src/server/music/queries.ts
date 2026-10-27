@@ -81,10 +81,16 @@ const ALBUM_ORDER: Record<AlbumSort, string> = {
   year: "a.year IS NULL, a.year DESC, a.title_key",
 };
 
+/** Songs as shown: titles and numbers from an album's Match win over the tags. */
+const TRACKS = `(
+  SELECT t.id, t.album_id, t.artist_id, COALESCE(o.title, t.title) AS title, COALESCE(o.disc_no, t.disc_no) AS disc_no,
+         COALESCE(o.track_no, t.track_no) AS track_no, t.duration_sec, t.mime_type, t.missing_since
+  FROM tracks t LEFT JOIN track_overrides o ON o.track_id = t.id)`;
+
 const TRACK_SELECT = `
   SELECT t.id, t.title, t.album_id, al.title AS album, t.artist_id, ar.name AS artist,
          t.disc_no, t.track_no, t.duration_sec, t.mime_type, al.cover_hash, ${IN_MUSIC("t.id")} AS in_music
-  FROM tracks t
+  FROM ${TRACKS} t
   JOIN ${ALBUMS} al ON al.id = t.album_id
   JOIN artists ar ON ar.id = t.artist_id
   WHERE t.missing_since IS NULL`;
@@ -298,14 +304,9 @@ export function getPlayContext(ctx: AppContext, userId: number): PlayContextDto 
     | undefined;
   if (!row) return null;
   const ids = JSON.parse(row.track_ids) as string[];
-  const found = new Map(
-    (ctx.sqlite.prepare(`${TRACK_SELECT} AND t.id IN (SELECT value FROM json_each(@ids))`).all({ user: userId, ids: row.track_ids }) as TrackRow[]).map(
-      (r) => [r.id, toTrack(r)],
-    ),
-  );
   // Songs removed from the server drop out; the index follows the song it pointed at.
   const current = ids[row.idx];
-  const tracks = ids.flatMap((id) => found.get(id) ?? []);
+  const tracks = tracksByIds(ctx, userId, ids);
   if (!tracks.length) return null;
   const index = Math.max(0, tracks.findIndex((t) => t.id === current));
   return { kind: row.kind, refId: row.ref_id, title: row.title, tracks, index, shuffled: row.shuffled === 1 };
@@ -356,4 +357,15 @@ export function addTrackPlay(ctx: AppContext, userId: number, trackId: string): 
 export function getTrack(ctx: AppContext, userId: number, id: string): TrackDto | null {
   const row = ctx.sqlite.prepare(`${TRACK_SELECT} AND t.id = @id`).get({ user: userId, id }) as TrackRow | undefined;
   return row ? toTrack(row) : null;
+}
+
+/** These songs, by id, in the order given; songs gone from the server are left out. */
+export function tracksByIds(ctx: AppContext, userId: number, ids: string[]): TrackDto[] {
+  if (!ids.length) return [];
+  const found = new Map(
+    (ctx.sqlite.prepare(`${TRACK_SELECT} AND t.id IN (SELECT value FROM json_each(@ids))`).all({ user: userId, ids: JSON.stringify(ids) }) as TrackRow[]).map(
+      (r) => [r.id, toTrack(r)],
+    ),
+  );
+  return ids.flatMap((id) => found.get(id) ?? []);
 }

@@ -32,10 +32,10 @@ export interface MusicSummaryDto {
 
 /** What music is playing from; Up Next shows the songs after `index` as one row. */
 export interface PlayContextDto {
-  kind: "album" | "artist" | "songs";
-  /** The album or artist, for a link back. */
+  kind: "album" | "artist" | "songs" | "playlist";
+  /** The album, artist or playlist, for a link back. */
   refId: string | null;
-  /** "Back In Black", "AC/DC" or "Your songs". */
+  /** "Back In Black", "AC/DC", "Your songs" or the playlist's name. */
   title: string;
   /** In play order (shuffled already when `shuffled`); songs gone from the server are left out. */
   tracks: TrackDto[];
@@ -124,6 +124,23 @@ export interface ArtistSummary {
   coverHash: string | null;
 }
 
+// ---------- Playlists (each person's own) ----------
+
+export interface PlaylistSummary {
+  id: string;
+  name: string;
+  trackCount: number;
+  durationSec: number;
+  /** Up to four different album covers from its songs, for the cover grid. */
+  covers: Array<{ albumId: string; coverHash: string }>;
+  updatedAt: number;
+}
+
+export interface PlaylistDetail extends PlaylistSummary {
+  /** In playlist order. */
+  tracks: TrackDto[];
+}
+
 // ---------- Matching (admins) ----------
 
 export type AlbumMatchProvider = "musicbrainz" | "deezer" | "itunes";
@@ -159,7 +176,16 @@ export interface AlbumMatchSearch {
   errors: string[];
 }
 
-export type AlbumMatchField = "cover" | "title" | "year" | "genre";
+/** "tracks" is the songs' titles and numbers, offered only in a single album's Match. */
+export type AlbumMatchField = "cover" | "title" | "year" | "genre" | "tracks";
+/** Match all takes these; songs are only ever matched one album at a time. */
+export type AlbumMatchAllField = Exclude<AlbumMatchField, "tracks">;
+
+export interface AlbumMatchSong {
+  /** "1", or "2-3" on a multi-disc album. */
+  number: string | null;
+  title: string;
+}
 
 export interface AlbumMatchValues {
   title: string;
@@ -168,6 +194,8 @@ export interface AlbumMatchValues {
   coverUrl: string | null;
   /** The original image's width, when known. */
   coverWidth: number | null;
+  /** In play order. */
+  songs: AlbumMatchSong[];
 }
 
 export interface AlbumMatchPreview {
@@ -177,11 +205,13 @@ export interface AlbumMatchPreview {
   proposed: AlbumMatchValues;
   /** Ticked to start with: what's missing or poorer now. */
   recommended: AlbumMatchField[];
+  /** Why the songs can't be taken from this result (a different number of them), or null. */
+  songsNote: string | null;
 }
 
 /** One field a Match all result changes, as text for both sides. */
 export interface AlbumMatchChange {
-  field: AlbumMatchField;
+  field: AlbumMatchAllField;
   from: string | null;
   to: string | null;
 }
@@ -195,7 +225,7 @@ export interface AlbumMatchAllItem {
   status: "pending" | "review" | "applied" | "none";
   candidate: AlbumCandidate | null;
   /** Fields this run applied. */
-  applied: AlbumMatchField[];
+  applied: AlbumMatchAllField[];
   /** What applying the result changes. */
   changes: AlbumMatchChange[];
   message: string | null;
@@ -207,7 +237,7 @@ export interface AlbumMatchAllItem {
  */
 export interface AlbumMatchAllDto {
   running: boolean;
-  fields: AlbumMatchField[];
+  fields: AlbumMatchAllField[];
   total: number;
   done: number;
   current: string | null;

@@ -87,6 +87,17 @@ export function queueEntryView(e: QueueEntry) {
       remaining: Math.max(0, b.durationSec - pos),
     };
   }
+  if (e.itemType === "track") {
+    const t = e.track;
+    return {
+      kind: t.artist,
+      title: t.title,
+      length: duration(t.durationSec),
+      cover: t.coverHash ? apiPaths.albumCoverUrl(t.albumId, t.coverHash, 200) : null,
+      color: null,
+      remaining: t.durationSec,
+    };
+  }
   const ep = e.episode;
   const dur = ep.durationSec ?? 0;
   const pos = ep.progress && !ep.progress.finished ? ep.progress.positionSec : 0;

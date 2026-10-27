@@ -8,7 +8,7 @@ import {
   ALBUM_PROVIDER_NAME,
   type AlbumMatchAllDto,
   type AlbumMatchAllItem,
-  type AlbumMatchField,
+  type AlbumMatchAllField,
   type AlbumSummary,
   albumCover,
   errorText,
@@ -29,7 +29,10 @@ const POLL_MS = 1500;
 /** Review results this sure start ticked; the rest you tick yourself. */
 const PICK_AT = 80;
 /** Fields a first Match all takes when no album match has been applied in this browser yet. */
-const DEFAULT_FIELDS: AlbumMatchField[] = ["cover", "year", "genre"];
+const DEFAULT_FIELDS: AlbumMatchAllField[] = ["cover", "year", "genre"];
+
+/** Match all never takes songs; those are matched one album at a time. */
+const MATCH_ALL_FIELDS = ALBUM_FIELDS.filter((f): f is (typeof ALBUM_FIELDS)[number] & { field: AlbumMatchAllField } => f.field !== "tracks");
 
 type Filter = "review" | "applied" | "none";
 const FILTER_LABEL: Record<Filter, string> = { review: "To review", applied: "Applied", none: "No match" };
@@ -38,7 +41,7 @@ export function AlbumMatchAll({ albums, children }: { albums: AlbumSummary[]; ch
   const router = useRouter();
   const [job, setJob] = useState<AlbumMatchAllDto | null>(null);
   const [starting, setStarting] = useState(false);
-  const [fields, setFields] = useState<Set<AlbumMatchField>>(new Set(DEFAULT_FIELDS));
+  const [fields, setFields] = useState<Set<AlbumMatchAllField>>(new Set(DEFAULT_FIELDS));
   const [filter, setFilter] = useState<Filter>("review");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -122,7 +125,7 @@ export function AlbumMatchAll({ albums, children }: { albums: AlbumSummary[]; ch
             type="button"
             className="btn btn-primary"
             onClick={() => {
-              setFields(new Set(lastAlbumFields() ?? DEFAULT_FIELDS));
+              setFields(new Set((lastAlbumFields() ?? DEFAULT_FIELDS).filter((f): f is AlbumMatchAllField => f !== "tracks")));
               setStarting(true);
             }}
           >
@@ -134,7 +137,7 @@ export function AlbumMatchAll({ albums, children }: { albums: AlbumSummary[]; ch
           <div className="sheet-group">
             <span className="sheet-group-title">Fields to take</span>
             <div className="chips" style={{ flexWrap: "wrap" }}>
-              {ALBUM_FIELDS.map(({ field, label }) => (
+              {MATCH_ALL_FIELDS.map(({ field, label }) => (
                 <button
                   key={field}
                   type="button"

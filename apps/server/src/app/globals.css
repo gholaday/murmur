@@ -946,6 +946,9 @@ a.episode-show:hover { color: var(--accent); }
 .compare td { padding: 8px 4px; border-top: 1px solid var(--line); vertical-align: top; }
 .compare td:first-child { width: 28px; }
 .compare .field { font-weight: 700; white-space: nowrap; }
+.match-songs { margin: 0; padding: 0; list-style: none; max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.match-songs li { display: flex; gap: 8px; }
+.match-songs li .muted { min-width: 2.2em; text-align: right; font-variant-numeric: tabular-nums; }
 .compare .val { max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .compare img { width: 56px; border-radius: 6px; display: block; }
 .compare tr.same td { opacity: 0.5; }
@@ -1125,7 +1128,9 @@ button.track-title { text-align: left; color: inherit; }
 button.track-title:hover { color: var(--accent); }
 .track-list li.playing .track-title, .track-list li.playing .track-num { color: var(--accent); }
 .list-row-play { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; }
-.list-row-play:hover .list-row-title, .list-row.playing .list-row-title { color: var(--accent); }
+.list-row-play:hover .list-row-title, .list-row.playing .list-row-title, .queue-row.playing .list-row-title { color: var(--accent); }
+.playlist-cover { display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; aspect-ratio: 1; }
+.playlist-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .songs-actions { display: flex; gap: 10px; margin-bottom: 8px; }
 .songs-actions .btn { flex: 1; max-width: 200px; height: 44px; }
 .context-row { width: 100%; }

@@ -16,6 +16,7 @@ import {
   type ArtistSummary,
   artistMatches,
   type MusicSummaryDto,
+  type PlaylistSummary,
   plural,
   songLength,
   songMatches,
@@ -30,12 +31,15 @@ import { type MusicSource, usePlayer } from "../player/engine";
 import { GroupGrid } from "../library/library";
 import { Sheet, SheetItem } from "../sheet";
 import { AlbumBadge, MineToggle, useMineChange } from "./mine";
+import { NewPlaylistButton, PlaylistCard } from "./playlist-view";
+import { SongMenuButton } from "./song-menu";
 
-export type MusicTab = "albums" | "artists" | "songs";
+export type MusicTab = "albums" | "artists" | "songs" | "playlists";
 const TABS: Array<{ id: MusicTab; label: string; placeholder: string }> = [
   { id: "albums", label: "Albums", placeholder: "Album or artist" },
   { id: "artists", label: "Artists", placeholder: "Artist" },
   { id: "songs", label: "Songs", placeholder: "Song, artist or album" },
+  { id: "playlists", label: "Playlists", placeholder: "Playlist" },
 ];
 const SORT_KEY = "murmur.albumSort";
 
@@ -102,7 +106,20 @@ export function AlbumCard({ album, sub, badge }: { album: AlbumSummary; sub?: st
  * A song with its album's cover, title, "Artist, Album" and length. With `onPlay` the row plays it,
  * otherwise it opens the album; `toggle` adds the + / check.
  */
-export function SongRow({ track, sub, toggle, onPlay }: { track: TrackDto; sub?: string; toggle?: boolean; onPlay?: () => void }) {
+export function SongRow({
+  track,
+  sub,
+  toggle,
+  onPlay,
+  menuExtra,
+}: {
+  track: TrackDto;
+  sub?: string;
+  toggle?: boolean;
+  onPlay?: () => void;
+  /** More items for the song's ⋯ menu, such as removing it from a playlist. */
+  menuExtra?: (close: () => void) => React.ReactNode;
+}) {
   const { isCurrent } = usePlayer();
   const body = (
     <>
@@ -126,6 +143,7 @@ export function SongRow({ track, sub, toggle, onPlay }: { track: TrackDto; sub?:
       )}
       <span className="muted small">{songLength(track)}</span>
       {toggle ? <MineToggle title={track.title} added={track.inMusic} change={{ trackIds: [track.id] }} /> : null}
+      <SongMenuButton track={track} extra={menuExtra} />
     </div>
   );
 }
@@ -231,11 +249,13 @@ export function MusicView({
   summary,
   albums,
   artists,
+  playlists,
   tab: initialTab,
 }: {
   summary: MusicSummaryDto;
   albums: AlbumSummary[];
   artists: ArtistSummary[];
+  playlists: PlaylistSummary[];
   tab: MusicTab;
 }) {
   const pathname = usePathname();
@@ -263,7 +283,7 @@ export function MusicView({
   const sorted = useMemo(() => sortAlbums(albums, sort), [albums, sort]);
   const byArtist = useMemo(() => albumsByArtist(albums), [albums]);
 
-  if (summary.mine.tracks === 0) {
+  if (summary.mine.tracks === 0 && playlists.length === 0) {
     return (
       <>
         <div className="page-head">
@@ -278,6 +298,7 @@ export function MusicView({
   const shownAlbums = sorted.filter((a) => albumMatches(a, q));
   const shownArtists = artists.filter((a) => artistMatches(a, q));
   const shownSongs = (songs ?? []).filter((t) => songMatches(t, q));
+  const shownPlaylists = playlists.filter((p) => p.name.toLowerCase().includes(q));
   const songsSource: MusicSource = { kind: "songs", refId: null, title: "Your songs", tracks: shownSongs };
 
   return (
@@ -358,6 +379,19 @@ export function MusicView({
           ) : (
             <div className="empty">{`No artist in your music matches "${query.trim()}".`}</div>
           )
+        ) : tab === "playlists" ? (
+          <>
+            {q ? null : <NewPlaylistButton />}
+            {shownPlaylists.length ? (
+              <div className="grid" style={{ marginTop: 16 }}>
+                {shownPlaylists.map((p) => (
+                  <PlaylistCard key={p.id} playlist={p} />
+                ))}
+              </div>
+            ) : (
+              <div className="empty">{q ? `No playlist matches "${query.trim()}".` : "Make a playlist, then add songs to it from their ⋯ menu."}</div>
+            )}
+          </>
         ) : songs === null ? (
           <div className="empty">Loading songs…</div>
         ) : shownSongs.length ? (

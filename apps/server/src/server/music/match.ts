@@ -145,6 +145,7 @@ export async function previewAlbumMatch(
     genre: album.genre,
     coverUrl: album.coverHash ? apiPaths.albumCoverUrl(album.id, album.coverHash, 200) : null,
     coverWidth: currentCoverWidth,
+    songs: album.tracks.map((t) => ({ number: songNumber(t.discNo, t.trackNo), title: t.title })),
   };
   const proposed: AlbumMatchValues = {
     title: detail.title,
@@ -153,16 +154,17 @@ export async function previewAlbumMatch(
     // A source can list a cover that isn't there; only one that loaded is offered.
     coverUrl: proposedCoverWidth ? detail.coverUrl : null,
     coverWidth: proposedCoverWidth,
+    songs: detail.songs.map((s) => ({ number: songNumber(s.discNo, s.trackNo), title: s.title })),
   };
 
-  // Only fill what's missing or poorer; the title is never changed by default.
+  // Only fill what's missing or poorer; the title and songs are never changed by default.
   const recommended: AlbumMatchField[] = [];
   if (!current.year && proposed.year) recommended.push("year");
   if (!current.genre && proposed.genre) recommended.push("genre");
   if (proposed.coverUrl && proposedCoverWidth && (!album.coverHash || proposedCoverWidth > (currentCoverWidth ?? UNKNOWN_COVER_WIDTH))) {
     recommended.push("cover");
   }
-  return { provider, providerId, current, proposed, recommended };
+  return { provider, providerId, current, proposed, recommended, songsNote: songsNote(album.trackCount, detail.songs.length) };
 }
 
 interface OverrideRow {
@@ -174,7 +176,7 @@ interface OverrideRow {
 
 /** Applies the chosen fields (none just marks it matched). Fields not chosen keep any earlier match. */
 export async function applyAlbumMatch(ctx: AppContext, albumId: string, input: AlbumMatchApplyInput): Promise<void> {
-  await loadAlbum(ctx, albumId);
+  const album = await loadAlbum(ctx, albumId);
   const detail = await detailFor(ctx, input.provider, input.providerId);
   const existing = (ctx.sqlite.prepare("SELECT title, year, genre, cover_hash FROM album_overrides WHERE album_id = ?").get(albumId) as
     | OverrideRow
@@ -195,19 +197,50 @@ export async function applyAlbumMatch(ctx: AppContext, albumId: string, input: A
     }
   }
 
-  ctx.sqlite
-    .prepare(
-      `INSERT INTO album_overrides (album_id, provider, provider_id, title, year, genre, cover_hash, matched_at)
-       VALUES (@albumId, @provider, @providerId, @title, @year, @genre, @cover_hash, @matchedAt)
-       ON CONFLICT (album_id) DO UPDATE SET provider = excluded.provider, provider_id = excluded.provider_id,
-         title = excluded.title, year = excluded.year, genre = excluded.genre, cover_hash = excluded.cover_hash,
-         matched_at = excluded.matched_at`,
-    )
-    .run({ ...next, albumId, provider: input.provider, providerId: input.providerId, matchedAt: Date.now() });
+  const songs = fields.has("tracks") ? detail.songs : null;
+  if (songs) {
+    const note = songsNote(album.trackCount, songs.length);
+    if (note) throw new HttpError(400, note);
+  }
+
+  ctx.sqlite.transaction(() => {
+    ctx.sqlite
+      .prepare(
+        `INSERT INTO album_overrides (album_id, provider, provider_id, title, year, genre, cover_hash, matched_at)
+         VALUES (@albumId, @provider, @providerId, @title, @year, @genre, @cover_hash, @matchedAt)
+         ON CONFLICT (album_id) DO UPDATE SET provider = excluded.provider, provider_id = excluded.provider_id,
+           title = excluded.title, year = excluded.year, genre = excluded.genre, cover_hash = excluded.cover_hash,
+           matched_at = excluded.matched_at`,
+      )
+      .run({ ...next, albumId, provider: input.provider, providerId: input.providerId, matchedAt: Date.now() });
+    if (songs) {
+      // Paired by position: your songs in play order with the source's, which have the same count.
+      const put = ctx.sqlite.prepare(
+        `INSERT INTO track_overrides (track_id, title, disc_no, track_no) VALUES (?, ?, ?, ?)
+         ON CONFLICT (track_id) DO UPDATE SET title = excluded.title, disc_no = excluded.disc_no, track_no = excluded.track_no`,
+      );
+      album.tracks.forEach((t, i) => {
+        const s = songs[i]!;
+        put.run(t.id, s.title || null, s.discNo, s.trackNo);
+      });
+    }
+  })();
 }
 
+/** Songs can only be paired by position when both sides have the same number. */
+function songsNote(local: number, source: number): string | null {
+  if (source === 0) return "This result doesn't list its songs.";
+  if (source !== local) return `This result has ${source} songs and your album has ${local}, so they can't be paired up.`;
+  return null;
+}
+
+const songNumber = (discNo: number | null, trackNo: number | null) => (trackNo === null ? null : discNo ? `${discNo}-${trackNo}` : String(trackNo));
+
 export function removeAlbumMatch(ctx: AppContext, albumId: string) {
-  ctx.sqlite.prepare("DELETE FROM album_overrides WHERE album_id = ?").run(albumId);
+  ctx.sqlite.transaction(() => {
+    ctx.sqlite.prepare("DELETE FROM album_overrides WHERE album_id = ?").run(albumId);
+    ctx.sqlite.prepare("DELETE FROM track_overrides WHERE track_id IN (SELECT id FROM tracks WHERE album_id = ?)").run(albumId);
+  })();
 }
 
 // ---------- Artist photos ----------

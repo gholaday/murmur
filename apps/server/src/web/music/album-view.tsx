@@ -25,6 +25,7 @@ import { Sheet, SheetItem } from "../sheet";
 import { type MusicSource, usePlayer } from "../player/engine";
 import { ArtistPhotoDialog, AlbumMatchDialog } from "./match";
 import { MineToggle, useMineChange } from "./mine";
+import { AddToPlaylistSheet, SongMenuButton } from "./song-menu";
 import { AlbumCard, SongRow } from "./music-view";
 
 /** Back to wherever you came from, or the Music tab when opened directly; `children` go on the right. */
@@ -46,6 +47,7 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
   const [matching, setMatching] = useState(false);
+  const [adding, setAdding] = useState(false);
   const state = albumInMusic(album);
   const toAdd = album.trackCount - album.songsInMusic;
   const p = usePlayer();
@@ -67,11 +69,9 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
   return (
     <>
       <BackRow>
-        {state !== "none" || isAdmin ? (
-          <button type="button" className="icon-btn" aria-label="Album options" onClick={() => setMenu(true)}>
-            <MoreIcon />
-          </button>
-        ) : null}
+        <button type="button" className="icon-btn" aria-label="Album options" onClick={() => setMenu(true)}>
+          <MoreIcon />
+        </button>
       </BackRow>
       {/* Cover beside the title, as in the app. */}
       <div className="show-hero">
@@ -144,6 +144,7 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
                 </span>
                 <span className="muted small">{songLength(t)}</span>
                 <MineToggle title={t.title} added={t.inMusic} change={{ trackIds: [t.id] }} />
+                <SongMenuButton track={t} hideAlbum />
               </li>
             ))}
           </ol>
@@ -151,6 +152,14 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
       ))}
 
       <Sheet open={menu} onClose={() => setMenu(false)} title={album.title}>
+        <SheetItem
+          onClick={() => {
+            setMenu(false);
+            setAdding(true);
+          }}
+        >
+          Add to playlist…
+        </SheetItem>
         {state !== "none" ? (
           <SheetItem
             danger
@@ -179,6 +188,7 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
         ) : null}
       </Sheet>
 
+      <AddToPlaylistSheet open={adding} onClose={() => setAdding(false)} title={album.title} trackIds={album.tracks.map((t) => t.id)} />
       {isAdmin && matching ? (
         <AlbumMatchDialog
           album={album}

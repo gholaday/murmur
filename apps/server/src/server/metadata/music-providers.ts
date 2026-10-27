@@ -33,9 +33,17 @@ function deezerError(body: unknown): string | null {
 /** Lucene phrase for a MusicBrainz query, with its special characters escaped. */
 const phrase = (s: string) => `"${s.replace(/[\\"]/g, "\\$&")}"`;
 
+export interface SourceSong {
+  title: string;
+  /** Null when the album is one disc or the source doesn't say. */
+  discNo: number | null;
+  trackNo: number;
+  lengthSec: number;
+}
+
 export interface AlbumDetail extends UnscoredAlbum {
-  /** Each song's length in seconds, in order, when the source lists them. */
-  trackLengths: number[];
+  /** The songs in play order, when the source lists them. */
+  songs: SourceSong[];
 }
 
 export interface ArtistHit {
@@ -53,7 +61,7 @@ interface MbRelease {
   "track-count"?: number;
   "artist-credit"?: Array<{ name: string; joinphrase?: string }>;
   "release-group"?: { id: string; "first-release-date"?: string };
-  media?: Array<{ tracks?: Array<{ length?: number | null }> }>;
+  media?: Array<{ position?: number; tracks?: Array<{ title?: string; position?: number; length?: number | null }> }>;
   genres?: Array<{ name: string; count: number }>;
   "cover-art-archive"?: { front?: boolean };
 }
@@ -67,7 +75,7 @@ interface DeezerAlbum {
   release_date?: string;
   artist?: { name: string };
   genres?: { data?: Array<{ name: string }> };
-  tracks?: { data?: Array<{ duration?: number }> };
+  tracks?: { data?: Array<{ title?: string; duration?: number }> };
 }
 
 interface DeezerArtist {
@@ -88,6 +96,9 @@ interface ItunesItem {
   primaryGenreName?: string;
   artworkUrl100?: string;
   trackTimeMillis?: number;
+  trackName?: string;
+  trackNumber?: number;
+  discNumber?: number;
 }
 
 const credit = (r: MbRelease) => (r["artist-credit"] ?? []).map((c) => `${c.name}${c.joinphrase ?? ""}`).join("").trim();
@@ -156,13 +167,21 @@ export function createMusicProviders(sqlite: Sqlite, opts: { region: string; use
       : group
         ? `https://coverartarchive.org/release-group/${group}`
         : null;
-    const lengths = (r.media ?? []).flatMap((m) => (m.tracks ?? []).map((t) => (t.length ?? 0) / 1000));
+    const media = r.media ?? [];
+    const songs = media.flatMap((m, mi) =>
+      (m.tracks ?? []).map((t, ti) => ({
+        title: t.title ?? "",
+        discNo: media.length > 1 ? (m.position ?? mi + 1) : null,
+        trackNo: t.position ?? ti + 1,
+        lengthSec: (t.length ?? 0) / 1000,
+      })),
+    );
     // Genres are mostly tagged on the album as a whole rather than on each release of it.
     if (!r.genres?.length && group) {
       const g = await mb<{ genres?: MbRelease["genres"] }>(`https://musicbrainz.org/ws/2/release-group/${group}?inc=genres&fmt=json`);
       r.genres = g?.genres;
     }
-    return { ...mbAlbum(r, cover), trackLengths: lengths };
+    return { ...mbAlbum(r, cover), songs };
   }
 
   // ---------- Deezer: albums, and the only free source of artist photos ----------
@@ -193,7 +212,9 @@ export function createMusicProviders(sqlite: Sqlite, opts: { region: string; use
   async function deezerById(id: string): Promise<AlbumDetail | null> {
     const a = await deezer<DeezerAlbum>(`https://api.deezer.com/album/${encodeURIComponent(id)}`);
     if (!a?.title) return null;
-    return { ...deezerAlbum(a), trackLengths: (a.tracks?.data ?? []).map((t) => t.duration ?? 0) };
+    // Deezer lists the songs in order but not their disc.
+    const songs = (a.tracks?.data ?? []).map((t, i) => ({ title: t.title ?? "", discNo: null, trackNo: i + 1, lengthSec: t.duration ?? 0 }));
+    return { ...deezerAlbum(a), songs };
   }
 
   /** Deezer's link for an artist with no picture has an empty image id. */
@@ -242,8 +263,17 @@ export function createMusicProviders(sqlite: Sqlite, opts: { region: string; use
     const results = data?.results ?? [];
     const album = results.find((r) => r.wrapperType === "collection" && String(r.collectionId) === id);
     if (!album?.collectionName) return null;
-    const songs = results.filter((r) => r.wrapperType === "track");
-    return { ...itunesAlbum(album), trackLengths: songs.map((s) => (s.trackTimeMillis ?? 0) / 1000) };
+    const items = results.filter((r) => r.wrapperType === "track");
+    const multiDisc = items.some((s) => (s.discNumber ?? 1) > 1);
+    const songs = items
+      .sort((a, b) => (a.discNumber ?? 1) - (b.discNumber ?? 1) || (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
+      .map((s, i) => ({
+        title: s.trackName ?? "",
+        discNo: multiDisc ? (s.discNumber ?? 1) : null,
+        trackNo: s.trackNumber ?? i + 1,
+        lengthSec: (s.trackTimeMillis ?? 0) / 1000,
+      }));
+    return { ...itunesAlbum(album), songs };
   }
 
   async function albumById(provider: AlbumMatchProvider, id: string): Promise<AlbumDetail | null> {

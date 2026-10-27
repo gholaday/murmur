@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { clampSpeed } from "./player";
+import type { TrackDto } from "./music";
 import { BOOK_SECTION_IDS } from "./shelves";
 
 // ---------- Request schemas (validated on the server, reused by clients) ----------
@@ -111,7 +112,7 @@ export const albumSortSchema = z.enum(["added", "name", "artist", "year"]).catch
 export const musicScopeSchema = z.enum(["mine", "all"]).catch("all");
 /** What you're playing music from: an album, an artist, or a list of songs, in play order. */
 export const playContextSchema = z.object({
-  kind: z.enum(["album", "artist", "songs"]),
+  kind: z.enum(["album", "artist", "songs", "playlist"]),
   refId: z.string().max(64).nullable(),
   title: z.string().min(1).max(300),
   trackIds: z.array(z.string().min(1).max(64)).min(1).max(5000),
@@ -130,12 +131,19 @@ export const musicMineSchema = z
 export const albumMatchApplySchema = z.object({
   provider: z.enum(["musicbrainz", "deezer", "itunes"]),
   providerId: z.string().min(1).max(64),
-  fields: z.array(z.enum(["cover", "title", "year", "genre"])).min(1),
-});
-export type AlbumMatchApplyInput = z.input<typeof albumMatchApplySchema>;
+  fields: z.array(z.enum(["cover", "title", "year", "genre", "tracks"])).min(1),
+});export type AlbumMatchApplyInput = z.input<typeof albumMatchApplySchema>;
 export const albumMatchAllStartSchema = z.object({ fields: z.array(z.enum(["cover", "title", "year", "genre"])).min(1) });
 export const albumMatchAllUndoSchema = z.object({ albumId: z.string().min(1).max(64) });
-export const albumMatchAllApplySchema =z.object({ albumIds: z.array(z.string().min(1).max(64)).min(1).max(5000) });
+export const albumMatchAllApplySchema = z.object({ albumIds: z.array(z.string().min(1).max(64)).min(1).max(5000) });
+const playlistNameSchema = z.string().trim().min(1, "Give the playlist a name.").max(200);
+const trackIdsSchema = z.array(z.string().min(1).max(64)).max(5000);
+/** A new playlist, optionally with its first songs. */
+export const playlistCreateSchema = z.object({ name: playlistNameSchema, trackIds: trackIdsSchema.default([]) });
+/** Rename, or replace the songs in their new order (reorder and remove are both this). */
+export const playlistUpdateSchema = z.object({ name: playlistNameSchema.optional(), trackIds: trackIdsSchema.optional() });
+/** Songs to add to the end of a playlist; ones already in it stay where they are. */
+export const playlistAddSchema = z.object({ trackIds: trackIdsSchema.min(1) });
 /** A photo picked from the options, or null for the newest album's cover. */
 export const artistPhotoSchema = z.object({ providerId: z.string().min(1).max(64).nullable() });
 
@@ -146,7 +154,7 @@ export const folderCheckSchema = z.object({
 });
 
 export const queueRefSchema = z.object({
-  itemType: itemTypeSchema,
+  itemType: playTypeSchema,
   itemId: z.string().min(1).max(64),
 });
 export type QueueRef = z.infer<typeof queueRefSchema>;
@@ -443,7 +451,8 @@ export interface EpisodeWithShow extends EpisodeDto {
 
 export type QueueEntry =
   | { itemType: "book"; itemId: string; book: BookSummary }
-  | { itemType: "episode"; itemId: string; episode: EpisodeWithShow };
+  | { itemType: "episode"; itemId: string; episode: EpisodeWithShow }
+  | { itemType: "track"; itemId: string; track: TrackDto };
 
 export type MatchProvider = "audible" | "google" | "itunes";
 

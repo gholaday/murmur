@@ -1,4 +1,4 @@
-import type { AlbumCandidate, AlbumMatchAllDto, AlbumMatchAllItem, AlbumMatchChange, AlbumMatchField, AlbumMatchPreview } from "@murmur/shared";
+import type { AlbumCandidate, AlbumMatchAllDto, AlbumMatchAllItem, AlbumMatchChange, AlbumMatchAllField, AlbumMatchPreview } from "@murmur/shared";
 import type { AppContext } from "../context";
 import { HttpError } from "../http";
 import { createLogger, errorMessage } from "../log";
@@ -31,7 +31,7 @@ export function albumMatchAllStatus(): AlbumMatchAllDto | null {
   return holder.job?.dto ?? null;
 }
 
-export async function startAlbumMatchAll(ctx: AppContext, fields: AlbumMatchField[]): Promise<AlbumMatchAllDto> {
+export async function startAlbumMatchAll(ctx: AppContext, fields: AlbumMatchAllField[]): Promise<AlbumMatchAllDto> {
   if (holder.job?.dto.running) throw new HttpError(409, "A match is already running.");
   const albums = (await listAlbums(ctx, 0, "all", "artist")).filter((a) => !a.matched);
   if (albums.length === 0) throw new HttpError(400, "Every album is already matched.");
@@ -175,7 +175,7 @@ async function applyItem(ctx: AppContext, job: Job, item: AlbumMatchAllItem, c: 
 }
 
 /** A field's value as a line of text, for showing what a result changes. */
-function shown(p: AlbumMatchPreview, side: "current" | "proposed", field: AlbumMatchField): string | null {
+function shown(p: AlbumMatchPreview, side: "current" | "proposed", field: AlbumMatchAllField): string | null {
   const v = p[side];
   if (field === "cover") return v.coverUrl ? (v.coverWidth ? `${v.coverWidth}px` : "Yes") : null;
   return v[field]?.trim() || null;
@@ -185,7 +185,7 @@ function shown(p: AlbumMatchPreview, side: "current" | "proposed", field: AlbumM
  * Bought music is tagged well, and sources often give a reissue's year or a broader genre, so
  * Match all only fills a missing year or genre. Covers only when bigger; titles when different.
  */
-function worthApplying(p: AlbumMatchPreview, field: AlbumMatchField): boolean {
+function worthApplying(p: AlbumMatchPreview, field: AlbumMatchAllField): boolean {
   if (field === "cover" || field === "year" || field === "genre") return p.recommended.includes(field);
   const now = p.current[field]?.trim() ?? "";
   const next = p.proposed[field]?.trim() ?? "";

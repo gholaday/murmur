@@ -132,7 +132,8 @@ Nothing in this phase needs an admin-only page beyond the folder list.
 - **Album Match:** "Match metadata…" in an album's menu (admins). It's the books dialog, results list and compare table, with the fields cover, title, year and genre. Values go in `album_overrides`; "Undo match" removes them.
 - **Match all:** the "Not matched" chip in Browse (admins), the same screen as books' bulk match (`music/match-all.ts`, `/api/music/match`). It only fills a missing year or genre, never replaces one, and takes covers only when bigger.
 - **Artist photos:** after each music scan, Deezer is searched by name for album artists with no photo (exact name, most fans). Nothing found is tried again after 30 days. Kept in `artist_photos` by name key, so a rescan keeps them. "Change photo…" on the artist page picks another or goes back to the album cover.
-- **Not built:** changing song titles and numbers, line-up of song lengths in scoring, and a Needs attention filter for small covers.
+- **Songs:** a Songs field in a single album's Match takes the result's song titles and numbers, paired by position, only when it has the same number of songs. They go in `track_overrides`; Undo match removes them too. Match all never changes songs.
+- **Not built:** line-up of song lengths in scoring, and a Needs attention filter for small covers.
 
 Bought music is usually well tagged with embedded art, so matching mostly fills gaps: missing or small covers, artist photos, years and genres. It works on albums, not single songs, and follows the books pattern: a Match screen per album, and Match all with results to review.
 
@@ -227,9 +228,15 @@ Each candidate gets a score out of 100, the same as for books:
   - Offline playback of a downloaded album works from the saved copy of its details, the same as books.
 - **Listening:** the context row in Up Next, and a Music group in Downloaded.
 
+## Playlists, queued songs and Most played (built)
+
+- **Playlists** are each person's own (`playlists`, `playlist_tracks`), with no `.m3u` files. They're under a Playlists chip on the Music tab. The playlist page plays, shuffles, reorders by dragging, removes, renames and deletes. Songs are added from any song's ⋯ menu, or a whole album from its menu. They play as the context kind "playlist".
+- **Song ⋯ menu:** Play next, Add to Up Next, Add to playlist, Go to album.
+- **Queued songs:** Up Next takes songs (`queue_items.item_type` "track"). Play next during an album or list puts the song right after the current one in that context, so it shows in "Rest of". With nothing playing from a context, it goes to the front of Up Next. A song played from Up Next plays on its own and ends the context.
+- **Most played** on You adds the album and the song you spent longest on in the period, and how many times you've played that song.
+
 ## Later
 
-- Playlists, read from `.m3u` files in the music folders and then made in the app.
 - Smart mixes such as "most played" and "not played lately".
 - Gapless playback.
 

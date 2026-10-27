@@ -191,12 +191,53 @@ export const userTracks = sqliteTable(
   (t) => [primaryKey({ columns: [t.userId, t.trackId] }), index("user_tracks_track_idx").on(t.trackId)],
 );
 
+/** Each person's own playlists. */
+export const playlists = sqliteTable(
+  "playlists",
+  {
+    id: text("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [index("playlists_user_idx").on(t.userId)],
+);
+
+/** A playlist's songs in order. A song is in a playlist once; it leaves when its file does, like your music. */
+export const playlistTracks = sqliteTable(
+  "playlist_tracks",
+  {
+    playlistId: text("playlist_id")
+      .notNull()
+      .references(() => playlists.id, { onDelete: "cascade" }),
+    trackId: text("track_id")
+      .notNull()
+      .references(() => tracks.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    addedAt: integer("added_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.playlistId, t.trackId] }), index("playlist_tracks_order_idx").on(t.playlistId, t.position)],
+);
+
+/** Song titles and numbers chosen through an album's Match, kept apart from the tags like album_overrides. */
+export const trackOverrides = sqliteTable("track_overrides", {
+  trackId: text("track_id")
+    .primaryKey()
+    .references(() => tracks.id, { onDelete: "cascade" }),
+  title: text("title"),
+  discNo: integer("disc_no"),
+  trackNo: integer("track_no"),
+});
+
 /** What each person is playing music from, so Up Next and every device can show the rest of it. */
 export const playContext = sqliteTable("play_context", {
   userId: integer("user_id")
     .primaryKey()
     .references(() => users.id, { onDelete: "cascade" }),
-  kind: text("kind", { enum: ["album", "artist", "songs"] }).notNull(),
+  kind: text("kind", { enum: ["album", "artist", "songs", "playlist"] }).notNull(),
   refId: text("ref_id"),
   title: text("title").notNull(),
   /** JSON array of track ids in play order. */
@@ -343,7 +384,7 @@ export const queueItems = sqliteTable(
     userId: integer("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    itemType: text("item_type", { enum: ["book", "episode"] }).notNull(),
+    itemType: text("item_type", { enum: ["book", "episode", "track"] }).notNull(),
     itemId: text("item_id").notNull(),
     position: integer("position").notNull(),
     addedAt: integer("added_at").notNull(),
