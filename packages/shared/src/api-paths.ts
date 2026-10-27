@@ -26,6 +26,8 @@ export const apiPaths = {
   artists: (scope: "mine" | "all") => `/api/music/artists?scope=${scope}`,
   /** ArtistDetail. */
   artist: (artistId: string) => `/api/music/artists/${artistId}`,
+  artistPhotoUrl: (artistId: string, photoHash: string, size: 200 | 600) =>
+    `/api/music/artists/${artistId}/photo?size=${size}&h=${photoHash}`,
   /** TrackDto[], A to Z, or matching `q` (title, artist or album). */
   tracks: (scope: "mine" | "all", q?: string) => `/api/music/tracks?scope=${scope}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
   /** PUT adds songs to your music, DELETE removes them: body MusicMineChange. */

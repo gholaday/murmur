@@ -8,5 +8,5 @@ export default async function BrowsePage() {
   const user = await requirePageUser();
   const ctx = await getContext();
   if (ctx.music.folders().length === 0) notFound();
-  return <BrowseView summary={musicSummary(ctx, user.id)} albums={await listAlbums(ctx, user.id, "all", "added")} />;
+  return <BrowseView summary={musicSummary(ctx, user.id)} albums={await listAlbums(ctx, user.id, "all", "added")} isAdmin={user.isAdmin} />;
 }

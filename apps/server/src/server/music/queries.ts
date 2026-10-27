@@ -1,5 +1,6 @@
 import type {
   AlbumDetail,
+  AlbumMatchProvider,
   AlbumSort,
   AlbumSummary,
   ArtistDetail,
@@ -34,6 +35,7 @@ interface AlbumRow {
   track_count: number;
   duration: number;
   in_music: number;
+  matched: number;
 }
 
 interface TrackRow {
@@ -54,10 +56,17 @@ interface TrackRow {
 /** A song is in @user's music. */
 const IN_MUSIC = (track: string) => `EXISTS (SELECT 1 FROM user_tracks ut WHERE ut.user_id = @user AND ut.track_id = ${track})`;
 
+/** Albums as shown: what Match chose wins over the tags. Sorting keeps the tags' title key. */
+const ALBUMS = `(
+  SELECT al.id, al.artist_id, COALESCE(o.title, al.title) AS title, al.title_key, COALESCE(o.year, al.year) AS year,
+         COALESCE(o.genre, al.genre) AS genre, COALESCE(o.cover_hash, al.cover_hash) AS cover_hash, al.added_at,
+         o.album_id IS NOT NULL AS matched, o.provider, o.provider_id, o.matched_at
+  FROM albums al LEFT JOIN album_overrides o ON o.album_id = al.id)`;
+
 const ALBUM_SELECT = `
-  SELECT a.id, a.title, a.artist_id, ar.name AS artist, a.year, a.genre, a.cover_hash, a.added_at,
+  SELECT a.id, a.title, a.artist_id, ar.name AS artist, a.year, a.genre, a.cover_hash, a.added_at, a.matched,
          COUNT(t.id) AS track_count, SUM(t.duration_sec) AS duration, SUM(${IN_MUSIC("t.id")}) AS in_music
-  FROM albums a
+  FROM ${ALBUMS} a
   JOIN artists ar ON ar.id = a.artist_id
   JOIN tracks t ON t.album_id = a.id AND t.missing_since IS NULL`;
 
@@ -76,7 +85,7 @@ const TRACK_SELECT = `
   SELECT t.id, t.title, t.album_id, al.title AS album, t.artist_id, ar.name AS artist,
          t.disc_no, t.track_no, t.duration_sec, t.mime_type, al.cover_hash, ${IN_MUSIC("t.id")} AS in_music
   FROM tracks t
-  JOIN albums al ON al.id = t.album_id
+  JOIN ${ALBUMS} al ON al.id = t.album_id
   JOIN artists ar ON ar.id = t.artist_id
   WHERE t.missing_since IS NULL`;
 
@@ -100,6 +109,7 @@ async function toAlbums(rows: AlbumRow[]): Promise<AlbumSummary[]> {
     durationSec: r.duration ?? 0,
     addedAt: r.added_at,
     songsInMusic: r.in_music ?? 0,
+    matched: r.matched === 1,
   }));
 }
 
@@ -144,11 +154,25 @@ export async function getAlbum(ctx: AppContext, userId: number, id: string): Pro
   const [album] = await toAlbums(ctx.sqlite.prepare(`${ALBUM_SELECT} WHERE a.id = @id GROUP BY a.id`).all({ user: userId, id }) as AlbumRow[]);
   if (!album) return null;
   const tracks = ctx.sqlite.prepare(`${TRACK_SELECT} AND t.album_id = @id ORDER BY ${PLAY_ORDER}`).all({ user: userId, id }) as TrackRow[];
-  return { ...album, tracks: tracks.map(toTrack) };
+  const match = ctx.sqlite.prepare("SELECT provider, provider_id, matched_at FROM album_overrides WHERE album_id = ?").get(id) as
+    | { provider: AlbumMatchProvider; provider_id: string; matched_at: number }
+    | undefined;
+  return {
+    ...album,
+    tracks: tracks.map(toTrack),
+    match: match ? { provider: match.provider, providerId: match.provider_id, matchedAt: match.matched_at } : null,
+  };
 }
 
 export function getAlbumCoverHash(ctx: AppContext, id: string): string | null {
-  return (ctx.sqlite.prepare("SELECT cover_hash FROM albums WHERE id = ?").get(id) as { cover_hash: string | null } | undefined)?.cover_hash ?? null;
+  return (ctx.sqlite.prepare(`SELECT cover_hash FROM ${ALBUMS} WHERE id = ?`).get(id) as { cover_hash: string | null } | undefined)?.cover_hash ?? null;
+}
+
+export function getArtistPhotoHash(ctx: AppContext, id: string): string | null {
+  const row = ctx.sqlite
+    .prepare("SELECT p.photo_hash FROM artists ar JOIN artist_photos p ON p.name_key = ar.name_key WHERE ar.id = ?")
+    .get(id) as { photo_hash: string | null } | undefined;
+  return row?.photo_hash ?? null;
 }
 
 interface ArtistRow {
@@ -156,6 +180,7 @@ interface ArtistRow {
   name: string;
   album_count: number;
   track_count: number;
+  photo_hash: string | null;
   cover_album_id: string | null;
   cover_hash: string | null;
 }
@@ -172,10 +197,11 @@ function artistSelect(mine: boolean): string {
      WHERE a.artist_id = ar.id AND t.missing_since IS NULL ${minePart}) AS album_count,
     (SELECT COUNT(*) FROM tracks t JOIN albums a ON a.id = t.album_id
      WHERE (t.artist_id = ar.id OR a.artist_id = ar.id) AND t.missing_since IS NULL ${minePart}) AS track_count,
-    c.id AS cover_album_id, c.cover_hash
+    p.photo_hash, c.id AS cover_album_id, c.cover_hash
   FROM artists ar
-  LEFT JOIN albums c ON c.id = (
-    SELECT a.id FROM albums a WHERE a.artist_id = ar.id AND a.cover_hash IS NOT NULL
+  LEFT JOIN artist_photos p ON p.name_key = ar.name_key
+  LEFT JOIN ${ALBUMS} c ON c.id = (
+    SELECT a.id FROM ${ALBUMS} a WHERE a.artist_id = ar.id AND a.cover_hash IS NOT NULL
     ORDER BY a.year IS NULL, a.year DESC LIMIT 1)`;
 }
 
@@ -184,6 +210,7 @@ const toArtist = (r: ArtistRow): ArtistSummary => ({
   name: r.name,
   albumCount: r.album_count,
   trackCount: r.track_count,
+  photoHash: r.photo_hash,
   coverAlbumId: r.cover_album_id,
   coverHash: r.cover_hash,
 });

@@ -126,6 +126,14 @@ Nothing in this phase needs an admin-only page beyond the folder list.
 
 ### Matching and covers
 
+**Built:**
+- **Sources:** MusicBrainz (covers from the Cover Art Archive) and Deezer are searched together. Apple Music is asked only when neither has a result scoring 70 or more. On a tie, MusicBrainz wins, because Deezer and Apple often list a reissue's year. MusicBrainz is held to one request a second, with one retry when it's busy.
+- **Scoring:** `music/match-score.ts`, with tests. Title 40, artist 35, song count 25. Edition words and catalog numbers ("[2156]") are left out. A different song count is never suggested.
+- **Album Match:** "Match metadata…" in an album's menu (admins). It's the books dialog, results list and compare table, with the fields cover, title, year and genre. Values go in `album_overrides`; "Undo match" removes them.
+- **Match all:** the "Not matched" chip in Browse (admins), the same screen as books' bulk match (`music/match-all.ts`, `/api/music/match`). It only fills a missing year or genre, never replaces one, and takes covers only when bigger.
+- **Artist photos:** after each music scan, Deezer is searched by name for album artists with no photo (exact name, most fans). Nothing found is tried again after 30 days. Kept in `artist_photos` by name key, so a rescan keeps them. "Change photo…" on the artist page picks another or goes back to the album cover.
+- **Not built:** changing song titles and numbers, line-up of song lengths in scoring, and a Needs attention filter for small covers.
+
 Bought music is usually well tagged with embedded art, so matching mostly fills gaps: missing or small covers, artist photos, years and genres. It works on albums, not single songs, and follows the books pattern: a Match screen per album, and Match all with results to review.
 
 **Providers**
@@ -222,7 +230,6 @@ Each candidate gets a score out of 100, the same as for books:
 ## Later
 
 - Playlists, read from `.m3u` files in the music folders and then made in the app.
-- Artist photos from a metadata source.
 - Smart mixes such as "most played" and "not played lately".
 - Gapless playback.
 

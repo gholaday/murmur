@@ -3,6 +3,7 @@ import path from "node:path";
 import { backupDatabase, openDatabase, type Db, type Sqlite } from "./db";
 import { env } from "./env";
 import { ensureDefaultFolder, ensureDefaultMusicFolder, listFolders, saveFolders, type LibraryFolder } from "./library/folders";
+import { fillArtistPhotos } from "./music/match";
 import { createMusicScanner, type MusicScanner } from "./music/scanner";
 import { createScanState, createScanner, type ScanState, type Scanner } from "./library/scanner";
 import { startWatcher, type LibraryWatcher } from "./library/watcher";
@@ -120,6 +121,7 @@ async function boot(): Promise<AppContext> {
     missingGraceMs: env.missingGraceMs,
     log: createLogger("music"),
     state: musicState,
+    afterScan: () => fillArtistPhotos(sqlite),
   });
   // Music has its own watcher: any change rescans the music folders, which only probes what changed.
   const startMusicWatch = () =>

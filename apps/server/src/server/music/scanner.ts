@@ -22,6 +22,8 @@ export interface MusicScannerDeps {
   missingGraceMs: number;
   log: Logger;
   state: ScanState;
+  /** Runs after each scan, for lookups that need the new albums (artist photos). */
+  afterScan?: () => Promise<void>;
 }
 
 interface FoundFile {
@@ -261,6 +263,8 @@ export function createMusicScanner(deps: MusicScannerDeps) {
           state.lastStats = { ...stats, moved: 0 };
           state.lastError = problems.length ? problems.join(" ") : null;
           log.info("music scan finished", { ...stats, ms: Date.now() - started });
+          // Not awaited: online lookups mustn't hold up the next scan or the status.
+          void deps.afterScan?.().catch((err: unknown) => log.warn("after-scan step failed", { error: errorMessage(err) }));
         } catch (err) {
           state.lastError = errorMessage(err);
           log.error("music scan failed", { error: state.lastError });

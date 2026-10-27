@@ -15,13 +15,23 @@ export class ProviderError extends Error {}
  * answer is better than none, so it is used instead of failing. `fetchUrl` is what's
  * actually requested when it differs from `url`, the cache key: it can carry an API key,
  * which stays out of the database and the logs.
+ *
+ * `throttle` runs before each real request (not cache hits), for sources with a rate limit.
+ * `bodyError` catches sources that answer 200 with an error in the body, which isn't cached.
  */
-async function cachedJson<T>(sqlite: Sqlite, url: string, userAgent: string, fetchUrl = url): Promise<T | null> {
+export async function cachedJson<T>(
+  sqlite: Sqlite,
+  url: string,
+  userAgent: string,
+  fetchUrl = url,
+  opts: { throttle?: () => Promise<void>; bodyError?: (body: unknown) => string | null } = {},
+): Promise<T | null> {
   const row = sqlite.prepare("SELECT body, fetched_at FROM provider_cache WHERE url = ?").get(url) as
     | { body: string; fetched_at: number }
     | undefined;
   if (row && Date.now() - row.fetched_at < CACHE_TTL_MS) return JSON.parse(row.body) as T;
   try {
+    await opts.throttle?.();
     const res = await fetch(fetchUrl, {
       headers: { "User-Agent": userAgent, Accept: "application/json" },
       signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -31,7 +41,8 @@ async function cachedJson<T>(sqlite: Sqlite, url: string, userAgent: string, fet
     if (res.status >= 500) throw new ProviderError("isn't answering right now. Try again in a while");
     if (!res.ok) throw new ProviderError(`answered ${res.status}`);
     const body = await res.text();
-    JSON.parse(body); // don't cache garbage
+    const failed = opts.bodyError?.(JSON.parse(body)); // also: don't cache garbage
+    if (failed) throw new ProviderError(failed);
     sqlite
       .prepare(
         "INSERT INTO provider_cache (url, body, fetched_at) VALUES (?, ?, ?) ON CONFLICT (url) DO UPDATE SET body = excluded.body, fetched_at = excluded.fetched_at",

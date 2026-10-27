@@ -83,6 +83,8 @@ export interface AlbumSummary {
   addedAt: number;
   /** How many of its songs are in your music; equal to trackCount when all are. */
   songsInMusic: number;
+  /** Details were applied through Match (admins see unmatched albums in Browse). */
+  matched: boolean;
 }
 
 export interface TrackDto {
@@ -106,6 +108,8 @@ export interface TrackDto {
 export interface AlbumDetail extends AlbumSummary {
   /** In play order: disc, then track number, then title. */
   tracks: TrackDto[];
+  /** Set when details were applied through Match; those win over the tags. */
+  match: { provider: AlbumMatchProvider; providerId: string; matchedAt: number } | null;
 }
 
 export interface ArtistSummary {
@@ -113,9 +117,111 @@ export interface ArtistSummary {
   name: string;
   albumCount: number;
   trackCount: number;
-  /** An album of theirs to show until artist photos exist. */
+  /** Their photo, when one was found or picked. Use `artistImage` to show it. */
+  photoHash: string | null;
+  /** An album of theirs, shown when there's no photo. */
   coverAlbumId: string | null;
   coverHash: string | null;
+}
+
+// ---------- Matching (admins) ----------
+
+export type AlbumMatchProvider = "musicbrainz" | "deezer" | "itunes";
+export const ALBUM_PROVIDER_NAME: Record<AlbumMatchProvider, string> = {
+  musicbrainz: "MusicBrainz",
+  deezer: "Deezer",
+  itunes: "Apple Music",
+};
+
+export interface AlbumCandidate {
+  provider: AlbumMatchProvider;
+  providerId: string;
+  title: string;
+  artist: string;
+  year: string | null;
+  genre: string | null;
+  trackCount: number | null;
+  /** The biggest cover the source has, for applying. */
+  coverUrl: string | null;
+  /** A small one for the results list. */
+  thumbUrl: string | null;
+  /** 0 to 100; 90 and up is suggested. */
+  score: number;
+  reasons: string[];
+}
+
+export interface AlbumMatchSearch {
+  query: { title: string; artist: string };
+  candidates: AlbumCandidate[];
+  /** `provider:providerId` of a result good enough to pick for you. */
+  suggested: string | null;
+  /** Sources that couldn't be searched. */
+  errors: string[];
+}
+
+export type AlbumMatchField = "cover" | "title" | "year" | "genre";
+
+export interface AlbumMatchValues {
+  title: string;
+  year: string | null;
+  genre: string | null;
+  coverUrl: string | null;
+  /** The original image's width, when known. */
+  coverWidth: number | null;
+}
+
+export interface AlbumMatchPreview {
+  provider: AlbumMatchProvider;
+  providerId: string;
+  current: AlbumMatchValues;
+  proposed: AlbumMatchValues;
+  /** Ticked to start with: what's missing or poorer now. */
+  recommended: AlbumMatchField[];
+}
+
+/** One field a Match all result changes, as text for both sides. */
+export interface AlbumMatchChange {
+  field: AlbumMatchField;
+  from: string | null;
+  to: string | null;
+}
+
+export interface AlbumMatchAllItem {
+  albumId: string;
+  title: string;
+  artist: string;
+  coverHash: string | null;
+  coverColor: string | null;
+  status: "pending" | "review" | "applied" | "none";
+  candidate: AlbumCandidate | null;
+  /** Fields this run applied. */
+  applied: AlbumMatchField[];
+  /** What applying the result changes. */
+  changes: AlbumMatchChange[];
+  message: string | null;
+}
+
+/**
+ * The current or last Match all over unmatched albums, like books' bulk match. Kept in memory
+ * only, until it's cleared or the server restarts.
+ */
+export interface AlbumMatchAllDto {
+  running: boolean;
+  fields: AlbumMatchField[];
+  total: number;
+  done: number;
+  current: string | null;
+  items: AlbumMatchAllItem[];
+}
+
+/** A photo an admin can pick for an artist. */
+export interface ArtistPhotoOption {
+  providerId: string;
+  name: string;
+  fans: number;
+  imageUrl: string;
+  thumbUrl: string;
+  current: boolean;
 }
 
 export interface ArtistDetail extends ArtistSummary {
@@ -130,6 +236,14 @@ export interface ArtistDetail extends ArtistSummary {
 /** An album's cover URL, or null when it has none (draw the placeholder). */
 export const albumCover = (albumId: string, coverHash: string | null, size: 200 | 600 = 200): string | null =>
   coverHash ? apiPaths.albumCoverUrl(albumId, coverHash, size) : null;
+
+/** An artist's photo, else an album cover of theirs, else null (draw the placeholder). */
+export const artistImage = (a: ArtistSummary, size: 200 | 600 = 200): string | null =>
+  a.photoHash
+    ? apiPaths.artistPhotoUrl(a.id, a.photoHash, size)
+    : a.coverAlbumId && a.coverHash
+      ? apiPaths.albumCoverUrl(a.coverAlbumId, a.coverHash, size)
+      : null;
 
 /** The line under a song in mixed lists: "Artist, Album". */
 export const songSub = (t: TrackDto): string => `${t.artist}, ${t.album}`;

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   albumCover,
   albumDiscs,
@@ -10,16 +11,19 @@ import {
   albumInMusic,
   albumPills,
   type ArtistDetail,
+  artistImage,
   artistSub,
   guestArtist,
   plural,
   songLength,
   songNumber,
 } from "@murmur/shared/client";
+import { api } from "../api";
 import { Cover } from "../cover";
 import { BackIcon, CheckIcon, MoreIcon, PlayIcon, PlusIcon, ShuffleIcon } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
 import { type MusicSource, usePlayer } from "../player/engine";
+import { ArtistPhotoDialog, AlbumMatchDialog } from "./match";
 import { MineToggle, useMineChange } from "./mine";
 import { AlbumCard, SongRow } from "./music-view";
 
@@ -36,10 +40,12 @@ export function BackRow({ children }: { children?: React.ReactNode }) {
   );
 }
 
-export function AlbumView({ album }: { album: AlbumDetail }) {
+export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boolean }) {
+  const router = useRouter();
   const send = useMineChange();
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [matching, setMatching] = useState(false);
   const state = albumInMusic(album);
   const toAdd = album.trackCount - album.songsInMusic;
   const p = usePlayer();
@@ -51,10 +57,17 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
     setBusy(false);
   };
 
+  const revertMatch = async () => {
+    setMenu(false);
+    await api(`/api/music/albums/${album.id}/match`, { method: "DELETE" });
+    toast("Match undone, using the files' details");
+    router.refresh();
+  };
+
   return (
     <>
       <BackRow>
-        {state !== "none" ? (
+        {state !== "none" || isAdmin ? (
           <button type="button" className="icon-btn" aria-label="Album options" onClick={() => setMenu(true)}>
             <MoreIcon />
           </button>
@@ -138,36 +151,86 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
       ))}
 
       <Sheet open={menu} onClose={() => setMenu(false)} title={album.title}>
-        <SheetItem
-          danger
-          onClick={() => {
-            setMenu(false);
-            void change(false);
-          }}
-        >
-          {state === "all" ? "Remove from your music" : `Remove ${plural(album.songsInMusic, "song")} from your music`}
-        </SheetItem>
+        {state !== "none" ? (
+          <SheetItem
+            danger
+            onClick={() => {
+              setMenu(false);
+              void change(false);
+            }}
+          >
+            {state === "all" ? "Remove from your music" : `Remove ${plural(album.songsInMusic, "song")} from your music`}
+          </SheetItem>
+        ) : null}
+        {isAdmin ? (
+          <SheetItem
+            onClick={() => {
+              setMenu(false);
+              setMatching(true);
+            }}
+          >
+            Match metadata…
+          </SheetItem>
+        ) : null}
+        {isAdmin && album.match ? (
+          <SheetItem danger onClick={() => void revertMatch()}>
+            Undo match (use file metadata)
+          </SheetItem>
+        ) : null}
       </Sheet>
+
+      {isAdmin && matching ? (
+        <AlbumMatchDialog
+          album={album}
+          onClose={() => setMatching(false)}
+          onApplied={() => {
+            setMatching(false);
+            toast("Match applied");
+            router.refresh();
+          }}
+        />
+      ) : null}
     </>
   );
 }
 
-export function ArtistView({ artist }: { artist: ArtistDetail }) {
+export function ArtistView({ artist, isAdmin }: { artist: ArtistDetail; isAdmin: boolean }) {
+  const router = useRouter();
   const send = useMineChange();
   const p = usePlayer();
   const [busy, setBusy] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [photo, setPhoto] = useState(false);
   const notFull = artist.albums.filter((a) => albumInMusic(a) !== "all");
   const anyAdded = artist.albums.some((a) => albumInMusic(a) !== "none");
 
   return (
     <>
-      <BackRow />
-      <div className="page-head">
-        <div>
+      <BackRow>
+        {isAdmin ? (
+          <button type="button" className="icon-btn" aria-label="Artist options" onClick={() => setMenu(true)}>
+            <MoreIcon />
+          </button>
+        ) : null}
+      </BackRow>
+      <div className="artist-head">
+        <Cover className="artist-photo" src={artistImage(artist, 600)} color={null} title={artist.name} />
+        <div style={{ minWidth: 0 }}>
           <h1 className="page-title">{artist.name}</h1>
           <div className="page-sub">{artistSub(artist)}</div>
         </div>
       </div>
+      <Sheet open={menu} onClose={() => setMenu(false)} title={artist.name}>
+        <SheetItem
+          onClick={() => {
+            setMenu(false);
+            setPhoto(true);
+          }}
+        >
+          Change photo…
+        </SheetItem>
+      </Sheet>
+      {isAdmin && photo ? <ArtistPhotoDialog artist={artist} onClose={() => setPhoto(false)} onChanged={() => router.refresh()} /> : null}
       {notFull.length ? (
         <button
           type="button"

@@ -8,5 +8,5 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
   const user = await requirePageUser();
   const artist = await getArtist(await getContext(), user.id, (await params).id);
   if (!artist) notFound();
-  return <ArtistView artist={artist} />;
+  return <ArtistView artist={artist} isAdmin={user.isAdmin} />;
 }

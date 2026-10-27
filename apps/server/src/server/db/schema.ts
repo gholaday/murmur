@@ -206,6 +206,37 @@ export const playContext = sqliteTable("play_context", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+/**
+ * An album's details chosen through Match, kept apart from the tags so a rescan keeps them.
+ * A null column means "use what the files say", as for books.
+ */
+export const albumOverrides = sqliteTable("album_overrides", {
+  albumId: text("album_id")
+    .primaryKey()
+    .references(() => albums.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  providerId: text("provider_id").notNull(),
+  title: text("title"),
+  year: text("year"),
+  genre: text("genre"),
+  coverHash: text("cover_hash"),
+  matchedAt: integer("matched_at").notNull(),
+});
+
+/**
+ * Artist photos, keyed by the artist's name key so they outlive the artist row (a rescan can
+ * drop and recreate it). `source` is "auto" (found by name), "chosen" (picked by an admin; no
+ * photo means they chose the album cover) or "none" (looked and found nothing, which is
+ * looked up again after a while).
+ */
+export const artistPhotos = sqliteTable("artist_photos", {
+  nameKey: text("name_key").primaryKey(),
+  source: text("source", { enum: ["auto", "chosen", "none"] }).notNull(),
+  photoHash: text("photo_hash"),
+  providerId: text("provider_id"),
+  checkedAt: integer("checked_at").notNull(),
+});
+
 /** How often each person played each song. No foreign key, so counts outlive a rescan, like progress. */
 export const trackPlays = sqliteTable(
   "track_plays",

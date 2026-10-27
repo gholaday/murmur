@@ -127,6 +127,17 @@ export const musicMineSchema = z
     albumIds: z.array(z.string().min(1).max(64)).max(1000).optional(),
   })
   .refine((v) => v.trackIds?.length || v.albumIds?.length, "Pick at least one song or album.");
+export const albumMatchApplySchema = z.object({
+  provider: z.enum(["musicbrainz", "deezer", "itunes"]),
+  providerId: z.string().min(1).max(64),
+  fields: z.array(z.enum(["cover", "title", "year", "genre"])).min(1),
+});
+export type AlbumMatchApplyInput = z.input<typeof albumMatchApplySchema>;
+export const albumMatchAllStartSchema = z.object({ fields: z.array(z.enum(["cover", "title", "year", "genre"])).min(1) });
+export const albumMatchAllUndoSchema = z.object({ albumId: z.string().min(1).max(64) });
+export const albumMatchAllApplySchema =z.object({ albumIds: z.array(z.string().min(1).max(64)).min(1).max(5000) });
+/** A photo picked from the options, or null for the newest album's cover. */
+export const artistPhotoSchema = z.object({ providerId: z.string().min(1).max(64).nullable() });
 
 export const folderCheckSchema = z.object({
   path: folderPathSchema,
