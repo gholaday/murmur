@@ -254,7 +254,7 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
       ) : (
         <div className="empty" style={{ marginTop: 24 }}>
           <strong>No songs yet</strong>
-          <div className="muted small">Add songs from any album, artist or song list with ⋯ and Add to playlist.</div>
+          <div className="muted small">Add songs from the menu on any song, with Add to playlist.</div>
         </div>
       )}
 

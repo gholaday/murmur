@@ -389,7 +389,7 @@ export function MusicView({
                 ))}
               </div>
             ) : (
-              <div className="empty">{q ? `No playlist matches "${query.trim()}".` : "Make a playlist, then add songs to it from their ⋯ menu."}</div>
+              <div className="empty">{q ? `No playlist matches "${query.trim()}".` : "Make a playlist, then add songs from the menu on any song, with Add to playlist."}</div>
             )}
           </>
         ) : songs === null ? (
