@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { NEW_EPISODES_PAGE, PODCAST_LIST_IDS, PODCAST_LIST_TITLES, type PodcastListId, sortShows } from "@murmur/shared/client";
 import { EpisodeRow } from "@/components/episode-row";
 import { FilterIcon } from "@/components/icons";
-import { Grid, PAD, useGridWidth } from "@/components/library";
-import { BottomMiniPlayer } from "@/components/mini-player";
-import { BackRow, Empty, PageTitle, useBottomPad, useTopInset } from "@/components/page";
+import { Grid, useGridWidth } from "@/components/library";
+import { Empty, NestedScreen, PageTitle } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { ShowCard, SortSheet, useSort } from "@/components/podcasts";
 import { Button, IconButton } from "@/components/ui";
@@ -17,8 +16,6 @@ import { useTheme } from "@/theme";
 /** Everything in one of the Podcasts tab's sections, opened from its heading. */
 export default function PodcastListScreen() {
   const t = useTheme();
-  const top = useTopInset();
-  const bottomPad = useBottomPad();
   const width = useGridWidth();
   const params = useLocalSearchParams<{ id?: string }>();
   const id: PodcastListId = PODCAST_LIST_IDS.find((s) => s === params.id) ?? "new";
@@ -64,27 +61,19 @@ export default function PodcastListScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView
-        contentContainerStyle={{ paddingTop: top, paddingHorizontal: PAD, paddingBottom: bottomPad }}
-        refreshControl={refresh}
-      >
-        <BackRow />
-        <PageTitle
-          title={PODCAST_LIST_TITLES[id]}
-          count={count}
-          right={
-            id === "podcasts" && shows.length > 1 ? (
-              <IconButton label="Sort podcasts" onPress={() => setSortOpen(true)}>
-                <FilterIcon color={t.text} />
-              </IconButton>
-            ) : null
-          }
-        />
-        {body}
-      </ScrollView>
-      <BottomMiniPlayer />
-      <SortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
-    </View>
+    <NestedScreen refreshControl={refresh} after={<SortSheet open={sortOpen} onClose={() => setSortOpen(false)} />}>
+      <PageTitle
+        title={PODCAST_LIST_TITLES[id]}
+        count={count}
+        right={
+          id === "podcasts" && shows.length > 1 ? (
+            <IconButton label="Sort podcasts" onPress={() => setSortOpen(true)}>
+              <FilterIcon color={t.text} />
+            </IconButton>
+          ) : null
+        }
+      />
+      {body}
+    </NestedScreen>
   );
 }

@@ -8,7 +8,7 @@ import { HeroBackdrop } from "@/components/hero";
 import { CheckIcon, DownloadIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "@/components/icons";
 import { openGroup, PAD } from "@/components/library";
 import { openUpNext } from "@/components/listening";
-import { BackRow, Empty, useBottomPad, SectionTitle, useTopInset } from "@/components/page";
+import { BackRow, Empty, NestedFallback, useBottomPad, SectionTitle, useTopInset } from "@/components/page";
 import { RemoveDownloadSheet, Sheet, SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
@@ -28,8 +28,6 @@ import {
 import { fonts, useTheme } from "@/theme";
 
 export default function BookScreen() {
-  const t = useTheme();
-  const top = useTopInset();
   const { id } = useLocalSearchParams<{ id: string }>();
   const query = useBook(id);
   const dl = useDownload("book", id);
@@ -41,10 +39,7 @@ export default function BookScreen() {
 
   if (!book) {
     return (
-      <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: top, paddingHorizontal: PAD }}>
-        <BackRow />
-        {query.isError ? <Empty title="Couldn't load this book">{query.error.message}</Empty> : null}
-      </View>
+      <NestedFallback>{query.isError ? <Empty title="Couldn't load this book">{query.error.message}</Empty> : null}</NestedFallback>
     );
   }
   return (

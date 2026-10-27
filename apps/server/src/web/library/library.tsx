@@ -14,7 +14,6 @@ import {
   continueListening,
   groupBy,
   matchesBook,
-  plural,
   seriesLabel,
   SHELF_SIZE,
   SHELF_TITLES,
@@ -30,10 +29,11 @@ import {
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { BackIcon, CustomizeIcon, DragIcon, FilterIcon, SearchIcon } from "../icons";
+import { CustomizeIcon, DragIcon, FilterIcon, SearchIcon } from "../icons";
 import { EditBookDialog, type EditTab } from "../book/edit-dialog";
 import { Sheet, SheetItem } from "../sheet";
 import { useSortable } from "../sortable";
+import { Chip, Chips, EmptyState, NestedHead, SearchBox, SectionTitle } from "../ui";
 import { BookActionsContext, BookCard } from "./book-card";
 import { BulkMatch } from "./bulk-match";
 
@@ -79,34 +79,13 @@ export function GroupGrid({
     <section className="section">
       <div className="section-head">
         <div className="group-head">
-          <button type="button" className="section-title group-title" onClick={onOpen}>
-            {title}
-            <span className="count-pill" aria-label={plural(count, noun)}>
-              {count}
-            </span>
-          </button>
+          <SectionTitle title={title} count={count} noun={noun} onOpen={onOpen} />
           {sub ? <span className="muted small">{sub}</span> : null}
         </div>
         {side ? <span className="muted small">{side}</span> : null}
       </div>
       <div className="shelf">{children}</div>
     </section>
-  );
-}
-
-/** Keeps the count pill on the same line as the title's last word when it wraps. */
-function TitleWithCount({ title, count }: { title: string; count: number }) {
-  const cut = title.lastIndexOf(" ") + 1;
-  return (
-    <>
-      {title.slice(0, cut)}
-      <span style={{ whiteSpace: "nowrap" }}>
-        {title.slice(cut)}
-        <span className="count-pill" aria-label={plural(count, "book")}>
-          {count}
-        </span>
-      </span>
-    </>
   );
 }
 
@@ -143,7 +122,6 @@ export function Library(props: LibraryProps) {
 }
 
 function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSections }: LibraryProps) {
-  const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const tab = (params.get("tab") as Tab | null) ?? "books";
@@ -238,10 +216,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
         <div className="page-head">
           <h1 className="page-title">Books</h1>
         </div>
-        <div className="empty">
-          <strong>No books yet</strong>
-          {emptyReason}
-        </div>
+        <EmptyState title="No books yet">{emptyReason}</EmptyState>
       </>
     );
   }
@@ -250,21 +225,15 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
   if (allBooks) {
     return (
       <>
-        <div className="back-row">
-          <button type="button" className="icon-btn" onClick={() => router.back()} aria-label="Back">
-            <BackIcon />
-          </button>
-        </div>
-        <div className="page-head">
-          <h1 className="page-title" style={{ fontSize: 26 }}>
-            <TitleWithCount title={BOOK_SECTION_TITLES.all} count={sorted.length} />
-          </h1>
-          <div className="head-actions">
+        <NestedHead
+          title={BOOK_SECTION_TITLES.all}
+          count={sorted.length}
+          actions={
             <button type="button" className="icon-btn" aria-label="Sort" onClick={() => setSortOpen(true)}>
               <FilterIcon />
             </button>
-          </div>
-        </div>
+          }
+        />
         <div className="grid">
           {sorted.map((b) => (
             <BookCard key={b.id} book={b} />
@@ -280,16 +249,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
     const list = shelfBooks(shelf, books, today);
     return (
       <>
-        <div className="back-row">
-          <button type="button" className="icon-btn" onClick={() => router.back()} aria-label="Back">
-            <BackIcon />
-          </button>
-        </div>
-        <div className="page-head">
-          <h1 className="page-title" style={{ fontSize: 26 }}>
-            <TitleWithCount title={SHELF_TITLES[shelf]} count={list.length} />
-          </h1>
-        </div>
+        <NestedHead title={SHELF_TITLES[shelf]} count={list.length} />
         {list.length ? (
           <div className="grid">
             {list.map((b) => (
@@ -297,7 +257,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
             ))}
           </div>
         ) : (
-          <div className="empty">Nothing here right now.</div>
+          <EmptyState>Nothing here right now.</EmptyState>
         )}
       </>
     );
@@ -310,19 +270,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
     const standalone = author ? list.filter((b) => !b.series) : [];
     return (
       <>
-        <div className="back-row">
-          <button type="button" className="icon-btn" onClick={() => router.back()} aria-label="Back">
-            <BackIcon />
-          </button>
-        </div>
-        <div className="page-head">
-          <div style={{ minWidth: 0 }}>
-            <h1 className="page-title" style={{ fontSize: 26 }}>
-              <TitleWithCount title={author ?? series ?? ""} count={list.length} />
-            </h1>
-            {series && list[0]?.author ? <div className="page-sub">{list[0].author}</div> : null}
-          </div>
-        </div>
+        <NestedHead title={author ?? series ?? ""} count={list.length} sub={series ? list[0]?.author : null} />
         {series ? (
           <div className="grid">
             {[...list].sort(bySeriesOrder).map((b) => (
@@ -334,12 +282,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
             {groups.map(([name, items]) => (
               <section key={name} className="section">
                 <div className="section-head">
-                  <button type="button" className="section-title group-title" onClick={() => go({ series: name })}>
-                    {name}
-                    <span className="count-pill" aria-label={plural(items.length, "book")}>
-                      {items.length}
-                    </span>
-                  </button>
+                  <SectionTitle title={name} count={items.length} noun="book" onOpen={() => go({ series: name })} />
                 </div>
                 <div className="shelf">
                   {[...items].sort(bySeriesOrder).map((b) => (
@@ -437,72 +380,50 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
       </div>
 
       {searching ? (
-        <div className="search">
-          <SearchIcon />
-          <input
-            className="input"
-            type="search"
-            placeholder="Title, author, narrator or series"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search library"
-            autoFocus
-          />
-        </div>
+        <SearchBox value={query} onChange={setQuery} placeholder="Title, author, narrator or series" label="Search library" />
       ) : null}
 
       {q ? (
         <SearchResults books={sorted.filter((b) => matchesBook(b, q))} />
       ) : (
         <>
-          <div className="chips" role="tablist" aria-label="Library view">
+          <Chips kind="tabs" label="Library view">
             {TABS.map((t) => (
-              <button
+              <Chip
                 key={t.id}
-                type="button"
-                role="tab"
-                className="chip"
-                aria-selected={tab === t.id}
-                aria-pressed={tab === t.id}
+                selected={tab === t.id}
                 onClick={() => {
                   setCustomizing(false);
                   go({ tab: t.id === "books" ? null : t.id });
                 }}
               >
                 {t.label}
-              </button>
+              </Chip>
             ))}
             {isAdmin && (attentionCount > 0 || tab === "attention") ? (
-              <button
-                type="button"
-                role="tab"
-                className="chip chip-warn"
-                aria-selected={tab === "attention"}
-                aria-pressed={tab === "attention"}
+              <Chip
+                warn
+                selected={tab === "attention"}
                 onClick={() => {
                   setCustomizing(false);
                   go({ tab: "attention" });
                 }}
               >
                 Needs attention
-              </button>
+              </Chip>
             ) : null}
             {isAdmin && (unmatchedCount > 0 || tab === "unmatched") ? (
-              <button
-                type="button"
-                role="tab"
-                className="chip"
-                aria-selected={tab === "unmatched"}
-                aria-pressed={tab === "unmatched"}
+              <Chip
+                selected={tab === "unmatched"}
                 onClick={() => {
                   setCustomizing(false);
                   go({ tab: "unmatched" });
                 }}
               >
                 Not matched
-              </button>
+              </Chip>
             ) : null}
-          </div>
+          </Chips>
 
           {tab === "attention" || tab === "unmatched" ? <AttentionView books={sorted} issue={tab === "unmatched" ? "unmatched" : "all"} /> : null}
 
@@ -517,12 +438,11 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
                 body={sectionBody}
               />
               {!customizing && sections.every((s) => s.hidden) ? (
-                <div className="empty">
-                  <strong>Everything here is hidden</strong>
+                <EmptyState title="Everything here is hidden">
                   <button type="button" className="btn" onClick={() => setCustomizing(true)}>
                     Customize
                   </button>
-                </div>
+                </EmptyState>
               ) : null}
             </>
           ) : null}
@@ -557,7 +477,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
                 );
               })
             ) : (
-              <div className="empty">No series yet.</div>
+              <EmptyState>No series yet.</EmptyState>
             )
           ) : null}
 
@@ -568,17 +488,6 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
       )}
 
       {sortSheet}
-    </>
-  );
-}
-
-function SectionTitle({ title, count }: { title: string; count: number }) {
-  return (
-    <>
-      {title}
-      <span className="count-pill" aria-label={plural(count, "book")}>
-        {count}
-      </span>
     </>
   );
 }
@@ -630,15 +539,14 @@ function BookSections({
           >
             <div className="book-section-inner">
               <div className="section-head">
-                <button
-                    type="button"
-                    className="section-title group-title"
-                    onClick={() => {
-                      if (!customizing) onOpen(s.id);
-                    }}
-                  >
-                    <SectionTitle title={title} count={counts[s.id]} />
-                  </button>
+                <SectionTitle
+                  title={title}
+                  count={counts[s.id]}
+                  noun="book"
+                  onOpen={() => {
+                    if (!customizing) onOpen(s.id);
+                  }}
+                />
                 <div className={`customize-actions ${customizing ? "" : "off"}`} inert={!customizing}>
                   <button
                     type="button"
@@ -682,7 +590,7 @@ function AttentionView({ books, issue }: { books: BookSummary[]; issue: IssueId 
   const list = issue === "unmatched" ? books.filter((b) => !b.matched) : books.filter((b) => issuesOf(b).length > 0);
   const grid =
     list.length === 0 ? (
-      <div className="empty">Nothing to fix here.</div>
+      <EmptyState>Nothing to fix here.</EmptyState>
     ) : (
       <div className="grid">
         {list.map((b) => (
@@ -699,7 +607,7 @@ function AttentionView({ books, issue }: { books: BookSummary[]; issue: IssueId 
 }
 
 function SearchResults({ books }: { books: BookSummary[] }) {
-  if (books.length === 0) return <div className="empty">No books match that search.</div>;
+  if (books.length === 0) return <EmptyState>No books match that search.</EmptyState>;
   return (
     <div className="grid">
       {books.map((b) => (
@@ -710,7 +618,7 @@ function SearchResults({ books }: { books: BookSummary[] }) {
 }
 
 function FinishedList({ books }: { books: BookSummary[] }) {
-  if (books.length === 0) return <div className="empty">No finished books yet.</div>;
+  if (books.length === 0) return <EmptyState>No finished books yet.</EmptyState>;
   return (
     <div className="grid section">
       {[...books]

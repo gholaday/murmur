@@ -115,9 +115,7 @@ export function Field({
   const inSheet = useContext(InSheet);
   return (
     <View style={{ gap: 6 }}>
-      <Text variant="caption" style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6 }}>
-        {label}
-      </Text>
+      <Caption style={{ letterSpacing: 0.6 }}>{label}</Caption>
       <View>
         <TextInput
           ref={ref}
@@ -214,6 +212,52 @@ export function Chip({ label, selected, onPress }: { label: string; selected: bo
     >
       <RNText style={{ fontFamily: fonts.semibold, fontSize: 14, color: selected ? t.onAccent : t.text2 }}>{label}</RNText>
     </Pressable>
+  );
+}
+
+/**
+ * A row of chips where one is picked: "tabs" switch what a screen shows, "radio" picks a
+ * setting. `onPick` runs even for the chip already picked, as a lone Chip's onPress does.
+ */
+export function Chips<T extends string | number | boolean | null>({
+  options,
+  value,
+  onPick,
+  kind = "tabs",
+  label,
+  gap = 6,
+  wrap,
+  style,
+}: {
+  options: readonly { id: T; label: string }[];
+  value: T;
+  onPick: (id: T) => void;
+  kind?: "tabs" | "radio";
+  /** Read out for the group, e.g. "Ads for this show". */
+  label?: string;
+  gap?: number;
+  wrap?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View
+      accessibilityRole={kind === "radio" ? "radiogroup" : undefined}
+      accessibilityLabel={label}
+      style={[{ flexDirection: "row", gap }, wrap ? { flexWrap: "wrap" } : null, style]}
+    >
+      {options.map((o) => (
+        <Chip key={String(o.id)} label={o.label} selected={o.id === value} onPress={() => onPick(o.id)} />
+      ))}
+    </View>
+  );
+}
+
+/** Small uppercase label: a field's name, "Playlist" over a title, "Playing from…". */
+export function Caption({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
+  return (
+    <Text variant="caption" style={[{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.8 }, style]}>
+      {children}
+    </Text>
   );
 }
 

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { apiPaths, type BookSummary, errorText, progressPct } from "@murmur/shared/client";
 import { api } from "../api";
 import type { EditTab } from "../book/edit-dialog";
+import { setMarkedMatched } from "../book/match-mark";
 import { Cover } from "../cover";
 import { CheckIcon, MoreIcon } from "../icons";
 import { usePlayer } from "../player/engine";
@@ -182,6 +183,12 @@ function CardMenuItems({
           <button type="button" role="menuitem" onClick={choose(() => edit(book.id, "match"))}>
             Match metadata…
           </button>
+          {/* Not offered once a real match was applied: Undo match is the way back there. */}
+          {!book.matched || book.markedMatched ? (
+            <button type="button" role="menuitem" onClick={choose(() => setMarkedMatched(book.id, !book.markedMatched, () => router.refresh()))}>
+              {book.markedMatched ? "Mark as not matched" : "Mark as matched"}
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"

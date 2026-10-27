@@ -33,6 +33,7 @@ import {
   VolumeIcon,
 } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
+import { Chip, Chips } from "../ui";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } from "./ad-prefs";
 import { usePlayer, usePosition } from "./engine";
 import { effectiveVolume, useVolume, volumeStore } from "./volume";
@@ -406,24 +407,17 @@ export function FullPlayer() {
         {item.podcastId ? (
           <div className="sheet-group">
             <div className="sheet-group-title">{item.subtitle ?? "This show"}</div>
-            <div className="chips" role="radiogroup" aria-label="Ads for this show">
-              {[{ id: null, label: "Default" }, ...AD_MODES].map((m) => {
-                const current = adPrefs.shows[item.podcastId!] ?? null;
-                return (
-                  <button
-                    key={m.id ?? "default"}
-                    type="button"
-                    role="radio"
-                    className="chip"
-                    aria-checked={current === m.id}
-                    aria-pressed={current === m.id}
-                    onClick={() => adPrefsStore.set(setShowMode(adPrefs, item.podcastId!, m.id))}
-                  >
-                    {m.label}
-                  </button>
-                );
-              })}
-            </div>
+            <Chips kind="radio" label="Ads for this show">
+              {[{ id: null, label: "Default" }, ...AD_MODES].map((m) => (
+                <Chip
+                  key={m.id ?? "default"}
+                  selected={(adPrefs.shows[item.podcastId!] ?? null) === m.id}
+                  onClick={() => adPrefsStore.set(setShowMode(adPrefs, item.podcastId!, m.id))}
+                >
+                  {m.label}
+                </Chip>
+              ))}
+            </Chips>
           </div>
         ) : null}
       </Sheet>

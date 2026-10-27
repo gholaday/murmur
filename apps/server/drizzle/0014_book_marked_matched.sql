@@ -1,0 +1,1 @@
+ALTER TABLE `book_overrides` ADD `marked_matched` integer DEFAULT false NOT NULL;

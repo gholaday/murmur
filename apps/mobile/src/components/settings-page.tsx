@@ -1,27 +1,18 @@
-import { Pressable, ScrollView, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { router, type Href } from "expo-router";
 import { fonts, useTheme } from "@/theme";
 import { ChevronIcon } from "./icons";
-import { PAD } from "./library";
-import { BottomMiniPlayer } from "./mini-player";
-import { BackRow, PageTitle, useBottomPad, useTopInset } from "./page";
+import { NestedScreen, PageTitle } from "./page";
 import { Row } from "./settings";
 import { Text } from "./ui";
 
 /** One settings group's own screen, opened from its row on the You tab. */
 export function SettingsPage({ title, children }: { title: string; children: React.ReactNode }) {
-  const t = useTheme();
-  const top = useTopInset();
-  const bottom = useBottomPad();
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }}>
-        <BackRow />
-        <PageTitle title={title} />
-        <View style={{ marginTop: 16 }}>{children}</View>
-      </ScrollView>
-      <BottomMiniPlayer />
-    </View>
+    <NestedScreen>
+      <PageTitle title={title} />
+      <View style={{ marginTop: 16 }}>{children}</View>
+    </NestedScreen>
   );
 }
 

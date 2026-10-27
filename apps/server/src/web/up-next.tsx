@@ -9,6 +9,7 @@ import { SongRow } from "./music/music-view";
 import { type Playable, usePlayer, usePosition } from "./player/engine";
 import { QueueRowsSkeleton } from "./skeletons";
 import { useSortable } from "./sortable";
+import { CountPill, EmptyState } from "./ui";
 
 /** Its own component so the playhead ticks redraw this card, not the whole queue below it. */
 function NowPlayingCard({ item, onOpen }: { item: Playable; onOpen: () => void }) {
@@ -80,11 +81,7 @@ export function UpNextView() {
         <div>
           <h1 className="page-title">
             Listening
-            {queue.length ? (
-              <span className="count-pill" aria-label={plural(queue.length, "item")}>
-                {queue.length}
-              </span>
-            ) : null}
+            {queue.length ? <CountPill count={queue.length} noun="item" /> : null}
           </h1>
           {!player.queueLoaded ? (
             <div className="skel skel-line" style={{ width: 110, height: 11, marginTop: 6 }} />
@@ -111,9 +108,7 @@ export function UpNextView() {
         {!player.queueLoaded ? (
           <QueueRowsSkeleton />
         ) : queue.length === 0 ? (
-          <div className="empty">
-            <strong>Your queue is empty</strong>
-          </div>
+          <EmptyState title="Your queue is empty" />
         ) : (
           <div ref={sortable.listRef} className={`list ${sortable.sorting ? "sorting" : ""}`}>
             {queue.map((e, i) => {

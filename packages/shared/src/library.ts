@@ -72,3 +72,25 @@ export function matchesBook(b: BookSummary, q: string) {
   return [b.title, b.author, b.narrator, b.series].some((v) => v?.toLowerCase().includes(q));
 }
 
+
+const searchKey = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/**
+ * Existing series to offer while a series name is typed: names that contain what's typed,
+ * ignoring case, accents and punctuation, with ones where a word starts with it first. A name typed
+ * exactly is left out; one that only differs in case or punctuation stays in, so the
+ * library's spelling can be picked.
+ */
+export function suggestSeries<T extends { name: string }>(known: T[], typed: string, limit = 6): T[] {
+  const q = searchKey(typed);
+  if (!q) return [];
+  const hits = known.filter((s) => s.name !== typed.trim() && searchKey(s.name).includes(q));
+  const starts = (s: T) => (` ${searchKey(s.name)}`.includes(` ${q}`) ? 0 : 1);
+  return hits.sort((a, b) => starts(a) - starts(b)).slice(0, limit);
+}

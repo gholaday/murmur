@@ -21,7 +21,8 @@ import { DragIcon, MoreIcon, PlayIcon, PlusIcon, ShuffleIcon } from "../icons";
 import { type MusicSource, usePlayer } from "../player/engine";
 import { Sheet, SheetItem } from "../sheet";
 import { useSortable } from "../sortable";
-import { BackRow } from "./album-view";
+import { EmptyState } from "../ui";
+import { MusicBackRow } from "./album-view";
 import { SongMenuButton } from "./song-menu";
 
 /** Four album covers in a square, or the first one when there are fewer, or a tile with the name. */
@@ -172,11 +173,11 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
 
   return (
     <>
-      <BackRow>
+      <MusicBackRow>
         <button type="button" className="icon-btn" aria-label="Playlist options" onClick={() => setMenu(true)}>
           <MoreIcon />
         </button>
-      </BackRow>
+      </MusicBackRow>
       <div className="show-hero">
         <PlaylistCover playlist={playlist} large />
         <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>
@@ -252,10 +253,9 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
           </section>
         </>
       ) : (
-        <div className="empty" style={{ marginTop: 24 }}>
-          <strong>No songs yet</strong>
+        <EmptyState title="No songs yet" style={{ marginTop: 24 }}>
           <div className="muted small">Add songs from the menu on any song, with Add to playlist.</div>
-        </div>
+        </EmptyState>
       )}
 
       <Sheet open={menu} onClose={() => setMenu(false)} title={playlist.name}>

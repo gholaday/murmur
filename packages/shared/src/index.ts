@@ -323,8 +323,10 @@ export interface BookSummary {
   addedAt: number;
   /** Set when the book's folder disappeared; it is hidden after 7 days. */
   missingSince: number | null;
-  /** Metadata was applied from Audible or Google Books. */
+  /** Metadata was applied through Match, or an admin marked the book as needing none. */
   matched: boolean;
+  /** An admin marked the book as matched by hand, so it isn't listed as Not matched. */
+  markedMatched: boolean;
   progress: Pick<ProgressDto, "positionSec" | "finished" | "speed" | "updatedAt"> | null;
 }
 
@@ -590,6 +592,13 @@ export interface BookEditInfo {
   /** Absolute folder path as the server sees it; null once its library folder was removed. */
   folder: string | null;
   files: BookFileInfo[];
+  /** Every series in the library as shown, for suggestions while typing. */
+  knownSeries: KnownSeries[];
+}
+
+export interface KnownSeries {
+  name: string;
+  books: number;
 }
 
 export interface LibraryFolderDto {

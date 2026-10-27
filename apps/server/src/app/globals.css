@@ -851,6 +851,17 @@ a.episode-show:hover { color: var(--accent); }
 .edited-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); cursor: help; }
 .link-btn { margin-left: auto; color: var(--accent); font-size: 12px; font-weight: 700; }
 .edit-hint { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+/* Suggestions under a field (the series field): a menu that floats over the fields below. */
+.suggest-wrap { position: relative; }
+.suggest {
+  position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; right: 0;
+  margin: 0; padding: 6px; list-style: none; border-radius: var(--radius);
+  background: var(--surface-2); box-shadow: var(--shadow);
+}
+.suggest li { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 38px; padding: 0 10px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.suggest li[aria-selected="true"] { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.suggest-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.suggest li > .muted { flex-shrink: 0; white-space: nowrap; font-weight: 500; }
 @media (max-width: 600px) { .edit-grid { grid-template-columns: minmax(0, 1fr); } }
 .cover-tab { display: flex; gap: 24px; flex-wrap: wrap; }
 .cover-current { display: flex; flex-direction: column; gap: 10px; width: 220px; align-items: flex-start; }

@@ -453,6 +453,8 @@ export const bookOverrides = sqliteTable("book_overrides", {
   chapters: text("chapters"),
   matchedAt: integer("matched_at"),
   editedAt: integer("edited_at"),
+  /** An admin said the book needs no match, so it isn't listed as Not matched. */
+  markedMatched: integer("marked_matched", { mode: "boolean" }).notNull().default(false),
 });
 
 /** Server-wide settings an admin can change, as JSON values by key. */

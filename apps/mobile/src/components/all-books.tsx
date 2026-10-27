@@ -8,7 +8,7 @@ import { BookSortSheet, useBookSort } from "./book-sort";
 import { FilterIcon } from "./icons";
 import { GAP, PAD, useGridWidth } from "./library";
 import { BottomMiniPlayer } from "./mini-player";
-import { BackRow, Empty, PageTitle, useBottomPad, useTopInset } from "./page";
+import { Empty, NestedHead, useBottomPad, useTopInset } from "./page";
 import { usePullRefresh } from "./pull-refresh";
 import { IconButton } from "./ui";
 
@@ -45,8 +45,7 @@ export function AllBooks() {
         refreshControl={refresh}
         ListHeaderComponent={
           <View style={{ marginBottom: 12 }}>
-            <BackRow />
-            <PageTitle
+            <NestedHead
               title={BOOK_SECTION_TITLES.all}
               count={sorted.length}
               right={

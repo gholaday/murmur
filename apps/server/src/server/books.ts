@@ -15,6 +15,7 @@ interface BookRow {
   added_at: number;
   missing_since: number | null;
   matched: number;
+  marked_matched: number;
   p_position: number | null;
   p_finished: number | null;
   p_updated: number | null;
@@ -29,7 +30,7 @@ const SUMMARY_COLUMNS = `
   CASE WHEN o.series IS NOT NULL THEN NULLIF(o.series, '') ELSE b.series END AS series,
   CASE WHEN o.series IS NOT NULL THEN o.series_position ELSE b.series_position END AS series_position,
   b.duration_sec, COALESCE(o.cover_hash, b.cover_hash) AS cover_hash, b.added_at, b.missing_since,
-  o.provider IS NOT NULL AS matched,
+  (o.provider IS NOT NULL OR o.marked_matched = 1) AS matched, COALESCE(o.marked_matched, 0) AS marked_matched,
   p.position_sec AS p_position, p.finished AS p_finished, p.updated_at AS p_updated, p.speed AS p_speed`;
 
 const JOINS = `
@@ -50,6 +51,7 @@ function toSummary(r: BookRow, colors: Map<string, string>): BookSummary {
     addedAt: r.added_at,
     missingSince: r.missing_since,
     matched: r.matched === 1,
+    markedMatched: r.marked_matched === 1,
     progress:
       r.p_updated === null
         ? null

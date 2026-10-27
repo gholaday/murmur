@@ -305,3 +305,14 @@ export async function applyMatch(ctx: AppContext, bookId: string, input: MatchAp
 export function removeMatch(ctx: AppContext, bookId: string) {
   ctx.sqlite.prepare("DELETE FROM book_overrides WHERE book_id = ?").run(bookId);
 }
+
+/** Marks a book as needing no match (or undoes that), keeping any edits or match it has. */
+export function setMarkedMatched(ctx: AppContext, bookId: string, marked: boolean) {
+  if (!ctx.sqlite.prepare("SELECT 1 FROM books WHERE id = ?").get(bookId)) throw new HttpError(404, "Book not found.");
+  ctx.sqlite
+    .prepare(
+      `INSERT INTO book_overrides (book_id, marked_matched) VALUES (?, ?)
+       ON CONFLICT (book_id) DO UPDATE SET marked_matched = excluded.marked_matched`,
+    )
+    .run(bookId, marked ? 1 : 0);
+}

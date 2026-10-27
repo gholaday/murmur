@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiPaths, duration, localDay, plural, type StatsDto, type StatsPeriod, type StatsTop, statsTopLabel, type UserPrefs } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
+import { Chip, Chips, StatTile } from "../ui";
 
 const PERIODS: Array<{ id: StatsPeriod; label: string; last: string }> = [
   { id: "week", label: "Week", last: "this time last week" },
@@ -64,13 +65,13 @@ export function ListeningStats({ tabs }: { tabs: UserPrefs["tabs"] }) {
   return (
     <section className="section">
       <h2 className="section-title">Listening</h2>
-      <div className="chips" role="radiogroup" aria-label="Period">
+      <Chips kind="radio" label="Period">
         {PERIODS.map((p) => (
-          <button key={p.id} type="button" role="radio" className="chip" aria-checked={period === p.id} aria-pressed={period === p.id} onClick={() => setPeriod(p.id)}>
+          <Chip key={p.id} selected={period === p.id} onClick={() => setPeriod(p.id)}>
             {p.label}
-          </button>
+          </Chip>
         ))}
-      </div>
+      </Chips>
 
       {failed && !stats ? <div className="card-box stats-card muted small">Couldn't load your stats.</div> : null}
       {stats ? (
@@ -165,11 +166,3 @@ function topCover(t: StatsTop): string | null {
   return apiPaths.albumCoverUrl(t.kind === "song" ? t.albumId! : t.id, t.coverHash, 200);
 }
 
-function StatTile({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="stats-tile">
-      <div className="stats-tile-value">{value}</div>
-      <div className="muted small">{label}</div>
-    </div>
-  );
-}

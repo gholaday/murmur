@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Linking, Pressable, View } from "react-native";
+import { Linking, Pressable, Switch, View } from "react-native";
 import Constants from "expo-constants";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -19,6 +19,7 @@ import {
   versionStatus,
 } from "@murmur/shared/client";
 import { api } from "@/lib/api";
+import { selectHaptic } from "@/lib/haptics";
 import { APP_NAME } from "@/lib/platform";
 import { queryClient } from "@/lib/query";
 import { fonts, useTheme } from "@/theme";
@@ -26,7 +27,7 @@ import { BackIcon, CheckIcon, FolderIcon } from "./icons";
 import { ConfirmSheet, Sheet } from "./sheet";
 import { Bone, FadeIn, Skeleton } from "./skeleton";
 import { toast } from "./toast";
-import { Button, Chip, Field, Text } from "./ui";
+import { Button, Chips, Field, Text } from "./ui";
 
 // Building blocks for the Settings tab, and the sections that talk to the server:
 // changing your password, and for admins the library and users.
@@ -81,6 +82,39 @@ export function Row({
       </View>
       {children}
     </View>
+  );
+}
+
+/** A setting that's on or off, with a switch on the right. `label` is read out for the switch. */
+export function SwitchRow({
+  title,
+  sub,
+  label,
+  value,
+  onChange,
+  last,
+}: {
+  title: string;
+  sub?: string | null;
+  label: string;
+  value: boolean;
+  onChange: (on: boolean) => void;
+  last?: boolean;
+}) {
+  const t = useTheme();
+  return (
+    <Row title={title} sub={sub} last={last}>
+      <Switch
+        accessibilityLabel={label}
+        value={value}
+        onValueChange={(on) => {
+          selectHaptic();
+          onChange(on);
+        }}
+        trackColor={{ false: t.track, true: t.accent }}
+        thumbColor={value ? t.onAccent : t.faint}
+      />
+    </Row>
   );
 }
 
@@ -331,19 +365,16 @@ export function EpisodeCacheSection() {
           stacked
           last={!ads.enabled}
         >
-          <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
-            {KEEP_PER_SHOW_OPTIONS.map((n) => (
-              <Chip
-                key={n}
-                label={n === 0 ? "Off" : String(n)}
-                selected={c.settings.episodesPerShow === n}
-                onPress={() => {
-                  if (busy || c.settings.episodesPerShow === n) return;
-                  void run(() => api("/api/server/cache", { method: "PUT", body: { episodesPerShow: n } }));
-                }}
-              />
-            ))}
-          </View>
+          <Chips
+            kind="radio"
+            wrap
+            options={KEEP_PER_SHOW_OPTIONS.map((n) => ({ id: n, label: n === 0 ? "Off" : String(n) }))}
+            value={c.settings.episodesPerShow}
+            onPick={(n) => {
+              if (busy || c.settings.episodesPerShow === n) return;
+              void run(() => api("/api/server/cache", { method: "PUT", body: { episodesPerShow: n } }));
+            }}
+          />
         </Row>
         {ads.enabled ? (
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingVertical: 14 }}>

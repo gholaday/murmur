@@ -8,7 +8,7 @@ import { EpisodeRow } from "@/components/episode-row";
 import { HeroBackdrop } from "@/components/hero";
 import { CloseIcon, FilterIcon, MoreIcon, SearchIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
-import { BackRow, Empty, useBottomPad, useTopInset } from "@/components/page";
+import { BackRow, Empty, NestedFallback, useBottomPad, useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { usePullRefresh } from "@/components/pull-refresh";
@@ -81,10 +81,7 @@ export default function ShowScreen() {
 
   if (!show) {
     return (
-      <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: top, paddingHorizontal: PAD }}>
-        <BackRow />
-        {podcast.isError ? <Empty title="Couldn't load this podcast">{podcast.error.message}</Empty> : null}
-      </View>
+      <NestedFallback>{podcast.isError ? <Empty title="Couldn't load this podcast">{podcast.error.message}</Empty> : null}</NestedFallback>
     );
   }
 

@@ -16,15 +16,15 @@ import {
   sortAlbums,
   type TrackDto,
 } from "@murmur/shared/client";
-import { BrowseIcon, ChevronIcon, CloseIcon, FilterIcon, MusicIcon, PlayIcon, PlusIcon, SearchIcon, ShuffleIcon } from "@/components/icons";
+import { BrowseIcon, ChevronIcon, CloseIcon, FilterIcon, MusicIcon, PlusIcon, SearchIcon } from "@/components/icons";
 import { GAP, Group, PAD, useGridWidth } from "@/components/library";
 import { Eyebrow } from "@/components/listening";
-import { ActionButton, AlbumAddRow, AlbumCard, AlbumSortSheet, openArtist, SongRow, SongSheet, useAlbumSort } from "@/components/music";
+import { AlbumAddRow, AlbumCard, AlbumSortSheet, openArtist, PlayButton, ShuffleButton, SongRow, SongSheet, useAlbumSort } from "@/components/music";
 import { Empty, PageTitle, useTopInset } from "@/components/page";
 import { NamePlaylistSheet, openPlaylist, PlaylistCard } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, ListRowBone, SectionBone, Skeleton } from "@/components/skeleton";
-import { Button, Chip, IconButton, Text } from "@/components/ui";
+import { Button, Chips, IconButton, Text } from "@/components/ui";
 import { createPlaylist, setInMusic, useAlbums, useArtists, useMusicSummary, usePlaylists, useTracks } from "@/lib/data";
 import { playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
@@ -162,16 +162,12 @@ export default function Music() {
       ) : null}
       {nothingYet || q ? null : <BrowseRow notAdded={(summary.data?.albums ?? 0) - (mine?.albums ?? 0)} fresh={summary.data?.newAlbums ?? 0} />}
       {nothingYet ? null : (
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          {VIEWS.map((v) => (
-            <Chip key={v.id} label={v.label} selected={view === v.id} onPress={() => pick(v.id)} />
-          ))}
-        </View>
+        <Chips gap={8} options={VIEWS} value={view} onPick={pick} />
       )}
       {view === "songs" && !q && tracks.data?.length ? (
         <View style={{ flexDirection: "row", gap: 10 }}>
-          <ActionButton label="Play all" primary icon={<PlayIcon size={20} color={t.onAccent} />} onPress={() => playSongs(tracks.data, 0)} />
-          <ActionButton label="Shuffle" icon={<ShuffleIcon size={20} color={t.text} />} onPress={() => playSongs(tracks.data, -1, true)} />
+          <PlayButton label="Play all" onPress={() => playSongs(tracks.data, 0)} />
+          <ShuffleButton onPress={() => playSongs(tracks.data, -1, true)} />
         </View>
       ) : null}
       {view === "playlists" && !q ? (

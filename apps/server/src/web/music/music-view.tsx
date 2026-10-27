@@ -30,6 +30,7 @@ import { ChevronIcon, CloseIcon, FilterIcon, FolderIcon, MusicIcon, PlayIcon, Se
 import { type MusicSource, usePlayer } from "../player/engine";
 import { GroupGrid } from "../library/library";
 import { Sheet, SheetItem } from "../sheet";
+import { Chip, Chips, EmptyState, SearchBox } from "../ui";
 import { AlbumBadge, MineToggle, useMineChange } from "./mine";
 import { NewPlaylistButton, PlaylistCard } from "./playlist-view";
 import { SongMenuButton } from "./song-menu";
@@ -326,29 +327,18 @@ export function MusicView({
       </div>
 
       {searching ? (
-        <div className="search">
-          <SearchIcon />
-          <input
-            className="input"
-            type="search"
-            placeholder={TABS.find((t) => t.id === tab)!.placeholder}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search music"
-            autoFocus
-          />
-        </div>
+        <SearchBox value={query} onChange={setQuery} placeholder={TABS.find((t) => t.id === tab)!.placeholder} label="Search music" />
       ) : (
         <BrowseRow summary={summary} />
       )}
 
-      <div className="chips" role="tablist" aria-label="Music view">
+      <Chips kind="tabs" label="Music view">
         {TABS.map((t) => (
-          <button key={t.id} type="button" role="tab" className="chip" aria-selected={tab === t.id} aria-pressed={tab === t.id} onClick={() => switchTab(t.id)}>
+          <Chip key={t.id} selected={tab === t.id} onClick={() => switchTab(t.id)}>
             {t.label}
-          </button>
+          </Chip>
         ))}
-      </div>
+      </Chips>
 
       <div style={{ marginTop: 16 }}>
         {tab === "albums" ? (
@@ -359,7 +349,7 @@ export function MusicView({
               ))}
             </div>
           ) : (
-            <div className="empty">{`Nothing in your music matches "${query.trim()}".`}</div>
+            <EmptyState>{`Nothing in your music matches "${query.trim()}".`}</EmptyState>
           )
         ) : tab === "artists" ? (
           shownArtists.length ? (
@@ -372,7 +362,7 @@ export function MusicView({
               </GroupGrid>
             ))
           ) : (
-            <div className="empty">{`No artist in your music matches "${query.trim()}".`}</div>
+            <EmptyState>{`No artist in your music matches "${query.trim()}".`}</EmptyState>
           )
         ) : tab === "playlists" ? (
           <>
@@ -384,11 +374,11 @@ export function MusicView({
                 ))}
               </div>
             ) : (
-              <div className="empty">{q ? `No playlist matches "${query.trim()}".` : "Make a playlist, then add songs from the menu on any song, with Add to playlist."}</div>
+              <EmptyState>{q ? `No playlist matches "${query.trim()}".` : "Make a playlist, then add songs from the menu on any song, with Add to playlist."}</EmptyState>
             )}
           </>
         ) : songs === null ? (
-          <div className="empty">Loading songs…</div>
+          <EmptyState>Loading songs…</EmptyState>
         ) : shownSongs.length ? (
           <>
             <div className="songs-actions">
@@ -408,7 +398,7 @@ export function MusicView({
             </div>
           </>
         ) : (
-          <div className="empty">{`No song in your music matches "${query.trim()}".`}</div>
+          <EmptyState>{`No song in your music matches "${query.trim()}".`}</EmptyState>
         )}
         {q ? <MoreToAdd q={q} /> : null}
       </div>

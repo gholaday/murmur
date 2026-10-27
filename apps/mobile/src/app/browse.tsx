@@ -8,7 +8,7 @@ import { AlbumCard, AlbumSortSheet, useAlbumSort } from "@/components/music";
 import { BackRow, Empty, PageTitle, useBottomPad, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, Skeleton } from "@/components/skeleton";
-import { Chip, IconButton } from "@/components/ui";
+import { Chips, IconButton } from "@/components/ui";
 import { useAlbums, useMusicSummary } from "@/lib/data";
 import { fonts, useTheme } from "@/theme";
 
@@ -82,11 +82,7 @@ export default function Browse() {
           />
         </View>
       ) : null}
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        {FILTERS.map((f) => (
-          <Chip key={f.id} label={f.label} selected={filter === f.id} onPress={() => setFilter(f.id)} />
-        ))}
-      </View>
+      <Chips gap={8} options={FILTERS} value={filter} onPick={setFilter} />
     </View>
   );
 

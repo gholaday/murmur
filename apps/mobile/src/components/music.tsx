@@ -19,7 +19,7 @@ import { getJson, setJson } from "@/lib/storage";
 import { isCurrent, playNext, queueAdd, usePlayer } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { CheckIcon, MoreIcon, PlusIcon } from "./icons";
+import { CheckIcon, MoreIcon, PlayIcon, PlusIcon, ShuffleIcon } from "./icons";
 import { AddToPlaylistSheet } from "./playlists";
 import { Sheet, SheetItem } from "./sheet";
 import { toast } from "./toast";
@@ -412,6 +412,30 @@ export function InMusicToggle({ track }: { track: TrackDto }) {
 function Length({ track }: { track: TrackDto }) {
   const t = useTheme();
   return <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: t.muted, fontVariant: ["tabular-nums"] }}>{songLength(track)}</Text>;
+}
+
+/** The accent Play button over an album, playlist or your songs. */
+export function PlayButton({ label = "Play", onPress }: { label?: string; onPress: () => void }) {
+  const t = useTheme();
+  return <ActionButton label={label} primary icon={<PlayIcon size={20} color={t.onAccent} />} onPress={onPress} />;
+}
+
+/** The Shuffle button beside Play. */
+export function ShuffleButton({ onPress }: { onPress: () => void }) {
+  const t = useTheme();
+  return <ActionButton label="Shuffle" icon={<ShuffleIcon size={20} color={t.text} />} onPress={onPress} />;
+}
+
+/** A wrapping row of Pills, under a title. */
+export function Pills({ labels, children }: { labels: string[]; children?: React.ReactNode }) {
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+      {children}
+      {labels.map((label) => (
+        <Pill key={label} label={label} />
+      ))}
+    </View>
+  );
 }
 
 /** A small grey label, for an album's year, song count and length; `check` marks "In your music". */

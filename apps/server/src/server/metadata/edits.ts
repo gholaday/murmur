@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { BookEditInfo, BookEditInput, BookEditValues, ChaptersEditInput, EditableField } from "@murmur/shared";
+import type { BookEditInfo, BookEditInput, BookEditValues, ChaptersEditInput, EditableField, KnownSeries } from "@murmur/shared";
 import { getBook, scannedChapters } from "../books";
 import type { AppContext } from "../context";
 import { env } from "../env";
@@ -104,7 +104,20 @@ export async function getEditInfo(ctx: AppContext, bookId: string): Promise<Book
       durationSec: f.duration_sec,
       mimeType: f.mime_type,
     })),
+    knownSeries: knownSeries(ctx),
   };
+}
+
+/** Each series as shown (edits and matches win over the files), with how many books it has. */
+function knownSeries(ctx: AppContext): KnownSeries[] {
+  return ctx.sqlite
+    .prepare(
+      `SELECT series AS name, COUNT(*) AS books FROM (
+         SELECT CASE WHEN o.series IS NOT NULL THEN NULLIF(o.series, '') ELSE b.series END AS series
+         FROM books b LEFT JOIN book_overrides o ON o.book_id = b.id WHERE b.missing_since IS NULL
+       ) WHERE series IS NOT NULL GROUP BY series ORDER BY series COLLATE NOCASE`,
+    )
+    .all() as KnownSeries[];
 }
 
 /** Saves the details form. Values equal to the files' go back to "use the files". */

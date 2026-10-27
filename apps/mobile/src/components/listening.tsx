@@ -3,7 +3,7 @@ import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { selectHaptic } from "@/lib/haptics";
 import { fonts, useTheme } from "@/theme";
-import { NumberBadge, Text } from "./ui";
+import { Caption, NumberBadge, Text } from "./ui";
 
 // The Listening tab holds Up Next and Downloaded, switched at the top. Which one shows is kept
 // here, so another screen can open the tab on Up Next.
@@ -92,8 +92,6 @@ export function ListMeta({ text, action }: { text: string; action?: React.ReactN
 
 export function Eyebrow({ children }: { children: string }) {
   return (
-    <Text variant="caption" style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>
-      {children}
-    </Text>
+    <Caption style={{ marginBottom: 10 }}>{children}</Caption>
   );
 }

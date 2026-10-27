@@ -36,7 +36,7 @@ import { openUpNext } from "@/components/listening";
 import { useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
-import { Chip, IconButton, Text } from "@/components/ui";
+import { Caption, Chips, IconButton, Text } from "@/components/ui";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdDetection, useAdPrefs, type AdMode } from "@/player/ad-prefs";
 import { chapterStep, markCurrent, type Playable, seek, setSleep, setSpeed, skipBy, stop, toggle, trackStep, usePlayer, usePosition } from "@/player/engine";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -113,9 +113,7 @@ export default function Player() {
           <IconButton label="Close player" onPress={() => router.back()}>
             <DownIcon color={t.text} />
           </IconButton>
-          <Text variant="caption" style={{ fontSize: 12, letterSpacing: 0.6, textTransform: "uppercase" }}>
-            Playing from {song ? (p.context?.title ?? "Music") : item.type === "book" ? "Library" : "Podcasts"}
-          </Text>
+          <Caption style={{ letterSpacing: 0.6 }}>Playing from {song ? (p.context?.title ?? "Music") : item.type === "book" ? "Library" : "Podcasts"}</Caption>
           <IconButton label="More options" onPress={() => setSheet("more")}>
             <MoreIcon color={t.text} />
           </IconButton>
@@ -411,16 +409,15 @@ export default function Player() {
             <Text variant="bodyStrong" numberOfLines={1}>
               {item.subtitle ?? "This show"}
             </Text>
-            <View accessibilityRole="radiogroup" accessibilityLabel="Ads for this show" style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {[{ id: null, label: "Default" }, ...AD_MODES].map((m) => (
-                <Chip
-                  key={m.id ?? "default"}
-                  label={m.label}
-                  selected={showOverride === m.id}
-                  onPress={() => adPrefsStore.set(setShowMode(adPrefs, item.podcastId!, m.id))}
-                />
-              ))}
-            </View>
+            <Chips
+              kind="radio"
+              label="Ads for this show"
+              gap={8}
+              wrap
+              options={[{ id: null as AdMode | null, label: "Default" }, ...AD_MODES]}
+              value={showOverride}
+              onPick={(id) => adPrefsStore.set(setShowMode(adPrefs, item.podcastId!, id))}
+            />
           </View>
         ) : null}
       </Sheet>

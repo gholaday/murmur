@@ -1,10 +1,13 @@
-import { View } from "react-native";
 import { SKIP_BACK_OPTIONS, SKIP_FORWARD_OPTIONS } from "@murmur/shared/client";
 import { Card, Row } from "@/components/settings";
 import { SettingsPage } from "@/components/settings-page";
-import { Chip } from "@/components/ui";
+import { Chips } from "@/components/ui";
 import { AD_MODES, adPrefsStore, useAdDetection, useAdPrefs } from "@/player/ad-prefs";
 import { setSkip, usePlayer } from "@/player/engine";
+
+const seconds = (values: readonly number[]) => values.map((v) => ({ id: v, label: `${v}s` }));
+const SKIP_BACK = seconds(SKIP_BACK_OPTIONS);
+const SKIP_FORWARD = seconds(SKIP_FORWARD_OPTIONS);
 
 /** Skip lengths, and what happens at ads when the server finds them. */
 export default function PlaybackSettings() {
@@ -15,31 +18,17 @@ export default function PlaybackSettings() {
     <SettingsPage title="Playback">
       <Card>
         <Row title="Skip back" stacked>
-          <ChipRow values={SKIP_BACK_OPTIONS} value={skip.back} onPick={(v) => setSkip({ ...skip, back: v })} />
+          <Chips kind="radio" wrap options={SKIP_BACK} value={skip.back} onPick={(v) => setSkip({ ...skip, back: v })} />
         </Row>
         <Row title="Skip forward" stacked last={!adDetection}>
-          <ChipRow values={SKIP_FORWARD_OPTIONS} value={skip.forward} onPick={(v) => setSkip({ ...skip, forward: v })} />
+          <Chips kind="radio" wrap options={SKIP_FORWARD} value={skip.forward} onPick={(v) => setSkip({ ...skip, forward: v })} />
         </Row>
         {adDetection ? (
           <Row title="Ads" sub={`This device only. ${AD_MODES.find((m) => m.id === adPrefs.mode)?.hint}.`} stacked last>
-            <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
-              {AD_MODES.map((m) => (
-                <Chip key={m.id} label={m.label} selected={adPrefs.mode === m.id} onPress={() => adPrefsStore.set({ ...adPrefs, mode: m.id })} />
-              ))}
-            </View>
+            <Chips kind="radio" wrap options={AD_MODES} value={adPrefs.mode} onPick={(mode) => adPrefsStore.set({ ...adPrefs, mode })} />
           </Row>
         ) : null}
       </Card>
     </SettingsPage>
-  );
-}
-
-function ChipRow({ values, value, onPick }: { values: number[]; value: number; onPick: (v: number) => void }) {
-  return (
-    <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
-      {values.map((v) => (
-        <Chip key={v} label={`${v}s`} selected={v === value} onPress={() => onPick(v)} />
-      ))}
-    </View>
   );
 }

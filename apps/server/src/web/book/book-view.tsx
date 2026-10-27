@@ -4,14 +4,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useState } from "react";
 import { toast } from "sonner";
-import { apiPaths, type BookDetail, type ChapterDto, chapterAt, duration, plural, timeLeft } from "@murmur/shared/client";
+import { apiPaths, type BookDetail, type ChapterDto, chapterAt, duration, errorText, plural, timeLeft } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { BackIcon, CheckIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "../icons";
+import { CheckIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "../icons";
 import { bookToPlayable, usePlayer, usePosition } from "../player/engine";
 import { setFinished } from "../progress";
 import { Sheet, SheetItem } from "../sheet";
+import { BackButton, SectionTitle } from "../ui";
 import { EditBookDialog, type EditTab } from "./edit-dialog";
+import { setMarkedMatched } from "./match-mark";
 
 export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean }) {
   const router = useRouter();
@@ -92,14 +94,7 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
         }
       >
         <div className="hero-bar">
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Back"
-            onClick={() => (window.history.length > 1 ? router.back() : router.push("/"))}
-          >
-            <BackIcon />
-          </button>
+          <BackButton />
           <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMenu(true)}>
             <MoreIcon />
           </button>
@@ -231,6 +226,17 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
             >
               Match metadata…
             </SheetItem>
+            {/* Not offered once a real match was applied: Undo match is the way back there. */}
+            {!book.match ? (
+              <SheetItem
+                onClick={() => {
+                  setMenu(false);
+                  void setMarkedMatched(book.id, !book.markedMatched, () => router.refresh()).catch((err: unknown) => toast.error(errorText(err)));
+                }}
+              >
+                {book.markedMatched ? "Mark as not matched" : "Mark as matched"}
+              </SheetItem>
+            ) : null}
           </>
         ) : null}
         {isAdmin && book.match ? (
@@ -270,8 +276,7 @@ const ChapterList = memo(function ChapterList({
   return (
     <section className="section">
       <div className="section-head">
-        <h2 className="section-title">Chapters</h2>
-        <span className="muted small">{chapters.length}</span>
+        <SectionTitle title="Chapters" count={chapters.length} noun="chapter" />
       </div>
       <ol className="chapter-list">
         {chapters.map((c, i) => (

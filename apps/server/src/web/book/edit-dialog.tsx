@@ -9,8 +9,11 @@ import {
   type BookEditValues,
   type ChapterDto,
   duration,
+  type KnownSeries,
   type MatchSearchResult,
   errorText,
+  plural,
+  suggestSeries,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
@@ -310,6 +313,8 @@ function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; s
         </div>
         {opts.multiline ? (
           <textarea id={id} className="input" rows={6} value={form[f]} onChange={(e) => setForm({ ...form, [f]: e.target.value })} />
+        ) : f === "series" ? (
+          <SeriesInput id={id} value={form.series} placeholder={opts.placeholder} known={info.knownSeries} onChange={(series) => setForm({ ...form, series })} />
         ) : (
           <input
             id={id}
@@ -335,6 +340,91 @@ function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; s
         {field("year")}
       </div>
       {field("description", { wide: true, multiline: true })}
+    </div>
+  );
+}
+
+/** The series field, offering the library's existing series as you type so books land in the same one. */
+function SeriesInput({
+  id,
+  value,
+  placeholder,
+  known,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  placeholder?: string;
+  known: KnownSeries[];
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const hits = open ? suggestSeries(known, value) : [];
+  const listId = `${id}-list`;
+  const pick = (name: string) => {
+    onChange(name);
+    setOpen(false);
+  };
+  return (
+    <div className="suggest-wrap">
+      <input
+        id={id}
+        className="input"
+        value={value}
+        placeholder={placeholder}
+        autoComplete="off"
+        role="combobox"
+        aria-expanded={hits.length > 0}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        aria-activedescendant={hits.length ? `${listId}-${active}` : undefined}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setActive(0);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (!hits.length) return;
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            setActive((i) => (i + (e.key === "ArrowDown" ? 1 : hits.length - 1)) % hits.length);
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            pick(hits[active]!.name);
+          } else if (e.key === "Escape") {
+            // Closes the list, not the dialog.
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen(false);
+          }
+        }}
+      />
+      {hits.length ? (
+        <ul id={listId} className="suggest" role="listbox" aria-label="Series in your library">
+          {hits.map((s, i) => (
+            <li
+              key={s.name}
+              id={`${listId}-${i}`}
+              role="option"
+              aria-selected={i === active}
+              // mousedown, so the pick lands before the input's blur closes the list.
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pick(s.name);
+              }}
+              onMouseEnter={() => setActive(i)}
+            >
+              <span className="suggest-name" title={s.name}>
+                {s.name}
+              </span>
+              <span className="muted small">{plural(s.books, "book")}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

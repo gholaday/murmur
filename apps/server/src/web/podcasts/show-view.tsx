@@ -6,7 +6,8 @@ import { useMemo, useState } from "react";
 import { apiPaths, type EpisodeDto, type EpisodeWithShow, errorText, matchesEpisode, plural, type PodcastDetail, shortDate } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { BackIcon, CheckIcon, FilterIcon, MoreIcon, SearchIcon } from "../icons";
+import { CheckIcon, FilterIcon, MoreIcon, SearchIcon } from "../icons";
+import { BackButton, EmptyState, SearchBox, SectionTitle } from "../ui";
 import { Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
@@ -85,14 +86,7 @@ export function ShowView({
     <>
       <div className="hero" style={{ "--tint": podcast.coverColor ?? "#1b3532" } as React.CSSProperties}>
         <div className="hero-bar">
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Back"
-            onClick={() => (window.history.length > 1 ? router.back() : router.push("/podcasts"))}
-          >
-            <BackIcon />
-          </button>
+          <BackButton fallback="/podcasts" />
           <button type="button" className="icon-btn" aria-label="Podcast options" onClick={() => setSheet("menu")}>
             <MoreIcon />
           </button>
@@ -142,12 +136,7 @@ export function ShowView({
 
       <div className="episodes-head">
         <div className="section-head">
-          <h2 className="section-title">
-            Episodes
-            <span className="count-pill" aria-label={plural(podcast.episodeCount, "episode")}>
-              {podcast.episodeCount}
-            </span>
-          </h2>
+          <SectionTitle title="Episodes" count={podcast.episodeCount} noun="episode" />
           <div style={{ display: "flex", gap: 4 }}>
             <button
               type="button"
@@ -169,25 +158,14 @@ export function ShowView({
           </div>
         </div>
         {searching ? (
-          <div className="search">
-            <SearchIcon />
-            <input
-              className="input"
-              type="search"
-              placeholder="Search episodes"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              aria-label="Search episodes"
-              autoFocus
-            />
-          </div>
+          <SearchBox value={query} onChange={setQuery} placeholder="Search episodes" label="Search episodes" />
         ) : null}
       </div>
 
       {q && !complete ? (
-        <div className="empty">Searching…</div>
+        <EmptyState>Searching…</EmptyState>
       ) : visible.length === 0 ? (
-        <div className="empty">{q ? "No episodes match." : "No episodes."}</div>
+        <EmptyState>{q ? "No episodes match." : "No episodes."}</EmptyState>
       ) : (
         <div>
           {visible.slice(0, limit).map((e) => (

@@ -20,7 +20,8 @@ import {
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { BackIcon, CheckIcon, MoreIcon, PlayIcon, PlusIcon, ShuffleIcon } from "../icons";
+import { CheckIcon, MoreIcon, PlayIcon, PlusIcon, ShuffleIcon } from "../icons";
+import { BackRow, SectionTitle } from "../ui";
 import { Sheet, SheetItem } from "../sheet";
 import { type MusicSource, usePlayer } from "../player/engine";
 import { ArtistPhotoDialog, AlbumMatchDialog } from "./match";
@@ -29,16 +30,8 @@ import { AddToPlaylistSheet, SongMenuButton } from "./song-menu";
 import { AlbumCard, SongRow } from "./music-view";
 
 /** Back to wherever you came from, or the Music tab when opened directly; `children` go on the right. */
-export function BackRow({ children }: { children?: React.ReactNode }) {
-  const router = useRouter();
-  return (
-    <div className="hero-bar back-row">
-      <button type="button" className="icon-btn" aria-label="Back" onClick={() => (window.history.length > 1 ? router.back() : router.push("/music"))}>
-        <BackIcon />
-      </button>
-      {children}
-    </div>
-  );
+export function MusicBackRow({ children }: { children?: React.ReactNode }) {
+  return <BackRow fallback="/music">{children}</BackRow>;
 }
 
 export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boolean }) {
@@ -68,11 +61,11 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
 
   return (
     <>
-      <BackRow>
+      <MusicBackRow>
         <button type="button" className="icon-btn" aria-label="Album options" onClick={() => setMenu(true)}>
           <MoreIcon />
         </button>
-      </BackRow>
+      </MusicBackRow>
       {/* Cover beside the title, as in the app. */}
       <div className="show-hero">
         <Cover src={albumCover(album.id, album.coverHash, 600)} color={album.coverColor} title={album.title} subtitle={album.artist} large />
@@ -216,13 +209,13 @@ export function ArtistView({ artist, isAdmin }: { artist: ArtistDetail; isAdmin:
 
   return (
     <>
-      <BackRow>
+      <MusicBackRow>
         {isAdmin ? (
           <button type="button" className="icon-btn" aria-label="Artist options" onClick={() => setMenu(true)}>
             <MoreIcon />
           </button>
         ) : null}
-      </BackRow>
+      </MusicBackRow>
       <div className="artist-head">
         <Cover className="artist-photo" src={artistImage(artist, 600)} color={null} title={artist.name} />
         <div style={{ minWidth: 0 }}>
@@ -265,12 +258,7 @@ export function ArtistView({ artist, isAdmin }: { artist: ArtistDetail; isAdmin:
       ) : null}
       {artist.appearsOn.length ? (
         <section className="section">
-          <h2 className="section-title">
-            Appears on
-            <span className="count-pill" aria-label={plural(artist.appearsOn.length, "song")}>
-              {artist.appearsOn.length}
-            </span>
-          </h2>
+          <SectionTitle title="Appears on" count={artist.appearsOn.length} noun="song" />
           <div className="list">
             {artist.appearsOn.map((t) => (
               <SongRow

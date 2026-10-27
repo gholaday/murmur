@@ -1,13 +1,12 @@
 import { useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { albumInMusic, artistImage, artistSub, plural, type TrackDto } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { PlusIcon, ProfileIcon } from "@/components/icons";
-import { Grid, PAD, useGridWidth } from "@/components/library";
-import { BottomMiniPlayer } from "@/components/mini-player";
+import { Grid, useGridWidth } from "@/components/library";
 import { AlbumCard, SongRow, SongSheet } from "@/components/music";
-import { BackRow, Empty, PageTitle, SectionTitle, useBottomPad, useTopInset } from "@/components/page";
+import { Empty, NestedScreen, PageTitle, SectionTitle } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { Bone, CoverGridBones, FadeIn, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { Text } from "@/components/ui";
@@ -22,8 +21,6 @@ const PHOTO = 96;
 export default function ArtistScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const t = useTheme();
-  const top = useTopInset();
-  const bottom = useBottomPad();
   const width = useGridWidth(2);
   const artist = useArtist(id);
   const refresh = usePullRefresh(artist.refetch);
@@ -121,13 +118,8 @@ export default function ArtistScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }} refreshControl={refresh}>
-        <BackRow />
-        {body}
-      </ScrollView>
-      <BottomMiniPlayer />
-      <SongSheet track={song} onClose={() => setSong(null)} />
-    </View>
+    <NestedScreen refreshControl={refresh} after={<SongSheet track={song} onClose={() => setSong(null)} />}>
+      {body}
+    </NestedScreen>
   );
 }

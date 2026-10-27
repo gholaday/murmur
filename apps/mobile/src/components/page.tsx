@@ -1,9 +1,11 @@
-import { View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePlayer } from "@/player/engine";
 import { useTheme } from "@/theme";
 import { BackIcon } from "./icons";
+import { PAD } from "./library";
+import { BottomMiniPlayer } from "./mini-player";
 import { CountPill, IconButton, Text } from "./ui";
 
 /** Nested screens: the back arrow sits alone on the top row, the title goes below it. */
@@ -15,6 +17,58 @@ export function BackRow({ right }: { right?: React.ReactNode }) {
         <BackIcon size={24} color={t.text} />
       </IconButton>
       {right}
+    </View>
+  );
+}
+
+/** A nested screen's head: the back row, then the page title (with its count, sub line and actions). */
+export function NestedHead(props: React.ComponentProps<typeof PageTitle>) {
+  return (
+    <>
+      <BackRow />
+      <PageTitle {...props} />
+    </>
+  );
+}
+
+/**
+ * A nested screen that scrolls: the back row (with `right` beside it), the content, and the mini
+ * player under it. `after` sits outside the scroll, for the screen's sheets.
+ */
+export function NestedScreen({
+  right,
+  refreshControl,
+  after,
+  children,
+}: {
+  right?: React.ReactNode;
+  refreshControl?: React.ComponentProps<typeof ScrollView>["refreshControl"];
+  after?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const t = useTheme();
+  const top = useTopInset();
+  const bottom = useBottomPad();
+  return (
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }} refreshControl={refreshControl}>
+        <BackRow right={right} />
+        {children}
+      </ScrollView>
+      <BottomMiniPlayer />
+      {after}
+    </View>
+  );
+}
+
+/** A nested screen before its content: the back row over an error or a placeholder. */
+export function NestedFallback({ children }: { children?: React.ReactNode }) {
+  const t = useTheme();
+  const top = useTopInset();
+  return (
+    <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: top, paddingHorizontal: PAD }}>
+      <BackRow />
+      {children}
     </View>
   );
 }

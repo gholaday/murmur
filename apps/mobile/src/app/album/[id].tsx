@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { albumCover, type AlbumDetail, albumDiscs, albumInMusic, albumPills, plural, songNumber, type TrackDto } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
-import { CheckIcon, DownloadIcon, MoreIcon, PlayIcon, PlusIcon, ShuffleIcon } from "@/components/icons";
-import { PAD } from "@/components/library";
-import { BottomMiniPlayer } from "@/components/mini-player";
-import { ActionButton, openArtist, Pill, SongSheet, TrackRow } from "@/components/music";
-import { BackRow, Empty, SectionTitle, useBottomPad, useTopInset } from "@/components/page";
+import { CheckIcon, DownloadIcon, MoreIcon, PlayIcon, PlusIcon } from "@/components/icons";
+import { ActionButton, openArtist, Pill, Pills, PlayButton, ShuffleButton, SongSheet, TrackRow } from "@/components/music";
+import { Empty, NestedScreen, SectionTitle } from "@/components/page";
 import { AddToPlaylistSheet } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { RemoveDownloadSheet, Sheet, SheetItem } from "@/components/sheet";
@@ -28,8 +26,6 @@ const playAlbum = (a: AlbumDetail, index: number, shuffle = false) =>
 export default function AlbumScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const t = useTheme();
-  const top = useTopInset();
-  const bottom = useBottomPad();
   const album = useAlbum(id);
   const refresh = usePullRefresh(album.refetch);
   const fade = useJustLoaded(!album.isPending);
@@ -57,19 +53,14 @@ export default function AlbumScreen() {
                 {a.artist}
               </Text>
             </Pressable>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-              {state === "all" ? <Pill label="In your music" check /> : null}
-              {albumPills(a).map((p) => (
-                <Pill key={p} label={p} />
-              ))}
-            </View>
+            <Pills labels={albumPills(a)}>{state === "all" ? <Pill label="In your music" check /> : null}</Pills>
           </View>
         </View>
 
         {state === "all" ? (
           <View style={{ flexDirection: "row", gap: 10 }}>
-            <ActionButton label="Play" primary icon={<PlayIcon size={20} color={t.onAccent} />} onPress={() => playAlbum(a, 0)} />
-            <ActionButton label="Shuffle" icon={<ShuffleIcon size={20} color={t.text} />} onPress={() => playAlbum(a, -1, true)} />
+            <PlayButton onPress={() => playAlbum(a, 0)} />
+            <ShuffleButton onPress={() => playAlbum(a, -1, true)} />
             <AlbumDownloadButton album={a} />
           </View>
         ) : (
@@ -134,51 +125,52 @@ export default function AlbumScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }} refreshControl={refresh}>
-        <BackRow
-          right={
-            a ? (
-              <IconButton label="More for this album" onPress={() => setMore(true)}>
-                <MoreIcon size={22} color={t.text} />
-              </IconButton>
-            ) : null
-          }
-        />
-        <View style={{ marginTop: 8 }}>{body}</View>
-      </ScrollView>
-      <BottomMiniPlayer />
-      {a ? (
-        <Sheet open={more} onClose={() => setMore(false)} title={a.title}>
-          <SheetItem
-            label="Add to playlist…"
-            onPress={() => {
-              setMore(false);
-              setAdding(true);
-            }}
-          />
-          <SheetItem
-            label={`Go to ${a.artist}`}
-            onPress={() => {
-              setMore(false);
-              openArtist(a.artistId);
-            }}
-          />
-          {a.songsInMusic > 0 ? (
-            <SheetItem
-              label="Remove from your music"
-              danger
-              onPress={() => {
-                setMore(false);
-                void setInMusic({ albums: [a] }, false);
-              }}
-            />
+    <NestedScreen
+      refreshControl={refresh}
+      right={
+        a ? (
+          <IconButton label="More for this album" onPress={() => setMore(true)}>
+            <MoreIcon size={22} color={t.text} />
+          </IconButton>
+        ) : null
+      }
+      after={
+        <>
+          {a ? (
+            <Sheet open={more} onClose={() => setMore(false)} title={a.title}>
+              <SheetItem
+                label="Add to playlist…"
+                onPress={() => {
+                  setMore(false);
+                  setAdding(true);
+                }}
+              />
+              <SheetItem
+                label={`Go to ${a.artist}`}
+                onPress={() => {
+                  setMore(false);
+                  openArtist(a.artistId);
+                }}
+              />
+              {a.songsInMusic > 0 ? (
+                <SheetItem
+                  label="Remove from your music"
+                  danger
+                  onPress={() => {
+                    setMore(false);
+                    void setInMusic({ albums: [a] }, false);
+                  }}
+                />
+              ) : null}
+            </Sheet>
           ) : null}
-        </Sheet>
-      ) : null}
-      <SongSheet track={song} onClose={() => setSong(null)} hideAlbum />
-      {a ? <AddToPlaylistSheet open={adding} onClose={() => setAdding(false)} title={a.title} trackIds={a.tracks.map((tr) => tr.id)} /> : null}
-    </View>
+          <SongSheet track={song} onClose={() => setSong(null)} hideAlbum />
+          {a ? <AddToPlaylistSheet open={adding} onClose={() => setAdding(false)} title={a.title} trackIds={a.tracks.map((tr) => tr.id)} /> : null}
+        </>
+      }
+    >
+      <View style={{ marginTop: 8 }}>{body}</View>
+    </NestedScreen>
   );
 }
 

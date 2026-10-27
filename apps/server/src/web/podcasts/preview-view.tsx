@@ -13,14 +13,10 @@ import {
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { BackIcon, PlusIcon } from "../icons";
+import { PlusIcon } from "../icons";
+import { BackButton, BackRow, EmptyState, SectionTitle } from "../ui";
 
 const PAGE = 20;
-
-function back(router: ReturnType<typeof useRouter>) {
-  if (window.history.length > 1) router.back();
-  else router.push("/podcasts");
-}
 
 /** A podcast from search, read live from its feed, with Subscribe. Episodes can't be played yet. */
 export function PreviewView({ preview, error }: { preview?: PodcastPreview; error?: string }) {
@@ -32,15 +28,8 @@ export function PreviewView({ preview, error }: { preview?: PodcastPreview; erro
   if (!preview) {
     return (
       <>
-        <div className="back-row">
-          <button type="button" className="icon-btn" onClick={() => back(router)} aria-label="Back">
-            <BackIcon />
-          </button>
-        </div>
-        <div className="empty">
-          <strong>Couldn&apos;t open this podcast</strong>
-          {error}
-        </div>
+        <BackRow fallback="/podcasts" />
+        <EmptyState title="Couldn't open this podcast">{error}</EmptyState>
       </>
     );
   }
@@ -63,9 +52,7 @@ export function PreviewView({ preview, error }: { preview?: PodcastPreview; erro
     <>
       <div className="hero" style={{ "--tint": "#1b3532" } as React.CSSProperties}>
         <div className="hero-bar">
-          <button type="button" className="icon-btn" aria-label="Back" onClick={() => back(router)}>
-            <BackIcon />
-          </button>
+          <BackButton fallback="/podcasts" />
         </div>
         <div className="show-hero">
           <Cover src={preview.artworkUrl} color={null} title={preview.title} large />
@@ -101,17 +88,12 @@ export function PreviewView({ preview, error }: { preview?: PodcastPreview; erro
 
       <div className="episodes-head">
         <div className="section-head">
-          <h2 className="section-title">
-            Episodes
-            <span className="count-pill" aria-label={plural(preview.episodeCount, "episode")}>
-              {preview.episodeCount}
-            </span>
-          </h2>
+          <SectionTitle title="Episodes" count={preview.episodeCount} noun="episode" />
         </div>
       </div>
 
       {preview.episodes.length === 0 ? (
-        <div className="empty">No episodes.</div>
+        <EmptyState>No episodes.</EmptyState>
       ) : (
         <div>
           {preview.episodes.slice(0, limit).map((e) => (

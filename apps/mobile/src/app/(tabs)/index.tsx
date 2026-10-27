@@ -31,7 +31,7 @@ import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, FadeIn, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { DragHandle, SortableList, SortableScrollProvider, useSortableScroll } from "@/components/sortable-list";
 import { GAP, Grid, Group, openAllBooks, openGroup, openShelf, PAD, Shelf, shelfSub, todayKey, useGridWidth } from "@/components/library";
-import { Bar, Button, Chip, CountPill, IconButton, Text } from "@/components/ui";
+import { Bar, Button, Chips, CountPill, IconButton, Text } from "@/components/ui";
 import { saveBookSections, useBookSections, useBooks } from "@/lib/data";
 import { fonts, useTheme } from "@/theme";
 
@@ -161,17 +161,15 @@ export default function Library() {
       {!q ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }} style={{ marginHorizontal: -PAD }}>
           <View style={{ width: PAD - 8 }} />
-          {TABS.map((x) => (
-            <Chip
-              key={x.id}
-              label={x.label}
-              selected={tab === x.id}
-              onPress={() => {
-                setTab(x.id);
-                setCustomizing(false);
-              }}
-            />
-          ))}
+          <Chips
+            gap={8}
+            options={TABS}
+            value={tab}
+            onPick={(id) => {
+              setTab(id);
+              setCustomizing(false);
+            }}
+          />
           <View style={{ width: PAD - 8 }} />
         </ScrollView>
       ) : null}

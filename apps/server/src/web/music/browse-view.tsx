@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { type AlbumSummary, albumInMusic, albumMatches, isNewAlbum, type MusicSummaryDto, plural, sortAlbums } from "@murmur/shared/client";
 import { CloseIcon, FilterIcon, SearchIcon } from "../icons";
-import { BackRow } from "./album-view";
+import { Chip, Chips, CountPill, EmptyState, SearchBox } from "../ui";
+import { MusicBackRow } from "./album-view";
 import { AlbumMatchAll } from "./match-all";
 import { AlbumCard, AlbumSortSheet, useAlbumSort } from "./music-view";
 
@@ -39,7 +40,7 @@ export function BrowseView({ summary, albums, isAdmin }: { summary: MusicSummary
       ))}
     </div>
   ) : (
-    <div className="empty">
+    <EmptyState>
       {q
         ? `No album matches "${query.trim()}".`
         : filter === "new"
@@ -47,12 +48,12 @@ export function BrowseView({ summary, albums, isAdmin }: { summary: MusicSummary
           : filter === "unmatched"
             ? "Every album is matched."
             : "Every album is in your music."}
-    </div>
+    </EmptyState>
   );
 
   return (
     <>
-      <BackRow />
+      <MusicBackRow />
       <div className="page-head">
         <div>
           <h1 className="page-title">Browse</h1>
@@ -77,32 +78,22 @@ export function BrowseView({ summary, albums, isAdmin }: { summary: MusicSummary
       </div>
 
       {searching ? (
-        <div className="search">
-          <SearchIcon />
-          <input className="input" type="search" placeholder="Album or artist" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search albums" autoFocus />
-        </div>
+        <SearchBox value={query} onChange={setQuery} placeholder="Album or artist" label="Search albums" />
       ) : null}
 
-      <div className="chips" role="tablist" aria-label="Show">
+      <Chips kind="tabs" label="Show">
         {FILTERS.map((f) => (
-          <button key={f.id} type="button" role="tab" className="chip" aria-selected={filter === f.id} aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>
+          <Chip key={f.id} selected={filter === f.id} onClick={() => setFilter(f.id)}>
             {f.label}
-            {f.id === "new" && summary.newAlbums > 0 ? <span className="count-pill">{summary.newAlbums}</span> : null}
-          </button>
+            {f.id === "new" && summary.newAlbums > 0 ? <CountPill count={summary.newAlbums} /> : null}
+          </Chip>
         ))}
         {isAdmin && (unmatched.length > 0 || filter === "unmatched") ? (
-          <button
-            type="button"
-            role="tab"
-            className="chip"
-            aria-selected={filter === "unmatched"}
-            aria-pressed={filter === "unmatched"}
-            onClick={() => setFilter("unmatched")}
-          >
+          <Chip selected={filter === "unmatched"} onClick={() => setFilter("unmatched")}>
             Not matched
-          </button>
+          </Chip>
         ) : null}
-      </div>
+      </Chips>
 
       <div style={{ marginTop: 16 }}>{filter === "unmatched" ? <AlbumMatchAll albums={unmatched}>{grid}</AlbumMatchAll> : grid}</div>
 

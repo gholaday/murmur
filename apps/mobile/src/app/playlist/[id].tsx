@@ -3,10 +3,10 @@ import { Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { albumCover, type PlaylistDetail, songLength, songSub, type TrackDto } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
-import { DragIcon, MoreIcon, PlayIcon, ShuffleIcon } from "@/components/icons";
+import { DragIcon, MoreIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { ActionButton, Pill, SongMoreButton, SongSheet, usePlayingSong } from "@/components/music";
+import { Pills, PlayButton, ShuffleButton, SongMoreButton, SongSheet, usePlayingSong } from "@/components/music";
 import { BackRow, Empty, useBottomPad, useTopInset } from "@/components/page";
 import { NamePlaylistSheet, PlaylistCover, playlistPills } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
@@ -14,7 +14,7 @@ import { ConfirmSheet, Sheet, SheetItem } from "@/components/sheet";
 import { Bone, FadeIn, ListRowBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { DragHandle, SortableList, SortableScrollView } from "@/components/sortable-list";
 import { toast } from "@/components/toast";
-import { IconButton, Text } from "@/components/ui";
+import { Caption, IconButton, Text } from "@/components/ui";
 import { deletePlaylist, keys, updatePlaylist, usePlaylist } from "@/lib/data";
 import { queryClient } from "@/lib/query";
 import { type MusicSource, playMusic } from "@/player/engine";
@@ -62,23 +62,17 @@ export default function PlaylistScreen() {
         <View style={{ flexDirection: "row", gap: 16, alignItems: "flex-end" }}>
           <PlaylistCover playlist={p} size={COVER} />
           <View style={{ flex: 1, gap: 6 }}>
-            <Text variant="caption" style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.8 }}>
-              Playlist
-            </Text>
+            <Caption>Playlist</Caption>
             <Text style={{ fontFamily: fonts.extrabold, fontSize: 24, lineHeight: 30, letterSpacing: -0.4, color: t.text }}>{p.name}</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-              {playlistPills(p).map((label) => (
-                <Pill key={label} label={label} />
-              ))}
-            </View>
+            <Pills labels={playlistPills(p)} />
           </View>
         </View>
 
         {p.tracks.length ? (
           <>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <ActionButton label="Play" primary icon={<PlayIcon size={20} color={t.onAccent} />} onPress={() => playMusic(source, 0)} />
-              <ActionButton label="Shuffle" icon={<ShuffleIcon size={20} color={t.text} />} onPress={() => playMusic(source, -1, true)} />
+              <PlayButton onPress={() => playMusic(source, 0)} />
+              <ShuffleButton onPress={() => playMusic(source, -1, true)} />
             </View>
             <View style={{ marginHorizontal: -8 }}>
               <SortableList

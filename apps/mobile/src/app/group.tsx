@@ -1,18 +1,13 @@
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { bySeriesOrder, groupBy, nextInSeriesSub, sortBooks } from "@murmur/shared/client";
 import { BookCard } from "@/components/book-card";
-import { BottomMiniPlayer } from "@/components/mini-player";
-import { Grid, Group, openGroup, PAD, Shelf, useGridWidth } from "@/components/library";
-import { BackRow, Empty, useBottomPad, PageTitle, SectionTitle, useTopInset } from "@/components/page";
+import { Grid, Group, openGroup, Shelf, useGridWidth } from "@/components/library";
+import { Empty, NestedScreen, PageTitle, SectionTitle } from "@/components/page";
 import { useBooks } from "@/lib/data";
-import { useTheme } from "@/theme";
 
 /** One author's books (grouped by series) or one series in order. */
 export default function GroupScreen() {
-  const t = useTheme();
-  const top = useTopInset();
-  const bottomPad = useBottomPad();
   const width = useGridWidth();
   const { author, series } = useLocalSearchParams<{ author?: string; series?: string }>();
   const books = useBooks();
@@ -22,47 +17,43 @@ export default function GroupScreen() {
   const standaloneCards = sortBooks(standalone, "title").map((b) => <BookCard key={b.id} book={b} width={width} sub={null} />);
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView contentContainerStyle={{ paddingTop: top, paddingHorizontal: PAD, paddingBottom: bottomPad }}>
-        <BackRow />
-        <PageTitle title={author ?? series ?? ""} count={list.length} sub={series ? list[0]?.author : null} />
-        {list.length === 0 ? (
-          books.isPending ? null : <Empty>No books here.</Empty>
-        ) : series ? (
-          <View style={{ marginTop: 12 }}>
-            <Grid>
-              {[...list].sort(bySeriesOrder).map((b) => (
-                <BookCard key={b.id} book={b} width={width} sub={nextInSeriesSub(b)} />
-              ))}
-            </Grid>
-          </View>
-        ) : (
-          <>
-            {groups.map(([name, items]) => (
-              <Group key={name} title={name} count={items.length} onOpen={() => openGroup({ series: name })}>
-                {[...items].sort(bySeriesOrder).map((b) => (
-                  <BookCard key={b.id} book={b} width={width} sub={b.seriesPosition !== null ? `Book ${b.seriesPosition}` : null} />
-                ))}
-              </Group>
+    <NestedScreen>
+      <PageTitle title={author ?? series ?? ""} count={list.length} sub={series ? list[0]?.author : null} />
+      {list.length === 0 ? (
+        books.isPending ? null : <Empty>No books here.</Empty>
+      ) : series ? (
+        <View style={{ marginTop: 12 }}>
+          <Grid>
+            {[...list].sort(bySeriesOrder).map((b) => (
+              <BookCard key={b.id} book={b} width={width} sub={nextInSeriesSub(b)} />
             ))}
-            {standalone.length ? (
-              <>
-                {groups.length ? (
-                  <>
-                    <SectionTitle title="Standalone" count={standalone.length} />
-                    <Shelf>{standaloneCards}</Shelf>
-                  </>
-                ) : (
-                  <View style={{ marginTop: 12 }}>
-                    <Grid>{standaloneCards}</Grid>
-                  </View>
-                )}
-              </>
-            ) : null}
-          </>
-        )}
-      </ScrollView>
-      <BottomMiniPlayer />
-    </View>
+          </Grid>
+        </View>
+      ) : (
+        <>
+          {groups.map(([name, items]) => (
+            <Group key={name} title={name} count={items.length} onOpen={() => openGroup({ series: name })}>
+              {[...items].sort(bySeriesOrder).map((b) => (
+                <BookCard key={b.id} book={b} width={width} sub={b.seriesPosition !== null ? `Book ${b.seriesPosition}` : null} />
+              ))}
+            </Group>
+          ))}
+          {standalone.length ? (
+            <>
+              {groups.length ? (
+                <>
+                  <SectionTitle title="Standalone" count={standalone.length} />
+                  <Shelf>{standaloneCards}</Shelf>
+                </>
+              ) : (
+                <View style={{ marginTop: 12 }}>
+                  <Grid>{standaloneCards}</Grid>
+                </View>
+              )}
+            </>
+          ) : null}
+        </>
+      )}
+    </NestedScreen>
   );
 }

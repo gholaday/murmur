@@ -22,7 +22,8 @@ import {
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { BackIcon, FilterIcon, PlusIcon, SearchIcon } from "../icons";
+import { FilterIcon, PlusIcon } from "../icons";
+import { EmptyState, NestedHead, SearchBox, SectionTitle } from "../ui";
 import { Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
@@ -41,12 +42,7 @@ function PodcastCard({ podcast: p }: { podcast: PodcastSummary }) {
 function SectionHead({ title, count, noun, onOpen }: { title: string; count: number; noun: string; onOpen: () => void }) {
   return (
     <div className="section-head">
-      <button type="button" className="section-title group-title" onClick={onOpen}>
-        {title}
-        <span className="count-pill" aria-label={plural(count, noun)}>
-          {count}
-        </span>
-      </button>
+      <SectionTitle title={title} count={count} noun={noun} onOpen={onOpen} />
     </div>
   );
 }
@@ -129,22 +125,15 @@ export function PodcastsView({
     const count = list === "continue" ? continueEpisodes.length : list === "new" ? newEpisodes.length : podcasts.length;
     return (
       <>
-        <div className="back-row">
-          <button type="button" className="icon-btn" onClick={() => router.back()} aria-label="Back">
-            <BackIcon />
-          </button>
-        </div>
-        <div className="page-head">
-          <h1 className="page-title" style={{ fontSize: 26 }}>
-            {PODCAST_LIST_TITLES[list]}
-            <span className="count-pill" aria-label={plural(count, list === "podcasts" ? "podcast" : "episode")}>
-              {count}
-            </span>
-          </h1>
-          {list === "podcasts" ? <div className="head-actions">{sortButton}</div> : null}
-        </div>
+        <NestedHead
+          title={PODCAST_LIST_TITLES[list]}
+          count={count}
+          noun={list === "podcasts" ? "podcast" : "episode"}
+          fallback="/podcasts"
+          actions={list === "podcasts" ? sortButton : null}
+        />
         {count === 0 ? (
-          <div className="empty">Nothing here right now.</div>
+          <EmptyState>Nothing here right now.</EmptyState>
         ) : list === "podcasts" ? (
           <div className="grid">
             {shows.map((p) => (
@@ -191,14 +180,13 @@ export function PodcastsView({
       </div>
 
       {podcasts.length === 0 ? (
-        <div className="empty">
-          <strong>No podcasts yet</strong>
+        <EmptyState title="No podcasts yet">
           <div style={{ marginTop: 16 }}>
             <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
               Add a podcast
             </button>
           </div>
-        </div>
+        </EmptyState>
       ) : (
         <>
           <section className="section" style={{ marginTop: 0 }}>
@@ -301,18 +289,7 @@ function PodcastSearch({ initialQuery, onAdded }: { initialQuery: string; onAdde
 
   return (
     <div className="form">
-      <div className="search">
-        <SearchIcon />
-        <input
-          className="input"
-          type="search"
-          placeholder="Search podcasts"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="Search podcasts"
-          autoFocus
-        />
-      </div>
+      <SearchBox value={query} onChange={setQuery} placeholder="Search podcasts" label="Search podcasts" />
       {error ? (
         <p className="error small" role="alert" style={{ margin: 0 }}>
           {error}

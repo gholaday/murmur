@@ -18,6 +18,7 @@ function book(series: string | null, position: number | null, progress?: { finis
     addedAt: 0,
     missingSince: null,
     matched: false,
+    markedMatched: false,
     progress: progress
       ? { finished: !!progress.finished, positionSec: progress.pos ?? (progress.finished ? 3600 : 0), speed: 1, updatedAt: progress.at ?? 0 }
       : null,

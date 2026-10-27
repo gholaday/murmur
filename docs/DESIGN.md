@@ -104,12 +104,14 @@ Murmur draws its own line icons in the Lucide style: 24px viewBox, 2px round str
 
 ## Components
 
-Web class names are in `globals.css`; the app has matching components under `apps/mobile/src/components/`.
+Web class names are in `globals.css`; the app has matching components under `apps/mobile/src/components/`. On the web, use the React components in [`apps/server/src/web/ui.tsx`](../apps/server/src/web/ui.tsx) where one exists instead of writing the class names out, and add a new one there when a pattern repeats.
 
 - **Button** (`.btn`, `.btn-primary`, `.btn-big`, `.btn-round`, `.btn-outline`, `.btn-small`, `.btn-danger`). One primary big button per screen (Play, Continue, Make playlist), usually with a round Shuffle beside it. Plain buttons for secondary actions, outline for a quiet add action under a list. Labels are verbs that say what happens, never "OK" or "Submit".
 - **Icon button** (`.icon-btn`). 44px round, one 24px icon, an `aria-label`. For search, sort, ⋯ and the back arrow. Use a text button when no familiar icon says the action.
-- **Chip** (`.chip`, `.chips`). Switches between views of the same content: Books / Authors / Series / Finished, Playlists / Albums / Artists / Songs (opening on Albums), Week / Month / Year / All time. One selected per row, never an action.
-- **Badge** (`.count-pill`; `.tab-count`, `.badge-count`, `.new-pill`). Grey counts what's in a list; accent flags something new or waiting. No count next to a tab's page title.
+- **Back** (`BackButton`, `BackRow`, `NestedHead`). The arrow goes back, or to a fallback screen when the page was opened directly. `NestedHead` is a nested screen's whole head: the back row, then the title with its count, a sub line and actions on the right.
+- **Chip** (`Chips`, `Chip`; `.chip`, `.chips`). Switches between views of the same content: Books / Authors / Series / Finished, Playlists / Albums / Artists / Songs (opening on Albums), Week / Month / Year / All time. One selected per row, never an action. `Chips` takes a kind: `tabs` for views, `radio` for picking one setting, `toggle` for fields turned on and off one by one. A `warn` chip is for Needs attention.
+- **Badge** (`CountPill`, `SectionTitle`, `TitleWithCount`; `.count-pill`, `.tab-count`, `.badge-count`, `.new-pill`). Grey counts what's in a list; accent flags something new or waiting. No count next to a tab's page title. `SectionTitle` is a section heading with its count, as a button when it opens the full list.
+- **Search box** (`SearchBox`). Opens under the page head from the search button, focused, with a placeholder that says what it searches.
 - **Pill** (`.pill`, `.pills`). Two or three short facts in a header (1977, 11 songs, 39m) instead of a dotted string. Not clickable.
 - **Cover** (`Cover` in `web/cover.tsx`). Square artwork with a tinted fallback that shows the title. Artists are round; playlists with four or more albums show a 2×2 grid. No borders, no text over real artwork.
 - **Card** (`.card`, `.grid`, `.shelf`). A cover with a title and one sub line, straight on `bg`. A started book adds a progress bar; a finished one gets the accent check.
@@ -118,8 +120,9 @@ Web class names are in `globals.css`; the app has matching components under `app
 - **Mini player** (`.mini`). Cover, title, sub line, transport and a 2px accent progress line. Books and episodes get skip back 10 / forward 30; songs get previous / next, never speed or skip-seconds.
 - **Tab bar** (`.tabs`). The five tabs in a fixed order with their icons; Listening carries the queue count. Settings live on You, not in the bar.
 - **Sheet** (`Sheet`, `SheetItem` in `web/sheet.tsx`). Rises from the bottom for item menus and one- or two-field forms. Items are verbs; a danger item goes last. Close it before acting and confirm with a toast. No browser dialogs.
-- **Settings card** (`.card-box`, `.setting`). Rows with a title, optional sub line, and a value with chevron, a switch or a button. One setting per row.
+- **Settings card** (`SettingsCard`, `Setting`, `SettingSub`, `SettingLink`, `SwitchRow`, `StatusDot`; `.card-box`, `.setting`). Rows with a title, optional sub line, and a value with chevron, a switch or a button. One setting per row. A status dot before the title is green when fine, amber when it needs a look.
+- **Confirm remove** (`ConfirmRemove`). A danger button that turns into Keep and the confirm button on the first click, for removing a folder or a user.
 - **Form controls** (`.input`, `.switch`, checkboxes). 44px inputs on `surface` with a `line` border that turns `accent` on focus. Placeholders say what to type ("Playlist name"). Each form has one primary button.
-- **Stats card** (`ListeningStats`, `.stats-*`). Total and comparison, bars (current one `accent`), the books / podcasts / music split, then tiles. Hidden tabs hide their parts.
+- **Stats card** (`ListeningStats`, `StatTile`, `.stats-*`). Total and comparison, bars (current one `accent`), the books / podcasts / music split, then tiles. Hidden tabs hide their parts.
 - **Browse row** (`.browse-row`). A full-width `surface` row with an icon tile, title, sub line, optional "N new" pill and chevron, leading to the rest of a catalogue. One per screen.
-- **Empty state** (`.empty`, `.music-empty`). One bold line and one muted sentence, no illustrations, no blame.
+- **Empty state** (`EmptyState`; `.empty`, `.music-empty`). One bold line and one muted sentence, no illustrations, no blame.

@@ -19,6 +19,7 @@ import { scoreClass } from "../book/match-dialog";
 import { Cover } from "../cover";
 import { DownIcon } from "../icons";
 import { Sheet } from "../sheet";
+import { Chip, Chips, EmptyState } from "../ui";
 import { ALBUM_FIELDS, AlbumMatchDialog, lastAlbumFields } from "./match";
 
 // Match all for albums, the same screen as books' bulk match: a Match all button over the
@@ -136,13 +137,11 @@ export function AlbumMatchAll({ albums, children }: { albums: AlbumSummary[]; ch
           <p className="sheet-note">Each album is searched and its best result shown for you to check. Nothing changes until you apply.</p>
           <div className="sheet-group">
             <span className="sheet-group-title">Fields to take</span>
-            <div className="chips" style={{ flexWrap: "wrap" }}>
+            <Chips wrap>
               {MATCH_ALL_FIELDS.map(({ field, label }) => (
-                <button
+                <Chip
                   key={field}
-                  type="button"
-                  className="chip"
-                  aria-pressed={fields.has(field)}
+                  selected={fields.has(field)}
                   onClick={() => {
                     const next = new Set(fields);
                     if (next.has(field)) next.delete(field);
@@ -151,9 +150,9 @@ export function AlbumMatchAll({ albums, children }: { albums: AlbumSummary[]; ch
                   }}
                 >
                   {label}
-                </button>
+                </Chip>
               ))}
-            </div>
+            </Chips>
             <span className="muted small">Covers are only changed when the new one is bigger.</span>
           </div>
           <button type="button" className="btn btn-primary btn-big" disabled={busy || fields.size === 0} onClick={() => void start()}>
@@ -223,7 +222,7 @@ export function AlbumMatchAll({ albums, children }: { albums: AlbumSummary[]; ch
       </div>
 
       {shown.length === 0 ? (
-        <div className="empty">{job.running ? "Nothing here yet." : `No albums under ${FILTER_LABEL[filter].toLowerCase()}.`}</div>
+        <EmptyState>{job.running ? "Nothing here yet." : `No albums under ${FILTER_LABEL[filter].toLowerCase()}.`}</EmptyState>
       ) : (
         <div>
           {shown.map((item) => (

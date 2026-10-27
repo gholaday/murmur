@@ -8,7 +8,7 @@ import { HeroBackdrop } from "@/components/hero";
 import { PlusIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { BackRow, Empty, useBottomPad, useTopInset } from "@/components/page";
+import { BackRow, Empty, NestedFallback, useBottomPad, useTopInset } from "@/components/page";
 import { Bone, FadeIn, Skeleton } from "@/components/skeleton";
 import { StickyHeading, useStickyHeading } from "@/components/sticky-heading";
 import { toast } from "@/components/toast";
@@ -47,8 +47,7 @@ export default function PreviewScreen() {
 
   if (!preview || preview.subscribedId) {
     return (
-      <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: top, paddingHorizontal: PAD }}>
-        <BackRow />
+      <NestedFallback>
         {query.isError ? (
           <Empty title="Couldn't open this podcast">{query.error.message}</Empty>
         ) : (
@@ -73,7 +72,7 @@ export default function PreviewScreen() {
             </View>
           </Skeleton>
         )}
-      </View>
+      </NestedFallback>
     );
   }
 

@@ -18,6 +18,7 @@ import { FIELDS, lastFields, PROVIDER_NAME, scoreClass } from "../book/match-dia
 import { Cover } from "../cover";
 import { DownIcon } from "../icons";
 import { Sheet } from "../sheet";
+import { Chip, Chips, EmptyState } from "../ui";
 import { BookActionsContext } from "./book-card";
 
 const PATH = "/api/library/match";
@@ -122,13 +123,11 @@ export function BulkMatch({ unmatched, children }: { unmatched: number; children
           </p>
           <div className="sheet-group">
             <span className="sheet-group-title">Fields to take</span>
-            <div className="chips" style={{ flexWrap: "wrap" }}>
+            <Chips wrap>
               {FIELDS.map(({ field, label }) => (
-                <button
+                <Chip
                   key={field}
-                  type="button"
-                  className="chip"
-                  aria-pressed={fields.has(field)}
+                  selected={fields.has(field)}
                   onClick={() => {
                     const next = new Set(fields);
                     if (next.has(field)) next.delete(field);
@@ -137,9 +136,9 @@ export function BulkMatch({ unmatched, children }: { unmatched: number; children
                   }}
                 >
                   {label}
-                </button>
+                </Chip>
               ))}
-            </div>
+            </Chips>
             <span className="muted small">Fields you've edited by hand are never changed, and covers only when the new one is bigger.</span>
           </div>
           <button type="button" className="btn btn-primary btn-big" disabled={busy || fields.size === 0} onClick={() => void start()}>
@@ -209,7 +208,7 @@ export function BulkMatch({ unmatched, children }: { unmatched: number; children
       </div>
 
       {shown.length === 0 ? (
-        <div className="empty">{job.running ? "Nothing here yet." : `No books under ${FILTER_LABEL[filter].toLowerCase()}.`}</div>
+        <EmptyState>{job.running ? "Nothing here yet." : `No books under ${FILTER_LABEL[filter].toLowerCase()}.`}</EmptyState>
       ) : (
         <div>
           {shown.map((item) => (

@@ -1,7 +1,6 @@
 "use client";
 
 import { toast } from "sonner";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -28,11 +27,12 @@ import {
   plural,
 } from "@murmur/shared/client";
 import { api } from "../api";
-import { BackIcon, ChevronIcon, FolderIcon, PlusIcon } from "../icons";
+import { BackIcon, FolderIcon, PlusIcon } from "../icons";
 import { AD_MODES, adPrefsStore, useAdPrefs } from "../player/ad-prefs";
 import { usePlayer } from "../player/engine";
 import { Sheet } from "../sheet";
 import { applyTheme, currentTheme } from "../theme";
+import { BackRow, Chip, Chips, ConfirmRemove, EmptyState, Setting, SettingLink, SettingsCard, SettingSub, StatTile, SwitchRow } from "../ui";
 import { SECTIONS, type SettingsSection } from "./sections";
 import { ListeningStats } from "./stats";
 
@@ -46,19 +46,6 @@ interface ServerInfo {
   lastScanAt: number | null;
   lastScanError: string | null;
   watcher: "events" | "polling" | "periodic-only";
-}
-
-/** A settings row: its name, an optional current value, and a chevron. */
-function NavRow({ title, value, href }: { title: string; value?: string | null; href: string }) {
-  return (
-    <Link href={href} className="setting setting-link">
-      <span className="setting-title">{title}</span>
-      <span className="setting-value">
-        {value ? <span>{value}</span> : null}
-        <ChevronIcon />
-      </span>
-    </Link>
-  );
 }
 
 export function ProfileView({
@@ -96,11 +83,7 @@ export function ProfileView({
     const refresh = () => router.refresh();
     return (
       <>
-        <div className="back-row">
-          <button type="button" className="icon-btn" aria-label="Back" onClick={() => (window.history.length > 1 ? router.back() : router.push("/you"))}>
-            <BackIcon />
-          </button>
-        </div>
+        <BackRow fallback="/you" />
         <div className="page-head">
           <h1 className="page-title">{SECTIONS.find((s) => s.id === section)!.title}</h1>
         </div>
@@ -142,16 +125,13 @@ export function ProfileView({
           ) : section === "podcasts" ? (
             <>
               {cache ? <EpisodeCacheCard cache={cache} onChanged={refresh} /> : null}
-              <div className="card-box">
-                <div className="setting">
-                  <span className="setting-text">
-                    <span className="setting-title">Export subscriptions</span>
-                  </span>
+              <SettingsCard>
+                <Setting title="Export subscriptions">
                   <a className="btn" href="/api/podcasts/opml" download="murmur-podcasts.opml">
                     Export
                   </a>
-                </div>
-              </div>
+                </Setting>
+              </SettingsCard>
             </>
           ) : section === "users" ? (
             <UsersCard me={user} users={users} onChanged={refresh} />
@@ -186,32 +166,19 @@ export function ProfileView({
       <section className="section">
         <h2 className="section-title">Your library</h2>
         <div className="stats-tiles">
-          <div className="stats-tile">
-            <div className="stats-tile-value">{server.books}</div>
-            <div className="muted small">Books</div>
-          </div>
-          {tabs.podcasts ? (
-            <div className="stats-tile">
-              <div className="stats-tile-value">{shows}</div>
-              <div className="muted small">Podcasts</div>
-            </div>
-          ) : null}
-          {tabs.music && music.enabled ? (
-            <div className="stats-tile">
-              <div className="stats-tile-value">{music.mine.albums}</div>
-              <div className="muted small">Albums</div>
-            </div>
-          ) : null}
+          <StatTile value={server.books} label="Books" />
+          {tabs.podcasts ? <StatTile value={shows} label="Podcasts" /> : null}
+          {tabs.music && music.enabled ? <StatTile value={music.mine.albums} label="Albums" /> : null}
         </div>
       </section>
 
       <section className="section">
         <h2 className="section-title">Settings</h2>
-        <div className="card-box">
+        <SettingsCard>
           {SECTIONS.filter((s) => (user.isAdmin || !s.admin) && (s.id !== "podcasts" || tabs.podcasts || user.isAdmin)).map((s) => (
-            <NavRow key={s.id} title={s.title} value={values[s.id]} href={`/you/${s.id}`} />
+            <SettingLink key={s.id} title={s.title} value={values[s.id]} href={`/you/${s.id}`} />
           ))}
-        </div>
+        </SettingsCard>
       </section>
     </>
   );
@@ -222,57 +189,37 @@ function PlaybackCard({ adsEnabled }: { adsEnabled: boolean }) {
   const player = usePlayer();
   const adPrefs = useAdPrefs();
   return (
-        <div className="card-box">
-          <div className="setting" style={{ flexWrap: "wrap", paddingBlock: 10 }}>
-            <span className="setting-title">Skip back</span>
-            <div className="chips">
-              {SKIP_BACK_OPTIONS.map((s) => (
-                <button key={s} type="button" className="chip" aria-pressed={player.skip.back === s} onClick={() => player.setSkip({ ...player.skip, back: s })}>
-                  {s}s
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="setting" style={{ flexWrap: "wrap", paddingBlock: 10 }}>
-            <span className="setting-title">Skip forward</span>
-            <div className="chips">
-              {SKIP_FORWARD_OPTIONS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className="chip"
-                  aria-pressed={player.skip.forward === s}
-                  onClick={() => player.setSkip({ ...player.skip, forward: s })}
-                >
-                  {s}s
-                </button>
-              ))}
-            </div>
-          </div>
-          {adsEnabled ? (
-            <div className="setting" style={{ flexWrap: "wrap", paddingBlock: 10 }}>
-              <span className="setting-text">
-                <span className="setting-title">Ads</span>
-                <span className="setting-sub">This device only</span>
-              </span>
-              <div className="chips" role="radiogroup" aria-label="Ads">
-                {AD_MODES.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    role="radio"
-                    className="chip"
-                    aria-checked={adPrefs.mode === m.id}
-                    aria-pressed={adPrefs.mode === m.id}
-                    onClick={() => adPrefsStore.set({ ...adPrefs, mode: m.id })}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </div>
+    <SettingsCard>
+      <Setting title="Skip back" wrap>
+        <Chips kind="radio" label="Skip back">
+          {SKIP_BACK_OPTIONS.map((s) => (
+            <Chip key={s} selected={player.skip.back === s} onClick={() => player.setSkip({ ...player.skip, back: s })}>
+              {s}s
+            </Chip>
+          ))}
+        </Chips>
+      </Setting>
+      <Setting title="Skip forward" wrap>
+        <Chips kind="radio" label="Skip forward">
+          {SKIP_FORWARD_OPTIONS.map((s) => (
+            <Chip key={s} selected={player.skip.forward === s} onClick={() => player.setSkip({ ...player.skip, forward: s })}>
+              {s}s
+            </Chip>
+          ))}
+        </Chips>
+      </Setting>
+      {adsEnabled ? (
+        <Setting title="Ads" sub={<SettingSub>This device only</SettingSub>} wrap>
+          <Chips kind="radio" label="Ads">
+            {AD_MODES.map((m) => (
+              <Chip key={m.id} selected={adPrefs.mode === m.id} onClick={() => adPrefsStore.set({ ...adPrefs, mode: m.id })}>
+                {m.label}
+              </Chip>
+            ))}
+          </Chips>
+        </Setting>
+      ) : null}
+    </SettingsCard>
   );
 }
 
@@ -288,22 +235,19 @@ function TabsCard({ tabs, music, onSaved }: { tabs: UserPrefs["tabs"]; music: Mu
     });
   };
   return (
-    <div className="card-box">
-      <label className="switch">
-        <span className="setting-title">Podcasts</span>
-        <input type="checkbox" role="switch" aria-label="Podcasts tab" checked={shown.podcasts} onChange={(e) => toggle("podcasts", e.target.checked)} />
-      </label>
+    <SettingsCard>
+      <SwitchRow title="Podcasts" label="Podcasts tab" checked={shown.podcasts} onChange={(on) => toggle("podcasts", on)} />
       {/* Music can only be shown once the server has some. */}
       {music.enabled ? (
-        <label className="switch">
-          <span className="setting-text">
-            <span className="setting-title">Music</span>
-            <span className="setting-sub">{plural(music.albums, "album")} on your server</span>
-          </span>
-          <input type="checkbox" role="switch" aria-label="Music tab" checked={shown.music} onChange={(e) => toggle("music", e.target.checked)} />
-        </label>
+        <SwitchRow
+          title="Music"
+          sub={`${plural(music.albums, "album")} on your server`}
+          label="Music tab"
+          checked={shown.music}
+          onChange={(on) => toggle("music", on)}
+        />
       ) : null}
-    </div>
+    </SettingsCard>
   );
 }
 
@@ -311,31 +255,24 @@ function ThemePicker() {
   const [theme, setTheme] = useState<ThemeChoice>("system");
   useEffect(() => setTheme(currentTheme()), []);
   return (
-    <div className="card-box">
-      <div className="setting" style={{ flexWrap: "wrap", paddingBlock: 10 }}>
-        <span className="setting-text">
-          <span className="setting-title">Theme</span>
-        </span>
-        <div className="chips" role="radiogroup" aria-label="Theme">
+    <SettingsCard>
+      <Setting title="Theme" wrap>
+        <Chips kind="radio" label="Theme">
           {THEME_CHOICES.map((t) => (
-            <button
+            <Chip
               key={t.id}
-              type="button"
-              role="radio"
-              className="chip"
-              aria-checked={theme === t.id}
-              aria-pressed={theme === t.id}
+              selected={theme === t.id}
               onClick={() => {
                 applyTheme(t.id);
                 setTheme(t.id);
               }}
             >
               {t.label}
-            </button>
+            </Chip>
           ))}
-        </div>
-      </div>
-    </div>
+        </Chips>
+      </Setting>
+    </SettingsCard>
   );
 }
 
@@ -344,17 +281,11 @@ function PasswordForm({ username, isAdmin }: { username: string; isAdmin: boolea
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   return (
-    <div className="card-box">
-      <div className="setting">
-        <span className="setting-text">
-          <span className="setting-title">{username}</span>
-        </span>
+    <SettingsCard>
+      <Setting title={username}>
         <span className={`role-pill ${isAdmin ? "admin" : ""}`}>{isAdmin ? "Admin" : "Listener"}</span>
-      </div>
-      <div className="setting">
-        <span className="setting-text">
-          <span className="setting-title">Password</span>
-        </span>
+      </Setting>
+      <Setting title="Password">
         <button
           type="button"
           className="btn"
@@ -365,7 +296,7 @@ function PasswordForm({ username, isAdmin }: { username: string; isAdmin: boolea
         >
           Change
         </button>
-      </div>
+      </Setting>
       <Sheet open={open} onClose={() => setOpen(false)} title="Change password">
         <form
           className="form"
@@ -409,7 +340,7 @@ function PasswordForm({ username, isAdmin }: { username: string; isAdmin: boolea
           ) : null}
         </form>
       </Sheet>
-    </div>
+    </SettingsCard>
   );
 }
 
@@ -417,22 +348,15 @@ function VersionCard({ version, devBuild, updates }: ServerVersionDto) {
   const update = updates?.update;
   const { sub, dot } = versionStatus({ version, devBuild, updates });
   return (
-    <div className="card-box">
-      <div className="setting">
-        <span className="setting-text">
-          <span className="setting-title">
-            {dot ? <span className={`status-dot ${dot === "warn" ? "warn" : ""}`} /> : null}
-            Murmur {version}
-          </span>
-          {sub ? <span className="setting-sub">{sub}</span> : null}
-        </span>
+    <SettingsCard>
+      <Setting title={`Murmur ${version}`} dot={dot ? (dot === "warn" ? "warn" : "ok") : undefined} sub={sub ? <SettingSub>{sub}</SettingSub> : null}>
         {update ? (
           <a className="btn" href={update.url} target="_blank" rel="noreferrer">
             What&apos;s new
           </a>
         ) : null}
-      </div>
-    </div>
+      </Setting>
+    </SettingsCard>
   );
 }
 
@@ -446,15 +370,12 @@ function LibraryCard({ server, onScanned }: { server: ServerInfo; onScanned: () 
         ? `Last scanned ${shortDate(server.lastScanAt).toLowerCase()} at ${new Date(server.lastScanAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`
         : "Not scanned yet";
   return (
-    <div className="card-box">
-      <div className="setting">
-        <span className="setting-text">
-          <span className="setting-title">
-            <span className={`status-dot ${server.lastScanError ? "warn" : ""}`} />
-            {server.books} books
-          </span>
-          <span className={`setting-sub ${server.lastScanError ? "error" : ""}`}>{status}</span>
-        </span>
+    <SettingsCard>
+      <Setting
+        title={`${server.books} books`}
+        dot={server.lastScanError ? "warn" : "ok"}
+        sub={<SettingSub error={!!server.lastScanError}>{status}</SettingSub>}
+      >
         <button
           type="button"
           className="btn"
@@ -474,8 +395,8 @@ function LibraryCard({ server, onScanned }: { server: ServerInfo; onScanned: () 
         >
           Rescan
         </button>
-      </div>
-    </div>
+      </Setting>
+    </SettingsCard>
   );
 }
 
@@ -485,24 +406,18 @@ function EpisodeCacheCard({ cache, onChanged }: { cache: EpisodeCacheStatusDto; 
   const scan = adScanStatus(ads, Date.now());
 
   return (
-    <div className="card-box">
-      <div className="setting" style={{ flexWrap: "wrap", paddingBlock: 10 }}>
-        <span className="setting-text">
-          <span className="setting-title">Episodes kept ready per show</span>
-          <span className={`setting-sub ${cache.available ? "" : "error"}`}>
-            {cache.available ? `${gigabytes(cache.usedBytes)} of ${gigabytes(cache.maxBytes)} used` : cache.error}
-          </span>
-        </span>
-        <div className="chips" role="radiogroup" aria-label="Episodes kept ready per show">
+    <SettingsCard>
+      <Setting
+        title="Episodes kept ready per show"
+        sub={<SettingSub error={!cache.available}>{cache.available ? `${gigabytes(cache.usedBytes)} of ${gigabytes(cache.maxBytes)} used` : cache.error}</SettingSub>}
+        wrap
+      >
+        <Chips kind="radio" label="Episodes kept ready per show">
           {KEEP_PER_SHOW_OPTIONS.map((n) => (
-            <button
+            <Chip
               key={n}
-              type="button"
-              role="radio"
-              className="chip"
               disabled={busy}
-              aria-checked={cache.settings.episodesPerShow === n}
-              aria-pressed={cache.settings.episodesPerShow === n}
+              selected={cache.settings.episodesPerShow === n}
               onClick={async () => {
                 setBusy(true);
                 try {
@@ -516,21 +431,22 @@ function EpisodeCacheCard({ cache, onChanged }: { cache: EpisodeCacheStatusDto; 
               }}
             >
               {n === 0 ? "Off" : n}
-            </button>
+            </Chip>
           ))}
-        </div>
-      </div>
+        </Chips>
+      </Setting>
       {ads.enabled ? (
-        <div className="setting">
-          <span className="setting-text">
-            <span className="setting-title">
-              <span className={`status-dot ${scan.state === "ok" ? "" : "warn"}`} />
-              Ad detection
-            </span>
-            <span className={`setting-sub ${scan.state === "error" ? "error" : ""}`}>{scan.text}</span>
-            {scan.groqText ? <span className={`setting-sub ${scan.groqStuck ? "error" : ""}`}>{scan.groqText}</span> : null}
-            <span className="setting-sub">{scan.counts}</span>
-          </span>
+        <Setting
+          title="Ad detection"
+          dot={scan.state === "ok" ? "ok" : "warn"}
+          sub={
+            <>
+              <SettingSub error={scan.state === "error"}>{scan.text}</SettingSub>
+              {scan.groqText ? <SettingSub error={scan.groqStuck}>{scan.groqText}</SettingSub> : null}
+              <SettingSub>{scan.counts}</SettingSub>
+            </>
+          }
+        >
           {ads.failed ? (
             <button
               type="button"
@@ -552,9 +468,9 @@ function EpisodeCacheCard({ cache, onChanged }: { cache: EpisodeCacheStatusDto; 
               Retry
             </button>
           ) : null}
-        </div>
+        </Setting>
       ) : null}
-    </div>
+    </SettingsCard>
   );
 }
 
@@ -577,7 +493,6 @@ function FoldersCard({
 }) {
   const k = FOLDER_KINDS[kind];
   const [busy, setBusy] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
 
   const save = async (paths: string[], done: string) => {
@@ -597,41 +512,25 @@ function FoldersCard({
   };
 
   return (
-    <div className="card-box">
+    <SettingsCard>
       {folders.map((f) => (
         <div key={f.id} className="setting" style={{ paddingBlock: 8 }}>
           <span className="setting-text">
             <span className="folder-path">{f.path}</span>
-            <span className={`setting-sub ${f.reachable ? "" : "error"}`}>
+            <SettingSub error={!f.reachable}>
               {f.reachable ? `${f.books} ${f.books === 1 ? k.item : k.things}` : "The server can't open this folder."}
-            </span>
+            </SettingSub>
           </span>
           {folders.length > k.min ? (
-            confirmRemove === f.id ? (
-              <span style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                <button type="button" className="btn" onClick={() => setConfirmRemove(null)}>
-                  Keep
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  disabled={busy}
-                  onClick={async () => {
-                    await save(
-                      folders.filter((o) => o.id !== f.id).map((o) => o.path),
-                      `Folder removed. Its ${k.things} leave the library after the rescan.`,
-                    );
-                    setConfirmRemove(null);
-                  }}
-                >
-                  Remove
-                </button>
-              </span>
-            ) : (
-              <button type="button" className="btn btn-danger" style={{ flexShrink: 0 }} onClick={() => setConfirmRemove(f.id)}>
-                Remove
-              </button>
-            )
+            <ConfirmRemove
+              busy={busy}
+              onConfirm={() =>
+                save(
+                  folders.filter((o) => o.id !== f.id).map((o) => o.path),
+                  `Folder removed. Its ${k.things} leave the library after the rescan.`,
+                )
+              }
+            />
           ) : null}
         </div>
       ))}
@@ -653,7 +552,7 @@ function FoldersCard({
           />
         ) : null}
       </Sheet>
-    </div>
+    </SettingsCard>
   );
 }
 
@@ -753,7 +652,7 @@ function AddFolderForm({
               </button>
             );
           })}
-          {browse.folders.length === 0 ? <div className="empty">No folders inside {browse.path}</div> : null}
+          {browse.folders.length === 0 ? <EmptyState>No folders inside {browse.path}</EmptyState> : null}
         </div>
       ) : null}
       <button type="submit" className="btn btn-primary" disabled={busy || !check?.ok}>
@@ -766,55 +665,32 @@ function AddFolderForm({
 function UsersCard({ me, users, onChanged }: { me: UserDto; users: UserDto[]; onChanged: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
 
   return (
-    <div className="card-box">
+    <SettingsCard>
       {users.map((u) => (
-        <div key={u.id} className="setting">
-          <span className="setting-text">
-            <span className="setting-title">
-              {u.username}
-              {u.id === me.id ? " (you)" : ""}
-            </span>
-            <span className="setting-sub">{u.isAdmin ? "Admin" : "Listener"}</span>
-          </span>
+        <Setting key={u.id} title={`${u.username}${u.id === me.id ? " (you)" : ""}`} sub={<SettingSub>{u.isAdmin ? "Admin" : "Listener"}</SettingSub>}>
           {u.id !== me.id ? (
-            confirmDelete === u.id ? (
-              <span style={{ display: "flex", gap: 6 }}>
-                <button type="button" className="btn" onClick={() => setConfirmDelete(null)}>
-                  Keep
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  disabled={busy}
-                  onClick={async () => {
-                    setBusy(true);
-                    setError(null);
-                    try {
-                      await api(`/api/users/${u.id}`, { method: "DELETE" });
-                      toast(`Removed ${u.username}`);
-                      onChanged();
-                    } catch (err) {
-                      toast.error(errorText(err));
-                    } finally {
-                      setBusy(false);
-                      setConfirmDelete(null);
-                    }
-                  }}
-                >
-                  Delete
-                </button>
-              </span>
-            ) : (
-              <button type="button" className="btn btn-danger" onClick={() => setConfirmDelete(u.id)}>
-                Remove
-              </button>
-            )
+            <ConfirmRemove
+              confirmLabel="Delete"
+              busy={busy}
+              onConfirm={async () => {
+                setBusy(true);
+                setError(null);
+                try {
+                  await api(`/api/users/${u.id}`, { method: "DELETE" });
+                  toast(`Removed ${u.username}`);
+                  onChanged();
+                } catch (err) {
+                  toast.error(errorText(err));
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            />
           ) : null}
-        </div>
+        </Setting>
       ))}
       <div className="setting">
         <button type="button" className="btn" onClick={() => setAdding(true)}>
@@ -859,18 +735,13 @@ function UsersCard({ me, users, onChanged }: { me: UserDto; users: UserDto[]; on
             minLength={8}
             required
           />
-          <label className="switch">
-            <span className="setting-text">
-              <span className="setting-title" style={{ fontSize: 14 }}>Admin</span>
-            </span>
-            <input type="checkbox" name="isAdmin" />
-          </label>
+          <SwitchRow title={<span style={{ fontSize: 14 }}>Admin</span>} name="isAdmin" />
           <button type="submit" className="btn btn-primary" disabled={busy}>
             Add user
           </button>
           {error ? <p className="error small" style={{ margin: 0 }}>{error}</p> : null}
         </form>
       </Sheet>
-    </div>
+    </SettingsCard>
   );
 }

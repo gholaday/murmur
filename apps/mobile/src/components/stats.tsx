@@ -9,7 +9,7 @@ import { fonts, mixColor, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { Eyebrow } from "./listening";
 import { Bone, Skeleton } from "./skeleton";
-import { Chip, Text } from "./ui";
+import { Chips, Text } from "./ui";
 
 const PERIODS: { id: StatsPeriod; label: string; last: string; this: string }[] = [
   { id: "week", label: "Week", last: "last week", this: "this week" },
@@ -53,11 +53,7 @@ export function ListeningStats() {
   return (
     <View style={{ gap: 14 }}>
       <Eyebrow>Listening</Eyebrow>
-      <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: -4 }}>
-        {PERIODS.map((x) => (
-          <Chip key={x.id} label={x.label} selected={x.id === period} onPress={() => setPeriod(x.id)} />
-        ))}
-      </View>
+      <Chips wrap options={PERIODS} value={period} onPick={setPeriod} style={{ marginTop: -4 }} />
 
       <View style={{ padding: 18, borderRadius: 16, backgroundColor: t.surface, gap: 16 }}>
         {s ? (
@@ -82,10 +78,10 @@ export function ListeningStats() {
 
       {s ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-          <Tile value={plural(s.streakDays, "day")} label="Listening streak" />
-          <Tile value={plural(s.finishedBooks, "book")} label={`Finished ${p.this}`} />
-          {tabs.podcasts ? <Tile value={plural(s.episodesPlayed, "episode")} label={`Played ${p.this}`} /> : null}
-          {s.savedSec > 0 ? <Tile value={duration(s.savedSec)} label="Saved by playing faster" /> : null}
+          <StatTile value={plural(s.streakDays, "day")} label="Listening streak" />
+          <StatTile value={plural(s.finishedBooks, "book")} label={`Finished ${p.this}`} />
+          {tabs.podcasts ? <StatTile value={plural(s.episodesPlayed, "episode")} label={`Played ${p.this}`} /> : null}
+          {s.savedSec > 0 ? <StatTile value={duration(s.savedSec)} label="Saved by playing faster" /> : null}
         </View>
       ) : null}
 
@@ -203,8 +199,8 @@ function SplitBar({ split, podcasts, music }: { split: StatsDto["split"]; podcas
   );
 }
 
-/** A number with a label under it, two to a row. */
-function Tile({ value, label, sub }: { value: string; label: string; sub?: string }) {
+/** A big number with a label under it, two to a row. */
+export function StatTile({ value, label, sub }: { value: string; label: string; sub?: string }) {
   const t = useTheme();
   return (
     <View style={{ flexGrow: 1, flexBasis: "40%", padding: 14, borderRadius: 14, backgroundColor: t.surface, gap: 4 }}>
@@ -231,10 +227,10 @@ export function LibraryTiles() {
     <View style={{ gap: 14, marginTop: 12 }}>
       <Eyebrow>Library</Eyebrow>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: -4 }}>
-        {books ? <Tile value={String(books.length)} label={books.length === 1 ? "Book" : "Books"} sub={`${finished} finished`} /> : null}
-        {tabs.podcasts && shows ? <Tile value={String(shows.length)} label={shows.length === 1 ? "Podcast" : "Podcasts"} sub={`${fresh} new`} /> : null}
+        {books ? <StatTile value={String(books.length)} label={books.length === 1 ? "Book" : "Books"} sub={`${finished} finished`} /> : null}
+        {tabs.podcasts && shows ? <StatTile value={String(shows.length)} label={shows.length === 1 ? "Podcast" : "Podcasts"} sub={`${fresh} new`} /> : null}
         {tabs.music && music?.enabled ? (
-          <Tile value={String(music.mine.albums)} label={music.mine.albums === 1 ? "Album" : "Albums"} sub={plural(music.mine.tracks, "song")} />
+          <StatTile value={String(music.mine.albums)} label={music.mine.albums === 1 ? "Album" : "Albums"} sub={plural(music.mine.tracks, "song")} />
         ) : null}
       </View>
     </View>
