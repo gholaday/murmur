@@ -415,49 +415,52 @@ function scanStatus(h: HealthDto) {
   return `Last scanned ${shortDate(h.scan.lastFinishedAt).toLowerCase()} at ${time}`;
 }
 
-/** Book count, last scan, Rescan, and the folders the server reads books from. */
-export function LibrarySection() {
-  const health = useHealth();
-  const folders = useQuery({ queryKey: libraryKeys.folders, queryFn: () => api<LibraryFolderDto[]>("/api/library/folders") });
-  const [busy, setBusy] = useState(false);
-  const [removing, setRemoving] = useState<LibraryFolderDto | null>(null);
-  const [adding, setAdding] = useState(false);
-  const list = folders.data ?? [];
+/** The kinds of folder the server reads, as the web lists them under You > Library. */
+const FOLDER_KINDS = {
+  books: { url: "/api/library/folders", heading: "Book folders", item: "book", things: "books", title: "Add a library folder", min: 1, refresh: [["books"]] },
+  music: { url: "/api/music/folders", heading: "Music folders", item: "album", things: "albums", title: "Add a music folder", min: 0, refresh: [["music"], ["albums"]] },
+  movies: { url: "/api/watch/folders/movies", heading: "Movie folders", item: "movie", things: "movies", title: "Add a movie folder", min: 0, refresh: [["watch"]] },
+  shows: { url: "/api/watch/folders/shows", heading: "Show folders", item: "show", things: "shows", title: "Add a show folder", min: 0, refresh: [["watch"]] },
+} as const;
+type FolderKind = keyof typeof FOLDER_KINDS;
+const KIND_LIST = Object.keys(FOLDER_KINDS) as FolderKind[];
 
-  const refreshSoon = () => {
+const folderKey = (kind: FolderKind) => [...libraryKeys.folders, kind];
+const useFolders = (kind: FolderKind) => useQuery({ queryKey: folderKey(kind), queryFn: () => api<LibraryFolderDto[]>(FOLDER_KINDS[kind].url) });
+
+/** After a change: the counts now, and again once the scan it starts has had a moment. */
+function refreshSoon(kind: FolderKind) {
+  const run = () => {
     void queryClient.invalidateQueries({ queryKey: libraryKeys.health });
     void queryClient.invalidateQueries({ queryKey: libraryKeys.folders });
-    // A scan runs on the server after this; check back once it has had a moment.
-    setTimeout(() => {
-      void queryClient.invalidateQueries({ queryKey: libraryKeys.health });
-      void queryClient.invalidateQueries({ queryKey: libraryKeys.folders });
-      void queryClient.invalidateQueries({ queryKey: ["books"] });
-    }, 3000);
+    for (const key of FOLDER_KINDS[kind].refresh) void queryClient.invalidateQueries({ queryKey: key });
   };
+  run();
+  setTimeout(run, 3000);
+}
+
+/** Book count, last scan, Rescan, and the folders the server reads books, music, movies and shows from. */
+export function LibrarySection() {
+  const health = useHealth();
+  const [busy, setBusy] = useState(false);
+  const lists: Record<FolderKind, LibraryFolderDto[] | undefined> = {
+    books: useFolders("books").data,
+    music: useFolders("music").data,
+    movies: useFolders("movies").data,
+    shows: useFolders("shows").data,
+  };
+  // Every other kind's folders, which a new folder may not overlap.
+  const besides = (kind: FolderKind) => KIND_LIST.filter((k) => k !== kind).flatMap((k) => (lists[k] ?? []).map((f) => f.path));
+  const noWatch = lists.movies?.length === 0 && lists.shows?.length === 0;
 
   const rescan = async () => {
     setBusy(true);
     try {
       await api("/api/library/scan", { method: "POST" });
       toast.show("Scan started. New books appear when it finishes.");
-      refreshSoon();
+      refreshSoon("books");
     } catch (err) {
       toast.error(errorText(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const save = async (paths: string[], done: string) => {
-    setBusy(true);
-    try {
-      await api<LibraryFolderDto[]>("/api/library/folders", { method: "PUT", body: { paths } });
-      toast.show(done);
-      refreshSoon();
-      return true;
-    } catch (err) {
-      toast.error(errorText(err));
-      return false;
     } finally {
       setBusy(false);
     }
@@ -484,27 +487,71 @@ export function LibrarySection() {
           </FadeIn>
         )}
       </Card>
-      <View style={{ height: 12 }} />
+      {KIND_LIST.map((kind) => (
+        <View key={kind}>
+          <Text variant="heading" style={{ marginTop: 24, marginBottom: 10 }}>
+            {FOLDER_KINDS[kind].heading}
+          </Text>
+          {kind === "music" && lists.music?.length === 0 ? (
+            <Text variant="small" style={{ marginBottom: 10 }}>
+              Add a folder of music to turn on the Music tab. Albums come from the songs&apos; tags, or from Artist/Album folders when there are none.
+            </Text>
+          ) : kind === "movies" && noWatch ? (
+            <Text variant="small" style={{ marginBottom: 10 }}>
+              Add a folder of movies or shows to turn on the Watch tab. Movies go in &quot;Title (Year)&quot; folders, and shows in Show/Season folders.
+            </Text>
+          ) : null}
+          <FoldersCard kind={kind} list={lists[kind]} otherPaths={besides(kind)} />
+        </View>
+      ))}
+    </>
+  );
+}
+
+/** One kind's folders: each with its count, Remove, and Add a folder. */
+function FoldersCard({ kind, list, otherPaths }: { kind: FolderKind; list: LibraryFolderDto[] | undefined; otherPaths: string[] }) {
+  const k = FOLDER_KINDS[kind];
+  const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState<LibraryFolderDto | null>(null);
+  const [adding, setAdding] = useState(false);
+  const folders = list ?? [];
+
+  const save = async (paths: string[], done: string) => {
+    setBusy(true);
+    try {
+      await api<LibraryFolderDto[]>(k.url, { method: "PUT", body: { paths } });
+      toast.show(done);
+      refreshSoon(kind);
+      return true;
+    } catch (err) {
+      toast.error(errorText(err));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
       <Card>
-        {folders.isPending ? (
+        {list === undefined ? (
           <Skeleton>
             <RowBone />
           </Skeleton>
-        ) : null}
-        {folders.data ? (
+        ) : (
           <FadeIn>
-            {list.map((f) => (
+            {folders.map((f) => (
               <Row
                 key={f.id}
                 title={f.path}
-                sub={f.reachable ? `${f.books} ${f.books === 1 ? "book" : "books"}` : "The server can't open this folder."}
+                sub={f.reachable ? `${f.books} ${f.books === 1 ? k.item : k.things}` : "The server can't open this folder."}
                 subDanger={!f.reachable}
               >
-                {list.length > 1 ? <SmallButton label="Remove" danger onPress={() => setRemoving(f)} /> : null}
+                {folders.length > k.min ? <SmallButton label="Remove" danger onPress={() => setRemoving(f)} /> : null}
               </Row>
             ))}
           </FadeIn>
-        ) : null}
+        )}
         <Row title="Add a folder" last>
           <SmallButton label="Add" onPress={() => setAdding(true)} />
         </Row>
@@ -513,21 +560,21 @@ export function LibrarySection() {
       <ConfirmSheet
         open={removing !== null}
         title="Remove this folder?"
-        message={`${removing?.path ?? ""} is removed from the library, and its books leave after the rescan. The files themselves aren't touched.`}
+        message={`${removing?.path ?? ""} is removed from the library, and its ${k.things} leave after the rescan. The files themselves aren't touched.`}
         confirmLabel="Remove"
         onConfirm={() => {
-          if (removing) void save(list.filter((o) => o.id !== removing.id).map((o) => o.path), "Folder removed. Its books leave the library after the rescan.");
+          if (removing) void save(folders.filter((o) => o.id !== removing.id).map((o) => o.path), `Folder removed. Its ${k.things} leave after the rescan.`);
         }}
         onClose={() => setRemoving(null)}
       />
-      <Sheet open={adding} onClose={() => setAdding(false)} title="Add a library folder">
+      <Sheet open={adding} onClose={() => setAdding(false)} title={k.title}>
         {adding ? (
           <AddFolder
-            others={list.map((f) => f.path)}
-            start={list[0]?.path ?? ""}
+            others={[...folders.map((f) => f.path), ...otherPaths]}
+            start={folders[0]?.path ?? otherPaths[0] ?? ""}
             busy={busy}
             onAdd={async (path) => {
-              if (await save([...list.map((f) => f.path), path], "Folder added. Scanning it now.")) setAdding(false);
+              if (await save([...folders.map((f) => f.path), path], "Folder added. Scanning it now.")) setAdding(false);
             }}
           />
         ) : null}

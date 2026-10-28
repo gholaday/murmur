@@ -49,7 +49,7 @@ export function listProgress(ctx: AppContext, userId: number, since = 0): Progre
   const rows = ctx.sqlite
     .prepare(
       `SELECT item_type, item_id, position_sec, duration_sec, finished, speed, updated_at
-       FROM progress WHERE user_id = ? AND updated_at > ? ORDER BY updated_at DESC`,
+       FROM progress WHERE user_id = ? AND updated_at > ? AND item_type != 'video' ORDER BY updated_at DESC`,
     )
     .all(userId, since) as Array<{
     item_type: "book" | "episode";

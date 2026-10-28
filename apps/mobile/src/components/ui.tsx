@@ -367,6 +367,46 @@ export function CardLink({
   );
 }
 
+/** A round 56pt button beside a page's Play button: Mark finished, Download, Play next. */
+export function RoundButton({
+  label,
+  active,
+  filled,
+  disabled,
+  onPress,
+  children,
+}: {
+  label: string;
+  active?: boolean;
+  /** Solid accent background, for an "on" state. */
+  filled?: boolean;
+  disabled?: boolean;
+  onPress: () => void;
+  children: React.ReactNode;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active, disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: filled ? t.accent : pressed ? t.surface2 : t.chip,
+        opacity: disabled ? 0.4 : pressed && filled ? 0.85 : 1,
+      })}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
 /** Thin progress bar. */
 export function Bar({ pct, height = 3, color }: { pct: number; height?: number; color?: string }) {
   const t = useTheme();

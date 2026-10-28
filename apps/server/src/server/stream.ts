@@ -45,7 +45,7 @@ export async function streamFile(req: Request, file: string, mimeType: string): 
   try {
     stat = await fs.promises.stat(file);
   } catch {
-    throw new HttpError(404, "Audio file is missing on the server. A rescan will fix the library.");
+    throw new HttpError(404, "The file is missing on the server. A rescan will fix the library.");
   }
   const size = stat.size;
   const range = parseRange(req.headers.get("range"), size);

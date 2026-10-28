@@ -7,11 +7,12 @@ import { books, libraryFolders } from "../db/schema";
 import { readState, writeState } from "../settings";
 import { isIgnoredName } from "./parse";
 
-// The folders the library is read from, books and music each with their own list. An admin
-// manages them in Settings; on first start the book list is seeded with LIBRARY_DIR so existing
-// setups keep working unchanged, and the music list with MUSIC_DIR once that's mounted.
+// The folders the library is read from, books, music, movies and shows each with their own list.
+// An admin manages them in Settings; on first start the book list is seeded with LIBRARY_DIR so
+// existing setups keep working unchanged, and the others with MUSIC_DIR, MOVIES_DIR and SHOWS_DIR
+// once those are mounted.
 
-export type FolderKind = "books" | "music";
+export type FolderKind = "books" | "music" | "movies" | "shows";
 
 export interface LibraryFolder {
   id: number;
@@ -27,7 +28,7 @@ export function listFolders(db: Db, kind: FolderKind = "books"): LibraryFolder[]
     .all();
 }
 
-/** Every folder of both kinds, for overlap checks: no folder may be scanned twice. */
+/** Every folder of every kind, for overlap checks: no folder may be scanned twice. */
 export function allFolderPaths(db: Db): Array<{ path: string; kind: FolderKind }> {
   return db.select({ path: libraryFolders.path, kind: libraryFolders.kind }).from(libraryFolders).all();
 }
@@ -42,18 +43,20 @@ export function ensureDefaultFolder(db: Db, defaultDir: string) {
 }
 
 /**
- * Adds MUSIC_DIR (/music by default) as the first music folder once it's mounted. It's added only
- * once, so a folder an admin removes stays removed; with nothing mounted there, music stays off.
+ * Adds MUSIC_DIR (/music by default) as the first music folder once it's mounted, and the same for
+ * MOVIES_DIR and SHOWS_DIR. Each is added only once, so a folder an admin removes stays removed;
+ * with nothing mounted there, that kind stays off.
  */
-export async function ensureDefaultMusicFolder(db: Db, sqlite: Sqlite, musicDir: string) {
-  if (readState<boolean>(sqlite, "musicFolderSeeded")) return;
-  if (listFolders(db, "music").length === 0) {
-    const mounted = await fs.stat(musicDir).then((s) => s.isDirectory(), () => false);
+export async function ensureMountedFolder(db: Db, sqlite: Sqlite, kind: Exclude<FolderKind, "books">, dir: string) {
+  const seeded = `${kind}FolderSeeded`;
+  if (readState<boolean>(sqlite, seeded)) return;
+  if (listFolders(db, kind).length === 0) {
+    const mounted = await fs.stat(dir).then((s) => s.isDirectory(), () => false);
     if (!mounted) return;
-    if (allFolderPaths(db).some((f) => f.path === musicDir)) return;
-    db.insert(libraryFolders).values({ path: musicDir, kind: "music", createdAt: Date.now() }).run();
+    if (allFolderPaths(db).some((f) => f.path === dir)) return;
+    db.insert(libraryFolders).values({ path: dir, kind, createdAt: Date.now() }).run();
   }
-  writeState(sqlite, "musicFolderSeeded", true);
+  writeState(sqlite, seeded, true);
 }
 
 /** Normalises what an admin typed: absolute, no trailing slash. */
@@ -116,19 +119,19 @@ export async function checkFolder(input: string, others: string[]): Promise<Fold
 
 /** The folders with their book (or album) counts and whether the server can open them, for Settings. */
 export async function folderList(db: Db, sqlite: Sqlite, kind: FolderKind = "books"): Promise<LibraryFolderDto[]> {
-  const rows = sqlite
-    .prepare(
-      kind === "books"
-        ? "SELECT library_folder_id AS id, COUNT(*) AS n FROM books WHERE missing_since IS NULL GROUP BY library_folder_id"
-        : "SELECT folder_id AS id, COUNT(DISTINCT album_id) AS n FROM tracks WHERE missing_since IS NULL GROUP BY folder_id",
-    )
-    .all() as Array<{ id: number | null; n: number }>;
-  const counts = new Map(rows.map((r) => [r.id, r.n]));
+  const counts: Record<FolderKind, string> = {
+    books: "SELECT library_folder_id AS id, COUNT(*) AS n FROM books WHERE missing_since IS NULL GROUP BY library_folder_id",
+    music: "SELECT folder_id AS id, COUNT(DISTINCT album_id) AS n FROM tracks WHERE missing_since IS NULL GROUP BY folder_id",
+    movies: "SELECT folder_id AS id, COUNT(DISTINCT movie_id) AS n FROM videos WHERE kind = 'movie' AND missing_since IS NULL GROUP BY folder_id",
+    shows: "SELECT folder_id AS id, COUNT(*) AS n FROM shows GROUP BY folder_id",
+  };
+  const rows = sqlite.prepare(counts[kind]).all() as Array<{ id: number | null; n: number }>;
+  const byFolder = new Map(rows.map((r) => [r.id, r.n]));
   return Promise.all(
     listFolders(db, kind).map(async (f) => ({
       id: f.id,
       path: f.path,
-      books: counts.get(f.id) ?? 0,
+      books: byFolder.get(f.id) ?? 0,
       reachable: await fs.access(f.path).then(() => true, () => false),
     })),
   );
@@ -166,7 +169,7 @@ export function saveFolders(db: Db, paths: string[], kind: FolderKind = "books")
       .all();
     for (const f of current) {
       if (wanted.has(f.path)) continue;
-      // Music tracks lose their folder by the foreign key; the next scan removes them.
+      // Songs, videos and shows lose their folder by the foreign key; the next scan removes them.
       if (kind === "books") tx.update(books).set({ libraryFolderId: null }).where(eq(books.libraryFolderId, f.id)).run();
       tx.delete(libraryFolders).where(and(eq(libraryFolders.id, f.id), eq(libraryFolders.kind, kind))).run();
     }

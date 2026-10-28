@@ -263,6 +263,15 @@ function setPosition(p: number) {
   if (lockScreenOn && it && it.chapters.length > 1 && chapterAt(it.chapters, p) !== lockScreenChapter) void showOnLockScreen(it);
 }
 
+export const getPlayerState = () => state;
+
+/** Runs `listener` on every player change, outside React (the video player ends when audio starts). */
+export function onPlayerChange(listener: (s: PlayerState) => void): () => void {
+  const l = () => listener(state);
+  stateListeners.add(l);
+  return () => stateListeners.delete(l);
+}
+
 export function usePlayer(): PlayerState {
   return useSyncExternalStore(
     (l) => {

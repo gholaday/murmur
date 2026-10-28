@@ -827,6 +827,9 @@ a.episode-show:hover { color: var(--accent); }
 .player-cover-wrap { position: relative; width: 100%; max-width: 340px; margin: 20px auto 0; }
 .player-cover { width: 100%; border-radius: 16px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
 .player-cover-wrap .skip-ad { position: absolute; right: 12px; bottom: 12px; }
+/* The title block with the volume control at its right, the same on the audio and video players. */
+.player-info-row { display: flex; align-items: flex-end; gap: 8px; padding-top: 26px; }
+.player-info-row .player-info { flex: 1; min-width: 0; padding-top: 0; }
 .player-info { padding-top: 26px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .player-chapter { font-size: 13px; font-weight: 700; color: var(--accent); }
 .player-title { font-size: 22px; font-weight: 800; line-height: 1.2; width: 100%; min-width: 0; }
@@ -836,10 +839,6 @@ a.episode-show:hover { color: var(--accent); }
 .player-controls { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; }
 .player-controls .icon-btn.dim { color: var(--muted); }
 .player-controls .icon-btn.on { color: var(--accent); }
-.player-volume { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 260px; margin: 20px auto 0; }
-.player-volume .icon-btn.dim { color: var(--muted); flex-shrink: 0; }
-/* Phones and tablets set volume with their own buttons (iOS ignores it from the page). */
-@media (hover: none) and (pointer: coarse) { .player-volume { display: none; } }
 .skip-btn { width: 56px; height: 56px; position: relative; display: flex; align-items: center; justify-content: center; }
 .skip-btn svg { stroke-width: 1.6; }
 .skip-btn span { position: absolute; font-size: 11px; font-weight: 800; padding-top: 3px; }
@@ -868,7 +867,7 @@ a.episode-show:hover { color: var(--accent); }
  * Light mode: a lighter tint and bleed, frosted white tiles (a grey wash disappears into the
  * tinted page), and darker sub lines on the tinted mini player.
  */
-:root[data-theme="light"] .player { --tint-top: 36%; --tint-bottom: 12%; }
+:root[data-theme="light"] .player, :root[data-theme="light"] .vp { --tint-top: 36%; --tint-bottom: 12%; }
 :root[data-theme="light"] .player-bleed { opacity: 0.56; }
 :root[data-theme="light"] .tile { background: rgba(255, 255, 255, 0.65); }
 :root[data-theme="light"] .tile span { color: var(--text-2); }
@@ -877,7 +876,7 @@ a.episode-show:hover { color: var(--accent); }
 :root[data-theme="light"] .mini-sub:not(.error) { color: var(--text-2); }
 :root[data-theme="light"] .player-from { color: var(--text-2); }
 @media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) .player { --tint-top: 36%; --tint-bottom: 12%; }
+  :root:not([data-theme="dark"]) .player, :root:not([data-theme="dark"]) .vp { --tint-top: 36%; --tint-bottom: 12%; }
   :root:not([data-theme="dark"]) .player-bleed { opacity: 0.56; }
   :root:not([data-theme="dark"]) .tile { background: rgba(255, 255, 255, 0.65); }
   :root:not([data-theme="dark"]) .tile span { color: var(--text-2); }
@@ -1276,3 +1275,172 @@ button.track-title:hover { color: var(--accent); }
 .songs-actions .btn { flex: 1; max-width: 200px; height: 44px; }
 .songs-actions .btn-round { width: 44px; height: 44px; }
 .speed-wrap[hidden] { display: none; }
+
+/* ---------- Watch ---------- */
+
+.cover.poster { aspect-ratio: 2 / 3; }
+.cover.still { aspect-ratio: 16 / 9; }
+.show-hero .cover.poster { border-radius: 12px; }
+.poster-bar, .still-bar { position: absolute; left: 6px; right: 6px; bottom: 6px; background: rgba(255, 255, 255, 0.25); }
+.watch-card { width: 220px; }
+@media (min-width: 600px) { .watch-card { width: 280px; } }
+.watch-card .cover { border-radius: 10px; }
+.watch-card-sub { display: flex; justify-content: space-between; gap: 8px; margin-top: -4px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.show-hero .pills { justify-content: flex-start; }
+.pill-danger { color: var(--danger); }
+.file-details { display: flex; flex-direction: column; gap: 10px; }
+.file-details .pills { justify-content: flex-start; }
+/* Long rip names scroll sideways instead of wrapping. */
+.file-name { font-size: 12px; color: var(--muted); white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
+button.setting-link { width: 100%; text-align: left; color: inherit; }
+
+.episode-row { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+.episode-row-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+.episode-still { width: 128px; flex-shrink: 0; }
+.episode-still .cover { border-radius: 8px; }
+.episode-still .cover-fallback-title { font-size: 11px; -webkit-line-clamp: 2; }
+.episode-row.watched .list-row-title { color: var(--muted); }
+.episode-row.watched .episode-still .cover { opacity: 0.6; }
+
+/* The video player, laid out like the audio one: tinted by the poster, the video where the cover
+   goes, then the title, scrubber, controls and tiles. Upright on a phone the next episodes follow;
+   sideways, in full screen or on a wide screen, the video fills the window. */
+/* Upright the page sits in the same column as the rest of the app on wide screens. */
+.vp {
+  --tint-top: 42%;
+  --tint-bottom: 10%;
+  position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; color: var(--text);
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--tint) var(--tint-top), var(--bg)), color-mix(in srgb, var(--tint) var(--tint-bottom), var(--bg)));
+  padding: env(safe-area-inset-top) max(0px, calc((100% - 960px) / 2)) env(safe-area-inset-bottom);
+  overflow-x: hidden; overflow-y: auto; animation: fade-in 200ms ease-out both;
+}
+.vp.pulled { animation: none; pointer-events: none; }
+.vp-stage {
+  position: relative; margin: 20px 20px 0; aspect-ratio: 16 / 9; flex-shrink: 0; border-radius: 12px; background: #000; overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35); touch-action: manipulation; user-select: none; -webkit-user-select: none;
+}
+.vp-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+/* Everything under the video fills the rest of the height, with the tiles stuck to the bottom. */
+.vp-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.vp-info { padding: 22px 20px 0; }
+/* A ring turns on the play button while the next piece is awaited. */
+.play-btn { position: relative; }
+.play-btn.buffering::after {
+  content: ""; position: absolute; inset: 5px; border-radius: 50%;
+  border: 3px solid color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; animation: spin 0.9s linear infinite;
+}
+.mini-play.buffering::after {
+  content: ""; position: absolute; inset: 3px; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent); border-top-color: currentColor; animation: spin 0.9s linear infinite;
+}
+.vp-note-link { margin: 0 0 0 8px; font-size: 12px; }
+/* The volume slider slides out beside the speaker on hover; phones set volume with their own buttons. */
+.vol { display: flex; align-items: center; }
+.vol .vol-slider { width: 0; opacity: 0; margin-right: 0; transition: width 160ms ease, opacity 160ms ease, margin 160ms ease; }
+.vol:hover .vol-slider, .vol:focus-within .vol-slider { width: 84px; opacity: 1; margin-right: 4px; }
+@media (hover: none) and (pointer: coarse) { .vol { display: none; } }
+.vp-over .vol { --text: #fff; }
+.vp-tiles { flex-shrink: 0; padding-top: 16px; padding-bottom: 8px; }
+/* The next episodes scroll in whatever height is left. */
+.vp-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 20px 0; }
+.vp-scroll .episode-row { color: inherit; }
+.vp-next-list { padding-bottom: 8px; }
+
+/* Sideways only: the title row along the top of the picture. */
+.vp-overlay {
+  position: absolute; inset: 0; display: none; flex-direction: column; color: #fff;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), transparent 28%);
+  opacity: 0; pointer-events: none; transition: opacity 200ms ease;
+}
+.vp-show .vp-overlay { opacity: 1; }
+.vp-show .vp-overlay button { pointer-events: auto; }
+.vp-over:not(.vp-show) .vp-stage { cursor: none; }
+.vp-overlay .icon-btn { color: #fff; }
+.vp-overlay .icon-btn:hover { background: rgba(255, 255, 255, 0.12); }
+.vp-top { display: flex; align-items: center; gap: 8px; padding: 12px 16px 0; }
+.vp-titles { flex: 1; min-width: 0; }
+.vp-title { font-size: 16px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vp-sub { font-size: 12px; color: rgba(255, 255, 255, 0.75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Scrubber, times and the play row, the same buttons as the audio player. */
+.vp-controls {
+  padding: 16px 20px 0;
+  --scrub-loaded: color-mix(in srgb, var(--text) 32%, transparent);
+  --scrub-rest: color-mix(in srgb, var(--text) 14%, transparent);
+  --scrub-thumb: var(--text);
+}
+.vp-times { display: flex; justify-content: space-between; gap: 12px; margin-top: 2px; }
+.vp-time { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); }
+/* The scrubber spans the column; the buttons keep the audio player's width under it. */
+.vp-controls .player-controls { max-width: 376px; margin: 0 auto; }
+.vp-controls .play-btn:disabled { opacity: 0.5; }
+.vp-pill { height: 30px; padding: 0 10px; border-radius: 15px; border: 1.5px solid color-mix(in srgb, currentColor 45%, transparent); color: inherit; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.vp-scrub {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 20px; margin: 0; background: transparent; cursor: pointer;
+}
+.vp-scrub::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 2px;
+  background: linear-gradient(to right, var(--accent) var(--played), var(--scrub-loaded) var(--played) var(--loaded), var(--scrub-rest) var(--loaded));
+}
+.vp-scrub::-moz-range-track {
+  height: 4px; border-radius: 2px;
+  background: linear-gradient(to right, var(--accent) var(--played), var(--scrub-loaded) var(--played) var(--loaded), var(--scrub-rest) var(--loaded));
+}
+.vp-scrub::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--scrub-thumb); margin-top: -5px; }
+.vp-scrub::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--scrub-thumb); }
+
+.vp-next {
+  position: absolute; right: 16px; bottom: 12px; z-index: 2; width: min(300px, calc(100% - 32px));
+  display: flex; align-items: center; gap: 4px; padding: 8px; border-radius: 14px;
+  background: rgba(28, 29, 33, 0.94); color: #f3f1ec; box-shadow: var(--shadow); animation: fade-in 200ms ease-out both;
+}
+.vp-next-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; text-align: left; }
+.vp-next-main .cover { width: 96px; flex-shrink: 0; border-radius: 6px; }
+.vp-next-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vp-next-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vp-next .icon-btn { color: #f3f1ec; }
+.vp-note { flex: 1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: fade-in 200ms ease-out both; }
+.vp-problem { display: flex; flex-direction: column; gap: 14px; padding-bottom: 8px; }
+.vp-problem .pills { justify-content: flex-start; }
+.vp-problem-actions { display: flex; flex-direction: column; gap: 8px; }
+
+/* Match for movies and shows: 2:3 posters, a short year box, and the start of the description. */
+.candidate .match-poster { width: 56px; aspect-ratio: 2 / 3; object-fit: cover; }
+.form-row .input.match-year { width: 76px; flex: 0 0 76px; min-width: 0; }
+.form-row .input:not(.match-year) { min-width: 0; }
+.match-overview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 4px; }
+
+/* A rescan button's arrow turns while the scan runs. */
+.icon-btn.spinning svg { animation: spin 1s linear infinite; }
+.icon-btn.spinning:disabled { opacity: 1; }
+
+/* The video playing on in the mini player: the picture where the cover goes, the page's parts hidden. */
+.mini.vp-mini { flex-direction: row; align-items: center; gap: 12px; padding-left: 8px; }
+.mini.vp-mini:hover, .mini.vp-mini:has(:focus-visible) { height: var(--mini-h); }
+.vp-mini .vp-head, .vp-mini .vp-overlay, .vp-mini .vp-main, .vp-mini .vp-next { display: none; }
+.vp-mini .vp-stage { height: calc(var(--mini-h) - 16px); margin: 0; border-radius: 6px; cursor: pointer; }
+.vp-mini-row { flex: 1; min-width: 0; }
+
+/* Full screen, or a phone turned sideways: the video fills the window and the controls sit over it, fading. */
+.vp.vp-over { background: #000; padding: 0; overflow: hidden; }
+.vp-over .vp-head, .vp-over .vp-info, .vp-over .vp-scroll, .vp-over .vp-tiles { display: none; }
+.vp-over .vp-stage { flex: 1; aspect-ratio: auto; margin: 0; border-radius: 0; box-shadow: none; }
+/* The picture takes the whole height; the controls float over it, so their block needs no room. */
+.vp-over .vp-main { flex: 0 0 auto; }
+.vp-over .vp-overlay { display: flex; }
+.vp-over .vp-controls {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 48px 24px calc(env(safe-area-inset-bottom) + 12px); color: #fff;
+  background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.75));
+  opacity: 0; pointer-events: none; transition: opacity 200ms ease;
+  --scrub-loaded: rgba(255, 255, 255, 0.4); --scrub-rest: rgba(255, 255, 255, 0.2); --scrub-thumb: #fff;
+}
+.vp-over.vp-show .vp-controls { opacity: 1; pointer-events: auto; }
+.vp-over .vp-controls .vp-time { color: rgba(255, 255, 255, 0.85); }
+.vp-over .vp-controls .icon-btn, .vp-over .vp-controls .icon-btn.dim { color: #fff; }
+.vp-over .player-controls { justify-content: center; gap: 24px; padding-top: 4px; }
+/* Speed, volume, audio, pop out and full screen: at the bottom right, level with the play row. */
+.vp-tools { display: none; }
+.vp-over .vp-tools { display: flex; align-items: center; gap: 4px; position: absolute; right: 20px; bottom: calc(env(safe-area-inset-bottom) + 24px); }
+.vp-over .vp-tools .vp-pill { margin-right: 6px; }
+.vp-over .player-controls .play-btn { width: 64px; height: 64px; background: rgba(255, 255, 255, 0.16); color: #fff; backdrop-filter: blur(6px); }
+.vp-over .vp-next { bottom: 150px; }

@@ -28,14 +28,17 @@ export function Sheet({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const backdropClose = useBackdropClose(onClose);
+  // Closing because `open` turned false isn't the person closing it, so onClose stays quiet.
+  const openRef = useRef(open);
   useEffect(() => {
+    openRef.current = open;
     const el = ref.current;
     if (!el) return;
     if (open && !el.open) el.showModal();
     if (!open && el.open) el.close();
   }, [open]);
   return (
-    <dialog ref={ref} className="sheet" aria-label={title} onClose={onClose} {...backdropClose}>
+    <dialog ref={ref} className="sheet" aria-label={title} onClose={() => openRef.current && onClose()} {...backdropClose}>
       <div className="sheet-body">
         <div className="sheet-head">
           <div>

@@ -127,6 +127,20 @@
       "when": 1793152968749,
       "tag": "0017_up_next",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1793206182979,
+      "tag": "0018_watch",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1793209894124,
+      "tag": "0019_watch_match",
+      "breakpoints": true
     }
   ]
 }

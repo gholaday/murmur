@@ -29,6 +29,34 @@ export const MusicIcon = (p: IconProps) => (
     <circle cx="18" cy="16" r="3" />
   </Icon>
 );
+export const WatchIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="3" />
+    <path d="m10 9 5 3-5 3z" />
+  </Icon>
+);
+export const PipIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <rect x="12" y="12" width="6" height="4" rx="1" />
+  </Icon>
+);
+/** A video's audio track: a speech bubble. */
+export const AudioTrackIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9l-4 3v-3H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" />
+    <path d="M7 9h10M7 13h6" />
+  </Icon>
+);
+export const FullscreenIcon = ({ exit, ...p }: IconProps & { exit?: boolean }) => (
+  <Icon {...p}>
+    {exit ? (
+      <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
+    ) : (
+      <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
+    )}
+  </Icon>
+);
 export const ShuffleIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="m18 14 4 4-4 4M18 2l4 4-4 4M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22M2 6h1.9c1.5 0 2.9.9 3.6 2.2M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8" />

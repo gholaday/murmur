@@ -293,6 +293,7 @@ export function SheetItem({
   danger,
   disabled,
   hint,
+  value,
 }: {
   label: string;
   onPress: () => void;
@@ -301,6 +302,8 @@ export function SheetItem({
   disabled?: boolean;
   /** A short line under the label. */
   hint?: string;
+  /** What it's set to, on the right. */
+  value?: string;
 }) {
   const t = useTheme();
   return (
@@ -328,7 +331,10 @@ export function SheetItem({
         </Text>
         {hint ? <Text variant="small">{hint}</Text> : null}
       </View>
-      {active ? <CheckIcon size={20} color={t.accent} /> : null}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        {value ? <Text variant="small">{value}</Text> : null}
+        {active ? <CheckIcon size={20} color={t.accent} /> : null}
+      </View>
     </Pressable>
   );
 }

@@ -31,7 +31,7 @@ export const libraryFolders = sqliteTable("library_folders", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   /** Absolute path as the server sees it (inside the container when run in Docker). */
   path: text("path").notNull().unique(),
-  kind: text("kind", { enum: ["books", "music"] }).notNull().default("books"),
+  kind: text("kind", { enum: ["books", "music", "movies", "shows"] }).notNull().default("books"),
   createdAt: integer("created_at").notNull(),
 });
 
@@ -559,6 +559,138 @@ export const adScans = sqliteTable(
     updatedAt: integer("updated_at").notNull(),
   },
   (t) => [index("ad_scans_status_idx").on(t.status)],
+);
+
+// ---------- Watch ----------
+// Movies and shows come from their own folder kinds, so the scanner never guesses which a file
+// is. Like music, a file is probed again only when its size or modified time changes.
+
+/** What TMDB matching keeps on a movie or show. Rescans never rewrite these rows, so a match stays. */
+const matchColumns = () => ({
+  tmdbId: integer("tmdb_id"),
+  /** When matching was tried; null means not yet. Tried without a good result leaves tmdbId null. */
+  matchedAt: integer("matched_at"),
+  /** An .nfo gave the title and description, so a match leaves them alone. */
+  detailsLocal: integer("details_local", { mode: "boolean" }).notNull().default(false),
+  /** The picture came from TMDB, so another match may replace it; a local one never is. */
+  posterTmdb: integer("poster_tmdb", { mode: "boolean" }).notNull().default(false),
+  backdropTmdb: integer("backdrop_tmdb", { mode: "boolean" }).notNull().default(false),
+});
+
+export const shows = sqliteTable(
+  "shows",
+  {
+    id: text("id").primaryKey(),
+    /** Null once its shows folder is removed; the next scan then removes the show. */
+    folderId: integer("folder_id").references(() => libraryFolders.id, { onDelete: "set null" }),
+    /** The show's folder, relative to the shows folder. */
+    relPath: text("rel_path").notNull(),
+    title: text("title").notNull(),
+    /** For sorting: lower case, without a leading "The". */
+    sortTitle: text("sort_title").notNull(),
+    year: text("year"),
+    description: text("description"),
+    posterHash: text("poster_hash"),
+    backdropHash: text("backdrop_hash"),
+    ...matchColumns(),
+    addedAt: integer("added_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("shows_folder_path_idx").on(t.folderId, t.relPath), index("shows_sort_idx").on(t.sortTitle)],
+);
+
+/**
+ * A movie: its folder, or the file itself when it sits loose at the top. Every video file in a
+ * movie's folder is a version of it (a director's cut, a 4K copy), like Plex.
+ */
+export const movies = sqliteTable(
+  "movies",
+  {
+    id: text("id").primaryKey(),
+    folderId: integer("folder_id").references(() => libraryFolders.id, { onDelete: "set null" }),
+    /** The movie's folder, or its file when loose, relative to the movies folder. */
+    relPath: text("rel_path").notNull(),
+    title: text("title").notNull(),
+    sortTitle: text("sort_title").notNull(),
+    year: text("year"),
+    description: text("description"),
+    posterHash: text("poster_hash"),
+    backdropHash: text("backdrop_hash"),
+    ...matchColumns(),
+    addedAt: integer("added_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("movies_folder_path_idx").on(t.folderId, t.relPath), index("movies_sort_idx").on(t.sortTitle)],
+);
+
+/** One row per video file: a version of a movie, or an episode. */
+export const videos = sqliteTable(
+  "videos",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind", { enum: ["movie", "episode"] }).notNull(),
+    folderId: integer("folder_id").references(() => libraryFolders.id, { onDelete: "set null" }),
+    /** The file, relative to its movies or shows folder, forward slashes. */
+    relPath: text("rel_path").notNull(),
+    movieId: text("movie_id").references(() => movies.id, { onDelete: "cascade" }),
+    /** A movie version's edition from its file name ("Director's Cut"), to tell versions apart. */
+    edition: text("edition"),
+    showId: text("show_id").references(() => shows.id, { onDelete: "cascade" }),
+    /** Episodes only; 0 is Specials. */
+    season: integer("season"),
+    episode: integer("episode"),
+    title: text("title").notNull(),
+    sortTitle: text("sort_title").notNull(),
+    year: text("year"),
+    description: text("description"),
+    durationSec: real("duration_sec").notNull(),
+    size: integer("size").notNull(),
+    mtimeMs: integer("mtime_ms").notNull(),
+    /** ffprobe's format name, like "matroska,webm" or "mov,mp4,m4a,3gp,3g2,mj2". */
+    container: text("container").notNull(),
+    /** RFC 6381 string (avc1.640028), or ffprobe's codec name when there's no such form. */
+    videoCodec: text("video_codec"),
+    width: integer("width"),
+    height: integer("height"),
+    hdr: text("hdr", { enum: ["hdr10", "hlg", "dolby-vision"] }),
+    /** JSON array of VideoAudioTrack. */
+    audioTracks: text("audio_tracks").notNull().default("[]"),
+    /** JSON array of VideoSubtitleTrack, recorded now for the subtitles step. */
+    subtitleTracks: text("subtitle_tracks").notNull().default("[]"),
+    /** A 16:9 picture: an episode's -thumb image, else a frame from the video. "" once a grab failed. */
+    stillHash: text("still_hash"),
+    /** The still is the episode's own -thumb picture, which TMDB's never replaces. */
+    stillFromFile: integer("still_from_file", { mode: "boolean" }).notNull().default(false),
+    addedAt: integer("added_at").notNull(),
+    missingSince: integer("missing_since"),
+  },
+  (t) => [
+    uniqueIndex("videos_folder_path_idx").on(t.folderId, t.relPath),
+    index("videos_show_idx").on(t.showId, t.season, t.episode),
+    index("videos_movie_idx").on(t.movieId),
+    index("videos_kind_added_idx").on(t.kind, t.addedAt),
+  ],
+);
+
+/**
+ * TMDB's details for each episode of a matched show, by season and number rather than by file,
+ * so a file changing or being replaced keeps them.
+ */
+export const tmdbEpisodes = sqliteTable(
+  "tmdb_episodes",
+  {
+    showId: text("show_id")
+      .notNull()
+      .references(() => shows.id, { onDelete: "cascade" }),
+    season: integer("season").notNull(),
+    episode: integer("episode").notNull(),
+    title: text("title"),
+    overview: text("overview"),
+    airDate: text("air_date"),
+    /** Stored like any still; null when TMDB has none or it couldn't be fetched. */
+    stillHash: text("still_hash"),
+  },
+  (t) => [primaryKey({ columns: [t.showId, t.season, t.episode] })],
 );
 
 /** Raw provider responses, kept for 30 days so repeat lookups are instant and polite. */

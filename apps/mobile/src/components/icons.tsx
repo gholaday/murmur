@@ -47,6 +47,33 @@ export const MusicIcon = (p: IconProps) => (
     <Circle cx="18" cy="16" r="3" />
   </Icon>
 );
+export const WatchIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Rect x="3" y="4" width="18" height="16" rx="3" />
+    <Path d="m10 9 5 3-5 3z" />
+  </Icon>
+);
+export const AudioTrackIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9l-4 3v-3H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" />
+    <Path d="M7 9h10M7 13h6" />
+  </Icon>
+);
+export const PipIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Rect x="3" y="5" width="18" height="14" rx="2" />
+    <Rect x="12" y="12" width="6" height="4" rx="1" />
+  </Icon>
+);
+export const FullscreenIcon = ({ exit, ...p }: IconProps & { exit?: boolean }) => (
+  <Icon {...p}>
+    {exit ? (
+      <Path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
+    ) : (
+      <Path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
+    )}
+  </Icon>
+);
 export const BrowseIcon = (p: IconProps) => (
   <Icon {...p}>
     <Rect x="3" y="4" width="18" height="6" rx="2" />

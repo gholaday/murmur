@@ -2,6 +2,7 @@ import { ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePlayer } from "@/player/engine";
+import { useVideo } from "@/player/video";
 import { useTheme } from "@/theme";
 import { BackIcon } from "./icons";
 import { PAD } from "./library";
@@ -109,7 +110,8 @@ export function PageTitle({
 export function useBottomPad(extra = 24) {
   const insets = useSafeAreaInsets();
   const { item } = usePlayer();
-  return item ? extra : insets.bottom + extra;
+  const video = useVideo().item;
+  return item || video ? extra : insets.bottom + extra;
 }
 
 /** Top padding for screens that draw under the status bar. */

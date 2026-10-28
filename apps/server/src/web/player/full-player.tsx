@@ -34,14 +34,13 @@ import {
   ShuffleIcon,
   SkipBackIcon,
   SkipForwardIcon,
-  VolumeIcon,
 } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
 import { Chip, Chips } from "../ui";
 import { UpNextSheet } from "../up-next";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } from "./ad-prefs";
 import { usePlayer, usePosition, useTint } from "./engine";
-import { effectiveVolume, useVolume, volumeStore } from "./volume";
+import { VolumeControl } from "./volume-control";
 
 /** Matches the `sink` animation in globals.css. */
 const CLOSE_MS = 200;
@@ -50,7 +49,7 @@ const CLOSE_MS = 200;
  * On a phone, pulling the player's top bar or cover down drags the whole player with your finger;
  * let go far enough or fast enough and it slides away and minimises, otherwise it springs back.
  */
-function usePullToClose(onClose: () => void) {
+export function usePullToClose(onClose: () => void) {
   const ref = useRef<HTMLDivElement>(null);
   const [pulled, setPulled] = useState(false);
   const drag = useRef<{ y: number; t: number; dy: number; v: number } | null>(null);
@@ -105,7 +104,6 @@ export function FullPlayer() {
   const p = usePlayer();
   const [sheet, setSheet] = useState<null | "sleep" | "chapters" | "more" | "ads" | "upnext">(null);
   const adPrefs = useAdPrefs();
-  const volume = useVolume();
   const [speedOpen, setSpeedOpen] = useState(false);
   /** Slider value while dragging; saved once you let go. */
   const [speedDraft, setSpeedDraft] = useState<number | null>(null);
@@ -216,16 +214,19 @@ export function FullPlayer() {
           ) : null}
         </div>
 
-        <div className="player-info">
-          {multiChapter ? (
-            <button type="button" className="player-chapter" onClick={() => setSheet("chapters")}>
-              Chapter {ci + 1} of {item.chapters.length}
-            </button>
-          ) : null}
-          <h1 className="player-title">
-            <Marquee text={item.title} />
-          </h1>
-          <div className="player-sub">{multiChapter && chapter ? chapter.title : item.subtitle}</div>
+        <div className="player-info-row">
+          <div className="player-info">
+            {multiChapter ? (
+              <button type="button" className="player-chapter" onClick={() => setSheet("chapters")}>
+                Chapter {ci + 1} of {item.chapters.length}
+              </button>
+            ) : null}
+            <h1 className="player-title">
+              <Marquee text={item.title} />
+            </h1>
+            <div className="player-sub">{multiChapter && chapter ? chapter.title : item.subtitle}</div>
+          </div>
+          <VolumeControl />
         </div>
 
         <div className="player-scrub">
@@ -345,32 +346,6 @@ export function FullPlayer() {
               </button>
             </>
           )}
-        </div>
-        <div className="player-volume">
-          <button
-            type="button"
-            className="icon-btn dim"
-            aria-label={volume.muted ? "Unmute" : "Mute"}
-            onClick={() =>
-              volumeStore.set(
-                // Unmuting from zero would stay silent, so it comes back at half.
-                volume.muted || volume.level === 0 ? { level: volume.level || 0.5, muted: false } : { ...volume, muted: true },
-              )
-            }
-          >
-            <VolumeIcon level={effectiveVolume(volume)} size={20} />
-          </button>
-          <input
-            type="range"
-            className="scrubber"
-            aria-label="Volume"
-            min={0}
-            max={1}
-            step={0.01}
-            value={effectiveVolume(volume)}
-            style={{ "--pct": `${effectiveVolume(volume) * 100}%` } as React.CSSProperties}
-            onChange={(e) => volumeStore.set({ level: Number(e.target.value), muted: false })}
-          />
         </div>
         {p.error ? <p className="error player-error">{p.error}</p> : null}
       </div>

@@ -92,6 +92,13 @@ export async function coverMeta(coversDir: string, hash: string): Promise<CoverM
   return meta;
 }
 
+/** Stores the colour of an image kept in another shape (Watch's posters and stills), so coverColors finds it. */
+export async function saveCoverMeta(coversDir: string, hash: string, color: string, sourceWidth: number | null) {
+  const meta: CoverMeta = { color, sourceWidth, v: COLOR_VERSION };
+  await fs.writeFile(metaFile(coversDir, hash), JSON.stringify(meta));
+  metaCache.set(hash, meta);
+}
+
 /**
  * The cover colour made usable as a header tint behind light text: same hue,
  * lightness capped so a white or pastel cover still gives a dark, readable header.

@@ -2,7 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { backupDatabase, openDatabase, type Db, type Sqlite } from "./db";
 import { env } from "./env";
-import { ensureDefaultFolder, ensureDefaultMusicFolder, listFolders, saveFolders, type LibraryFolder } from "./library/folders";
+import { ensureDefaultFolder, ensureMountedFolder, listFolders, saveFolders, type LibraryFolder } from "./library/folders";
+import { createWatchScanner, type WatchScanner } from "./watch/scanner";
+import { createWatchMatcher, type WatchMatcher } from "./watch/match";
+import { createTmdb } from "./watch/tmdb";
 import { fillArtistPhotos } from "./music/match";
 import { createMusicScanner, type MusicScanner } from "./music/scanner";
 import { createScanState, createScanner, type ScanState, type Scanner } from "./library/scanner";
@@ -30,6 +33,15 @@ export interface AppContext {
     folders: () => LibraryFolder[];
     /** Replaces the music folder list, restarts its watcher and starts a rescan. */
     saveFolders: (paths: string[]) => Promise<LibraryFolder[]>;
+  };
+  watch: {
+    scanner: WatchScanner;
+    state: ScanState;
+    folders: () => { movies: LibraryFolder[]; shows: LibraryFolder[] };
+    /** Replaces the movies or shows folder list, restarts their watcher and starts a rescan. */
+    saveFolders: (kind: "movies" | "shows", paths: string[]) => Promise<void>;
+    /** TMDB matching; null without a TMDB key. */
+    matcher: WatchMatcher | null;
   };
   podcasts: PodcastService;
   episodeCache: EpisodeCache;
@@ -98,6 +110,7 @@ async function boot(): Promise<AppContext> {
     close: async () => {
       await currentWatcher.close();
       await musicWatcher.close();
+      await videoWatcher.close();
     },
   };
   const library: AppContext["library"] = {
@@ -111,7 +124,7 @@ async function boot(): Promise<AppContext> {
     },
   };
 
-  await ensureDefaultMusicFolder(db, sqlite, env.musicDir);
+  await ensureMountedFolder(db, sqlite, "music", env.musicDir);
   const musicState = createScanState();
   const musicScanner = createMusicScanner({
     sqlite,
@@ -147,6 +160,55 @@ async function boot(): Promise<AppContext> {
     },
   };
 
+  await ensureMountedFolder(db, sqlite, "movies", env.moviesDir);
+  await ensureMountedFolder(db, sqlite, "shows", env.showsDir);
+  const watchState = createScanState();
+  const watchFolders = () => ({ movies: listFolders(db, "movies"), shows: listFolders(db, "shows") });
+  // Online details only with a TMDB key; without one Watch runs on local files.
+  const matcher = env.tmdbApiKey
+    ? createWatchMatcher({
+        sqlite,
+        coversDir: env.coversDir,
+        log: createLogger("watch-match"),
+        tmdb: createTmdb(sqlite, { apiKey: env.tmdbApiKey, language: env.tmdbLanguage, userAgent: `Murmur/${env.version}` }),
+      })
+    : null;
+  const watchScanner = createWatchScanner({
+    sqlite,
+    folders: watchFolders,
+    coversDir: env.coversDir,
+    probeConcurrency: env.probeConcurrency,
+    missingGraceMs: env.missingGraceMs,
+    log: createLogger("watch"),
+    state: watchState,
+    matchPending: matcher?.matchPending,
+  });
+  // Movies and shows share one watcher; any change rescans them, which only probes what changed.
+  const startVideoWatch = () => {
+    const { movies, shows } = watchFolders();
+    return startWatcher({
+      folders: [...movies, ...shows].map((f) => f.path),
+      polling: env.watchPolling,
+      debounceMs: env.watchDebounceMs,
+      periodicMs: env.periodicScanMs,
+      onChange: () => void watchScanner.scan(),
+      log: watchLog,
+    });
+  };
+  let videoWatcher = startVideoWatch();
+  const watch: AppContext["watch"] = {
+    scanner: watchScanner,
+    state: watchState,
+    folders: watchFolders,
+    matcher,
+    saveFolders: async (kind, paths) => {
+      saveFolders(db, paths, kind);
+      await videoWatcher.close();
+      videoWatcher = startVideoWatch();
+      void watchScanner.scan();
+    },
+  };
+
   const podcastLog = createLogger("podcasts");
   removeOldEpisodeDownloads(podcastLog);
   const podcasts = createPodcastService({
@@ -175,15 +237,18 @@ async function boot(): Promise<AppContext> {
 
   void scanner.scan(); // initial scans run in the background; the server is usable meanwhile
   void musicScanner.scan();
+  void watchScanner.scan();
   log.info("murmur started", {
     version: env.version,
     ms: Date.now() - started,
     library: listFolders(db).map((f) => f.path),
     music: listFolders(db, "music").map((f) => f.path),
+    movies: listFolders(db, "movies").map((f) => f.path),
+    shows: listFolders(db, "shows").map((f) => f.path),
     data: env.dataDir,
     watcher: watcher.mode(),
   });
-  return { db, sqlite, scanner, scanState, watcher, library, music, podcasts, episodeCache, startedAt: started };
+  return { db, sqlite, scanner, scanState, watcher, library, music, watch, podcasts, episodeCache, startedAt: started };
 }
 
 /** Episodes used to be downloaded to DATA_DIR/podcasts; the episode cache has its own folder now. */

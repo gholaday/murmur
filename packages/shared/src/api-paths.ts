@@ -55,4 +55,29 @@ export const apiPaths = {
   playlistTracks: (playlistId: string) => `/api/music/playlists/${playlistId}/tracks`,
   /** A song's audio; supports range requests. */
   trackUrl: (trackId: string) => `/api/stream/track/${trackId}`,
+
+  /** WatchHomeDto. */
+  watchHome: "/api/watch",
+  /** MovieSummary[], A to Z. */
+  movies: "/api/watch/movies",
+  /** MovieDetail. */
+  movie: (movieId: string) => `/api/watch/movies/${movieId}`,
+  /** ShowSummary[], A to Z. */
+  shows: "/api/watch/shows",
+  /** ShowDetail. */
+  show: (showId: string) => `/api/watch/shows/${showId}`,
+  /** Posters are 2:3, backdrops and stills 16:9. */
+  movieArtUrl: (movieId: string, kind: "poster" | "backdrop", hash: string, size: "small" | "large" = "large") =>
+    `/api/watch/movies/${movieId}/${kind}?size=${size}&h=${hash}`,
+  showArtUrl: (showId: string, kind: "poster" | "backdrop", hash: string, size: "small" | "large" = "large") =>
+    `/api/watch/shows/${showId}/${kind}?size=${size}&h=${hash}`,
+  /** A movie version's or episode's still. */
+  videoStillUrl: (videoId: string, hash: string, size: "small" | "large" = "large") =>
+    `/api/watch/videos/${videoId}/still?size=${size}&h=${hash}`,
+  /** A movie version or episode file as it is; supports range requests. */
+  videoUrl: (videoId: string) => `/api/stream/video/${videoId}`,
+  /** POST starts a remuxed (HLS) stream of a video. */
+  videoStream: (videoId: string) => `/api/watch/videos/${videoId}/stream`,
+  /** DELETE ends a stream session. */
+  streamSession: (sessionId: string) => `/api/watch/streams/${sessionId}`,
 };

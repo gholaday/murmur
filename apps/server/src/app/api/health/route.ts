@@ -3,6 +3,26 @@ import type { HealthDto } from "@murmur/shared";
 import { adsEnabled } from "@/server/ads";
 import { getContext } from "@/server/context";
 import { env } from "@/server/env";
+import { encoder } from "@/server/watch/encoders";
+import { ffmpegAvailable } from "@/server/watch/ffmpeg";
+import { watchEnabled } from "@/server/watch/queries";
+
+async function watchHealth(ctx: Awaited<ReturnType<typeof getContext>>): Promise<NonNullable<HealthDto["watch"]>> {
+  const counts = ctx.sqlite
+    .prepare(
+      `SELECT (SELECT COUNT(DISTINCT movie_id) FROM videos WHERE kind = 'movie' AND missing_since IS NULL) AS movies,
+              (SELECT COUNT(*) FROM shows) AS shows`,
+    )
+    .get() as { movies: number; shows: number };
+  const s = ctx.watch.state;
+  const ffmpeg = await ffmpegAvailable();
+  return {
+    ...counts,
+    ffmpeg,
+    encoder: ffmpeg ? await encoder() : "cpu",
+    scan: { running: s.running, lastFinishedAt: s.lastFinishedAt, lastError: s.lastError },
+  };
+}
 
 export async function GET(): Promise<Response> {
   let ctx;
@@ -38,6 +58,7 @@ export async function GET(): Promise<Response> {
       lastError: ctx.scanState.lastError,
     },
     watcher: ctx.watcher.mode(),
+    watch: watchEnabled(ctx) ? await watchHealth(ctx) : null,
   };
   // Only a broken database makes the container unhealthy; an unreachable library is
   // reported but restarting the container would not fix a share that isn't mounted.

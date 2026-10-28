@@ -24,6 +24,7 @@ import {
   type UserDto,
   type UserPrefs,
   type MusicSummaryDto,
+  type WatchSummaryDto,
   plural,
 } from "@murmur/shared/client";
 import { api } from "../api";
@@ -58,15 +59,23 @@ export function ProfileView({
   server,
   shows,
   tabs,
+  videoQuality,
   musicFolders,
+  movieFolders,
+  showFolders,
   music,
+  watch,
 }: {
   /** One settings group on its own page; none is You itself. */
   section?: SettingsSection;
   musicFolders: LibraryFolderDto[];
+  movieFolders: LibraryFolderDto[];
+  showFolders: LibraryFolderDto[];
+  watch: WatchSummaryDto;
   music: MusicSummaryDto;
   shows: number;
   tabs: UserPrefs["tabs"];
+  videoQuality: UserPrefs["videoQuality"];
   user: UserDto;
   users: UserDto[];
   folders: LibraryFolderDto[];
@@ -110,21 +119,30 @@ export function ProfileView({
           ) : section === "appearance" ? (
             <ThemePicker />
           ) : section === "playback" ? (
-            <PlaybackCard adsEnabled={adsEnabled} />
+            <PlaybackCard adsEnabled={adsEnabled} watch={watch.enabled} videoQuality={videoQuality} />
           ) : section === "server" ? (
             <VersionCard version={server.version} devBuild={server.devBuild} updates={server.updates} />
           ) : section === "library" ? (
             <>
               <LibraryCard server={server} onScanned={refresh} />
               <h2 className="section-title">Book folders</h2>
-              <FoldersCard folders={folders} otherPaths={musicFolders.map((f) => f.path)} onSaved={refresh} />
+              <FoldersCard folders={folders} otherPaths={pathsBesides(musicFolders, movieFolders, showFolders)} onSaved={refresh} />
               <h2 className="section-title">Music folders</h2>
               {musicFolders.length === 0 ? (
                 <p className="muted small" style={{ margin: 0 }}>
                   Add a folder of music to turn on the Music tab. Albums come from the songs' tags, or from Artist/Album folders when there are none.
                 </p>
               ) : null}
-              <FoldersCard kind="music" folders={musicFolders} otherPaths={folders.map((f) => f.path)} onSaved={refresh} />
+              <FoldersCard kind="music" folders={musicFolders} otherPaths={pathsBesides(folders, movieFolders, showFolders)} onSaved={refresh} />
+              <h2 className="section-title">Movie folders</h2>
+              {movieFolders.length + showFolders.length === 0 ? (
+                <p className="muted small" style={{ margin: 0 }}>
+                  Add a folder of movies or shows to turn on the Watch tab. Movies go in &quot;Title (Year)&quot; folders, and shows in Show/Season folders.
+                </p>
+              ) : null}
+              <FoldersCard kind="movies" folders={movieFolders} otherPaths={pathsBesides(folders, musicFolders, showFolders)} onSaved={refresh} />
+              <h2 className="section-title">Show folders</h2>
+              <FoldersCard kind="shows" folders={showFolders} otherPaths={pathsBesides(folders, musicFolders, movieFolders)} onSaved={refresh} />
             </>
           ) : section === "podcasts" ? (
             <>
@@ -140,7 +158,7 @@ export function ProfileView({
           ) : section === "users" ? (
             <UsersCard me={user} users={users} onChanged={refresh} />
           ) : (
-            <TabsCard tabs={tabs} music={music} onSaved={refresh} />
+            <TabsCard tabs={tabs} music={music} watch={watch} onSaved={refresh} />
           )}
         </div>
       </>
@@ -199,9 +217,17 @@ export function ProfileView({
 }
 
 /** Skip lengths, and what to do about ads when they're found. */
-function PlaybackCard({ adsEnabled }: { adsEnabled: boolean }) {
+function PlaybackCard({ adsEnabled, watch, videoQuality }: { adsEnabled: boolean; watch: boolean; videoQuality: UserPrefs["videoQuality"] }) {
   const player = usePlayer();
   const adPrefs = useAdPrefs();
+  const [quality, setQuality] = useState(videoQuality);
+  const pickQuality = (q: UserPrefs["videoQuality"]) => {
+    setQuality(q);
+    api(apiPaths.prefs, { method: "PUT", body: { videoQuality: q } }).catch((err: unknown) => {
+      setQuality(quality);
+      toast.error(errorText(err));
+    });
+  };
   return (
     <SettingsCard>
       <Setting title="Skip back" wrap>
@@ -222,6 +248,18 @@ function PlaybackCard({ adsEnabled }: { adsEnabled: boolean }) {
           ))}
         </Chips>
       </Setting>
+      {watch ? (
+        <Setting title="Converted video" sub={<SettingSub>When the server has to convert a video. 720p is easier on a small server</SettingSub>} wrap>
+          <Chips kind="radio" label="Converted video">
+            <Chip selected={quality === "full"} onClick={() => pickQuality("full")}>
+              1080p
+            </Chip>
+            <Chip selected={quality === "light"} onClick={() => pickQuality("light")}>
+              720p
+            </Chip>
+          </Chips>
+        </Setting>
+      ) : null}
       {adsEnabled ? (
         <Setting title="Ads" sub={<SettingSub>This device only</SettingSub>} wrap>
           <Chips kind="radio" label="Ads">
@@ -238,7 +276,17 @@ function PlaybackCard({ adsEnabled }: { adsEnabled: boolean }) {
 }
 
 /** Which optional tabs show, saved to your account so every device matches. */
-function TabsCard({ tabs, music, onSaved }: { tabs: UserPrefs["tabs"]; music: MusicSummaryDto; onSaved: () => void }) {
+function TabsCard({
+  tabs,
+  music,
+  watch,
+  onSaved,
+}: {
+  tabs: UserPrefs["tabs"];
+  music: MusicSummaryDto;
+  watch: WatchSummaryDto;
+  onSaved: () => void;
+}) {
   const [shown, setShown] = useState(tabs);
   const toggle = (tab: keyof UserPrefs["tabs"], on: boolean) => {
     const next = { ...shown, [tab]: on };
@@ -259,6 +307,15 @@ function TabsCard({ tabs, music, onSaved }: { tabs: UserPrefs["tabs"]; music: Mu
           label="Music tab"
           checked={shown.music}
           onChange={(on) => toggle("music", on)}
+        />
+      ) : null}
+      {watch.enabled ? (
+        <SwitchRow
+          title="Watch"
+          sub={[watch.movies ? plural(watch.movies, "movie") : null, watch.shows ? plural(watch.shows, "show") : null].filter(Boolean).join(" and ") || "Nothing found yet"}
+          label="Watch tab"
+          checked={shown.watch !== false}
+          onChange={(on) => toggle("watch", on)}
         />
       ) : null}
     </SettingsCard>
@@ -491,7 +548,12 @@ function EpisodeCacheCard({ cache, onChanged }: { cache: EpisodeCacheStatusDto; 
 const FOLDER_KINDS = {
   books: { url: "/api/library/folders", item: "book", things: "books", title: "Add a library folder", min: 1 },
   music: { url: "/api/music/folders", item: "album", things: "albums", title: "Add a music folder", min: 0 },
+  movies: { url: "/api/watch/folders/movies", item: "movie", things: "movies", title: "Add a movie folder", min: 0 },
+  shows: { url: "/api/watch/folders/shows", item: "show", things: "shows", title: "Add a show folder", min: 0 },
 };
+
+/** Every path in the other kinds' folders, which a folder may not overlap. */
+const pathsBesides = (...lists: LibraryFolderDto[][]) => lists.flat().map((f) => f.path);
 
 function FoldersCard({
   kind = "books",

@@ -42,9 +42,10 @@ import {
   SkipForwardIcon,
 } from "@/components/icons";
 import { useTopInset } from "@/components/page";
+import { SkipButton, Tile } from "@/components/player-controls";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
-import { Caption, Chips, IconButton, NumberBadge, Text } from "@/components/ui";
+import { Caption, Chips, IconButton, Text } from "@/components/ui";
 import { UpNextSheet } from "@/components/up-next";
 import { cachedAlbumColor } from "@/lib/data";
 import { dragEndHaptic, selectHaptic, tapHaptic } from "@/lib/haptics";
@@ -577,62 +578,6 @@ function MoreItems({ item, close }: { item: Playable; close: () => void }) {
 
 const CHAPTER_ROW = 50;
 
-function SkipButton({ seconds, label, onPress, children }: { seconds: number; label: string; onPress: () => void; children: React.ReactNode }) {
-  const t = useTheme();
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={{ width: 56, height: 56, alignItems: "center", justifyContent: "center" }}>
-      {children}
-      <View pointerEvents="none" style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontFamily: fonts.bold, fontSize: 12, lineHeight: 13, includeFontPadding: false, color: t.text }}>{seconds}</Text>
-      </View>
-    </Pressable>
-  );
-}
-
-function Tile({
-  label,
-  count,
-  onPress,
-  active,
-  disabled,
-  children,
-}: {
-  label: string;
-  /** A grey count in the corner, e.g. how much is in Up Next. */
-  count?: number;
-  onPress: () => void;
-  active?: boolean;
-  disabled?: boolean;
-  children: React.ReactNode;
-}) {
-  const t = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={count ? `${label}, ${count}` : label}
-      accessibilityState={{ disabled, selected: active }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        flex: 1,
-        height: 64,
-        borderRadius: 14,
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 4,
-        // Frosted white in light mode: a grey wash disappears into the tinted page.
-        backgroundColor: t.isDark ? (pressed ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.07)") : pressed ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.65)",
-        opacity: disabled ? 0.4 : 1,
-      })}
-    >
-      {children}
-      <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 11, color: active ? t.accent : t.isDark ? t.muted : t.text2 }}>
-        {label}
-      </Text>
-      {count ? <NumberBadge value={count > 99 ? "99+" : count} style={{ position: "absolute", top: 6, right: 8 }} /> : null}
-    </Pressable>
-  );
-}
 
 function StepButton({ label, disabled, onPress, children }: { label: string; disabled?: boolean; onPress: () => void; children: React.ReactNode }) {
   const t = useTheme();

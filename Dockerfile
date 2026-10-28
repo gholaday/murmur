@@ -37,7 +37,9 @@ RUN cd apps/server/.next/standalone/node_modules/.pnpm \
 # The Node image also carries npm, yarn and corepack (~25 MB), which nothing runs here.
 # Keep this Alpine version in step with the one node:24-alpine is built on.
 FROM alpine:3.24 AS runner
-RUN apk add --no-cache libc6-compat libstdc++ libgcc tini su-exec
+# ffmpeg is for Watch (probing, stills, streams). The VAAPI drivers let an Intel or AMD GPU convert
+# video when /dev/dri is passed in; without one, conversion runs on the CPU.
+RUN apk add --no-cache libc6-compat libstdc++ libgcc tini su-exec ffmpeg intel-media-driver libva-intel-driver mesa-va-gallium
 COPY --from=runtime-base /usr/local/bin/node /usr/local/bin/node
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app

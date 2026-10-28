@@ -37,7 +37,8 @@ export const playTypeSchema = z.enum(["book", "episode", "track"]);
 export type PlayType = z.infer<typeof playTypeSchema>;
 
 export const progressItemSchema = z.object({
-  itemType: itemTypeSchema,
+  /** "video" is a movie (by the movie's id) or a TV episode; GET /progress leaves those out, as the app has no Watch yet. */
+  itemType: z.enum(["book", "episode", "video"]),
   itemId: z.string().min(1).max(64),
   positionSec: z.number().min(0),
   durationSec: z.number().min(0),
@@ -108,6 +109,16 @@ export const musicFoldersSchema = z.object({
   paths: z.array(folderPathSchema).max(20),
 });
 export const albumSortSchema = z.enum(["added", "name", "artist", "year"]).catch("added");
+/** Match for a movie or show: the TMDB title picked. */
+export const watchMatchSchema = z.object({ tmdbId: z.number().int().positive() });
+/** Stream a video remuxed: which audio track, whether its sound is copied or converted, and from where. */
+export const watchStreamSchema = z.object({
+  track: z.number().int().min(0).max(99),
+  audio: z.enum(["copy", "aac"]),
+  video: z.enum(["copy", "h264"]),
+  quality: z.enum(["full", "light"]).default("full"),
+  start: z.number().min(0).max(100 * 3600),
+});
 /** Lists default to everything, so older apps keep working. */
 export const musicScopeSchema = z.enum(["mine", "all"]).catch("all");
 /** What you're playing music from: an album, an artist, or a list of songs, in play order. */
@@ -185,11 +196,13 @@ export const userPrefsSchema = z.object({
   bookSections: z
     .array(z.object({ id: z.enum(BOOK_SECTION_IDS), hidden: z.boolean() }))
     .max(BOOK_SECTION_IDS.length * 2),
-  /** Optional tabs you've chosen to show. Books, Listening and You are always there. */
-  tabs: z.object({ podcasts: z.boolean(), music: z.boolean().default(true) }),
+  /** Optional tabs you've chosen to show. Books, Listening and You are always there; `watch` left out means shown. */
+  tabs: z.object({ podcasts: z.boolean(), music: z.boolean().default(true), watch: z.boolean().optional() }),
   /** Music plays shuffled; stays on for the next album or list, like Spotify. */
   shuffle: z.boolean(),
   repeat: z.enum(["off", "all", "one"]),
+  /** Converted video: full (up to 1080p) or light (up to 720p, easier on a small server). */
+  videoQuality: z.enum(["full", "light"]),
 });
 export type UserPrefs = z.infer<typeof userPrefsSchema>;
 export const userPrefsPatchSchema = userPrefsSchema.partial();
@@ -657,6 +670,16 @@ export interface HealthDto {
     lastError: string | null;
   };
   watcher: "events" | "polling" | "periodic-only";
+  /** Movies and shows: null when no folder is set up. */
+  watch: {
+    movies: number;
+    shows: number;
+    /** ffprobe and ffmpeg run; without them Watch stays empty. */
+    ffmpeg: boolean;
+    /** What converts video: a GPU encoder (nvenc, qsv, vaapi, amf, videotoolbox) or the CPU. */
+    encoder: string;
+    scan: { running: boolean; lastFinishedAt: number | null; lastError: string | null };
+  } | null;
 }
 
 export interface ApiError {
@@ -715,3 +738,4 @@ export * from "./settings";
 export * from "./shelves";
 export * from "./stats";
 export * from "./up-next";
+export * from "./watch";

@@ -11,7 +11,7 @@ import { BackRow, Empty, NestedFallback, useBottomPad, SectionTitle, useTopInset
 import { RemoveDownloadSheet, Sheet, SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
-import { Bar, IconButton, Text } from "@/components/ui";
+import { Bar, IconButton, RoundButton, Text } from "@/components/ui";
 import { setFinished, setPlayNext, useBook } from "@/lib/data";
 import { downloadBook, getDownload, removeDownload, useDownload, type Download } from "@/lib/downloads";
 import {
@@ -293,42 +293,3 @@ const ChapterList = memo(function ChapterList({ book, currentChapter }: { book: 
     </>
   );
 });
-
-function RoundButton({
-  label,
-  active,
-  filled,
-  disabled,
-  onPress,
-  children,
-}: {
-  label: string;
-  active?: boolean;
-  /** Solid accent background, for an "on" state. */
-  filled?: boolean;
-  disabled?: boolean;
-  onPress: () => void;
-  children: React.ReactNode;
-}) {
-  const t = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ selected: active, disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: filled ? t.accent : pressed ? t.surface2 : t.chip,
-        opacity: disabled ? 0.4 : pressed && filled ? 0.85 : 1,
-      })}
-    >
-      {children}
-    </Pressable>
-  );
-}

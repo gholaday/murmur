@@ -22,6 +22,9 @@ export const env = {
   audibleRegion: (process.env.AUDIBLE_REGION ?? "us").toLowerCase(),
   /** Optional Google Books key for Match. Without one, Google shares a small quota per IP address. */
   googleBooksApiKey: process.env.GOOGLE_BOOKS_API_KEY?.trim() || null,
+  /** TMDB's v3 API key, for movie and show details. Without one, Watch uses local files only. */
+  tmdbApiKey: process.env.TMDB_API_KEY?.trim() || null,
+  tmdbLanguage: process.env.TMDB_LANGUAGE?.trim() || "en-US",
   dataDir,
   dbPath: path.join(dataDir, "murmur.db"),
   coversDir: path.join(dataDir, "covers"),
@@ -31,7 +34,17 @@ export const env = {
   libraryDir: path.resolve(/*turbopackIgnore: true*/ process.env.LIBRARY_DIR ?? "/audiobooks"),
   /** Added as the first music folder once something is mounted there; until then music stays off. */
   musicDir: path.resolve(/*turbopackIgnore: true*/ process.env.MUSIC_DIR ?? "/music"),
-  migrationsDir: path.resolve(/*turbopackIgnore: true*/ process.env.MIGRATIONS_DIR ?? "./drizzle"),
+  /** Added as the first movies and shows folders once something is mounted there, like music. */
+  moviesDir: path.resolve(/*turbopackIgnore: true*/ process.env.MOVIES_DIR ?? "/movies"),
+  showsDir: path.resolve(/*turbopackIgnore: true*/ process.env.SHOWS_DIR ?? "/shows"),
+  /** ffprobe reads movies and shows, ffmpeg grabs stills. Without them Watch stays empty. */
+  ffprobePath: process.env.FFPROBE_PATH ?? "ffprobe",
+  ffmpegPath: process.env.FFMPEG_PATH ?? "ffmpeg",
+  /** GPU video conversion: auto tries nvenc, qsv, vaapi, amf and videotoolbox in turn; off is the CPU only; or name one. */
+  watchHardware: (process.env.WATCH_HW?.trim().toLowerCase() || "auto") as "auto" | "off" | "nvenc" | "qsv" | "vaapi" | "amf" | "videotoolbox",
+  /** The render node VAAPI uses (Intel and AMD on Linux); passed into Docker with `devices: - /dev/dri:/dev/dri`. */
+  vaapiDevice: process.env.VAAPI_DEVICE?.trim() || "/dev/dri/renderD128",
+  migrationsDir:path.resolve(/*turbopackIgnore: true*/ process.env.MIGRATIONS_DIR ?? "./drizzle"),
   /** Use polling instead of filesystem events (for network mounts that don't emit events). */
   watchPolling: process.env.WATCH_POLLING === "true",
   /** Quiet period after the last file change before a rescan starts. */
@@ -47,6 +60,8 @@ export const env = {
   /** Where podcast episodes are kept; without a writable folder, episodes are relayed instead. */
   episodeCacheDir: path.resolve(/*turbopackIgnore: true*/ process.env.EPISODE_CACHE_DIR ?? "/cache"),
   episodeCacheMaxBytes: intEnv("EPISODE_CACHE_MAX_GB", 20) * 1024 ** 3,
+  /** Remuxed video streams' pieces while they're watched, beside the episode cache. Nothing stays. */
+  watchCacheDir: path.join(path.resolve(/*turbopackIgnore: true*/ process.env.EPISODE_CACHE_DIR ?? "/cache"), "watch"),
   /** Shared with the ad detection add-on; its endpoints are off unless this is set. */
   addonSecret: process.env.ADDON_SECRET ?? "",
 };

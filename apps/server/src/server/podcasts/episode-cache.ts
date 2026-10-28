@@ -130,6 +130,8 @@ export function createEpisodeCache(deps: Deps) {
       if (!fs.statSync(showDir).isDirectory()) continue;
       for (const name of safeReaddir(showDir)) {
         const file = path.join(showDir, name);
+        // Only files are episodes; a folder here is someone else's (Watch keeps its streams under /cache/watch).
+        if (fs.statSync(file).isDirectory()) continue;
         if (!known.has(path.normalize(file))) {
           fs.rmSync(file, { force: true });
           removed++;

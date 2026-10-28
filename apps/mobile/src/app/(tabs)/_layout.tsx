@@ -2,14 +2,15 @@ import { useEffect } from "react";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Tabs, type BottomTabBarProps } from "expo-router/js-tabs";
-import { LibraryIcon, MusicIcon, PodcastIcon, ProfileIcon } from "@/components/icons";
+import { LibraryIcon, MusicIcon, PodcastIcon, ProfileIcon, WatchIcon } from "@/components/icons";
 import { MiniPlayer } from "@/components/mini-player";
 import { Text } from "@/components/ui";
 import { useMusicSummary, useTabPrefs } from "@/lib/data";
+import { useWatchHome } from "@/lib/watch";
 import { restorePlayer } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
-const ICONS = { index: LibraryIcon, podcasts: PodcastIcon, music: MusicIcon, you: ProfileIcon } as const;
+const ICONS = { index: LibraryIcon, podcasts: PodcastIcon, music: MusicIcon, watch: WatchIcon, you: ProfileIcon } as const;
 
 export default function TabsLayout() {
   const t = useTheme();
@@ -23,6 +24,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="index" options={{ title: "Books" }} />
         <Tabs.Screen name="podcasts" options={{ title: "Podcasts" }} />
         <Tabs.Screen name="music" options={{ title: "Music" }} />
+        <Tabs.Screen name="watch" options={{ title: "Watch" }} />
         <Tabs.Screen name="you" options={{ title: "You" }} />
       </Tabs>
       {/* Lists scroll under the status bar; this keeps the clock and icons readable. */}
@@ -37,6 +39,7 @@ function TabBar({ state, descriptors, navigateToTab }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const tabs = useTabPrefs();
   const music = !!useMusicSummary().data?.enabled;
+  const watch = !!useWatchHome().data?.enabled;
   return (
     <View style={{ backgroundColor: t.bg }}>
       <MiniPlayer />
@@ -50,9 +53,10 @@ function TabBar({ state, descriptors, navigateToTab }: BottomTabBarProps) {
         }}
       >
         {state.routes.map((route, i) => {
-          // Podcasts and Music can be switched off on You > Tabs; Music also needs music on the server.
+          // Podcasts, Music and Watch can be switched off on You > Tabs; Music and Watch also need something on the server.
           if (route.name === "podcasts" && !tabs.podcasts) return null;
           if (route.name === "music" && !(tabs.music && music)) return null;
+          if (route.name === "watch" && !(tabs.watch && watch)) return null;
           const focused = state.index === i;
           const Icon = ICONS[route.name as keyof typeof ICONS] ?? LibraryIcon;
           const label = descriptors[route.key]?.options.title ?? route.name;

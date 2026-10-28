@@ -8,6 +8,7 @@ import { musicSummary } from "./music/queries";
 import { cacheStatus } from "./podcasts/cache-status";
 import { getPrefs } from "./prefs";
 import { updateStatus } from "./updates";
+import { watchSummary } from "./watch/queries";
 
 /** Everything the You page and its settings pages show; admin-only parts are empty for others. */
 export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<React.ComponentProps<typeof ProfileView>, "section">> {
@@ -23,8 +24,12 @@ export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<Rea
   return {
     music: musicSummary(ctx, user.id),
     musicFolders: user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "music") : [],
+    movieFolders: user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "movies") : [],
+    showFolders: user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "shows") : [],
+    watch: watchSummary(ctx),
     shows,
     tabs: getPrefs(ctx, user.id).tabs,
+    videoQuality: getPrefs(ctx, user.id).videoQuality,
     user,
     users,
     folders: user.isAdmin ? await folderList(ctx.db, ctx.sqlite) : [],

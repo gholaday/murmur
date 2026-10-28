@@ -16,11 +16,11 @@ export const PUT = route(async (req) => {
   requireAdmin(ctx, req);
   const { paths } = await readJson(req, musicFoldersSchema);
   const normalized = [...new Set(paths.map(normalizeFolder))];
-  const bookFolders = allFolderPaths(ctx.db)
-    .filter((f) => f.kind === "books")
+  const otherFolders = allFolderPaths(ctx.db)
+    .filter((f) => f.kind !== "music")
     .map((f) => f.path);
   for (const [i, p] of normalized.entries()) {
-    const check = await checkFolder(p, [...normalized.filter((_, j) => j !== i), ...bookFolders]);
+    const check = await checkFolder(p, [...normalized.filter((_, j) => j !== i), ...otherFolders]);
     if (!check.ok) throw new HttpError(400, `${check.path}: ${check.message}`);
   }
   await ctx.music.saveFolders(normalized);

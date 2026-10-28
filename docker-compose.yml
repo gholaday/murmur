@@ -15,6 +15,10 @@ services:
       - PGID=1000
       # Space for cached podcast episodes, in GB.
       - EPISODE_CACHE_MAX_GB=20
+      # Movies and shows (optional): a TMDB API key fills in posters and details.
+      # - TMDB_API_KEY=
+      # Video conversion on the GPU: auto finds one (uncomment devices below), off keeps it on the CPU.
+      # - WATCH_HW=auto
       # Match searches Google Books too. Optional free key so it isn't held to Google's shared quota.
       # - GOOGLE_BOOKS_API_KEY=
       # Ad detection (optional): uncomment, set any long random value, and add the same value to
@@ -24,9 +28,15 @@ services:
       - /path/to/audiobooks:/audiobooks:ro
       # Music (optional): uncomment to turn on the Music tab.
       # - /path/to/music:/music:ro
+      # Movies and shows (optional): uncomment to turn on the Watch tab.
+      # - /path/to/movies:/movies:ro
+      # - /path/to/shows:/shows:ro
       - /path/to/murmur/data:/data
       # Cached podcast episodes.
       - /path/to/murmur/cache:/cache
+    # An Intel or AMD GPU for video conversion (Quick Sync on most Asustor, Synology and QNAP x86 boxes).
+    # devices:
+    #   - /dev/dri:/dev/dri
     stop_grace_period: 30s
     logging:
       driver: json-file

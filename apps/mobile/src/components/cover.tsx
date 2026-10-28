@@ -18,21 +18,24 @@ export function Cover({
   color,
   size,
   radius = 10,
+  aspectRatio = 1,
   style,
 }: {
   /** Server path from apiPaths, a full URL (e.g. podcast search artwork), or null when there's no art. */
   path: string | null;
   title: string;
   color?: string | null;
-  /** Width; covers are square. Omit to fill the parent's width. */
+  /** Width; covers are square unless `aspectRatio` says otherwise. Omit to fill the parent's width. */
   size?: number;
   radius?: number;
+  /** Width over height: 2/3 for posters, 16/9 for video stills. */
+  aspectRatio?: number;
   style?: StyleProp<ViewStyle>;
 }) {
   const reduced = useReducedMotion();
   const box: ViewStyle = {
     width: size ?? "100%",
-    aspectRatio: 1,
+    aspectRatio,
     borderRadius: radius,
     overflow: "hidden",
     backgroundColor: color ?? "#2a3550",

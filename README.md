@@ -69,6 +69,12 @@ All optional.
 | `PROBE_CONCURRENCY` | `2` | Files read at once during a scan |
 | `EPISODE_CACHE_DIR` | `/cache` | Where podcast episodes are kept |
 | `EPISODE_CACHE_MAX_GB` | `20` | Space for cached episodes |
+| `MOVIES_DIR` / `SHOWS_DIR` | `/movies` / `/shows` | First movie and show folders, added once something is mounted there; more under You > Library. Without them, Watch doesn't show |
+| `TMDB_API_KEY` | | Optional, free from [themoviedb.org](https://www.themoviedb.org/settings/api) (the v3 key). Fills in posters, descriptions and episode names for movies and shows |
+| `TMDB_LANGUAGE` | `en-US` | Language for those details |
+| `WATCH_HW` | `auto` | Video conversion on the GPU: `auto` tries NVENC, Quick Sync, VAAPI and the rest in turn and falls back to the CPU; `off` keeps it on the CPU; or name one (`nvenc`, `qsv`, `vaapi`, `amf`, `videotoolbox`). In Docker, pass the GPU in with `devices: - /dev/dri:/dev/dri` |
+| `VAAPI_DEVICE` | `/dev/dri/renderD128` | The render node VAAPI uses |
+| `FFMPEG_PATH` / `FFPROBE_PATH` | `ffmpeg` / `ffprobe` | Where to find them when not on the path |
 | `UPDATE_CHECK` | `true` | Ask GitHub every 6 hours for the newest release, so Settings tells admins when an update is out. `false` turns it off |
 | `ADDON_SECRET` | | Turns on ad detection; the same value goes on the `murmur-adscan` add-on ([addons/adscan](addons/adscan/README.md)) |
 

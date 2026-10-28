@@ -54,6 +54,9 @@ function Navigation() {
           <Stack.Screen name="album/[id]" />
           <Stack.Screen name="artist/[id]" />
           <Stack.Screen name="playlist/[id]" />
+          <Stack.Screen name="movie/[id]" />
+          <Stack.Screen name="tv/[id]" />
+          <Stack.Screen name="watch-player" options={{ animation: "slide_from_bottom" }} />
           <Stack.Screen name="add-songs" />
           <Stack.Screen name="browse" />
           <Stack.Screen name="group" />

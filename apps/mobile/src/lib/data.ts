@@ -21,6 +21,7 @@ import {
   type PodcastSummary,
   type UserPrefs,
   type UserPrefsPatch,
+  type VideoQuality,
   EPISODE_PAGE,
 } from "@murmur/shared/client";
 import { toast } from "@/components/toast";
@@ -60,7 +61,7 @@ export function useBookSections(): BookSection[] {
 /** Optional tabs; each is on unless you've switched it off. */
 export function useTabPrefs(): UserPrefs["tabs"] {
   const tabs = usePrefs().data?.tabs;
-  return { podcasts: tabs?.podcasts ?? true, music: tabs?.music ?? true };
+  return { podcasts: tabs?.podcasts ?? true, music: tabs?.music ?? true, watch: tabs?.watch ?? true };
 }
 
 /** Saves a change, showing it at once; puts the old prefs back if the server says no. */
@@ -79,6 +80,20 @@ function savePrefs(patch: UserPrefsPatch, failed: string) {
 export const saveBookSections = (next: BookSection[]) => savePrefs({ bookSections: next }, "Couldn't save the layout.");
 
 export const saveTabPrefs = (tabs: UserPrefs["tabs"]) => savePrefs({ tabs }, "Couldn't save the tabs.");
+
+/** The quality the server converts video at; full until your prefs load. */
+export const useVideoQuality = (): VideoQuality => usePrefs().data?.videoQuality ?? "full";
+
+/** The same, for the player, loading your prefs if nothing has yet. */
+export async function readVideoQuality(): Promise<VideoQuality> {
+  try {
+    return (await queryClient.fetchQuery({ queryKey: keys.prefs, queryFn: () => api<UserPrefs>(apiPaths.prefs) })).videoQuality ?? "full";
+  } catch {
+    return "full";
+  }
+}
+
+export const saveVideoQuality = (videoQuality: VideoQuality) => savePrefs({ videoQuality }, "Couldn't save the quality.");
 
 export const useBooks = () => useQuery({ queryKey: keys.books, queryFn: () => api<BookSummary[]>("/api/books") });
 
