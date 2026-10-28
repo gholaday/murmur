@@ -213,7 +213,7 @@ export default function Music() {
   ) : current.isError ? (
     <Empty title="Couldn't load your music">{current.error.message}</Empty>
   ) : view === "playlists" ? (
-    <Empty>{q ? `No playlist matches "${query.trim()}".` : "Make a playlist, then add songs to it from the menu on any song."}</Empty>
+    <Empty>{q ? `Nothing matches "${query.trim()}".` : "Make a playlist, then add songs to it from the menu on any song."}</Empty>
   ) : q ? (
     <Empty>{`Nothing matches "${query.trim()}".`}</Empty>
   ) : (

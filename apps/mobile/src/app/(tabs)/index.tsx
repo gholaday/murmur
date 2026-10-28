@@ -10,6 +10,7 @@ import {
   type BookSummary,
   bySeriesOrder,
   continueListening,
+  emptyLibraryReason,
   groupBy,
   nextInSeriesSub,
   progressPct,
@@ -26,7 +27,7 @@ import { Cover } from "@/components/cover";
 import { Mixer, useNowPlaying } from "@/components/mixer";
 import { CloseIcon, CustomizeIcon, DragIcon, FilterIcon, SearchIcon } from "@/components/icons";
 import { Empty, PageTitle, useTopInset } from "@/components/page";
-import { SmallButton } from "@/components/settings";
+import { SmallButton, useHealth } from "@/components/settings";
 import { BookSortSheet, useBookSort } from "@/components/book-sort";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, FadeIn, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
@@ -62,6 +63,8 @@ export default function Library() {
   const fade = useJustLoaded(!books.isPending);
 
   const list = useMemo(() => books.data ?? [], [books.data]);
+  // Why the library is empty, such as the first scan still running.
+  const health = useHealth(books.isSuccess && list.length === 0).data;
   const sorted = useMemo(() => sortBooks(list, sort), [list, sort]);
   const q = query.trim().toLowerCase();
 
@@ -196,7 +199,7 @@ export default function Library() {
   if (books.isError && list.length === 0) {
     body = <Empty title="Couldn't load your library">{books.error.message}</Empty>;
   } else if (list.length === 0) {
-    body = <Empty title="No books yet" />;
+    body = <Empty title="No books yet">{health ? emptyLibraryReason(health.scan) : null}</Empty>;
   } else if (q) {
     const found = sorted.filter((b) => matchesBook(b, q));
     body = found.length ? (
@@ -208,7 +211,7 @@ export default function Library() {
         </Grid>
       </View>
     ) : (
-      <Empty>No results.</Empty>
+      <Empty>{`Nothing matches "${query.trim()}".`}</Empty>
     );
   } else if (tab === "books") {
     return (

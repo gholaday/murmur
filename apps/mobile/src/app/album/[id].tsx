@@ -4,7 +4,7 @@ import { useLocalSearchParams } from "expo-router";
 import { albumCover, type AlbumDetail, albumDiscs, albumInMusic, albumPills, plural, songNumber, type TrackDto } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { CheckIcon, DownloadIcon, MoreIcon, PlusIcon } from "@/components/icons";
-import { ActionButton, openArtist, Pill, Pills, PlayButton, ShuffleButton, SongSheet, TrackRow } from "@/components/music";
+import { ActionButton, addSongsToUpNext, openArtist, Pill, Pills, PlayButton, ShuffleButton, SongSheet, TrackRow } from "@/components/music";
 import { Empty, NestedScreen, SectionTitle } from "@/components/page";
 import { AddToPlaylistSheet } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
@@ -138,6 +138,13 @@ export default function AlbumScreen() {
         <>
           {a ? (
             <Sheet open={more} onClose={() => setMore(false)} title={a.title}>
+              <SheetItem
+                label="Add to Up Next"
+                onPress={() => {
+                  setMore(false);
+                  void addSongsToUpNext(a.tracks);
+                }}
+              />
               <SheetItem
                 label="Add to playlist…"
                 onPress={() => {

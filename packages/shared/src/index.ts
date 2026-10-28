@@ -164,10 +164,14 @@ export const queueRefSchema = z.object({
 });
 export type QueueRef = z.infer<typeof queueRefSchema>;
 
-export const queueAddSchema = queueRefSchema.extend({
-  /** "next" plays it after the item playing and anything added right after it; "last" appends. */
-  at: z.enum(["next", "last"]).default("last"),
-});
+/** "next" plays it after the item playing and anything added right after it; "last" appends. */
+const addAtSchema = z.enum(["next", "last"]).default("last");
+
+/** One item, or several in order (a whole album or playlist). */
+export const queueAddSchema = z.union([
+  queueRefSchema.extend({ at: addAtSchema }),
+  z.object({ items: z.array(queueRefSchema).min(1).max(2000), at: addAtSchema }),
+]);
 export type QueueAddInput = z.input<typeof queueAddSchema>;
 
 /** The Play next shelf in its new order; books not on it are ignored. */

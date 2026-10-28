@@ -122,3 +122,86 @@ export function SettingsSkeleton() {
     </div>
   );
 }
+
+export function MusicSkeleton() {
+  return (
+    <div className="skeleton" aria-busy="true" aria-label="Loading music">
+      <Head title="Music" />
+      <div className="skel" style={{ height: 72, marginBottom: 14, borderRadius: "var(--radius)" }} />
+      <div className="chips">
+        {[76, 72, 68, 86].map((w, i) => (
+          <div key={i} className="skel skel-pill" style={{ width: w }} />
+        ))}
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <CardGrid count={12} />
+      </div>
+    </div>
+  );
+}
+
+/** Song rows: thumb, title, then the artist line. */
+export function SongRowsSkeleton({ count = 8 }: { count?: number }) {
+  return (
+    <div className="list skeleton" aria-busy="true" aria-label="Loading songs">
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="list-row">
+          <div className="skel thumb" />
+          <div className="list-row-main" style={{ gap: 8 }}>
+            <Line width={i % 2 ? "55%" : "70%"} />
+            <Line width="35%" height={10} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A detail page while it loads: back row, then the cover beside its title (album, playlist, podcast)
+ * or above it (book), or a round photo (artist), the Play button, and rows.
+ */
+export function DetailSkeleton({ kind }: { kind: "book" | "show" | "artist" }) {
+  const back = (
+    <div className="hero-bar">
+      <div style={{ width: 44, height: 44, display: "grid", placeItems: "center" }}>
+        <div className="skel" style={{ width: 22, height: 22, borderRadius: 11 }} />
+      </div>
+    </div>
+  );
+  const lines = (
+    <>
+      <Line width={kind === "book" ? 220 : "70%"} height={20} />
+      <Line width={kind === "book" ? 140 : "45%"} />
+    </>
+  );
+  return (
+    <div className="skeleton" aria-busy="true" aria-label="Loading">
+      {back}
+      {kind === "book" ? (
+        <div className="book-hero">
+          <div className="skel" style={{ width: 196, aspectRatio: "1 / 1", borderRadius: 12 }} />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>{lines}</div>
+        </div>
+      ) : kind === "artist" ? (
+        <div className="artist-head">
+          <div className="skel" style={{ width: 96, height: 96, borderRadius: "50%", flexShrink: 0 }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>{lines}</div>
+        </div>
+      ) : (
+        <div className="show-hero">
+          <div className="skel show-skel-cover" />
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, paddingBottom: 4 }}>{lines}</div>
+        </div>
+      )}
+      {kind === "artist" ? null : (
+        <div className="actions">
+          <div className="skel btn-big" />
+        </div>
+      )}
+      <section className="section">
+        <Rows count={5} />
+      </section>
+    </div>
+  );
+}

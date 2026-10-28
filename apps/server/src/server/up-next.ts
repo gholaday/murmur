@@ -1,5 +1,5 @@
 import {
-  addItem,
+  addItems,
   EMPTY_UP_NEXT,
   type QueueRef,
   type UpNextDto,
@@ -124,8 +124,9 @@ export function setUpNextIndex(ctx: AppContext, userId: number, index: number): 
 }
 
 /** Adds from anywhere (an episode row, a song's menu), so it lands the same on every device. */
-export function addToUpNext(ctx: AppContext, userId: number, ref: QueueRef, at: "next" | "last"): void {
-  saveUpNext(ctx, userId, addItem(readList(ctx, userId), { ...ref, added: true }, at));
+export function addToUpNext(ctx: AppContext, userId: number, refs: QueueRef[], at: "next" | "last"): void {
+  const items = refs.map((r) => ({ itemType: r.itemType, itemId: r.itemId, added: true }));
+  saveUpNext(ctx, userId, addItems(readList(ctx, userId), items, at));
 }
 
 /** An archived episode leaves what's still to come. */

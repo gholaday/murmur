@@ -73,7 +73,10 @@ export default function Podcasts() {
     body = <Empty title="Couldn't load podcasts">{podcasts.error.message}</Empty>;
   } else if (shows.length === 0) {
     body = (
-      <Empty title="No podcasts yet" />
+      <View style={{ alignItems: "center" }}>
+        <Empty title="No podcasts yet" />
+        <Button label="Add a podcast" onPress={() => setAdding(true)} />
+      </View>
     );
   } else {
     body = (

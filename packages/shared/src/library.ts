@@ -23,6 +23,12 @@ export function progressPct(b: BookSummary): number {
 /** Under a Next in series card: which book it is (series names are too long to fit), else the author. */
 export const nextInSeriesSub = (b: BookSummary) => (b.seriesPosition !== null ? `Book ${b.seriesPosition}` : b.author);
 
+/** Under "No books yet": why the library is empty, from the scan state in `/api/health`. */
+export function emptyLibraryReason(scan: { running: boolean; lastError: string | null }): string {
+  if (scan.running) return "The first scan is running. Books appear as soon as it finishes.";
+  return scan.lastError ?? "Check that the library folder is mounted, then rescan from You > Library.";
+}
+
 /** A library folder path plus a folder name, with the separator the path already uses. */
 export function joinPath(dir: string, name: string): string {
   const sep = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";

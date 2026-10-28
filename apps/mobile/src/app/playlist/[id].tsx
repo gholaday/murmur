@@ -7,7 +7,7 @@ import { Mixer } from "@/components/mixer";
 import { DragIcon, MoreIcon, PlusIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { ActionButton, Pills, PlayButton, ShuffleButton, SongMoreButton, SongSheet, usePlayingSong } from "@/components/music";
+import { ActionButton, addSongsToUpNext, Pills, PlayButton, ShuffleButton, SongMoreButton, SongSheet, usePlayingSong } from "@/components/music";
 import { BackRow, Empty, useBottomPad, useTopInset } from "@/components/page";
 import { NamePlaylistSheet, PlaylistCover, playlistPills } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
@@ -152,6 +152,15 @@ export default function PlaylistScreen() {
       {p ? (
         <>
           <Sheet open={more} onClose={() => setMore(false)} title={p.name}>
+            {p.tracks.length ? (
+              <SheetItem
+                label="Add to Up Next"
+                onPress={() => {
+                  setMore(false);
+                  void addSongsToUpNext(p.tracks);
+                }}
+              />
+            ) : null}
             <SheetItem
               label="Rename…"
               onPress={() => {

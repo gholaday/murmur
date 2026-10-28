@@ -17,7 +17,7 @@ import { setInMusic } from "@/lib/data";
 import { selectHaptic } from "@/lib/haptics";
 import { downloadTrack, removeDownload, useDownload, useInAlbumDownload } from "@/lib/downloads";
 import { getJson, setJson } from "@/lib/storage";
-import { addToUpNext, isCurrent, isPlayingFrom, toggle, toggleShuffle, usePlayerSelect } from "@/player/engine";
+import { addToUpNext, isCurrent, isPlayingFrom, isWaiting, removeWaiting, toggle, toggleShuffle, usePlayerSelect } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { CheckIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon, ShuffleIcon } from "./icons";
@@ -31,6 +31,16 @@ import { IconButton, Text } from "./ui";
 // on) live in @murmur/shared, so the web and the app say the same thing.
 
 export const openAlbum = (id: string) => router.push(`/album/${id}`);
+
+/** An album's or playlist's songs into Up Next in order, to play next. */
+export const addSongsToUpNext = (tracks: TrackDto[]) =>
+  addToUpNext(
+    tracks.map((tr) => ({ itemType: "track", itemId: tr.id })),
+    "next",
+  ).then(
+    () => toast.show("Added to Up Next"),
+    (err: unknown) => toast.error(err instanceof Error ? err.message : "Couldn't do that."),
+  );
 export const openArtist = (id: string) => router.push(`/artist/${id}`);
 
 // ---------- Album sort, kept on this phone ----------
@@ -183,8 +193,9 @@ export function ActionButton({
 }
 
 /**
- * A song's ⋯ menu (also a long press): play next, add to Up Next or a playlist, go to its album,
- * download it on its own (or remove that copy), then any `extra` items.
+ * A song's ⋯ menu (also a long press): add it to Up Next (or take it out while it's still to come),
+ * add it to a playlist, go to its album, download it on its own (or remove that copy), then any
+ * `extra` items.
  */
 export function SongSheet({
   track,
@@ -236,9 +247,15 @@ function SongSheetItems({ track, onClose, hideAlbum, onAddToPlaylist }: { track:
         (err: unknown) => toast.error(err instanceof Error ? err.message : "Couldn't do that."),
       ),
     );
+  const ref = { itemType: "track" as const, itemId: track.id };
+  const queued = usePlayerSelect((s) => isWaiting(s.upNext, ref));
   return (
     <>
-      <SheetItem label="Add to Up Next" onPress={run(() => addToUpNext({ itemType: "track", itemId: track.id }, "next"), "Added to Up Next")} />
+      {queued ? (
+        <SheetItem label="Remove from Up Next" onPress={run(async () => removeWaiting(ref), "Removed from Up Next")} />
+      ) : (
+        <SheetItem label="Add to Up Next" onPress={run(() => addToUpNext(ref, "next"), "Added to Up Next")} />
+      )}
       <SheetItem label="Add to playlist…" onPress={onAddToPlaylist} />
       {hideAlbum ? null : <SheetItem label="Go to album" onPress={close(() => openAlbum(track.albumId))} />}
       {own ? (

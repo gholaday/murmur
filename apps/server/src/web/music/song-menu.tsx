@@ -9,7 +9,7 @@ import { MoreIcon } from "../icons";
 import { usePlayer } from "../player/engine";
 import { Sheet, SheetItem } from "../sheet";
 
-/** A song's ⋯ button: play next, add to Up Next or a playlist, go to its album, and any `extra` items. */
+/** A song's ⋯ button: add to (or remove from) Up Next, add to a playlist, go to its album, and any `extra` items. */
 export function SongMenuButton({
   track,
   hideAlbum,
@@ -25,8 +25,10 @@ export function SongMenuButton({
   const player = usePlayer();
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const ref = { itemType: "track", itemId: track.id } as const;
+  const queued = player.isWaiting(ref);
   const close = () => setOpen(false);
-  const run = (fn: () => Promise<void>, done: string) => {
+  const run =(fn: () => Promise<void>, done: string) => {
     close();
     fn().then(
       () => toast(done),
@@ -40,9 +42,11 @@ export function SongMenuButton({
         <MoreIcon size={18} />
       </button>
       <Sheet open={open} onClose={close} title={track.title}>
-        <SheetItem onClick={() => run(() => player.addToUpNext({ itemType: "track", itemId: track.id }, "next"), "Added to Up Next")}>
-          Add to Up Next
-        </SheetItem>
+        {queued ? (
+          <SheetItem onClick={() => run(async () => player.removeWaiting(ref), "Removed from Up Next")}>Remove from Up Next</SheetItem>
+        ) : (
+          <SheetItem onClick={() => run(() => player.addToUpNext(ref, "next"), "Added to Up Next")}>Add to Up Next</SheetItem>
+        )}
         <SheetItem
           onClick={() => {
             close();

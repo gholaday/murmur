@@ -144,7 +144,7 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | Streaming | `GET /stream/book/:id/:fileIndex`, `GET /stream/episode/:id` (range requests) |
 | Podcasts | `GET/POST /podcasts`, `GET /podcasts/search?q=` (directory search, marks podcasts you follow), `GET /podcasts/preview?feedUrl=` (reads a feed without subscribing), `DELETE /podcasts/:id`, `GET /podcasts/:id/episodes`, `POST /podcasts/:id/refresh`, OPML import and export |
 | Progress | `GET /progress?since=`, `PUT /progress` (batched, newest update wins) |
-| Up Next | `GET /up-next`, `PUT /up-next` (the whole list), `PATCH /up-next` (where it's at), `POST /up-next` (add one item) |
+| Up Next | `GET /up-next`, `PUT /up-next` (the whole list), `PATCH /up-next` (where it's at), `POST /up-next` (add one item, or several in order) |
 | Play next | `POST/DELETE /books/:id/play-next`, `PUT /play-next` (order) |
 | Admin | `GET/POST/DELETE /users`, `GET/PUT /library/folders`, `POST /library/folders/check`, `GET /library/browse?path=` |
 | Episode cache and ads | `GET /episodes/:id/ads`; admin: `GET/PUT /server/cache`, `POST /server/ads/retry` |
@@ -329,7 +329,7 @@ Music is optional. It comes from one or more music folders, managed by the admin
 
 - Playlists are each person's own (`playlists`, `playlist_tracks`). A playlist plays as its own context, and its songs can be reordered by dragging, removed, renamed or deleted. `.m3u` files in the music folders are not read.
 - A playlist's + button (and Add songs on an empty one) opens Add songs: search your songs, what you played recently (`GET /music/plays`) or Browse, and tap + to add a song to the end or its check to take it out, with Undo. Songs from Browse join the playlist without being added to your music.
-- Every song has a menu: Add to Up Next, Add to playlist, Go to album.
+- Every song has a menu: Add to Up Next (Remove from Up Next while it's waiting there), Add to playlist, Go to album. An album's menu and a playlist's also have Add to Up Next, which adds all their songs in order.
 
 **Up Next**
 

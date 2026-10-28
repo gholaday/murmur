@@ -27,11 +27,11 @@ export const PATCH = route(async (req) => {
   return json({ ok: true });
 });
 
-/** Adds one item, to play next or last. */
+/** Adds one item or several, to play next or last. */
 export const POST = route(async (req) => {
   const ctx = await getContext();
   const user = requireUser(ctx, req);
-  const { at, ...ref } = await readJson(req, queueAddSchema);
-  addToUpNext(ctx, user.id, ref, at);
+  const body = await readJson(req, queueAddSchema);
+  addToUpNext(ctx, user.id, "items" in body ? body.items : [body], body.at);
   return json(await getUpNext(ctx, user.id));
 });

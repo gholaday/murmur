@@ -32,6 +32,7 @@ import { ShuffleButton } from "./shuffle-button";
 import { type MusicSource, usePlayer } from "../player/engine";
 import { GroupGrid } from "../library/library";
 import { Sheet, SheetItem } from "../sheet";
+import { SongRowsSkeleton } from "../skeletons";
 import { Chip, Chips, EmptyState, SearchBox } from "../ui";
 import { AlbumBadge, MineToggle, useMineChange } from "./mine";
 import { NewPlaylistButton, PlaylistCard } from "./playlist-view";
@@ -359,7 +360,7 @@ export function MusicView({
               ))}
             </div>
           ) : (
-            <EmptyState>{`Nothing in your music matches "${query.trim()}".`}</EmptyState>
+            <EmptyState>{`Nothing matches "${query.trim()}".`}</EmptyState>
           )
         ) : tab === "artists" ? (
           shownArtists.length ? (
@@ -372,7 +373,7 @@ export function MusicView({
               </GroupGrid>
             ))
           ) : (
-            <EmptyState>{`No artist in your music matches "${query.trim()}".`}</EmptyState>
+            <EmptyState>{`Nothing matches "${query.trim()}".`}</EmptyState>
           )
         ) : tab === "playlists" ? (
           <>
@@ -384,11 +385,11 @@ export function MusicView({
                 ))}
               </div>
             ) : (
-              <EmptyState>{q ? `No playlist matches "${query.trim()}".` : "Make a playlist, then add songs from the menu on any song, with Add to playlist."}</EmptyState>
+              <EmptyState>{q ? `Nothing matches "${query.trim()}".` : "Make a playlist, then add songs to it from the menu on any song."}</EmptyState>
             )}
           </>
         ) : songs === null ? (
-          <EmptyState>Loading songs…</EmptyState>
+          <SongRowsSkeleton />
         ) : shownSongs.length ? (
           <>
             <div className="songs-actions">
@@ -405,7 +406,7 @@ export function MusicView({
             </div>
           </>
         ) : (
-          <EmptyState>{`No song in your music matches "${query.trim()}".`}</EmptyState>
+          <EmptyState>{`Nothing matches "${query.trim()}".`}</EmptyState>
         )}
         {q ? <MoreToAdd q={q} /> : null}
       </div>

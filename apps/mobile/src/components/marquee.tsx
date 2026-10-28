@@ -81,7 +81,17 @@ const FADE = 16;
  * read in a tight row (Up Next). With reduced motion it ends in an ellipsis instead. `fadeTo` is
  * the colour behind it, as #rrggbb.
  */
-export function MarqueeText({ text, variant, style, fadeTo }: { text: string; variant?: "bodyStrong" | "small"; style?: StyleProp<TextStyle>; fadeTo: string }) {
+export function MarqueeText({
+  text,
+  variant,
+  style,
+  fadeTo,
+}: {
+  text: string;
+  variant?: "title" | "bodyStrong" | "small";
+  style?: StyleProp<TextStyle>;
+  fadeTo: string;
+}) {
   const reduced = useReducedMotion();
   const [box, setBox] = useState(0);
   const [full, setFull] = useState(0);

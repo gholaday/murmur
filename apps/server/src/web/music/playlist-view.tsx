@@ -279,6 +279,22 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
       )}
 
       <Sheet open={menu} onClose={() => setMenu(false)} title={playlist.name}>
+        {tracks.length ? (
+          <SheetItem
+            onClick={() => {
+              setMenu(false);
+              player.addToUpNext(
+                tracks.map((t) => ({ itemType: "track", itemId: t.id })),
+                "next",
+              ).then(
+                () => toast("Added to Up Next"),
+                (err: unknown) => toast.error(errorText(err)),
+              );
+            }}
+          >
+            Add to Up Next
+          </SheetItem>
+        ) : null}
         <SheetItem
           onClick={() => {
             setMenu(false);

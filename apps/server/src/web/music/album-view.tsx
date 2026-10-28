@@ -13,6 +13,7 @@ import {
   type ArtistDetail,
   artistImage,
   artistSub,
+  errorText,
   guestArtist,
   plural,
   songLength,
@@ -154,10 +155,32 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
         <SheetItem
           onClick={() => {
             setMenu(false);
+            p.addToUpNext(
+              album.tracks.map((t) => ({ itemType: "track", itemId: t.id })),
+              "next",
+            ).then(
+              () => toast("Added to Up Next"),
+              (err: unknown) => toast.error(errorText(err)),
+            );
+          }}
+        >
+          Add to Up Next
+        </SheetItem>
+        <SheetItem
+          onClick={() => {
+            setMenu(false);
             setAdding(true);
           }}
         >
           Add to playlist…
+        </SheetItem>
+        <SheetItem
+          onClick={() => {
+            setMenu(false);
+            router.push(`/music/artist/${album.artistId}`);
+          }}
+        >
+          Go to {album.artist}
         </SheetItem>
         {state !== "none" ? (
           <SheetItem

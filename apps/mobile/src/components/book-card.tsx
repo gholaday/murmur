@@ -7,7 +7,7 @@ import { useDownload } from "@/lib/downloads";
 import { bookToPlayable, isCurrent, markCurrent, play, toggle, usePlayer } from "@/player/engine";
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { CheckIcon, DownloadIcon } from "./icons";
+import { CheckIcon, DownloadIcon, MoreIcon } from "./icons";
 import { Mixer, useNowPlaying } from "./mixer";
 import { Sheet, SheetItem } from "./sheet";
 import { toast } from "./toast";
@@ -47,6 +47,26 @@ export const BookCard = memo(function BookCard({ book, sub, width }: { book: Boo
           </Badge>
         ) : null}
         {now ? <Mixer playing={now === "playing"} /> : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Options for ${book.title}`}
+          hitSlop={6}
+          onPress={() => setMenu(true)}
+          style={({ pressed }) => ({
+            position: "absolute",
+            top: 6,
+            right: 6,
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(17,18,20,0.72)",
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <MoreIcon size={18} color="#f3f1ec" />
+        </Pressable>
       </View>
       {started ? <Bar pct={pct} /> : null}
       <View>
@@ -61,7 +81,7 @@ export const BookCard = memo(function BookCard({ book, sub, width }: { book: Boo
   );
 });
 
-/** Long-press options for a book card: the listener actions from the book page. */
+/** A book card's options (its ⋯ button, or a long press): the listener actions from the book page. */
 function BookMenu({ book, started, onClose }: { book: BookSummary; started: boolean; onClose: () => void }) {
   const player = usePlayer();
   const current = isCurrent(player, "book", book.id);
@@ -109,9 +129,10 @@ function Badge({ children }: { children: React.ReactNode }) {
   return (
     <View
       style={{
+        // Top left, as the ⋯ button has the top right.
         position: "absolute",
         top: 6,
-        right: 6,
+        left: 6,
         width: 24,
         height: 24,
         borderRadius: 12,

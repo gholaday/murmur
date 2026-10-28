@@ -249,7 +249,8 @@ interface PlayerApi {
   clearUpNext: () => void;
   /** Puts back a list from before, for Undo. */
   restoreUpNext: (l: UpNextDto) => void;
-  addToUpNext: (ref: QueueRef, at: "next" | "last") => Promise<void>;
+  /** Adds one item, or several in order (a whole album or playlist). */
+  addToUpNext: (refs: QueueRef | QueueRef[], at: "next" | "last") => Promise<void>;
   /** True while `ref` is still to come in Up Next. */
   isWaiting: (ref: QueueRef) => boolean;
   /** Takes `ref` out of what's still to come. */
@@ -517,8 +518,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addToUpNext = useCallback(
-    async (ref: QueueRef, at: "next" | "last") =>
-      setList(await api<UpNextDto>(apiPaths.upNext, { method: "POST", body: { ...ref, at } }), false),
+    async (refs: QueueRef | QueueRef[], at: "next" | "last") => {
+      const body = Array.isArray(refs) ? { items: refs, at } : { ...refs, at };
+      setList(await api<UpNextDto>(apiPaths.upNext, { method: "POST", body }), false);
+    },
     [setList],
   );
 

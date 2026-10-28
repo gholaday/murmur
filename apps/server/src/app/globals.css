@@ -593,7 +593,8 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--tex
 .show-hero .cover { width: 120px; flex-shrink: 0; border-radius: 12px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45); }
 .show-title { font-size: 22px; font-weight: 800; }
 .show-by { font-size: 13px; color: var(--text-2); }
-@media (min-width: 900px) { .show-hero .cover { width: 180px; } .show-title { font-size: 30px; } }
+.show-skel-cover { width: 120px; aspect-ratio: 1 / 1; flex-shrink: 0; border-radius: 12px; }
+@media (min-width: 900px) { .show-hero .cover, .show-skel-cover { width: 180px; } .show-title { font-size: 30px; } }
 .show-actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 16px 8px 0; }
 .show-actions .btn { height: 36px; font-size: 13px; }
 .show-actions .btn-tint { background: color-mix(in srgb, var(--tint) 40%, var(--surface-2)); color: var(--text); }
@@ -825,7 +826,7 @@ a.episode-show:hover { color: var(--accent); }
 .player-cover-wrap .skip-ad { position: absolute; right: 12px; bottom: 12px; }
 .player-info { padding-top: 26px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .player-chapter { font-size: 13px; font-weight: 700; color: var(--accent); }
-.player-title { font-size: 22px; font-weight: 800; line-height: 1.2; }
+.player-title { font-size: 22px; font-weight: 800; line-height: 1.2; width: 100%; min-width: 0; }
 .player-sub { font-size: 14px; color: var(--muted); }
 .player-scrub { padding-top: 20px; }
 .player-times { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 4px; }

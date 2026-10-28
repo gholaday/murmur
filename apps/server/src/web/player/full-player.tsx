@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Cover } from "../cover";
+import { Marquee } from "../marquee";
 import {
   chapterAt,
   clampSpeed,
@@ -161,7 +162,9 @@ export function FullPlayer() {
               Chapter {ci + 1} of {item.chapters.length}
             </button>
           ) : null}
-          <h1 className="player-title">{item.title}</h1>
+          <h1 className="player-title">
+            <Marquee text={item.title} />
+          </h1>
           <div className="player-sub">{multiChapter && chapter ? chapter.title : item.subtitle}</div>
         </div>
 
@@ -470,16 +473,18 @@ export function FullPlayer() {
             setExpanded(false);
           }}
         >
-          Go to {song ? "album" : item.type === "book" ? "book" : "show"}
+          Go to {song ? "album" : item.type === "book" ? "book" : "podcast"}
         </Link>
         {song ? null : (
           <>
-            <SheetItem onClick={choose(() => p.markCurrent(true))}>Mark as finished</SheetItem>
+            <SheetItem onClick={choose(() => p.markCurrent(true))}>
+              {item.type === "book" ? "Mark as finished" : "Mark played"}
+            </SheetItem>
             <SheetItem onClick={choose(() => p.markCurrent(false))}>Start from the beginning</SheetItem>
           </>
         )}
         <SheetItem danger onClick={choose(() => p.stop())}>
-          Stop and close player
+          Stop playback
         </SheetItem>
       </Sheet>
     </div>

@@ -398,7 +398,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
       ) : null}
 
       {q ? (
-        <SearchResults books={sorted.filter((b) => matchesBook(b, q))} />
+        <SearchResults books={sorted.filter((b) => matchesBook(b, q))} query={query} />
       ) : (
         <>
           <Chips kind="tabs" label="Library view">
@@ -620,8 +620,8 @@ function AttentionView({ books, issue }: { books: BookSummary[]; issue: IssueId 
   );
 }
 
-function SearchResults({ books }: { books: BookSummary[] }) {
-  if (books.length === 0) return <EmptyState>No books match that search.</EmptyState>;
+function SearchResults({ books, query }: { books: BookSummary[]; query: string }) {
+  if (books.length === 0) return <EmptyState>{`Nothing matches "${query.trim()}".`}</EmptyState>;
   return (
     <div className="grid">
       {books.map((b) => (

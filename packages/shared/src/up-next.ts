@@ -96,6 +96,11 @@ export function addItem<E extends UpNextRef>(l: UpNextList<E>, item: E, at: "nex
   return { ...l, items, index };
 }
 
+/** Adds several items, keeping their order. */
+export function addItems<E extends UpNextRef>(l: UpNextList<E>, items: E[], at: "next" | "last"): UpNextList<E> {
+  return items.reduce((list, item) => addItem(list, item, at), l);
+}
+
 /**
  * Takes out the item at `at`. Taking out the one playing moves on to the one after it; `play` says
  * which index to start, or null when nothing is left after it.

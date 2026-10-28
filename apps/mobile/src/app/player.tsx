@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, useWindowDimensions, View, type ViewInstance } from "react-native";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import Slider from "@react-native-community/slider";
@@ -18,6 +18,7 @@ import {
 } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { HeroBackdrop } from "@/components/hero";
+import { MarqueeText } from "@/components/marquee";
 import {
   CheckIcon,
   DownIcon,
@@ -82,6 +83,8 @@ export default function Player() {
   const [scrub, setScrub] = useState<number | null>(null);
   const [speedDraft, setSpeedDraft] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [titleY, setTitleY] = useState(0);
+  const titleRef = useRef<ViewInstance>(null);
   const { item } = p;
   // A song plays at 1x with no chapters: previous and next step through the songs.
   const song = item?.type === "track";
@@ -214,9 +217,10 @@ export default function Player() {
                 </Text>
               </Pressable>
             ) : null}
-            <Text variant="title" style={{ fontSize: 22 }} numberOfLines={2}>
-              {item.title}
-            </Text>
+            {/* Fades into the page's tint where it sits, so it needs its place on the screen. */}
+            <View ref={titleRef} onLayout={() => titleRef.current?.measureInWindow((_x, y) => setTitleY(y))}>
+              <MarqueeText text={item.title} variant="title" style={{ fontSize: 22 }} fadeTo={tintAt(titleY)} />
+            </View>
             <Text variant="small" numberOfLines={1} style={{ fontSize: 14, color: soft }}>
               {multiChapter && chapter ? chapter.title : item.subtitle}
             </Text>
@@ -475,19 +479,7 @@ export default function Player() {
       </Sheet>
 
       <Sheet open={sheet === "more"} onClose={() => setSheet(null)} title={item.title}>
-        {song ? (
-          <SheetItem
-            label="Go to album"
-            disabled={!item.album}
-            onPress={() => {
-              setSheet(null);
-              router.back();
-              if (item.album) router.push(`/album/${item.album.id}`);
-            }}
-          />
-        ) : (
-          <MoreItems item={item} close={() => setSheet(null)} />
-        )}
+        <MoreItems item={item} close={() => setSheet(null)} />
       </Sheet>
 
       <UpNextSheet open={sheet === "upnext"} onClose={() => setSheet(null)} />
@@ -495,35 +487,40 @@ export default function Player() {
   );
 }
 
-/** A book's or episode's More sheet: go to it, mark it, or stop. */
+/** The More sheet, as the web's: go to it, mark it or start it over (not songs), or stop. */
 function MoreItems({ item, close }: { item: Playable; close: () => void }) {
+  const song = item.type === "track";
   const choose = (fn: () => void) => () => {
     fn();
     close();
   };
   return (
     <>
-        <SheetItem
-          label={item.type === "book" ? "Go to book" : "Go to podcast"}
-          onPress={() => {
-            close();
-            router.back();
-            if (item.type === "book") router.push(`/book/${item.id}`);
-            else if (item.podcastId) router.push(`/show/${item.podcastId}`);
-          }}
-        />
-        <SheetItem label={item.type === "book" ? "Mark as finished" : "Mark played"} onPress={choose(() => {
-            markCurrent(true);
-            toast.show(item.type === "book" ? "Marked as finished" : "Marked as played");
-          })} />
-        <SheetItem
-          label="Stop playback"
-          danger
-          onPress={() => {
-            close();
-            stop();
-          }}
-        />
+      <SheetItem
+        label={song ? "Go to album" : item.type === "book" ? "Go to book" : "Go to podcast"}
+        disabled={song && !item.album}
+        onPress={() => {
+          close();
+          router.back();
+          if (song) {
+            if (item.album) router.push(`/album/${item.album.id}`);
+          } else if (item.type === "book") router.push(`/book/${item.id}`);
+          else if (item.podcastId) router.push(`/show/${item.podcastId}`);
+        }}
+      />
+      {song ? null : (
+        <>
+          <SheetItem
+            label={item.type === "book" ? "Mark as finished" : "Mark played"}
+            onPress={choose(() => {
+              markCurrent(true);
+              toast.show(item.type === "book" ? "Marked as finished" : "Marked as played");
+            })}
+          />
+          <SheetItem label="Start from the beginning" onPress={choose(() => markCurrent(false))} />
+        </>
+      )}
+      <SheetItem label="Stop playback" danger onPress={choose(stop)} />
     </>
   );
 }

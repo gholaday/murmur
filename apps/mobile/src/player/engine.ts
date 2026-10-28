@@ -871,9 +871,13 @@ async function putRefs(l: UpNextInput) {
   setList(await api<UpNextDto>(apiPaths.upNext, { method: "PUT", body: l }), false);
 }
 
-/** Adds an item from anywhere: "next" after the item playing (and what you added after it), or "last". */
-export async function addToUpNext(ref: QueueRef, at: "next" | "last") {
-  setList(await api<UpNextDto>(apiPaths.upNext, { method: "POST", body: { ...ref, at } }), false);
+/**
+ * Adds an item from anywhere, or several in order (an album): "next" after the item playing (and
+ * what you added after it), or "last".
+ */
+export async function addToUpNext(ref: QueueRef | QueueRef[], at: "next" | "last") {
+  const body = Array.isArray(ref) ? { items: ref, at } : { ...ref, at };
+  setList(await api<UpNextDto>(apiPaths.upNext, { method: "POST", body }), false);
 }
 
 /** Takes out the item at `index`. Taking out the one playing moves on, or stops when nothing comes after it. */
