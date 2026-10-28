@@ -364,16 +364,38 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         startPosition: 0,
         maxBufferLength: 30,
         backBufferLength: 60,
-        fragLoadPolicy: { default: { maxTimeToFirstByteMs: 30_000, maxLoadTimeMs: 60_000, timeoutRetry: retry, errorRetry: retry } },
+        fragLoadPolicy: {
+          default: {
+            maxTimeToFirstByteMs: 30_000,
+            maxLoadTimeMs: 60_000,
+            timeoutRetry: retry,
+            // A piece still being made is a 503 and is asked for again; a 404 is gone (cleared
+            // behind the player), so the stream starts again there at once.
+            errorRetry: { ...retry, shouldRetry: (_c, _n, _t, res, again) => again && res?.code !== 404 },
+          },
+        },
       });
       let recovered = false;
+      /** Starts a new session at `at`, once: a few errors can arrive for the same moment. */
+      let restarted = false;
+      const restartAt = (at: number) => {
+        if (restarted) return;
+        restarted = true;
+        resumeAt.current = at;
+        setRestartKey((k) => k + 1);
+      };
       h.on(Hls.Events.ERROR, (_event, data) => {
+        // A piece cleared behind the player (a seek back past a few minutes): start again there,
+        // or hls.js skips it and plays on from what it has.
+        if (data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR && data.response?.code === 404 && data.frag) {
+          restartAt(offsetRef.current + data.frag.start);
+          return;
+        }
         if (!data.fatal) return;
         console.warn("stream failed", data.type, data.details, data.error?.message, data.mimeType ?? "");
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
           // Usually a session that ended while paused a long time: start again from here.
-          resumeAt.current = offsetRef.current + v.currentTime;
-          setRestartKey((k) => k + 1);
+          restartAt(offsetRef.current + v.currentTime);
         } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !recovered) {
           recovered = true;
           h.recoverMediaError();

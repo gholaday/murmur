@@ -11,7 +11,7 @@ Mockup: [Murmur video mockup](https://claude.ai/artifact/8sYB2hgDqaBGVeMjL5YcoW)
 - Watch is optional and fails on its own. With no video folder it doesn't show anywhere, and if ffmpeg is missing or a scan breaks, books, podcasts and music carry on.
 - The same small, quiet design as the rest of Murmur: the screens reuse the book and show pages, chips, list rows and sheets.
 
-**Not in the first version:** subtitles, Chromecast and downloads. Each one is its own later step (see Later steps). Android TV is out of scope.
+**Not in the first version:** subtitles and Chromecast. Each one is its own later step (see Later steps). Android TV is out of scope.
 
 ## Library
 
@@ -56,9 +56,11 @@ Mockup: [Murmur video mockup](https://claude.ai/artifact/8sYB2hgDqaBGVeMjL5YcoW)
 | `movies` | Folder, path (the movie's folder, or its file when loose), title, year, description, poster and backdrop hashes, added date |
 | `shows` | The same for a show's folder |
 | `videos` | One row per file, a movie version or an episode: `kind`, folder and path, movie id and edition, or show id with season and episode numbers, title, description, length, size and modified time, container, video codec, resolution, HDR, audio and subtitle tracks (JSON), the 16:9 still, added and missing dates |
-| `progress` | `item_type` gains `video`, keyed by the movie's id or the episode's: position, finished and speed, the same as books. A video counts as watched past 92%, or once the credits start when chapter marks say where |
+| `progress` | `item_type` gains `video`, keyed by the movie's id or the episode's: position, finished and speed, the same as books. A video counts as watched past 92% |
 | `listening_days` | `item_type` gains `video`, so watch time is recorded the same way. It's kept out of the listening totals and shown as its own stats |
-| `users.prefs` | `tabs.watch`, on by default. Remembered audio track per movie and per show (`watchTracks`) |
+| `users.prefs` | `tabs.watch`, on by default, `videoQuality` (Converted video) and `autoplayNext` (Play next episode) |
+
+The speed and audio language picked for a movie or show are kept on each device (browser storage, or the app's), not on the server.
 
 Watched state for a whole season or show is worked out from its episodes, so nothing else is stored, the same as albums.
 
@@ -67,10 +69,9 @@ Watched state for a whole season or show is worked out from its episodes, so not
 | Area | Endpoints |
 | --- | --- |
 | Library | `GET /watch` (Continue watching, Next episodes, Recently added), `GET /watch/movies`, `GET /watch/movies/:id` (with its versions), `GET /watch/shows`, `GET /watch/shows/:id` (seasons and episodes with progress), `GET /watch/movies/:id/poster` and `/backdrop`, the same for shows, `GET /watch/videos/:id/still` |
-| Admin | `GET/PUT /watch/folders` (movies and shows), `POST /watch/scan` |
-| State | `POST /videos/:id/watched`, `DELETE /videos/:id/watched`; `POST /shows/:id/seasons/:n/watched` |
-| Streaming | `GET /stream/video/:id` (the file as it is, with range requests, through the existing `streamFile`), `POST /videos/:id/remux?audio=N` (starts or finds a remux, returns its status), `GET /stream/video/:id/remux?audio=N` (the remuxed MP4, with range requests) |
-| Progress | The existing `PUT /progress`, with `itemType: "video"` |
+| Admin | `PUT /watch/folders/movies` and `/shows`, `POST /watch/scan`, and Match (see Match below) |
+| Streaming | `GET /stream/video/:id` (the file as it is, with range requests, through the existing `streamFile`); stream sessions (see step 4); downloads (see step 7) |
+| Progress | The existing `PUT /progress`, with `itemType: "video"`. Mark as watched, and marking a season, go through the same progress calls as books |
 
 The video's details list its codecs as RFC 6381 strings (`avc1.640028`, `hvc1.2.4.L150`, `mp4a.40.2`, `ec-3`), which is what the player checks against what the device can play.
 
@@ -108,7 +109,7 @@ The video's details list its codecs as RFC 6381 strings (`avc1.640028`, `hvc1.2.
 - **Landscape** (a phone on its side, or full screen anywhere): the video fills the screen, the down arrow and title along the top, the same scrubber and buttons along the bottom with speed, volume, audio, picture in picture and full screen at the bottom right, all fading after three seconds of no movement, or when the mouse leaves, and coming back on a tap.
 - **Mini player:** leaving the player's page keeps the video playing in the mini player, the picture where the cover goes, with skip back, play and a close button. A tap opens the player again where it is. The next episode doesn't start on its own from there. Double-tap either side skips back 10 or forward 30, using the same skip settings as books. Turning the phone, or the full screen button, switches between the two.
 - Speed from 0.5× to 2×, remembered per movie and per show. Picture in picture on both. Media keys and the lock screen show play, pause and the skips.
-- When an episode's credits start (or 30 seconds before the end), a card counts down from 10 to the next episode. A tap starts it now; a tap anywhere else cancels it.
+- 30 seconds before an episode ends, a card counts down from 10 to the next episode. A tap starts it now; its close button cancels it. With Play next episode off, the card just reads "Next episode" and nothing starts on its own.
 - Starting a video stops whatever audio was on: its place is saved and the video takes the mini player. Playing audio later ends the video the same way. Video doesn't go in Up Next.
 - Progress is saved every few seconds and on pause, the same as books, so a movie resumes on any device.
 
@@ -123,7 +124,7 @@ These follow the mockup and reuse what's already there.
 - **Watch tab:** fifth in the tab bar, after Music, with a play-in-a-square icon. Chips: Home, Movies, Shows, Watched. Home has Continue watching (16:9 stills, about a quarter bigger, with the time left), Next episodes (the next unwatched episode of each show you've started), then Recently added movies and Recently added shows (poster shelves, like the book shelves). Search and filter sit at the top right, as on every tab.
 - **Movie page:** the book header with a 2:3 poster and a backdrop tint. Pills for the year, length and resolution. Play, or Resume with the time left, and a round Mark watched. The description, a Version row when there's more than one ("Despecialized Edition 720p"), an Audio row when there's more than one track, and the file's details at the bottom.
 - **Show page:** the same header with pills for the year and the number of seasons. Resume with the episode number, then a chip per season, opening on the one you're in. Episode rows: still with the progress line, the title, then "S1 E2" with the length or time left, the accent check once watched. The round button marks the season watched.
-- **Can't-play sheet:** what won't play, as pills (the one at fault in `danger`), one plain sentence, and the way out (another audio track, Play without sound, or Close).
+- **Can't play:** since the server converts whatever a device can't play, this is rare. When it happens (the browser has no HLS support, or the file is broken), the player says so in one plain sentence, and the File section at the bottom of the movie page lists the codecs.
 - **You:** a Watch section in the stats, with its own total and chart, and Watch under Tabs to hide it.
 - Posters are a new card shape (2:3, 8px corners). The rest are existing components.
 
@@ -184,6 +185,4 @@ Unlike books and music, Watch matches on its own, the way Plex does: rips rarely
 ## Open questions
 
 - **Seeking in a stream:** a long seek restarts the stream, a second or two. Knowing each file's keyframes (read once at scan time, as Jellyfin does) would allow a full-length playlist up front, so any seek is a plain request for one piece.
-- **Dark stills:** a frame a tenth of the way in is sometimes a dark scene. Trying a few frames and keeping the brightest would help.
-- **Does watching count towards your streak,** or does Watch keep its own? The plan says it counts, as any time with Murmur does.
-- **Dark stills** above are handled in step 6.
+- **Disk space for downloads:** a file made for a phone download is a full copy (a 4K film can be tens of GB), kept until the phone fetches it or for 6 hours. Nothing checks free space first.

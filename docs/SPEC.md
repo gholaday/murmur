@@ -53,7 +53,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 - Movie and show folders managed by the admin under You > Library; with none, Watch doesn't show
 - Posters, descriptions and episode names from TMDB when a key is set, matched on their own like Plex, with Match to fix a wrong one
 - Plays the file as it is when the device can, else streams it through ffmpeg with the sound or the picture converted, on the GPU where there is one
-- Quality (1080p or 720p) for converted video, picked per video or as a setting; audio track choice; the next episode with a countdown
+- Quality (1080p or 720p) for converted video, picked per video or as a setting; audio track choice; the next episode with a countdown (Play next episode turns it off)
 - Download movies and episodes to the phone
 
 **Listening stats**
