@@ -13,11 +13,14 @@ import Slider from "@react-native-community/slider";
 import {
   clock,
   codecName,
-  duration,
   episodeLabel,
   type MovieDetail,
+  QUALITY_LABEL,
   type ShowDetail,
   timeLeft,
+  trackDetails,
+  trackName,
+  VIDEO_PLAYER,
   VIDEO_SPEEDS,
   type VideoEpisode,
   type VideoQuality,
@@ -43,15 +46,16 @@ import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
 import { Button, Caption, IconButton, Text } from "@/components/ui";
 import { QualitySheet, Still } from "@/components/watch";
+import { useAutoplayNext } from "@/lib/data";
+import { localVideo, useDownloads } from "@/lib/downloads";
+import { useOnline } from "@/lib/query";
 import { dragEndHaptic, tapHaptic } from "@/lib/haptics";
 import {
+  episodeSub,
   markWatched,
   openMovie,
   openTvShow,
-  QUALITY_LABEL,
   showEpisodes,
-  trackDetails,
-  trackName,
   useMovie,
   useShow,
   type WatchTarget,
@@ -75,11 +79,6 @@ import {
 } from "@/player/video";
 import { fonts, mixColor, useTheme } from "@/theme";
 
-const HIDE_AFTER_MS = 3000;
-/** The next-episode card shows this long before the end, and counts down from COUNTDOWN. */
-const NEXT_CARD_AT_SEC = 30;
-const COUNTDOWN = 10;
-const DOUBLE_TAP_MS = 300;
 /** How far a pull, or how fast a flick, minimises the player; the same as the audio player's. */
 const CLOSE_DISTANCE = 120;
 const CLOSE_VELOCITY = 900;
@@ -132,6 +131,8 @@ export default function WatchPlayerScreen() {
   const query = params.kind === "movie" ? movie : show;
   const current = useVideo().item;
   const quality = isQuality(params.q) ? params.q : null;
+  const online = useOnline();
+  useDownloads(); // The next episodes offline follow what's downloaded.
 
   // The video already on (opened from the mini player) shows at once, before anything loads.
   const target: WatchTarget | null =
@@ -151,13 +152,14 @@ export default function WatchPlayerScreen() {
       </NestedFallback>
     );
   }
-  return <Player item={item} next={show.data ? nextEpisodes(show.data, item.progressId) : []} show={show.data ?? null} />;
+  return <Player item={item} next={show.data ? nextEpisodes(show.data, item.progressId, online) : []} show={show.data ?? null} />;
 }
 
-function nextEpisodes(show: ShowDetail, episodeId: string): VideoEpisode[] {
+/** The episodes after this one; offline, only the downloaded ones. */
+function nextEpisodes(show: ShowDetail, episodeId: string, online: boolean): VideoEpisode[] {
   const list = showEpisodes(show);
   const at = list.findIndex((e) => e.id === episodeId);
-  return at < 0 ? [] : list.slice(at + 1);
+  return at < 0 ? [] : list.slice(at + 1).filter((e) => online || localVideo(e.id));
 }
 
 function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; show: ShowDetail | null }) {
@@ -206,7 +208,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
   }, []);
   useEffect(() => {
     if (!sideways || !controls || !playing || sheet || scrub !== null) return;
-    const timer = setTimeout(() => setControls(false), HIDE_AFTER_MS);
+    const timer = setTimeout(() => setControls(false), VIDEO_PLAYER.hideAfterMs);
     return () => clearTimeout(timer);
   }, [sideways, controls, playing, sheet, scrub, pokedAt]);
 
@@ -224,22 +226,24 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
 
   // The next-episode card shows near the end and counts down while the video plays, then starts
   // the next one. Its count and dismissal belong to the episode, so the next one starts fresh.
+  // With Play next episode off, the card still shows but nothing counts down or starts.
+  const autoplay = useAutoplayNext();
   const { position, total } = useVideoTime();
   const shownAt = scrub ?? position;
   const left = Math.max(0, total - shownAt);
   const id = item.progressId;
   const isDismissed = dismissedId === id;
   const counted = ticks.id === id ? ticks.n : 0;
-  const cardOn = open && !!upNext && !isDismissed && left > 0 && left <= NEXT_CARD_AT_SEC;
-  const countdown = cardOn ? COUNTDOWN - counted : null;
+  const cardOn = open && !!upNext && !isDismissed && left > 0 && left <= VIDEO_PLAYER.nextCardAtSec;
+  const countdown = cardOn && autoplay ? VIDEO_PLAYER.countdown - counted : null;
   useEffect(() => {
-    if (!cardOn || !playing) return;
-    const timer = setTimeout(() => (counted + 1 >= COUNTDOWN ? goNext() : setTicks({ id, n: counted + 1 })), 1000);
+    if (countdown === null || !playing) return;
+    const timer = setTimeout(() => (counted + 1 >= VIDEO_PLAYER.countdown ? goNext() : setTicks({ id, n: counted + 1 })), 1000);
     return () => clearTimeout(timer);
-  }, [cardOn, playing, counted, id, goNext]);
+  }, [countdown, playing, counted, id, goNext]);
   useEffect(() => {
-    if (open && v.ended && upNext && !isDismissed) goNext();
-  }, [open, v.ended, upNext, isDismissed, goNext]);
+    if (autoplay && open && v.ended && upNext && !isDismissed) goNext();
+  }, [autoplay, open, v.ended, upNext, isDismissed, goNext]);
 
   const keepWatching = () => setDismissedId(id);
 
@@ -248,7 +252,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
     if (countdown !== null) keepWatching();
     const now = Date.now();
     const frac = x / boxWidth;
-    if (now - lastTap.at < DOUBLE_TAP_MS && Math.abs(frac - lastTap.x) < 0.2 && (frac < 0.35 || frac > 0.65)) {
+    if (now - lastTap.at < VIDEO_PLAYER.doubleTapMs && Math.abs(frac - lastTap.x) < 0.2 && (frac < 0.35 || frac > 0.65)) {
       skipVideo(frac < 0.5 ? -skip.back : skip.forward);
       tapHaptic();
       poke();
@@ -342,7 +346,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
   );
 
   const nextCard =
-    countdown !== null && upNext ? (
+    cardOn && upNext ? (
       <View
         style={{
           position: "absolute",
@@ -361,8 +365,8 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
         <Pressable accessibilityRole="button" accessibilityLabel={`Play next: ${upNext.title}`} onPress={goNext} style={{ flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 1 }}>
           <Still videoId={upNext.id} hash={upNext.stillHash} title={upNext.title} width={sideways ? 96 : 72} radius={6} />
           <View style={{ flexShrink: 1 }}>
-            <Caption style={{ color: "rgba(255,255,255,0.75)" }}>{`Next in ${countdown}`}</Caption>
-            <Text numberOfLines={2} style={{ fontFamily: fonts.bold, fontSize: 13, color: "#fff" }}>{`${upNext.episode}. ${upNext.title}`}</Text>
+            <Caption style={{ color: "rgba(255,255,255,0.75)" }}>{countdown !== null ? `Next in ${countdown}` : "Next episode"}</Caption>
+            <Text numberOfLines={2} style={{ fontFamily: fonts.bold, fontSize: 13, color: "#fff" }}>{upNext.title}</Text>
           </View>
         </Pressable>
         <IconButton label="Keep watching" onPress={keepWatching}>
@@ -594,7 +598,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
+    <View style={{ flex: 1 }}>
       <Animated.View style={[{ flex: 1, backgroundColor: t.bg }, pullStyle]}>
         <LinearGradient colors={[tintTop, tintBottom]} style={StyleSheet.absoluteFill} />
         <View style={{ flex: 1, paddingTop: insets.top + 4, paddingBottom: insets.bottom + 16, paddingHorizontal: 24 }}>
@@ -652,14 +656,18 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
                   <Pressable
                     key={e.id}
                     accessibilityRole="button"
-                    accessibilityLabel={`Play ${e.episode}. ${e.title}`}
+                    accessibilityLabel={`Play ${e.title}`}
                     onPress={() => playEpisode(e)}
                     style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 6, opacity: pressed ? 0.7 : 1 })}
                   >
                     <Still videoId={e.id} hash={e.stillHash} title={e.title} width={112} />
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 14 }}>{`${e.episode}. ${e.title}`}</Text>
-                      <Text variant="small" style={{ color: soft }}>{`${episodeLabel(e.season, e.episode)}, ${duration(e.durationSec)}`}</Text>
+                    <View style={{ flex: 1, gap: 2, alignSelf: "stretch", justifyContent: "flex-end" }}>
+                      <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 14 }}>
+                        {e.title}
+                      </Text>
+                      <Text variant="small" style={{ color: soft }}>
+                        {episodeSub(e)}
+                      </Text>
                     </View>
                   </Pressable>
                 ))}

@@ -1,23 +1,42 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiPaths, duration, localDay, plural, type StatsDto, type StatsPeriod, type StatsTop, statsTopLabel, type UserPrefs } from "@murmur/shared/client";
+import {
+  apiPaths,
+  dailyAverage,
+  duration,
+  localDay,
+  plural,
+  type StatsDto,
+  type StatsKind,
+  type StatsPeriod,
+  type StatsTop,
+  statsTopKind,
+} from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { Chip, Chips, StatTile } from "../ui";
 
-const PERIODS: Array<{ id: StatsPeriod; label: string; last: string }> = [
-  { id: "week", label: "Week", last: "this time last week" },
-  { id: "month", label: "Month", last: "this time last month" },
-  { id: "year", label: "Year", last: "this time last year" },
-  { id: "all", label: "All time", last: "" },
+const PERIODS: Array<{ id: StatsPeriod; label: string; last: string; this: string }> = [
+  { id: "week", label: "Week", last: "last week", this: "This week" },
+  { id: "month", label: "Month", last: "last month", this: "This month" },
+  { id: "year", label: "Year", last: "last year", this: "This year" },
+  { id: "all", label: "All time", last: "", this: "All time" },
 ];
 
-/** The listening total compared with the same stretch of the period before. */
-function change(stats: StatsDto): string | null {
-  if (stats.previousSec === null) return null;
-  const diff = stats.totalSec - stats.previousSec;
-  const last = PERIODS.find((p) => p.id === stats.period)!.last;
+const KINDS: Record<StatsKind, { label: string; color: string }> = {
+  book: { label: "Books", color: "var(--accent)" },
+  episode: { label: "Podcasts", color: "var(--stat-2)" },
+  music: { label: "Music", color: "var(--stat-3)" },
+  watch: { label: "Watch", color: "var(--stat-4)" },
+};
+
+const TOP_LABEL: Record<StatsTop["kind"], string> = { book: "Book", podcast: "Podcast", album: "Album", song: "Song", movie: "Movie", tvshow: "Show" };
+
+/** The total compared with the same stretch of the period before. */
+function change(now: number, before: number | null, last: string): string | null {
+  if (before === null || now + before === 0) return null;
+  const diff = now - before;
   if (Math.abs(diff) < 60) return `About the same as ${last}`;
   return `${duration(Math.abs(diff))} ${diff > 0 ? "more" : "less"} than ${last}`;
 }
@@ -29,9 +48,16 @@ function currentKey(period: StatsPeriod, today: string): string {
   return today;
 }
 
-/** Listening stats on the You page: a total, bars, the split by kind, and what you played most. */
-export function ListeningStats({ tabs }: { tabs: UserPrefs["tabs"] }) {
+const sumOf = (split: Record<StatsKind, number>, kinds: StatsKind[]) => kinds.reduce((s, k) => s + split[k], 0);
+
+/**
+ * Stats on the You page: the time for a period with a chart stacked by kind, a legend that picks
+ * one kind, tiles and the top items. `kinds` are the ones shown: a hidden tab, or a server with no
+ * music or videos, leaves its kind out everywhere, the total included.
+ */
+export function ListeningStats({ kinds }: { kinds: StatsKind[] }) {
   const [period, setPeriod] = useState<StatsPeriod>("week");
+  const [focus, setFocus] = useState<StatsKind | null>(null);
   const [stats, setStats] = useState<StatsDto | null>(null);
   const [failed, setFailed] = useState(false);
   const today = localDay();
@@ -52,103 +78,183 @@ export function ListeningStats({ tabs }: { tabs: UserPrefs["tabs"] }) {
     };
   }, [period]);
 
-  const max = Math.max(1, ...(stats?.bars.map((b) => b.sec) ?? []));
-  const now = currentKey(period, today);
-  // A hidden tab hides its part of the split and its Most played rows; the total still counts it.
-  const episodeSec = tabs.podcasts ? (stats?.split.episode ?? 0) : 0;
-  const musicSec = tabs.music ? (stats?.split.music ?? 0) : 0;
-  const kinds = stats ? stats.split.book + episodeSec + musicSec : 0;
-  const top = (stats?.top ?? []).filter((t) => (t.kind !== "podcast" || tabs.podcasts) && ((t.kind !== "album" && t.kind !== "song") || tabs.music));
-  // A month has too many days to label each bar; every seventh keeps it readable.
-  const labelEvery = (stats?.bars.length ?? 0) > 12 ? 7 : 1;
+  const p = PERIODS.find((x) => x.id === period)!;
+  // A kind picked and then hidden falls back to all of them.
+  const picked = focus && kinds.includes(focus) ? focus : null;
+  const shown = picked ? [picked] : kinds;
+  const pickable = kinds.length > 1;
 
   return (
     <section className="section">
-      <h2 className="section-title">Listening</h2>
       <Chips kind="radio" label="Period">
-        {PERIODS.map((p) => (
-          <Chip key={p.id} selected={period === p.id} onClick={() => setPeriod(p.id)}>
-            {p.label}
+        {PERIODS.map((x) => (
+          <Chip key={x.id} selected={period === x.id} onClick={() => setPeriod(x.id)}>
+            {x.label}
           </Chip>
         ))}
       </Chips>
 
-      {failed && !stats ? <div className="card-box stats-card muted small">Couldn't load your stats.</div> : null}
+      {failed && !stats ? <div className="card-box stats-card muted small">Couldn&apos;t load your stats.</div> : null}
       {stats ? (
         <>
           <div className="card-box stats-card">
-            <div>
-              <div className="stats-total">{duration(stats.totalSec) || "0m"}</div>
-              {change(stats) ? <div className="muted small">{change(stats)}</div> : null}
+            <div className="stats-head">
+              <div className="stats-head-text">
+                <span className="eyebrow">{picked ? `${KINDS[picked].label} ${p.this.toLowerCase()}` : p.this}</span>
+                <span className="stats-total">{duration(sumOf(stats.split, shown)) || "0m"}</span>
+                {change(sumOf(stats.split, shown), stats.previousSplit ? sumOf(stats.previousSplit, shown) : null, p.last) ? (
+                  <span className="muted small">{change(sumOf(stats.split, shown), stats.previousSplit ? sumOf(stats.previousSplit, shown) : null, p.last)}</span>
+                ) : null}
+              </div>
+              {picked ? (
+                <button type="button" className="btn btn-small" onClick={() => setFocus(null)}>
+                  Show all
+                </button>
+              ) : null}
             </div>
-            <div
-              className="stats-bars"
-              role="img"
-              aria-label={`Listening per ${period === "year" ? "month" : period === "all" ? "year" : "day"}`}
-              style={{ gridTemplateColumns: `repeat(${stats.bars.length}, minmax(0, 1fr))` }}
-            >
-              {stats.bars.map((b, i) => (
-                <div key={b.key} className="stats-bar" title={`${b.label}: ${duration(b.sec) || "none"}`}>
-                  <div className={`stats-bar-fill${b.key === now ? " now" : ""}`} style={{ height: `${(b.sec / max) * 100}%` }} />
-                  <span className="stats-bar-label">{i % labelEvery === 0 ? b.label : ""}</span>
-                </div>
-              ))}
-            </div>
-            {kinds > 0 ? (
-              <>
-                <div className="stats-split" aria-hidden="true">
-                  <div style={{ flex: stats.split.book, background: "var(--accent)" }} />
-                  <div style={{ flex: episodeSec, background: "var(--stat-2)" }} />
-                  <div style={{ flex: musicSec, background: "var(--stat-3)" }} />
-                </div>
-                <div className="stats-legend">
-                  <div>
-                    <span className="stats-dot" style={{ background: "var(--accent)" }} />
-                    <span>Books</span>
-                    <span className="muted">{duration(stats.split.book) || "0m"}</span>
-                  </div>
-                  {tabs.podcasts ? (
-                    <div>
-                      <span className="stats-dot" style={{ background: "var(--stat-2)" }} />
-                      <span>Podcasts</span>
-                      <span className="muted">{duration(episodeSec) || "0m"}</span>
-                    </div>
-                  ) : null}
-                  {musicSec ? (
-                    <div>
-                      <span className="stats-dot" style={{ background: "var(--stat-3)" }} />
-                      <span>Music</span>
-                      <span className="muted">{duration(musicSec)}</span>
-                    </div>
-                  ) : null}
-                </div>
-              </>
+            <Bars stats={stats} kinds={shown} now={currentKey(period, today)} />
+            {pickable ? (
+              <div className="stats-legend">
+                {kinds.map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={`stats-legend-item${picked === k ? " on" : picked ? " dim" : ""}`}
+                    style={{ "--kind": KINDS[k].color } as React.CSSProperties}
+                    aria-pressed={picked === k}
+                    onClick={() => setFocus(picked === k ? null : k)}
+                  >
+                    <span className="stats-dot" />
+                    <span className="stats-legend-label">{KINDS[k].label}</span>
+                    <span className="stats-legend-time">{duration(stats.split[k]) || "0m"}</span>
+                  </button>
+                ))}
+              </div>
             ) : null}
           </div>
 
           <div className="stats-tiles">
-            <StatTile value={plural(stats.streakDays, "day")} label="Listening streak" />
-            <StatTile value={plural(stats.finishedBooks, "book")} label="Finished" />
-            {tabs.podcasts ? <StatTile value={String(stats.episodesPlayed)} label="Episodes played" /> : null}
-            {stats.savedSec >= 60 ? <StatTile value={duration(stats.savedSec)} label="Saved by playing faster" /> : null}
+            {tiles(stats, picked, kinds, today).map((t) => (
+              <StatTile
+                key={t.key}
+                value={t.value}
+                label={
+                  t.kind ? (
+                    <span className="stats-tile-label">
+                      <span className="stats-dot small" style={{ background: KINDS[t.kind].color }} />
+                      {t.label}
+                    </span>
+                  ) : (
+                    t.label
+                  )
+                }
+              />
+            ))}
           </div>
 
-          {top.length ? (
-            <div className="card-box">
-              {top.map((t) => (
-                <a key={`${t.kind}:${t.id}`} className="setting stats-top" href={topHref(t)}>
-                  <Cover src={topCover(t)} color={null} title={t.title} className="stats-top-cover" />
-                  <span className="setting-text">
-                    <span className="setting-title">{t.title}</span>
-                    <span className="setting-sub">{statsTopLabel(t)}</span>
-                  </span>
-                  <span className="muted small">{duration(t.sec)}</span>
-                </a>
-              ))}
-            </div>
-          ) : null}
+          <TopItems stats={stats} picked={picked} kinds={kinds} title={picked === "watch" ? "Most watched" : picked ? "Most played" : "Top"} period={p.this} />
         </>
       ) : null}
+    </section>
+  );
+}
+
+/** One bar per day (per month for a year, per year for all time), stacked by kind. */
+function Bars({ stats, kinds, now }: { stats: StatsDto; kinds: StatsKind[]; now: string }) {
+  const max = Math.max(1, ...stats.bars.map((b) => sumOf(b.split, kinds)));
+  // A month has too many days to label each bar; every seventh keeps it readable.
+  const labelEvery = stats.bars.length > 12 ? 7 : 1;
+  const per = stats.period === "year" ? "month" : stats.period === "all" ? "year" : "day";
+  return (
+    <div className="stats-bars" role="img" aria-label={`Time per ${per}`} style={{ gridTemplateColumns: `repeat(${stats.bars.length}, minmax(0, 1fr))` }}>
+      {stats.bars.map((b, i) => {
+        const total = sumOf(b.split, kinds);
+        return (
+          <div key={b.key} className="stats-bar" title={`${b.label}: ${duration(total) || "none"}`}>
+            <div className="stats-bar-stack">
+              {total > 0 ? (
+                kinds
+                  .filter((k) => b.split[k] > 0)
+                  .map((k) => <div key={k} style={{ height: `${Math.max(3, (b.split[k] / max) * 112)}px`, background: KINDS[k].color }} />)
+              ) : (
+                <div className="stats-bar-empty" />
+              )}
+            </div>
+            <span className={`stats-bar-label${b.key === now ? " now" : ""}`}>{i % labelEvery === 0 ? b.label : ""}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+interface Tile {
+  key: string;
+  value: string;
+  label: string;
+  kind?: StatsKind;
+}
+
+/** All kinds: streak, daily average and a count for each kind. One kind: its counts and its daily average. */
+function tiles(s: StatsDto, picked: StatsKind | null, kinds: StatsKind[], today: string): Tile[] {
+  const watched = [s.showEpisodesWatched ? plural(s.showEpisodesWatched, "episode") : null, s.moviesWatched ? plural(s.moviesWatched, "movie") : null]
+    .filter(Boolean)
+    .join(", ");
+  const counts: Record<StatsKind, Tile[]> = {
+    book: [{ key: "books", value: plural(s.finishedBooks, "book"), label: "Finished" }],
+    episode: [{ key: "podcasts", value: plural(s.episodesPlayed, "podcast"), label: "Played" }],
+    music: [
+      { key: "songs", value: plural(s.songsPlayed, "song"), label: "Played" },
+      ...(picked === "music" ? [{ key: "albums", value: plural(s.albumsPlayed, "album"), label: "Played from" }] : []),
+    ],
+    watch:
+      picked === "watch"
+        ? [
+            { key: "episodes", value: plural(s.showEpisodesWatched, "episode"), label: "Watched" },
+            { key: "movies", value: plural(s.moviesWatched, "movie"), label: "Watched" },
+          ]
+        : [{ key: "watched", value: watched || "0 episodes", label: "Watched" }],
+  };
+  if (picked) {
+    return [...counts[picked], { key: "avg", value: duration(dailyAverage(s.split[picked], s, today)) || "0m", label: "Daily average" }];
+  }
+  return [
+    { key: "streak", value: plural(s.streakDays, "day"), label: "Streak" },
+    { key: "avg", value: duration(dailyAverage(sumOf(s.split, kinds), s, today)) || "0m", label: "Daily average" },
+    ...(kinds.length > 1 ? kinds.flatMap((k) => counts[k].map((t) => ({ ...t, kind: k }))) : counts[kinds[0]!]),
+  ];
+}
+
+/** All kinds: the top item of each. One kind: its top items. */
+function TopItems({ stats, picked, kinds, title, period }: { stats: StatsDto; picked: StatsKind | null; kinds: StatsKind[]; title: string; period: string }) {
+  const mine = stats.top.filter((t) => kinds.includes(statsTopKind(t)));
+  const song = mine.find((t) => t.kind === "song");
+  const items = picked
+    ? mine.filter((t) => statsTopKind(t) === picked)
+    : // One card per kind; the album card names the top song.
+      kinds.flatMap((k) => mine.find((t) => statsTopKind(t) === k && t.kind !== "song") ?? []);
+  if (!items.length) return null;
+  const sub = (t: StatsTop) => {
+    if (t.kind === "song") return t.plays ? plural(t.plays, "play") : duration(t.sec);
+    if (t.kind === "album" && !picked && song) return song.plays ? `${song.title}, ${plural(song.plays, "play")}` : song.title;
+    return duration(t.sec);
+  };
+  return (
+    <section className="section">
+      <h2 className="section-title">{`${title} ${period === "All time" ? "of all time" : period.toLowerCase()}`}</h2>
+      <div className="stats-top-grid">
+        {items.map((t) => (
+          <a key={`${t.kind}:${t.id}`} className="stats-top-card" href={topHref(t)}>
+            <Cover src={topCover(t)} color={null} title={t.title} className="stats-top-cover" />
+            <span className="stats-top-kind">
+              <span className="stats-dot small" style={{ background: KINDS[statsTopKind(t)].color }} />
+              {TOP_LABEL[t.kind]}
+            </span>
+            <span className="stats-top-title">{t.title}</span>
+            <span className="muted small stats-top-sub">{sub(t)}</span>
+          </a>
+        ))}
+      </div>
     </section>
   );
 }
@@ -156,13 +262,16 @@ export function ListeningStats({ tabs }: { tabs: UserPrefs["tabs"] }) {
 function topHref(t: StatsTop): string {
   if (t.kind === "book") return `/book/${t.id}`;
   if (t.kind === "podcast") return `/podcasts/${t.id}`;
+  if (t.kind === "movie") return `/watch/movie/${t.id}`;
+  if (t.kind === "tvshow") return `/watch/show/${t.id}`;
   return `/music/album/${t.kind === "song" ? t.albumId : t.id}`;
 }
 
 function topCover(t: StatsTop): string | null {
   if (!t.coverHash) return null;
-  if (t.kind === "book") return apiPaths.coverUrl(t.id, t.coverHash, 200);
-  if (t.kind === "podcast") return apiPaths.podcastCoverUrl(t.id, t.coverHash, 200);
-  return apiPaths.albumCoverUrl(t.kind === "song" ? t.albumId! : t.id, t.coverHash, 200);
+  if (t.kind === "book") return apiPaths.coverUrl(t.id, t.coverHash, 600);
+  if (t.kind === "podcast") return apiPaths.podcastCoverUrl(t.id, t.coverHash, 600);
+  if (t.kind === "movie") return apiPaths.movieArtUrl(t.id, "poster", t.coverHash, "small");
+  if (t.kind === "tvshow") return apiPaths.showArtUrl(t.id, "poster", t.coverHash, "small");
+  return apiPaths.albumCoverUrl(t.kind === "song" ? t.albumId! : t.id, t.coverHash, 600);
 }
-

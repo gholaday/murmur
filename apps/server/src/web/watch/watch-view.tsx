@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { errorText, type HealthDto, type MovieSummary, type ShowSummary, type WatchHomeDto } from "@murmur/shared/client";
+import { errorText, type HealthDto, type MovieSummary, percentDone, type ShowSummary, type WatchHomeDto } from "@murmur/shared/client";
 import { api } from "../api";
 import { CloseIcon, RefreshIcon, SearchIcon } from "../icons";
 import { Chip, Chips, EmptyState, ScrollRow, SearchBox, SectionTitle } from "../ui";
-import { percentDone, PosterCard, StillCard } from "./cards";
+import { PosterCard, StillCard } from "./cards";
 
 export type WatchTab = "home" | "movies" | "shows" | "watched";
 const TABS: Array<{ id: WatchTab; label: string }> = [

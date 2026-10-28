@@ -6,11 +6,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 import {
   apiPaths,
-  channelsLabel,
-  codecName,
   duration,
   errorText,
-  gigabytes,
+  fileDetailParts,
   type MovieDetail,
   resolutionLabel,
   timeLeft,
@@ -28,14 +26,7 @@ import { QualityPick } from "./quality-pick";
 
 /** Codecs, size and name of a file, for when something won't play. */
 export function FileDetails({ file }: { file: VideoFileInfo }) {
-  const audio = file.audioTracks.find((t) => t.isDefault) ?? file.audioTracks[0];
-  const parts = [
-    file.videoCodec ? codecName(file.videoCodec) : null,
-    file.hdr ? (file.hdr === "dolby-vision" ? "Dolby Vision" : file.hdr === "hlg" ? "HLG" : "HDR10") : null,
-    audio ? `${codecName(audio.codec)}${audio.channels && audio.channels > 2 ? ` ${channelsLabel(audio.channels)}` : ""}` : null,
-    codecName(file.container),
-    gigabytes(file.size),
-  ].filter(Boolean);
+  const parts = fileDetailParts(file);
   return (
     <section className="section">
       <h2 className="section-title">File</h2>

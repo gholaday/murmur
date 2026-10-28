@@ -25,6 +25,7 @@ import {
   type UserPrefs,
   type MusicSummaryDto,
   type WatchSummaryDto,
+  type StatsKind,
   plural,
 } from "@murmur/shared/client";
 import { api } from "../api";
@@ -60,6 +61,7 @@ export function ProfileView({
   shows,
   tabs,
   videoQuality,
+  autoplayNext,
   musicFolders,
   movieFolders,
   showFolders,
@@ -76,6 +78,7 @@ export function ProfileView({
   shows: number;
   tabs: UserPrefs["tabs"];
   videoQuality: UserPrefs["videoQuality"];
+  autoplayNext: boolean;
   user: UserDto;
   users: UserDto[];
   folders: LibraryFolderDto[];
@@ -119,7 +122,7 @@ export function ProfileView({
           ) : section === "appearance" ? (
             <ThemePicker />
           ) : section === "playback" ? (
-            <PlaybackCard adsEnabled={adsEnabled} watch={watch.enabled} videoQuality={videoQuality} />
+            <PlaybackCard adsEnabled={adsEnabled} watch={watch.enabled} videoQuality={videoQuality} autoplayNext={autoplayNext} />
           ) : section === "server" ? (
             <VersionCard version={server.version} devBuild={server.devBuild} updates={server.updates} />
           ) : section === "library" ? (
@@ -165,6 +168,14 @@ export function ProfileView({
     );
   }
 
+  // The kinds the stats show: a hidden tab, or a server with no music or videos, leaves its kind out.
+  const statsKinds: StatsKind[] = [
+    "book",
+    ...(tabs.podcasts ? (["episode"] as const) : []),
+    ...(tabs.music && music.enabled ? (["music"] as const) : []),
+    ...(tabs.watch !== false && watch.enabled ? (["watch"] as const) : []),
+  ];
+
   const values: Partial<Record<SettingsSection, string | null>> = {
     account: user.username,
     appearance: THEME_CHOICES.find((t) => t.id === theme)?.label,
@@ -192,14 +203,16 @@ export function ProfileView({
 
       {view === "stats" ? (
         <>
-          <ListeningStats tabs={tabs} />
+          <ListeningStats kinds={statsKinds} />
 
           <section className="section">
             <h2 className="section-title">Your library</h2>
-            <div className="stats-tiles">
+            <div className="stats-tiles library-tiles">
               <StatTile value={server.books} label="Books" />
-              {tabs.podcasts ? <StatTile value={shows} label="Podcasts" /> : null}
-              {tabs.music && music.enabled ? <StatTile value={music.mine.albums} label="Albums" /> : null}
+              {statsKinds.includes("episode") ? <StatTile value={shows} label="Podcasts" /> : null}
+              {statsKinds.includes("music") ? <StatTile value={music.mine.albums} label="Albums" /> : null}
+              {statsKinds.includes("watch") && watch.movies ? <StatTile value={watch.movies} label="Movies" /> : null}
+              {statsKinds.includes("watch") && watch.shows ? <StatTile value={watch.shows} label="Shows" /> : null}
             </div>
           </section>
         </>
@@ -217,10 +230,28 @@ export function ProfileView({
 }
 
 /** Skip lengths, and what to do about ads when they're found. */
-function PlaybackCard({ adsEnabled, watch, videoQuality }: { adsEnabled: boolean; watch: boolean; videoQuality: UserPrefs["videoQuality"] }) {
+function PlaybackCard({
+  adsEnabled,
+  watch,
+  videoQuality,
+  autoplayNext,
+}: {
+  adsEnabled: boolean;
+  watch: boolean;
+  videoQuality: UserPrefs["videoQuality"];
+  autoplayNext: boolean;
+}) {
   const player = usePlayer();
   const adPrefs = useAdPrefs();
   const [quality, setQuality] = useState(videoQuality);
+  const [nextOn, setNextOn] = useState(autoplayNext);
+  const toggleNext = (on: boolean) => {
+    setNextOn(on);
+    api(apiPaths.prefs, { method: "PUT", body: { autoplayNext: on } }).catch((err: unknown) => {
+      setNextOn(!on);
+      toast.error(errorText(err));
+    });
+  };
   const pickQuality = (q: UserPrefs["videoQuality"]) => {
     setQuality(q);
     api(apiPaths.prefs, { method: "PUT", body: { videoQuality: q } }).catch((err: unknown) => {
@@ -260,6 +291,7 @@ function PlaybackCard({ adsEnabled, watch, videoQuality }: { adsEnabled: boolean
           </Chips>
         </Setting>
       ) : null}
+      {watch ? <SwitchRow title="Play next episode" label="Play next episode" checked={nextOn} onChange={toggleNext} /> : null}
       {adsEnabled ? (
         <Setting title="Ads" sub={<SettingSub>This device only</SettingSub>} wrap>
           <Chips kind="radio" label="Ads">

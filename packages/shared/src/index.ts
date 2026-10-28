@@ -35,9 +35,12 @@ export type ItemType = z.infer<typeof itemTypeSchema>;
 /** Everything the player plays: books and episodes keep a position, songs (tracks) don't. */
 export const playTypeSchema = z.enum(["book", "episode", "track"]);
 export type PlayType = z.infer<typeof playTypeSchema>;
+/** What counts towards the stats: the audio player's items, and videos (a movie or a TV episode). */
+export const statsTypeSchema = z.enum(["book", "episode", "track", "video"]);
+export type StatsType = z.infer<typeof statsTypeSchema>;
 
 export const progressItemSchema = z.object({
-  /** "video" is a movie (by the movie's id) or a TV episode; GET /progress leaves those out, as the app has no Watch yet. */
+  /** "video" is a movie (by the movie's id) or a TV episode; GET /progress leaves those out, as Watch reads its own. */
   itemType: z.enum(["book", "episode", "video"]),
   itemId: z.string().min(1).max(64),
   positionSec: z.number().min(0),
@@ -64,7 +67,7 @@ export const listeningReportSchema = z.object({
     .array(
       z.object({
         day: daySchema,
-        itemType: playTypeSchema,
+        itemType: statsTypeSchema,
         itemId: z.string().min(1).max(64),
         listenedSec: z.number().min(0).max(86_400),
         contentSec: z.number().min(0).max(86_400 * 4),
@@ -119,6 +122,14 @@ export const watchStreamSchema = z.object({
   quality: z.enum(["full", "light"]).default("full"),
   start: z.number().min(0).max(100 * 3600),
 });
+/** A made download (`POST /api/watch/videos/:id/download`): the same choices as a stream, from the start. */
+export const watchDownloadSchema = z.object({
+  track: z.number().int().min(0).max(99).default(0),
+  audio: z.enum(["copy", "aac"]),
+  video: z.enum(["copy", "h264"]),
+  quality: z.enum(["full", "light"]).default("full"),
+});
+export type WatchDownloadQuery = z.input<typeof watchDownloadSchema>;
 /** Lists default to everything, so older apps keep working. */
 export const musicScopeSchema = z.enum(["mine", "all"]).catch("all");
 /** What you're playing music from: an album, an artist, or a list of songs, in play order. */
@@ -203,6 +214,8 @@ export const userPrefsSchema = z.object({
   repeat: z.enum(["off", "all", "one"]),
   /** Converted video: full (up to 1080p) or light (up to 720p, easier on a small server). */
   videoQuality: z.enum(["full", "light"]),
+  /** The next episode starts on its own when the countdown ends; off, the card waits for a tap. */
+  autoplayNext: z.boolean(),
 });
 export type UserPrefs = z.infer<typeof userPrefsSchema>;
 export const userPrefsPatchSchema = userPrefsSchema.partial();

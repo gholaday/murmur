@@ -3,12 +3,16 @@ import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import {
   apiPaths,
-  codecName,
   episodeLabel,
   errorText,
-  gigabytes,
+  fileDetailParts,
   type HealthDto,
+  percentDone,
+  QUALITY_LABEL,
   timeLeft,
+  type MovieDetail,
+  type ShowDetail,
+  type VideoEpisode,
   type VideoFileInfo,
   type VideoQuality,
   type WatchCard,
@@ -16,18 +20,19 @@ import {
 } from "@murmur/shared/client";
 import { api } from "@/lib/api";
 import { useVideoQuality } from "@/lib/data";
-import { invalidateWatch, openVideoPlayer, percentDone, QUALITY_LABEL, QUALITY_SUB } from "@/lib/watch";
-import { convertsPicture } from "@/player/video";
+import { downloadingText, downloadMovie, downloadTvEpisode, removeDownload, useDownload } from "@/lib/downloads";
+import { invalidateWatch, openVideoPlayer } from "@/lib/watch";
+import { convertsPicture, videoDownloadSource } from "@/player/video";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { HeroBackdrop } from "./hero";
-import { CheckIcon, PlayIcon, RefreshIcon, SearchIcon } from "./icons";
+import { CheckIcon, DownloadIcon, PlayIcon, RefreshIcon, SearchIcon } from "./icons";
 import { PAD } from "./library";
 import { Pills } from "./music";
 import { BackRow, SectionTitle, useTopInset } from "./page";
-import { Sheet, SheetItem } from "./sheet";
+import { RemoveDownloadSheet, Sheet, SheetItem } from "./sheet";
 import { toast } from "./toast";
-import { Button, IconButton, Text } from "./ui";
+import { Button, IconButton, RoundButton, Text } from "./ui";
 
 /** A 2:3 poster, or a tinted tile with the title when there's none. */
 export function Poster({
@@ -186,7 +191,7 @@ export function QualitySheet({ open, value, onClose, onPick }: { open: boolean; 
   return (
     <Sheet open={open} onClose={onClose} title="Quality">
       {(["full", "light"] as const).map((q) => (
-        <SheetItem key={q} label={QUALITY_LABEL[q]} hint={QUALITY_SUB[q]} active={q === value} onPress={() => onPick(q)} />
+        <SheetItem key={q} label={QUALITY_LABEL[q]} active={q === value} onPress={() => onPick(q)} />
       ))}
     </Sheet>
   );
@@ -230,6 +235,77 @@ export function QualityButton({ file, value, onChange }: { file: VideoFileInfo |
           setOpen(false);
         }}
       />
+    </>
+  );
+}
+
+// ---------- Downloads ----------
+
+/** Downloads a movie version, with the audio track and quality it would play at. */
+export async function startMovieDownload(movie: MovieDetail, versionId: string, quality: VideoQuality | null) {
+  const v = movie.versionList.find((x) => x.id === versionId) ?? movie.versionList[0]!;
+  downloadMovie(movie, v.id, await videoDownloadSource(v.file, v.id, movie.id, quality));
+}
+
+/** Downloads an episode, with the audio track and quality it would play at. */
+export async function startEpisodeDownload(show: ShowDetail, e: VideoEpisode, quality: VideoQuality | null) {
+  downloadTvEpisode(show, e, await videoDownloadSource(e.file, e.id, show.id, quality));
+}
+
+/**
+ * A download control, round beside Play on the movie page or a plain icon on an episode row:
+ * download, progress (tap to cancel), or downloaded (tap to remove, asking first).
+ */
+export function VideoDownloadButton({
+  type,
+  id,
+  title,
+  round,
+  onDownload,
+}: {
+  type: "movie" | "show";
+  id: string;
+  title: string;
+  round?: boolean;
+  onDownload: () => void;
+}) {
+  const t = useTheme();
+  const d = useDownload(type, id);
+  const [confirm, setConfirm] = useState(false);
+  const pct = d ? Math.round(d.progress * 100) : 0;
+  const label =
+    d?.status === "done"
+      ? "Remove download"
+      : d?.status === "downloading"
+        ? `${downloadingText(d)}, tap to cancel`
+        : d?.status === "error"
+          ? "Download failed, try again"
+          : "Download";
+  const icon =
+    d?.status === "done" ? (
+      <CheckIcon size={20} color={t.accent} />
+    ) : d?.status === "downloading" ? (
+      <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: t.accent }}>{`${pct}%`}</Text>
+    ) : (
+      <DownloadIcon size={20} color={d?.status === "error" ? t.danger : round ? t.text : t.muted} />
+    );
+  const onPress = () => {
+    if (d?.status === "done") setConfirm(true);
+    else if (d?.status === "downloading") removeDownload(type, id);
+    else onDownload();
+  };
+  return (
+    <>
+      {round ? (
+        <RoundButton label={label} active={d?.status === "done"} onPress={onPress}>
+          {icon}
+        </RoundButton>
+      ) : (
+        <IconButton label={label} onPress={onPress}>
+          {icon}
+        </IconButton>
+      )}
+      <RemoveDownloadSheet open={confirm} title={title} onConfirm={() => removeDownload(type, id)} onClose={() => setConfirm(false)} />
     </>
   );
 }
@@ -279,15 +355,6 @@ export function WatchHero({
 /** Codecs, size and name of a file, at the bottom of a movie page. */
 export function FileDetails({ file }: { file: VideoFileInfo }) {
   const t = useTheme();
-  const audio = file.audioTracks.find((a) => a.isDefault) ?? file.audioTracks[0];
-  const channels = audio?.channels && audio.channels > 2 ? ` ${audio.channels === 6 ? "5.1" : audio.channels === 8 ? "7.1" : audio.channels}` : "";
-  const parts = [
-    file.videoCodec ? codecName(file.videoCodec) : null,
-    file.hdr ? (file.hdr === "dolby-vision" ? "Dolby Vision" : file.hdr === "hlg" ? "HLG" : "HDR10") : null,
-    audio ? `${codecName(audio.codec)}${channels}` : null,
-    codecName(file.container),
-    gigabytes(file.size),
-  ].filter((p): p is string => !!p);
   return (
     <>
       <SectionTitle title="File" />
@@ -298,7 +365,7 @@ export function FileDetails({ file }: { file: VideoFileInfo }) {
             {file.fileName}
           </Text>
         </Animated.ScrollView>
-        <Pills labels={parts} />
+        <Pills labels={fileDetailParts(file)} />
       </View>
     </>
   );

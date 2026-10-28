@@ -2,27 +2,35 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   apiPaths,
-  channelsLabel,
   clock,
   codecName,
   defaultAudioTrack,
   duration,
   episodeLabel,
   errorText,
+  percentDone,
   type PlaybackPlan,
   playbackPlan,
+  QUALITY_LABEL,
+  resumeStart,
   type StreamRequest,
   type StreamSessionDto,
   timeLeft,
-  type UserPrefs,
+  trackDetails,
+  trackForLanguage,
+  trackName,
+  validSpeed,
+  VIDEO_PLAYER,
   type VideoQuality,
   VIDEO_SPEEDS,
   type VideoAudioTrack,
   type VideoEpisode,
   type VideoFileInfo,
+  videoLanguageKey,
+  videoSpeedKey,
   WATCHED_AT,
 } from "@murmur/shared/client";
 import { toast } from "sonner";
@@ -41,14 +49,14 @@ import {
   SkipBackIcon,
   SkipForwardIcon,
 } from "../icons";
-import { usePlayer } from "../player/engine";
+import { addWatching, sendListening, usePlayer } from "../player/engine";
 import { usePullToClose } from "../player/full-player";
 import { effectiveVolume, useVolume } from "../player/volume";
 import { VolumeControl } from "../player/volume-control";
 import { setFinished } from "../progress";
 import { Sheet, SheetItem } from "../sheet";
-import { percentDone, playHref, Still } from "./cards";
-import { QUALITY_LABEL, QualitySheet } from "./quality-pick";
+import { playHref, Still } from "./cards";
+import { QualitySheet } from "./quality-pick";
 import { browserSupport, isSafari } from "./support";
 import { useVideo } from "./video-session";
 
@@ -67,8 +75,8 @@ export interface PlayerItem {
   label: string | null;
   /** The poster's colour, tinting the player like the audio one. */
   color: string | null;
-  /** A converted-video quality picked for this one before playing; null means your setting. */
-  quality: VideoQuality | null;
+  /** The quality a converted picture is made at: picked for this one before playing, else your setting. */
+  quality: VideoQuality;
   src: string;
   file: VideoFileInfo;
   durationSec: number;
@@ -78,23 +86,28 @@ export interface PlayerItem {
   backHref: string;
   /** Episodes: the rest of the show, next one first. */
   next: VideoEpisode[];
+  /** Your Play next episode setting: off, the next-episode card waits for a tap. */
+  autoplayNext: boolean;
   /** Speed is remembered per movie and per show. */
   speedKey: string;
 }
 
-const HIDE_AFTER_MS = 3000;
+const {
+  hideAfterMs: HIDE_AFTER_MS,
+  saveEveryMs: SAVE_EVERY_MS,
+  nextCardAtSec: NEXT_CARD_AT_SEC,
+  countdown: COUNTDOWN,
+  doubleTapMs: DOUBLE_TAP_MS,
+  edgeSec: EDGE_SEC,
+  slowAfterStalls: SLOW_AFTER_STALLS,
+  touchedAfterSec: TOUCHED_AFTER_SEC,
+} = VIDEO_PLAYER;
 /** A phone on its side; a laptop window this short is rare enough to treat the same. */
 const SIDEWAYS_PHONE = "(orientation: landscape) and (max-height: 600px)";
-const SAVE_EVERY_MS = 10_000;
-/** The next-episode card shows this long before the end, and counts down from COUNTDOWN. */
-const NEXT_CARD_AT_SEC = 30;
-const COUNTDOWN = 10;
-const DOUBLE_TAP_MS = 300;
 
 function readSpeed(key: string): number {
   try {
-    const v = Number(localStorage.getItem(`murmur.videoSpeed.${key}`));
-    return VIDEO_SPEEDS.includes(v) ? v : 1;
+    return validSpeed(Number(localStorage.getItem(videoSpeedKey(key))));
   } catch {
     return 1;
   }
@@ -102,8 +115,8 @@ function readSpeed(key: string): number {
 
 function saveSpeed(key: string, speed: number) {
   try {
-    if (speed === 1) localStorage.removeItem(`murmur.videoSpeed.${key}`);
-    else localStorage.setItem(`murmur.videoSpeed.${key}`, String(speed));
+    if (speed === 1) localStorage.removeItem(videoSpeedKey(key));
+    else localStorage.setItem(videoSpeedKey(key), String(speed));
   } catch {
     // Private windows can refuse storage; the speed just isn't remembered.
   }
@@ -116,15 +129,10 @@ function endStream(sessionId: string) {
   void api(apiPaths.streamSession(sessionId), { method: "DELETE", keepalive: true }).catch(() => undefined);
 }
 
-/** Seeks within a stream stay this far from its live edge, so the player doesn't stall there. */
-const EDGE_SEC = 2;
-/** This many stalls on a converted stream and the player says the server can't keep up. */
-const SLOW_AFTER_STALLS = 3;
-
 /** The audio language picked for a movie or show, so its next file opens with the same one. */
 function readLanguage(key: string): string | null {
   try {
-    return localStorage.getItem(`murmur.videoAudio.${key}`);
+    return localStorage.getItem(videoLanguageKey(key));
   } catch {
     return null;
   }
@@ -132,38 +140,81 @@ function readLanguage(key: string): string | null {
 
 function saveLanguage(key: string, language: string | null) {
   try {
-    if (language) localStorage.setItem(`murmur.videoAudio.${key}`, language);
-    else localStorage.removeItem(`murmur.videoAudio.${key}`);
+    if (language) localStorage.setItem(videoLanguageKey(key), language);
+    else localStorage.removeItem(videoLanguageKey(key));
   } catch {
     // Not remembered in a private window.
   }
 }
 
-/** The remembered language's track, when the file has one and it isn't already the default. */
+/** The remembered language's track; null for the file's default. */
 function rememberedTrack(file: VideoFileInfo, key: string): number | null {
-  const language = readLanguage(key);
-  const main = file.audioTracks.find((t) => t.index === defaultAudioTrack(file));
-  if (!language || main?.language === language) return null;
-  return file.audioTracks.find((t) => t.language === language)?.index ?? null;
+  const track = trackForLanguage(file, readLanguage(key));
+  return track === defaultAudioTrack(file) ? null : track;
 }
 
-let languageNames: Intl.DisplayNames | null = null;
-/** "English" for "eng"; the track's title, or its number, when the file doesn't say. */
-function trackName(t: VideoAudioTrack): string {
-  let language: string | null = null;
-  if (t.language && t.language !== "und") {
-    try {
-      languageNames ??= new Intl.DisplayNames(undefined, { type: "language" });
-      language = languageNames.of(t.language) ?? null;
-    } catch {
-      language = t.language.toUpperCase();
-    }
-  }
-  if (language && t.title && !t.title.toLowerCase().includes(language.toLowerCase())) return `${language}, ${t.title}`;
-  return t.title ?? language ?? `Track ${t.index + 1}`;
+/**
+ * The playhead and how far it's loaded, kept out of the player's state: only the scrubber, the
+ * times and the mini bar re-render as it plays, not the sheets and episode rows.
+ */
+function createClock(time: number) {
+  let snap = { time, buffered: 0 };
+  const listeners = new Set<() => void>();
+  return {
+    get: () => snap,
+    set(next: Partial<typeof snap>) {
+      snap = { ...snap, ...next };
+      listeners.forEach((l) => l());
+    },
+    subscribe(l: () => void) {
+      listeners.add(l);
+      return () => void listeners.delete(l);
+    },
+  };
+}
+type Clock = ReturnType<typeof createClock>;
+const useClock = (c: Clock) => useSyncExternalStore(c.subscribe, c.get, c.get);
+
+function Scrubber({ store, total, onScrub, onRelease }: { store: Clock; total: number; onScrub: (to: number) => void; onRelease: (to: number) => void }) {
+  const { time, buffered } = useClock(store);
+  return (
+    <input
+      type="range"
+      className="vp-scrub"
+      aria-label="Position"
+      min={0}
+      max={total || 1}
+      step={1}
+      value={Math.min(time, total || 0)}
+      style={{ "--played": `${percentDone(time, total)}%`, "--loaded": `${percentDone(buffered, total)}%` } as React.CSSProperties}
+      onChange={(e) => onScrub(Number(e.target.value))}
+      // A spot the stream hasn't made yet starts a new one once you let go.
+      onPointerUp={(e) => onRelease(Number(e.currentTarget.value))}
+      onKeyUp={(e) => onRelease(Number(e.currentTarget.value))}
+    />
+  );
 }
 
-const trackDetails = (t: VideoAudioTrack) => [codecName(t.codec), channelsLabel(t.channels)].filter(Boolean).join(" ");
+/** Played and left, with the time left (or `note`) between them. */
+function Times({ store, total, note }: { store: Clock; total: number; note: React.ReactNode }) {
+  const { time } = useClock(store);
+  return (
+    <div className="vp-times">
+      <span className="vp-time">{clock(time)}</span>
+      <span className="vp-time vp-note">{note ?? timeLeft(total, time)}</span>
+      <span className="vp-time">-{clock(Math.max(0, total - time))}</span>
+    </div>
+  );
+}
+
+function MiniSub({ store, total, label }: { store: Clock; total: number; label: string | null }) {
+  const left = timeLeft(total, useClock(store).time);
+  return <span className="mini-sub">{label ? `${label}, ${left}` : left}</span>;
+}
+
+function MiniBar({ store, total }: { store: Clock; total: number }) {
+  return <div className="mini-bar" style={{ width: `${percentDone(useClock(store).time, total)}%` }} />;
+}
 
 /**
  * The video player: the file played as it is, in a <video>. Upright on a phone, the video sits at
@@ -192,11 +243,9 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   const stalls = useRef(0);
   /** Waiting for the stream to start, or for the next piece. */
   const [buffering, setBuffering] = useState(false);
-  /** The quality picked for this video, else your setting, read when the first converted stream starts; null until then. */
-  const qualityRef = useRef<VideoQuality | null>(item.quality);
+  const qualityRef = useRef<VideoQuality>(item.quality);
   const [qualityOpen, setQualityOpen] = useState(false);
-  /** Shown in the sheets once a converted stream has read it. */
-  const [qualityShown, setQualityShown] = useState<VideoQuality>(item.quality ?? "full");
+  const [qualityShown, setQualityShown] = useState<VideoQuality>(item.quality);
   const volume = useVolume();
   /** Bumped to start a new stream session, at `resumeAt` (a seek past what's been made). */
   const [restartKey, setRestartKey] = useState(0);
@@ -210,9 +259,8 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   const [playing, setPlaying] = useState(false);
   /** Whether a (re)loaded video should run: after Play was pressed, and across a track, quality or seek restart while playing. */
   const wantPlay = useRef(autoplay);
-  const [time, setTime] = useState(item.startAt);
+  const [times] = useState(() => createClock(item.startAt));
   const [total, setTotal] = useState(item.durationSec);
-  const [buffered, setBuffered] = useState(0);
   const [controls, setControls] = useState(true);
   const [speed, setSpeed] = useState(() => readSpeed(item.speedKey));
   const [speedOpen, setSpeedOpen] = useState(false);
@@ -221,6 +269,8 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   const [countdown, setCountdown] = useState<number | null>(null);
   const nextDismissed = useRef(false);
   const touched = useRef(false);
+  /** The last time update while playing, for watch time; null after a pause or seek, so the next one counts nothing. */
+  const lastTick = useRef<{ at: number; pos: number } | null>(null);
   const lastTap = useRef({ at: 0, x: 0 });
   const next = item.next[0] ?? null;
 
@@ -253,36 +303,19 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     setPlaying(false); // the <video> goes until the stream is there
     setBuffering(true);
     // A finished movie, or one with only the credits left, starts over.
-    const first = item.startAt > 0 && item.startAt < item.durationSec * WATCHED_AT ? item.startAt : 0;
+    const first = resumeStart(item.startAt, item.durationSec);
     const from = resumeAt.current ?? first;
     resumeAt.current = null;
     let cancelled = false;
     let started: string | null = null;
-    // A converted picture is made at your chosen quality, read once from your settings.
-    const quality: Promise<VideoQuality | undefined> =
-      p.kind !== "transcode"
-        ? Promise.resolve(undefined)
-        : qualityRef.current
-          ? Promise.resolve(qualityRef.current)
-          : api<UserPrefs>(apiPaths.prefs).then(
-              (prefs) => {
-                setQualityShown(prefs.videoQuality);
-                return (qualityRef.current = prefs.videoQuality);
-              },
-              () => "full" as const,
-            );
-    quality
-      .then((q) => {
-        if (cancelled) return;
-        const body: StreamRequest = { track: p.track, audio: p.audio, video: p.kind === "transcode" ? "h264" : "copy", quality: q, start: from };
-        return api<StreamSessionDto>(apiPaths.videoStream(item.videoId), { method: "POST", body });
-      })
+    const quality = p.kind === "transcode" ? qualityRef.current : undefined;
+    const body: StreamRequest = { track: p.track, audio: p.audio, video: p.kind === "transcode" ? "h264" : "copy", quality, start: from };
+    api<StreamSessionDto>(apiPaths.videoStream(item.videoId), { method: "POST", body })
       .then((s) => {
-        if (!s) return;
         started = s.sessionId;
         if (cancelled) return endStream(s.sessionId);
         offsetRef.current = s.start;
-        setTime(s.start);
+        times.set({ time: s.start });
         setStream(s);
       })
       .catch((err: unknown) => {
@@ -299,6 +332,14 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
       onHide();
     };
   }, [item.file, item.src, item.videoId, item.startAt, item.durationSec, track, forceRemux, restartKey]);
+
+  // A paused player stops fetching pieces, and the server ends a session nobody asks anything of
+  // for five minutes; asking for the playlist now and then keeps it, so Play carries straight on.
+  useEffect(() => {
+    if (!stream || playing) return;
+    const timer = setInterval(() => void fetch(stream.playlistUrl, { cache: "no-store" }).catch(() => undefined), 120_000);
+    return () => clearInterval(timer);
+  }, [stream, playing]);
 
   // Hands the stream to the <video>: Safari plays HLS itself, other browsers through hls.js.
   useEffect(() => {
@@ -317,7 +358,14 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         setError("This browser can't play this video.");
         return;
       }
-      const h = new Hls({ startPosition: 0, maxBufferLength: 30, backBufferLength: 60 });
+      // A slow server answers 503 for a piece still being made; keep asking rather than giving up on the stream.
+      const retry = { maxNumRetry: 8, retryDelayMs: 1000, maxRetryDelayMs: 8000 };
+      const h = new Hls({
+        startPosition: 0,
+        maxBufferLength: 30,
+        backBufferLength: 60,
+        fragLoadPolicy: { default: { maxTimeToFirstByteMs: 30_000, maxLoadTimeMs: 60_000, timeoutRetry: retry, errorRetry: retry } },
+      });
       let recovered = false;
       h.on(Hls.Events.ERROR, (_event, data) => {
         if (!data.fatal) return;
@@ -409,6 +457,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     (keepalive = false) => {
       const v = videoRef.current;
       if (!v || !touched.current) return;
+      void sendListening(keepalive).catch(() => undefined);
       // A stream's <video> only knows the part made so far; the file's length comes from the server.
       const length = streamingRef.current ? item.durationSec : v.duration;
       if (!Number.isFinite(length) || !length) return;
@@ -542,16 +591,16 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   // On a phone, pulling the top bar down minimises the player, as with the audio one.
   const pull = usePullToClose(() => backRef.current());
 
-  // The next-episode card counts down while the video plays, then starts the next one.
+  // The next-episode card counts down while the video plays, then starts the next one (unless Play next episode is off).
   useEffect(() => {
-    if (countdown === null || !playing || mini) return;
+    if (countdown === null || !playing || mini || !item.autoplayNext) return;
     if (countdown <= 0) {
       goNext();
       return;
     }
     const timer = setTimeout(() => setCountdown((c) => (c === null ? null : c - 1)), 1000);
     return () => clearTimeout(timer);
-  }, [countdown, playing, mini, goNext]);
+  }, [countdown, playing, mini, goNext, item.autoplayNext]);
 
   // Lock screen, media keys and the notification on phones.
   useEffect(() => {
@@ -603,9 +652,15 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     const v = videoRef.current;
     if (!v) return;
     const at = position();
-    setTime(at);
-    if (Math.abs(at - item.startAt) > 3) touched.current = true;
-    if (v.buffered.length) setBuffered(offsetRef.current + v.buffered.end(v.buffered.length - 1));
+    times.set({ time: at, buffered: v.buffered.length ? offsetRef.current + v.buffered.end(v.buffered.length - 1) : times.get().buffered });
+    if (Math.abs(at - item.startAt) > TOUCHED_AFTER_SEC) touched.current = true;
+    if (v.paused) lastTick.current = null;
+    else {
+      const prev = lastTick.current;
+      const now = performance.now();
+      if (prev) addWatching(item.progressId, (now - prev.at) / 1000, at - prev.pos, v.playbackRate || 1);
+      lastTick.current = { at: now, pos: at };
+    }
     const left = total - at;
     // The next episode only comes on by itself on the player's page, never from the mini player.
     if (!mini && next && countdown === null && !nextDismissed.current && left > 0 && left <= NEXT_CARD_AT_SEC) setCountdown(COUNTDOWN);
@@ -625,8 +680,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         // Another track: carry on from the same moment.
         v.currentTime = resumeAt.current;
         resumeAt.current = null;
-      } else if (item.startAt > 0 && item.startAt < v.duration * WATCHED_AT) {
-        // A finished movie, or one with only the credits left, starts over.
+      } else if (resumeStart(item.startAt, v.duration)) {
         v.currentTime = item.startAt;
       }
     }
@@ -695,7 +749,6 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     }
   };
 
-  const left = Math.max(0, total - time);
   const heading = item.kind === "episode" ? item.showTitle : item.title;
   const subheading = item.kind === "episode" ? `${item.label}, ${item.title}` : null;
   const tracks = item.file.audioTracks;
@@ -713,7 +766,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         rootRef.current = el;
         pull.ref.current = el;
       }}
-      className={mini ? "mini vp-mini" : `vp ${controls ? "vp-show" : ""} ${fullscreen || sideways ? "vp-over" : ""} ${pull.pulled ? "pulled" : ""}`}
+      className={mini ? "mini vp-mini" : `vp ${item.next.length ? "vp-has-next" : ""} ${controls ? "vp-show" : ""} ${fullscreen || sideways ? "vp-over" : ""} ${pull.pulled ? "pulled" : ""}`}
       style={{ "--tint": item.color ?? "#3b4a6e" } as React.CSSProperties}
       role={mini ? "region" : undefined}
       aria-label={mini ? "Now watching" : undefined}
@@ -762,7 +815,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
               setPlaying(false);
               setControls(true);
               save();
-              if (!mini && next && !nextDismissed.current) goNext();
+              if (!mini && next && !nextDismissed.current && item.autoplayNext) goNext();
             }}
             onError={onError}
           />
@@ -785,9 +838,9 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
             <button type="button" className="vp-next-main" onClick={goNext}>
               <Still videoId={next.id} hash={next.stillHash} title={next.title} />
               <span className="vp-next-text">
-                <span className="eyebrow">Next in {countdown}</span>
+                <span className="eyebrow">{item.autoplayNext ? `Next in ${countdown}` : "Next episode"}</span>
                 <span className="vp-next-title">
-                  {next.episode}. {next.title}
+                  {next.title}
                 </span>
               </span>
             </button>
@@ -820,48 +873,32 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
           <VolumeControl />
         </div>
         <div className="vp-controls" onPointerDown={poke}>
-          <input
-            type="range"
-            className="vp-scrub"
-            aria-label="Position"
-            min={0}
-            max={total || 1}
-            step={1}
-            value={Math.min(time, total || 0)}
-            style={
-              {
-                "--played": `${percentDone(time, total)}%`,
-                "--loaded": `${percentDone(buffered, total)}%`,
-              } as React.CSSProperties
-            }
-            onChange={(e) => {
-              const to = Number(e.target.value);
-              setTime(to);
+          <Scrubber
+            store={times}
+            total={total}
+            onScrub={(to) => {
+              times.set({ time: to });
               seekTo(to, false);
               poke();
             }}
-            // A spot the stream hasn't made yet starts a new one once you let go.
-            onPointerUp={(e) => seekTo(Number(e.currentTarget.value))}
-            onKeyUp={(e) => seekTo(Number(e.currentTarget.value))}
+            onRelease={(to) => seekTo(to)}
           />
-          <div className="vp-times">
-            <span className="vp-time">{clock(time)}</span>
-            <span className="vp-time vp-note">
-            {slow ? (
-              <>
-                Converting slower than it plays
-                {qualityRef.current !== "light" ? (
-                  <button type="button" className="more-link vp-note-link" onClick={lowerQuality}>
-                    Lower quality
-                  </button>
-                ) : null}
-              </>
-            ) : (
-              timeLeft(total, time)
-            )}
-          </span>
-            <span className="vp-time">-{clock(left)}</span>
-          </div>
+          <Times
+            store={times}
+            total={total}
+            note={
+              slow ? (
+                <>
+                  Converting slower than it plays
+                  {qualityRef.current !== "light" ? (
+                    <button type="button" className="more-link vp-note-link" onClick={lowerQuality}>
+                      Lower quality
+                    </button>
+                  ) : null}
+                </>
+              ) : null
+            }
+          />
           <div className="player-controls">
             <button type="button" className="icon-btn dim" aria-label="Start over" onClick={() => seekTo(0)}>
               <PrevChapterIcon />
@@ -914,9 +951,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
                       <Still videoId={e.id} hash={e.stillHash} title={e.title} />
                     </div>
                     <div className="list-row-main">
-                      <span className="list-row-title">
-                        {e.episode}. {e.title}
-                      </span>
+                      <span className="list-row-title">{e.title}</span>
                       <span className="list-row-sub">
                         {episodeLabel(e.season, e.episode)}, {duration(e.durationSec)}
                       </span>
@@ -954,7 +989,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
           <Link className="mini-open" href={item.href} aria-label={`Open player: ${item.title}`}>
             <span className="mini-text">
               <span className="mini-title">{heading}</span>
-              <span className="mini-sub">{item.label ? `${item.label}, ${timeLeft(total, time)}` : timeLeft(total, time)}</span>
+              <MiniSub store={times} total={total} label={item.label} />
             </span>
           </Link>
           <button type="button" className="mini-skip" onClick={() => skip(-audio.skip.back)} aria-label={`Skip back ${audio.skip.back} seconds`}>
@@ -967,7 +1002,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
           <button type="button" className="icon-btn" onClick={close} aria-label="Stop watching">
             <CloseIcon size={20} />
           </button>
-          <div className="mini-bar" style={{ width: `${percentDone(time, total)}%` }} />
+          <MiniBar store={times} total={total} />
         </div>
       ) : null}
 

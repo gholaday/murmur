@@ -1,15 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { apiPaths, episodeLabel, timeLeft, type VideoQuality, type WatchCard } from "@murmur/shared/client";
+import { apiPaths, episodeLabel, percentDone, timeLeft, type VideoQuality, type WatchCard } from "@murmur/shared/client";
 import { Cover } from "../cover";
 import { CheckIcon } from "../icons";
 
 /** Where a movie or show page is. */
 export const movieHref = (id: string) => `/watch/movie/${id}`;
 export const showHref = (id: string) => `/watch/show/${id}`;
-/** The player for a movie (optionally one version of it) or an episode. */
-/** The player's page; `v` picks a movie version and `q` a converted-video quality for this viewing. */
+/** The player's page for a movie or an episode; `v` picks a movie version and `q` a converted-video quality for this viewing. */
 export const playHref = (kind: "movie" | "episode", id: string, versionId?: string, quality?: VideoQuality | null) => {
   const params = new URLSearchParams();
   if (versionId) params.set("v", versionId);
@@ -18,8 +17,6 @@ export const playHref = (kind: "movie" | "episode", id: string, versionId?: stri
   return `/watch/play/${kind}/${id}${query ? `?${query}` : ""}`;
 };
 
-/** How far through, as a percentage, for progress bars. */
-export const percentDone = (positionSec: number, durationSec: number) => (durationSec ? Math.min(100, (positionSec / durationSec) * 100) : 0);
 
 /** A 2:3 poster, or a tinted tile with the title when there's none. */
 export function Poster({

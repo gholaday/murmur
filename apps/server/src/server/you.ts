@@ -21,6 +21,7 @@ export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<Rea
     : [];
   const bookCount = (ctx.sqlite.prepare("SELECT COUNT(*) AS n FROM books WHERE missing_since IS NULL").get() as { n: number }).n;
   const shows = (ctx.sqlite.prepare("SELECT COUNT(*) AS n FROM subscriptions WHERE user_id = ?").get(user.id) as { n: number }).n;
+  const prefs = getPrefs(ctx, user.id);
   return {
     music: musicSummary(ctx, user.id),
     musicFolders: user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "music") : [],
@@ -28,8 +29,9 @@ export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<Rea
     showFolders: user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "shows") : [],
     watch: watchSummary(ctx),
     shows,
-    tabs: getPrefs(ctx, user.id).tabs,
-    videoQuality: getPrefs(ctx, user.id).videoQuality,
+    tabs: prefs.tabs,
+    videoQuality: prefs.videoQuality,
+    autoplayNext: prefs.autoplayNext,
     user,
     users,
     folders: user.isAdmin ? await folderList(ctx.db, ctx.sqlite) : [],

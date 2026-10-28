@@ -1,11 +1,17 @@
 import {
   COUNTS_AS_LISTENED_SEC,
+  COUNTS_AS_SONG_SEC,
+  emptySplit,
   type ListeningReport,
-  type StatsDto,
-  type StatsPeriod,
-  type StatsTop,
   localDay,
   periodRange,
+  STATS_KIND_OF,
+  STATS_KINDS,
+  type StatsDto,
+  type StatsPeriod,
+  type StatsSplit,
+  type StatsTop,
+  type StatsType,
   streakDays,
 } from "@murmur/shared";
 import { booksByIds } from "./books";
@@ -37,11 +43,18 @@ export function saveListening(ctx: AppContext, userId: number, report: Listening
 
 interface DayRow {
   day: string;
-  item_type: "book" | "episode" | "track";
+  item_type: StatsType;
   item_id: string;
   listened: number;
   content: number;
 }
+
+const rounded = (s: StatsSplit): StatsSplit => ({
+  book: Math.round(s.book),
+  episode: Math.round(s.episode),
+  music: Math.round(s.music),
+  watch: Math.round(s.watch),
+});
 
 export async function getStats(ctx: AppContext, userId: number, period: StatsPeriod, today: string, tzMinutes: number): Promise<StatsDto> {
   const db = ctx.sqlite;
@@ -55,32 +68,34 @@ export async function getStats(ctx: AppContext, userId: number, period: StatsPer
     )
     .all(userId, range.from, range.to) as DayRow[];
 
-  const split = { book: 0, episode: 0, music: 0 };
+  const split = emptySplit();
+  const content = emptySplit();
   const byItem = new Map<string, number>();
-  const episodes = new Set<string>();
-  let totalSec = 0;
-  let contentSec = 0;
   for (const r of rows) {
-    totalSec += r.listened;
-    contentSec += r.content;
-    split[r.item_type === "track" ? "music" : r.item_type] += r.listened;
+    const kind = STATS_KIND_OF[r.item_type];
+    split[kind] += r.listened;
+    content[kind] += r.content;
     const key = `${r.item_type}:${r.item_id}`;
     byItem.set(key, (byItem.get(key) ?? 0) + r.listened);
   }
-  for (const [key, sec] of byItem) if (key.startsWith("episode:") && sec >= COUNTS_AS_LISTENED_SEC) episodes.add(key);
+  const totalSec = STATS_KINDS.reduce((sum, k) => sum + split[k], 0);
+  const contentSec = STATS_KINDS.reduce((sum, k) => sum + content[k], 0);
 
-  const bars = range.buckets.map((b) => ({
-    key: b.key,
-    label: b.label,
-    sec: Math.round(rows.filter((r) => r.day >= b.from && r.day <= b.to).reduce((sum, r) => sum + r.listened, 0)),
-  }));
+  const bars = range.buckets.map((b) => {
+    const s = emptySplit();
+    for (const r of rows) if (r.day >= b.from && r.day <= b.to) s[STATS_KIND_OF[r.item_type]] += r.listened;
+    const out = rounded(s);
+    return { key: b.key, label: b.label, sec: STATS_KINDS.reduce((sum, k) => sum + out[k], 0), split: out };
+  });
 
-  const previous =
-    range.prevFrom && range.prevTo
-      ? (db
-          .prepare("SELECT COALESCE(SUM(listened_sec), 0) AS sec FROM listening_days WHERE user_id = ? AND day BETWEEN ? AND ?")
-          .get(userId, range.prevFrom, range.prevTo) as { sec: number })
-      : null;
+  let previousSplit: StatsSplit | null = null;
+  if (range.prevFrom && range.prevTo) {
+    previousSplit = emptySplit();
+    const prev = db
+      .prepare("SELECT item_type, SUM(listened_sec) AS sec FROM listening_days WHERE user_id = ? AND day BETWEEN ? AND ? GROUP BY item_type")
+      .all(userId, range.prevFrom, range.prevTo) as Array<{ item_type: StatsType; sec: number }>;
+    for (const p of prev) previousSplit[STATS_KIND_OF[p.item_type]] += p.sec;
+  }
 
   const listenedDays = new Set(
     (
@@ -103,62 +118,82 @@ export async function getStats(ctx: AppContext, userId: number, period: StatsPer
     // All time starts at the first listening day, but books finished before stats began still count.
     .get(userId, period === "all" ? 0 : startMs(range.from), startMs(range.to) + 86_400_000) as { n: number };
 
+  const ids = (type: StatsType, atLeast: number) =>
+    [...byItem].filter(([key, sec]) => key.startsWith(`${type}:`) && sec >= atLeast).map(([key]) => key.slice(type.length + 1));
+  const music = musicStats(ctx, userId, byItem);
+  const watch = watchStats(ctx, byItem);
+
   return {
     period,
     from: range.from,
     to: range.to,
     totalSec: Math.round(totalSec),
-    previousSec: previous ? Math.round(previous.sec) : null,
+    previousSec: previousSplit ? Math.round(STATS_KINDS.reduce((sum, k) => sum + previousSplit![k], 0)) : null,
     bars,
-    split: { book: Math.round(split.book), episode: Math.round(split.episode), music: Math.round(split.music) },
+    split: rounded(split),
+    previousSplit: previousSplit ? rounded(previousSplit) : null,
     streakDays: streakDays(listenedDays, today),
     finishedBooks: finished.n,
-    episodesPlayed: episodes.size,
+    episodesPlayed: ids("episode", COUNTS_AS_LISTENED_SEC).length,
+    songsPlayed: music.songsPlayed,
+    albumsPlayed: music.albumsPlayed,
+    showEpisodesWatched: watch.showEpisodesWatched,
+    moviesWatched: watch.moviesWatched,
     savedSec: Math.max(0, Math.round(contentSec - totalSec)),
-    top: await topItems(ctx, userId, byItem),
+    top: [...(await topBooks(ctx, userId, byItem)), ...topPodcasts(ctx, byItem), ...music.top, ...watch.top],
   };
 }
 
-/** The most played book, show, album and song in the period. */
-async function topItems(ctx: AppContext, userId: number, byItem: Map<string, number>): Promise<StatsTop[]> {
-  const top: StatsTop[] = [];
-  let book: [string, number] | null = null;
-  const shows = new Map<string, number>();
-  const episodeIds: string[] = [];
-  const trackIds: string[] = [];
-  for (const [key, sec] of byItem) {
-    const [type, id] = key.split(":") as [string, string];
-    if (type === "book") {
-      if (!book || sec > book[1]) book = [id, sec];
-    } else if (type === "track") trackIds.push(id);
-    else episodeIds.push(id);
-  }
-  if (book) {
-    const [summary] = await booksByIds(ctx, [book[0]], userId);
-    if (summary) top.push({ kind: "book", id: summary.id, title: summary.title, coverHash: summary.coverHash, sec: Math.round(book[1]) });
-  }
-  if (episodeIds.length) {
-    const rows = ctx.sqlite
-      .prepare(`SELECT id, podcast_id AS podcastId FROM episodes WHERE id IN (${episodeIds.map(() => "?").join(",")})`)
-      .all(...episodeIds) as Array<{ id: string; podcastId: string }>;
-    for (const r of rows) shows.set(r.podcastId, (shows.get(r.podcastId) ?? 0) + (byItem.get(`episode:${r.id}`) ?? 0));
-    const best = [...shows].sort((a, b) => b[1] - a[1])[0];
-    if (best) {
-      const show = ctx.sqlite.prepare("SELECT id, title, cover_hash AS coverHash FROM podcasts WHERE id = ?").get(best[0]) as
-        | { id: string; title: string; coverHash: string | null }
-        | undefined;
-      if (show) top.push({ kind: "podcast", ...show, sec: Math.round(best[1]) });
-    }
-  }
-  top.push(...topMusic(ctx, userId, trackIds, byItem));
-  return top;
+/** The items of one type, longest first. */
+function longest(byItem: Map<string, number>, type: StatsType): Array<[string, number]> {
+  return [...byItem]
+    .filter(([key]) => key.startsWith(`${type}:`))
+    .map(([key, sec]) => [key.slice(type.length + 1), sec] as [string, number])
+    .sort((a, b) => b[1] - a[1]);
 }
 
-/** The album you spent longest on, and the song, with how many times you've played it. */
-function topMusic(ctx: AppContext, userId: number, trackIds: string[], byItem: Map<string, number>): StatsTop[] {
+const TOP_PER_KIND = 2;
+
+async function topBooks(ctx: AppContext, userId: number, byItem: Map<string, number>): Promise<StatsTop[]> {
+  const best = longest(byItem, "book").slice(0, TOP_PER_KIND);
+  if (!best.length) return [];
+  const books = await booksByIds(
+    ctx,
+    best.map(([id]) => id),
+    userId,
+  );
+  return best.flatMap(([id, sec]) => {
+    const b = books.find((x) => x.id === id);
+    return b ? [{ kind: "book" as const, id: b.id, title: b.title, coverHash: b.coverHash, sec: Math.round(sec) }] : [];
+  });
+}
+
+/** Episodes add up to their show. */
+function topPodcasts(ctx: AppContext, byItem: Map<string, number>): StatsTop[] {
+  const episodes = longest(byItem, "episode");
+  if (!episodes.length) return [];
+  const rows = ctx.sqlite
+    .prepare(`SELECT id, podcast_id AS podcastId FROM episodes WHERE id IN (${episodes.map(() => "?").join(",")})`)
+    .all(...episodes.map(([id]) => id)) as Array<{ id: string; podcastId: string }>;
+  const shows = new Map<string, number>();
+  for (const r of rows) shows.set(r.podcastId, (shows.get(r.podcastId) ?? 0) + (byItem.get(`episode:${r.id}`) ?? 0));
+  const show = ctx.sqlite.prepare("SELECT id, title, cover_hash AS coverHash FROM podcasts WHERE id = ?");
+  return [...shows]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, TOP_PER_KIND)
+    .flatMap(([id, sec]) => {
+      const s = show.get(id) as { id: string; title: string; coverHash: string | null } | undefined;
+      return s ? [{ kind: "podcast" as const, ...s, sec: Math.round(sec) }] : [];
+    });
+}
+
+/** The album you spent longest on and the top song, with how many times you've played it; and songs and albums played. */
+function musicStats(ctx: AppContext, userId: number, byItem: Map<string, number>): { top: StatsTop[]; songsPlayed: number; albumsPlayed: number } {
+  const trackIds = longest(byItem, "track").map(([id]) => id);
   const tracks = tracksByIds(ctx, userId, trackIds);
-  if (!tracks.length) return [];
+  if (!tracks.length) return { top: [], songsPlayed: 0, albumsPlayed: 0 };
   const secOf = (id: string) => byItem.get(`track:${id}`) ?? 0;
+  const played = tracks.filter((t) => secOf(t.id) >= COUNTS_AS_SONG_SEC);
   const albums = new Map<string, number>();
   for (const t of tracks) albums.set(t.albumId, (albums.get(t.albumId) ?? 0) + secOf(t.id));
   const [albumId, albumSec] = [...albums].sort((a, b) => b[1] - a[1])[0]!;
@@ -167,8 +202,45 @@ function topMusic(ctx: AppContext, userId: number, trackIds: string[], byItem: M
   const plays = ctx.sqlite.prepare("SELECT count FROM track_plays WHERE user_id = ? AND track_id = ?").get(userId, song.id) as
     | { count: number }
     | undefined;
-  return [
-    { kind: "album", id: albumId, title: album.album, coverHash: album.coverHash, sec: Math.round(albumSec) },
-    { kind: "song", id: song.id, title: song.title, coverHash: song.coverHash, albumId: song.albumId, plays: plays?.count ?? 0, sec: Math.round(secOf(song.id)) },
-  ];
+  return {
+    songsPlayed: played.length,
+    albumsPlayed: new Set(played.map((t) => t.albumId)).size,
+    top: [
+      { kind: "album", id: albumId, title: album.album, coverHash: album.coverHash, sec: Math.round(albumSec) },
+      { kind: "song", id: song.id, title: song.title, coverHash: song.coverHash, albumId: song.albumId, plays: plays?.count ?? 0, sec: Math.round(secOf(song.id)) },
+    ],
+  };
+}
+
+/** The TV show and movie you watched longest, and how many episodes and movies you watched. A video's id is the movie's, or the episode's video. */
+function watchStats(ctx: AppContext, byItem: Map<string, number>): { top: StatsTop[]; showEpisodesWatched: number; moviesWatched: number } {
+  const videos = longest(byItem, "video");
+  if (!videos.length) return { top: [], showEpisodesWatched: 0, moviesWatched: 0 };
+  const secOf = (id: string) => byItem.get(`video:${id}`) ?? 0;
+  const marks = videos.map(() => "?").join(",");
+  const videoIds = videos.map(([id]) => id);
+  const movies = ctx.sqlite
+    .prepare(`SELECT id, title, poster_hash AS coverHash FROM movies WHERE id IN (${marks})`)
+    .all(...videoIds) as Array<{ id: string; title: string; coverHash: string | null }>;
+  const episodes = ctx.sqlite
+    .prepare(`SELECT v.id, s.id AS showId, s.title, s.poster_hash AS coverHash FROM videos v JOIN shows s ON s.id = v.show_id WHERE v.id IN (${marks})`)
+    .all(...videoIds) as Array<{ id: string; showId: string; title: string; coverHash: string | null }>;
+  const shows = new Map<string, { title: string; coverHash: string | null; sec: number }>();
+  for (const e of episodes) {
+    const s = shows.get(e.showId) ?? { title: e.title, coverHash: e.coverHash, sec: 0 };
+    s.sec += secOf(e.id);
+    shows.set(e.showId, s);
+  }
+  const top: StatsTop[] = [];
+  const show = [...shows].sort((a, b) => b[1].sec - a[1].sec)[0];
+  const movie = [...movies].sort((a, b) => secOf(b.id) - secOf(a.id))[0];
+  const showTop = show ? { kind: "tvshow" as const, id: show[0], title: show[1].title, coverHash: show[1].coverHash, sec: Math.round(show[1].sec) } : null;
+  const movieTop = movie ? { kind: "movie" as const, ...movie, sec: Math.round(secOf(movie.id)) } : null;
+  // Longest first, as for the other kinds.
+  for (const t of [showTop, movieTop].filter((x) => x !== null).sort((a, b) => b.sec - a.sec)) top.push(t);
+  return {
+    top,
+    showEpisodesWatched: episodes.filter((e) => secOf(e.id) >= COUNTS_AS_LISTENED_SEC).length,
+    moviesWatched: movies.filter((m) => secOf(m.id) >= COUNTS_AS_LISTENED_SEC).length,
+  };
 }

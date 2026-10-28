@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiPaths, playbackPlan, type UserPrefs, type VideoFileInfo, type VideoQuality } from "@murmur/shared/client";
+import { apiPaths, playbackPlan, QUALITY_LABEL, type UserPrefs, type VideoFileInfo, type VideoQuality } from "@murmur/shared/client";
 import { api } from "../api";
 import { Sheet, SheetItem } from "../sheet";
 import { browserSupport } from "./support";
@@ -10,19 +10,13 @@ import { browserSupport } from "./support";
 // on the movie and show pages, and Quality in the player's More sheet. Your setting under You >
 // Playback is the starting point; a pick here is for this video only.
 
-export const QUALITY_LABEL: Record<VideoQuality, string> = { full: "1080p", light: "720p" };
-const QUALITY_SUB: Record<VideoQuality, string> = { full: "Full", light: "Lighter, easier on the server" };
-
 /** The sheet with the two qualities. */
 export function QualitySheet({ open, value, onClose, onPick }: { open: boolean; value: VideoQuality; onClose: () => void; onPick: (q: VideoQuality) => void }) {
   return (
     <Sheet open={open} onClose={onClose} title="Quality">
       {(["full", "light"] as const).map((q) => (
         <SheetItem key={q} active={q === value} onClick={() => onPick(q)}>
-          <span className="sheet-item-text">
-            <span>{QUALITY_LABEL[q]}</span>
-            <span className="sheet-item-sub">{QUALITY_SUB[q]}</span>
-          </span>
+          {QUALITY_LABEL[q]}
         </SheetItem>
       ))}
     </Sheet>

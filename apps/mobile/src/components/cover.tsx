@@ -2,8 +2,16 @@ import { Image } from "expo-image";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { absolute, authHeaders } from "@/lib/api";
+import { savedArt } from "@/lib/downloads";
 import { fonts } from "@/theme";
 import { Text } from "./ui";
+
+/** A full URL as it is; a server path from its downloaded copy (movie and TV pictures), else the server. */
+export function imageSource(path: string) {
+  if (/^https?:\/\//.test(path)) return { uri: path };
+  const saved = savedArt(path);
+  return saved ? { uri: saved } : { uri: absolute(path), headers: authHeaders(), cacheKey: path };
+}
 
 /** Covers shown already this session; they come from memory, so fading them in again only flickers. */
 const loaded = new Set<string>();
@@ -52,7 +60,7 @@ export function Cover({
   return (
     <View style={[box, style]}>
       <Image
-        source={/^https?:\/\//.test(path) ? { uri: path } : { uri: absolute(path), headers: authHeaders(), cacheKey: path }}
+        source={imageSource(path)}
         // Memory too, so covers scrolled back into view aren't decoded again; the memory cache is size-capped.
         cachePolicy="memory-disk"
         recyclingKey={path}

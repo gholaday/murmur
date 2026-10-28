@@ -62,6 +62,14 @@ interface ParentRow {
   added_at: number;
 }
 
+/** A movie with what its tile needs from its first version. */
+interface MovieRow extends ParentRow {
+  first_version: string;
+  duration_sec: number;
+  still_hash: string | null;
+  version_count: number;
+}
+
 interface ShowRow extends ParentRow {
   /** The first episode's still, to tint the show's tile when it has no poster. */
   first_still: string | null;
@@ -118,32 +126,39 @@ const toVersion = (r: VideoRow): MovieVersion => ({
   file: fileInfo(r),
 });
 
-/** Each movie's live versions, biggest first; `movieId` limits it to one. */
-function versionsByMovie(ctx: AppContext, movieId?: string): Map<string, VideoRow[]> {
-  const rows = ctx.sqlite
-    .prepare(`SELECT * FROM videos v WHERE v.kind = 'movie' AND ${LIVE} ${movieId ? "AND v.movie_id = @movieId" : ""} ORDER BY ${VERSION_ORDER}`)
-    .all(movieId ? { movieId } : {}) as VideoRow[];
-  const out = new Map<string, VideoRow[]>();
-  for (const r of rows) out.set(r.movie_id!, [...(out.get(r.movie_id!) ?? []), r]);
-  return out;
-}
+/** A movie's live versions, biggest first. */
+const movieVersions = (ctx: AppContext, movieId: string): VideoRow[] =>
+  ctx.sqlite
+    .prepare(`SELECT * FROM videos v WHERE v.kind = 'movie' AND ${LIVE} AND v.movie_id = ? ORDER BY ${VERSION_ORDER}`)
+    .all(movieId) as VideoRow[];
 
 /** Header tints for posters, by hash. */
 type Colors = Map<string, string>;
 const colorsFor = (hashes: Array<string | null>): Promise<Colors> => coverColors(env.coversDir, hashes);
 const colorOf = (colors: Colors, hash: string | null) => (hash ? (colors.get(hash) ?? null) : null);
 
-function toMovie(m: ParentRow, versions: VideoRow[], progress: Map<string, VideoProgress>, colors: Colors): MovieSummary {
-  const first = versions[0]!;
+/** Each movie with a live version, its first version (the one Play starts) picked by SQLite. */
+const MOVIE_SELECT = `
+  WITH ranked AS (
+    SELECT v.movie_id, v.id, v.duration_sec, v.still_hash,
+           ROW_NUMBER() OVER (PARTITION BY v.movie_id ORDER BY ${VERSION_ORDER}) AS n,
+           COUNT(*) OVER (PARTITION BY v.movie_id) AS version_count
+    FROM videos v WHERE v.kind = 'movie' AND ${LIVE})
+  SELECT m.*, r.id AS first_version, r.duration_sec, r.still_hash, r.version_count
+  FROM movies m JOIN ranked r ON r.movie_id = m.id AND r.n = 1`;
+
+const movieTint = (m: MovieRow) => m.poster_hash || m.still_hash;
+
+function toMovie(m: MovieRow, progress: Map<string, VideoProgress>, colors: Colors): MovieSummary {
   return {
     id: m.id,
     title: m.title,
     year: m.year,
-    durationSec: first.duration_sec,
+    durationSec: m.duration_sec,
     posterHash: m.poster_hash,
-    color: colorOf(colors, m.poster_hash || first.still_hash),
-    stillHash: stillOrNull(first.still_hash),
-    versions: versions.length,
+    color: colorOf(colors, movieTint(m)),
+    stillHash: stillOrNull(m.still_hash),
+    versions: m.version_count,
     addedAt: m.added_at,
     progress: progress.get(m.id) ?? null,
   };
@@ -187,15 +202,6 @@ export function watchEnabled(ctx: AppContext): boolean {
   return movies.length + shows.length > 0;
 }
 
-/** Movies with at least one live version, A to Z (or newest first for Recently added). */
-function movieRows(ctx: AppContext, order: "title" | "added", limit?: number): Array<{ movie: ParentRow; versions: VideoRow[] }> {
-  const versions = versionsByMovie(ctx);
-  const rows = ctx.sqlite
-    .prepare(`SELECT * FROM movies ORDER BY ${order === "title" ? "sort_title, year" : "added_at DESC"}`)
-    .all() as ParentRow[];
-  const live = rows.filter((m) => versions.has(m.id)).map((movie) => ({ movie, versions: versions.get(movie.id)! }));
-  return limit ? live.slice(0, limit) : live;
-}
 
 /** How many movies and shows there are, and whether Watch is set up at all. */
 export function watchSummary(ctx: AppContext): WatchSummaryDto {
@@ -210,17 +216,17 @@ export function watchSummary(ctx: AppContext): WatchSummaryDto {
 
 export async function listMovies(ctx: AppContext, userId: number): Promise<MovieSummary[]> {
   const progress = progressFor(ctx, userId);
-  const rows = movieRows(ctx, "title");
-  const colors = await colorsFor(rows.map((r) => r.movie.poster_hash || r.versions[0]!.still_hash));
-  return rows.map(({ movie, versions }) => toMovie(movie, versions, progress, colors));
+  const rows = ctx.sqlite.prepare(`${MOVIE_SELECT} ORDER BY m.sort_title, m.year`).all() as MovieRow[];
+  const colors = await colorsFor(rows.map(movieTint));
+  return rows.map((m) => toMovie(m, progress, colors));
 }
 
 export async function getMovie(ctx: AppContext, userId: number, id: string): Promise<MovieDetail | null> {
-  const movie = ctx.sqlite.prepare("SELECT * FROM movies WHERE id = ?").get(id) as ParentRow | undefined;
-  const versions = movie ? versionsByMovie(ctx, id).get(id) : undefined;
-  if (!movie || !versions) return null;
+  const movie = ctx.sqlite.prepare(`${MOVIE_SELECT} WHERE m.id = ?`).get(id) as MovieRow | undefined;
+  if (!movie) return null;
+  const versions = movieVersions(ctx, id);
   return {
-    ...toMovie(movie, versions, progressFor(ctx, userId), await colorsFor([movie.poster_hash || versions[0]!.still_hash])),
+    ...toMovie(movie, progressFor(ctx, userId), await colorsFor([movieTint(movie)])),
     description: movie.description,
     backdropHash: movie.backdrop_hash,
     tmdbId: movie.tmdb_id,
@@ -255,12 +261,25 @@ export function showUpNext(episodes: VideoEpisode[]): string | null {
   return (after ?? episodes.find((e) => !e.progress?.finished))?.id ?? null;
 }
 
-function showEpisodes(ctx: AppContext, showId: string, progress: Map<string, VideoProgress>): VideoEpisode[] {
+/** Live episodes of several shows in one query, in order, by show. */
+function episodesByShow(ctx: AppContext, showIds: string[], progress: Map<string, VideoProgress>): Map<string, VideoEpisode[]> {
   const rows = ctx.sqlite
-    .prepare(`SELECT ${EPISODE_COLUMNS} FROM videos v ${EPISODE_JOIN} WHERE v.show_id = ? AND ${LIVE} ORDER BY ${EPISODE_ORDER}`)
-    .all(showId) as VideoRow[];
-  return rows.map((r) => toEpisode(r, progress));
+    .prepare(
+      `SELECT ${EPISODE_COLUMNS} FROM videos v ${EPISODE_JOIN}
+       WHERE v.show_id IN (SELECT value FROM json_each(?)) AND ${LIVE} ORDER BY ${EPISODE_ORDER}`,
+    )
+    .all(JSON.stringify(showIds)) as VideoRow[];
+  const out = new Map<string, VideoEpisode[]>();
+  for (const r of rows) {
+    const list = out.get(r.show_id!);
+    if (list) list.push(toEpisode(r, progress));
+    else out.set(r.show_id!, [toEpisode(r, progress)]);
+  }
+  return out;
 }
+
+const showEpisodes = (ctx: AppContext, showId: string, progress: Map<string, VideoProgress>): VideoEpisode[] =>
+  episodesByShow(ctx, [showId], progress).get(showId) ?? [];
 
 export async function getShow(ctx: AppContext, userId: number, id: string): Promise<ShowDetail | null> {
   const row = ctx.sqlite.prepare(`${SHOW_SELECT} WHERE s.id = @id GROUP BY s.id`).get({ user: userId, id }) as ShowRow | undefined;
@@ -322,8 +341,10 @@ export async function watchHome(ctx: AppContext, userId: number): Promise<WatchH
     .sort((a, b) => b[1].updatedAt - a[1].updatedAt);
 
   // Movies and episodes you're partway through, most recent first.
-  const allMovies = movieRows(ctx, "added");
-  const movieById = new Map(allMovies.map((m) => [m.movie.id, m]));
+  const partwayMovies = ctx.sqlite
+    .prepare(`${MOVIE_SELECT} WHERE m.id IN (SELECT value FROM json_each(?))`)
+    .all(JSON.stringify(partway.map(([id]) => id))) as MovieRow[];
+  const movieById = new Map(partwayMovies.map((m) => [m.id, m]));
   const episodeById = ctx.sqlite.prepare(
     `SELECT ${EPISODE_COLUMNS}, s.title AS show_title FROM videos v JOIN shows s ON s.id = v.show_id ${EPISODE_JOIN} WHERE v.id = ? AND ${LIVE}`,
   );
@@ -333,7 +354,7 @@ export async function watchHome(ctx: AppContext, userId: number): Promise<WatchH
     if (continueWatching.length >= CONTINUE_LIMIT) break;
     const movie = movieById.get(id);
     if (movie) {
-      const m = toMovie(movie.movie, movie.versions, progress, noColors);
+      const m = toMovie(movie, progress, noColors);
       continueWatching.push({
         id: m.id,
         kind: "movie",
@@ -344,7 +365,7 @@ export async function watchHome(ctx: AppContext, userId: number): Promise<WatchH
         episodeTitle: null,
         durationSec: m.durationSec,
         stillHash: m.stillHash,
-        stillId: movie.versions[0]!.id,
+        stillId: movie.first_version,
         posterHash: m.posterHash,
         progress: m.progress,
       });
@@ -366,10 +387,12 @@ export async function watchHome(ctx: AppContext, userId: number): Promise<WatchH
        GROUP BY v.show_id ORDER BY at DESC`,
     )
     .all(userId) as Array<{ show_id: string; title: string }>;
+  const waiting = startedShows.filter((s) => !continuingShows.has(s.show_id));
+  const episodesOf = episodesByShow(ctx, waiting.map((s) => s.show_id), progress);
   const nextEpisodes: WatchCard[] = [];
-  for (const show of startedShows) {
-    if (continuingShows.has(show.show_id) || nextEpisodes.length >= CONTINUE_LIMIT) continue;
-    const episodes = showEpisodes(ctx, show.show_id, progress);
+  for (const show of waiting) {
+    if (nextEpisodes.length >= CONTINUE_LIMIT) break;
+    const episodes = episodesOf.get(show.show_id) ?? [];
     const next = episodes.find((e) => e.id === showUpNext(episodes));
     if (next) nextEpisodes.push(episodeCard(next, show.title));
   }
@@ -377,20 +400,19 @@ export async function watchHome(ctx: AppContext, userId: number): Promise<WatchH
   const shows = ctx.sqlite
     .prepare(`${SHOW_SELECT} GROUP BY s.id ORDER BY MAX(v.added_at) DESC LIMIT ${RECENT_LIMIT}`)
     .all({ user: userId }) as ShowRow[];
-  const recentMovies = allMovies.slice(0, RECENT_LIMIT);
-  const movieTint = (m: (typeof recentMovies)[number]) => m.movie.poster_hash || m.versions[0]!.still_hash;
+  const recentMovies = ctx.sqlite.prepare(`${MOVIE_SELECT} ORDER BY m.added_at DESC LIMIT ${RECENT_LIMIT}`).all() as MovieRow[];
   const showTint = (s: ShowRow) => s.poster_hash || s.first_still;
   const colors = await colorsFor([...recentMovies.map(movieTint), ...shows.map(showTint)]);
   const recentlyAdded: WatchPoster[] = [
     ...recentMovies.map((m) => ({
       kind: "movie" as const,
-      id: m.movie.id,
-      title: m.movie.title,
-      year: m.movie.year,
-      posterHash: m.movie.poster_hash,
+      id: m.id,
+      title: m.title,
+      year: m.year,
+      posterHash: m.poster_hash,
       color: colorOf(colors, movieTint(m)),
-      watched: progress.get(m.movie.id)?.finished ?? false,
-      addedAt: m.movie.added_at,
+      watched: progress.get(m.id)?.finished ?? false,
+      addedAt: m.added_at,
     })),
     ...shows.map((s) => ({
       kind: "show" as const,
@@ -427,14 +449,12 @@ export function showArtHash(ctx: AppContext, id: string, kind: "poster" | "backd
   return row?.h ?? null;
 }
 
-/** Where a video's file is, for streaming. `root` is null once its folder was removed. */
-/** What preparing a video needs to know about it; null when it's gone or its folder was removed. */
-export function getPrepareSource(
+/** What streaming or downloading a converted video needs to know about it; null when it's gone or its folder was removed. */
+export function getStreamSource(
   ctx: AppContext,
   id: string,
 ): {
   file: string;
-  mtimeMs: number;
   durationSec: number;
   videoCodec: string | null;
   width: number | null;
@@ -444,9 +464,8 @@ export function getPrepareSource(
 } | null {
   const file = getVideoFile(ctx, id);
   if (!file?.root) return null;
-  const row = ctx.sqlite.prepare("SELECT mtime_ms, duration_sec, video_codec, width, height, hdr, audio_tracks FROM videos WHERE id = ?").get(id) as
+  const row = ctx.sqlite.prepare("SELECT duration_sec, video_codec, width, height, hdr, audio_tracks FROM videos WHERE id = ?").get(id) as
     | {
-        mtime_ms: number;
         duration_sec: number;
         video_codec: string | null;
         width: number | null;
@@ -458,7 +477,6 @@ export function getPrepareSource(
   if (!row) return null;
   return {
     file: resolveInside(file.root, file.relPath),
-    mtimeMs: row.mtime_ms,
     durationSec: row.duration_sec,
     videoCodec: row.video_codec,
     width: row.width,
@@ -469,6 +487,7 @@ export function getPrepareSource(
   };
 }
 
+/** Where a video's file is, for streaming. `root` is null once its folder was removed. */
 export function getVideoFile(ctx: AppContext, id: string): { root: string | null; relPath: string } | null {
   const row = ctx.sqlite.prepare("SELECT folder_id, rel_path FROM videos WHERE id = ? AND missing_since IS NULL").get(id) as
     | { folder_id: number | null; rel_path: string }

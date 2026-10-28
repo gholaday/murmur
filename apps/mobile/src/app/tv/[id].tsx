@@ -1,7 +1,7 @@
 import { memo, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { apiPaths, duration, episodeLabel, plural, type ShowDetail, timeLeft, type VideoEpisode, type VideoQuality } from "@murmur/shared/client";
+import { apiPaths, episodeLabel, percentDone, plural, type ShowDetail, type VideoEpisode, type VideoQuality } from "@murmur/shared/client";
 import { CheckIcon, MoreIcon, PlayedIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
@@ -10,9 +10,11 @@ import { Sheet, SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { Chips, IconButton, RoundButton, Text } from "@/components/ui";
-import { ArtBar, QualityButton, Still, WatchHero, WatchMatchSheet, WidePlayButton } from "@/components/watch";
+import { ArtBar, QualityButton, startEpisodeDownload, Still, VideoDownloadButton, WatchHero, WatchMatchSheet, WidePlayButton } from "@/components/watch";
+import { useDownloads } from "@/lib/downloads";
+import { useOnline } from "@/lib/query";
 import { useSession } from "@/lib/session";
-import { markWatched, openVideoPlayer, percentDone, seasonName, showEpisodes, useShow } from "@/lib/watch";
+import { episodeSub, markWatched, openVideoPlayer, seasonName, showEpisodes, useShow } from "@/lib/watch";
 import { fonts, useTheme } from "@/theme";
 
 export default function TvShowScreen() {
@@ -38,13 +40,33 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
   const [expanded, setExpanded] = useState(false);
   /** A converted-video quality picked for this viewing; null means your setting. */
   const [quality, setQuality] = useState<VideoQuality | null>(null);
+  const online = useOnline();
+  const downloads = useDownloads();
+  const isSaved = (e: VideoEpisode) => downloads[`show:${e.id}`]?.status === "done";
   const all = showEpisodes(show);
-  const upNext = all.find((e) => e.id === show.upNextId) ?? null;
+  // Offline, Resume goes to the next downloaded episode from there.
+  const upNextAt = all.findIndex((e) => e.id === show.upNextId);
+  const upNext = (upNextAt < 0 ? null : online ? all[upNextAt] : all.slice(upNextAt).find(isSaved)) ?? null;
   // Opens on the season you're in, or the one asked for.
   const [season, setSeason] = useState(
     show.seasonList.some((s) => s.season === askedSeason) ? askedSeason! : (upNext?.season ?? show.seasonList[0]?.season ?? 1),
   );
-  const episodes = show.seasonList.find((s) => s.season === season)?.episodes ?? [];
+  // Offline, only what's downloaded.
+  const episodes = (show.seasonList.find((s) => s.season === season)?.episodes ?? []).filter((e) => online || isSaved(e));
+
+  /** Every episode of the season not downloaded yet, one after another. */
+  const downloadSeason = () => {
+    setSheet(null);
+    const todo = episodes.filter((e) => !downloads[`show:${e.id}`] || downloads[`show:${e.id}`]!.status === "error");
+    if (!todo.length) {
+      toast.show(`${seasonName(season)} is already downloaded`);
+      return;
+    }
+    toast.show(`Downloading ${plural(todo.length, "episode")}`);
+    void (async () => {
+      for (const e of todo) await startEpisodeDownload(show, e, quality);
+    })();
+  };
   const seasonDone = episodes.length > 0 && episodes.every((e) => e.progress?.finished);
   const posterPath = show.posterHash ? apiPaths.showArtUrl(show.id, "poster", show.posterHash) : null;
   const backdropPath = show.backdropHash ? apiPaths.showArtUrl(show.id, "backdrop", show.backdropHash) : null;
@@ -78,11 +100,9 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
           art={art}
           pills={pills}
           right={
-            admin ? (
-              <IconButton label="More options" onPress={() => setSheet("menu")} style={{ marginRight: -10 }}>
-                <MoreIcon color={t.text} />
-              </IconButton>
-            ) : null
+            <IconButton label="More options" onPress={() => setSheet("menu")} style={{ marginRight: -10 }}>
+              <MoreIcon color={t.text} />
+            </IconButton>
           }
         />
 
@@ -125,13 +145,19 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
           <SectionTitle title={seasonName(season)} />
         )}
         {episodes.map((e) => (
-          <EpisodeRow key={e.id} e={e} onMark={(ep, done) => void mark([ep], done, episodeLabel(ep.season, ep.episode))} />
+          <EpisodeRow
+            key={e.id}
+            e={e}
+            onMark={(ep, done) => void mark([ep], done, episodeLabel(ep.season, ep.episode))}
+            onDownload={(ep) => void startEpisodeDownload(show, ep, quality)}
+          />
         ))}
       </ScrollView>
 
       <BottomMiniPlayer />
       <Sheet open={sheet === "menu"} onClose={() => setSheet(null)} title={show.title}>
-        <SheetItem label="Match…" onPress={() => setSheet("match")} />
+        <SheetItem label="Download season" onPress={downloadSeason} />
+        {admin ? <SheetItem label="Match…" onPress={() => setSheet("match")} /> : null}
       </Sheet>
       <WatchMatchSheet open={sheet === "match"} onClose={() => setSheet(null)} kind="show" id={show.id} title={show.title} year={show.year} tmdbId={show.tmdbId} />
     </View>
@@ -139,7 +165,15 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
 }
 
 /** An episode: still with how far you are, number and title, time, and a watched toggle. */
-const EpisodeRow = memo(function EpisodeRow({ e, onMark }: { e: VideoEpisode; onMark: (e: VideoEpisode, done: boolean) => void }) {
+const EpisodeRow = memo(function EpisodeRow({
+  e,
+  onMark,
+  onDownload,
+}: {
+  e: VideoEpisode;
+  onMark: (e: VideoEpisode, done: boolean) => void;
+  onDownload: (e: VideoEpisode) => void;
+}) {
   const t = useTheme();
   const finished = !!e.progress?.finished;
   const position = e.progress && !finished ? e.progress.positionSec : 0;
@@ -147,7 +181,7 @@ const EpisodeRow = memo(function EpisodeRow({ e, onMark }: { e: VideoEpisode; on
     <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 8 }}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Play ${e.episode}. ${e.title}`}
+        accessibilityLabel={`Play ${e.title}`}
         onPress={() => openVideoPlayer({ kind: "episode", id: e.id, showId: e.showId })}
         style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}
       >
@@ -155,13 +189,15 @@ const EpisodeRow = memo(function EpisodeRow({ e, onMark }: { e: VideoEpisode; on
           <Still videoId={e.id} hash={e.stillHash} title={e.title} width={128} />
           {position > 0 ? <ArtBar pct={percentDone(position, e.durationSec)} /> : null}
         </View>
-        <View style={{ flex: 1, gap: 2 }}>
+        {/* The text sits along the still's bottom edge. */}
+        <View style={{ flex: 1, gap: 2, alignSelf: "stretch", justifyContent: "flex-end" }}>
           <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 14, color: finished ? t.muted : t.text }}>
-            {`${e.episode}. ${e.title}`}
+            {e.title}
           </Text>
-          <Text variant="small">{position > 0 ? timeLeft(e.durationSec, position) : duration(e.durationSec)}</Text>
+          <Text variant="small">{episodeSub(e)}</Text>
         </View>
       </Pressable>
+      <VideoDownloadButton type="show" id={e.id} title={e.title} onDownload={() => onDownload(e)} />
       <IconButton label={finished ? "Mark as not watched" : "Mark as watched"} accessibilityState={{ selected: finished }} onPress={() => onMark(e, !finished)} style={{ marginRight: -10 }}>
         <PlayedIcon played={finished} color={finished ? t.accent : t.muted} checkColor={t.onAccent} />
       </IconButton>

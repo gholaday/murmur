@@ -27,6 +27,20 @@ Murmur only reads this folder. It never renames, moves or edits your files.
 
 **Music (optional)** goes in a folder of its own. Albums and artists come from the songs' tags, so any layout works. Untagged songs are read as `Artist/Album/01 - Title.mp3`, with `CD 1` or `Disc 2` folders counted as part of the album above them. A `cover.jpg`, `folder.jpg` or `front.jpg` in the album folder is used as the cover, otherwise the embedded art.
 
+**Movies and TV shows (optional)** go in folders of their own, one for movies and one for shows, laid out the way Plex reads them:
+
+```
+Movies/
+  Oppenheimer (2023)/
+    Oppenheimer (2023).mkv
+Shows/
+  A Knight of the Seven Kingdoms/
+    Season 1/
+      A Knight of the Seven Kingdoms - S01E01.mkv
+```
+
+A `poster.jpg` or `fanart.jpg` in the folder is used as the picture. Otherwise a free [TMDB](https://www.themoviedb.org/settings/api) key (`TMDB_API_KEY`) fills in posters, descriptions and episode names.
+
 ## 2. Start the server
 
 Copy [`docker-compose.yml`](../docker-compose.yml) to your server and change the `/path/to/...` folders:
@@ -35,6 +49,7 @@ Copy [`docker-compose.yml`](../docker-compose.yml) to your server and change the
 | --- | --- |
 | `/path/to/audiobooks` | Your library, mounted read-only |
 | `/path/to/music` | Optional: your music, mounted read-only. Uncomment it to turn on the Music tab |
+| `/path/to/movies`, `/path/to/shows` | Optional: your movies and shows, mounted read-only. Uncomment them to turn on the Watch tab |
 | `/path/to/murmur/data` | Database, covers and nightly backups. Back this up |
 | `/path/to/murmur/cache` | Podcast episodes kept on the server. Safe to lose |
 
@@ -107,6 +122,10 @@ The `murmur-adscan` add-on finds the ads in podcast episodes, so the players can
 
 Each device then chooses Off, Show or Auto-skip in its player's Ads button or in Settings. Details, costs and privacy notes are in the [add-on's README](../addons/adscan/README.md).
 
+## 7. Optional: video on the GPU
+
+Most files play as they are. A file whose picture the device can't play (HEVC in some browsers, for example) is converted while you watch, and a small server's CPU may not keep up. With an Intel or AMD GPU, uncomment the `devices:` lines in `docker-compose.yml` to pass `/dev/dri` in. Murmur finds the GPU on its own, and `/api/health` shows the encoder it picked under `watch.encoder`. If it still can't keep up, pick 720p in **You > Playback** or before pressing Play.
+
 ## Updating
 
 Change the image tag in `docker-compose.yml` (or use `latest`) and run:
@@ -121,6 +140,7 @@ In Portainer, use **Update the stack** as described in step 2. Database changes 
 ## When something's wrong
 
 - **Books are missing:** check that the library folder is mounted and readable inside the container, and look at **You > Library**, which shows each folder's status. Network shares that don't report file changes need `WATCH_POLLING=true`.
+- **Watch is empty:** You > Library says when ffmpeg is missing, and shows each movie and show folder's status.
 - **The app can't connect:** open the same address in the phone's browser. If that works, check for a login gateway that needs the `/api/*` bypass.
 - **Health check:** `http://<server>:3333/api/health` reports the database, library, scans and version.
 - **Logs:** `docker logs murmur` (and `docker logs murmur-adscan` for the add-on).

@@ -45,7 +45,7 @@ import {
 } from "@murmur/shared/client";
 import { absolute, api, authHeaders } from "@/lib/api";
 import { fetchBook, fetchEpisode, invalidateListening, keys } from "@/lib/data";
-import { getDownload, localTrackUri, localUri, savedTrack, saveDownloadAds } from "@/lib/downloads";
+import { downloadTypeOf, getDownload, localTrackUri, localUri, savedTrack, saveDownloadAds } from "@/lib/downloads";
 import { tapHaptic } from "@/lib/haptics";
 import { isIOS } from "@/lib/platform";
 import { queryClient } from "@/lib/query";
@@ -173,7 +173,7 @@ async function loadPlayableDetails(ref: PlayRef): Promise<Playable> {
       throw err;
     }
   }
-  const dl = getDownload(ref.itemType, ref.itemId);
+  const dl = getDownload(downloadTypeOf(ref.itemType), ref.itemId);
   if (ref.itemType === "book") {
     try {
       return bookToPlayable(await fetchBook(ref.itemId));
@@ -185,7 +185,7 @@ async function loadPlayableDetails(ref: PlayRef): Promise<Playable> {
   try {
     return episodeToPlayable(await fetchEpisode(ref.itemId));
   } catch (err) {
-    if (dl?.type === "episode") return episodeToPlayable(dl.episode);
+    if (dl?.type === "podcast") return episodeToPlayable(dl.episode);
     throw err;
   }
 }
@@ -355,8 +355,8 @@ function watchAds() {
     } catch {
       if (adsFor !== key) return;
       // Offline: a download carries the ad times it was saved with.
-      const dl = getDownload("episode", it.id);
-      if (!state.ads && dl?.type === "episode" && dl.ads) set({ ads: dl.ads });
+      const dl = getDownload("podcast", it.id);
+      if (!state.ads && dl?.type === "podcast" && dl.ads) set({ ads: dl.ads });
     }
     adsTimer = setTimeout(() => void fetchAds(), ADS_POLL_MS);
   };
@@ -787,12 +787,23 @@ function save(finished = false, refreshLists = finished || !state.playing) {
     updatedAt: Date.now(),
   };
   lastSaved = Date.now();
+  queueProgress(entry, refreshLists);
+}
+
+/**
+ * Puts a place in the outbox and sends it with the listening totals; offline it waits for the
+ * next save or reconnect. The video player saves through here too.
+ */
+export function queueProgress(entry: ProgressItem, refreshLists: boolean) {
   listening.persist();
   const outbox = getJson<Outbox>(OUTBOX_KEY) ?? {};
-  outbox[`${it.type}:${it.id}`] = entry;
+  outbox[`${entry.itemType}:${entry.itemId}`] = entry;
   setJson(OUTBOX_KEY, outbox);
   void flush(refreshLists);
 }
+
+/** Time spent watching a movie or episode (by its progress id), for the stats. */
+export const countWatching = (id: string, wallSec: number, movedSec: number, speed: number) => listening.add("video", id, wallSec, movedSec, speed);
 
 let flushing = false;
 let flushAgain = false;

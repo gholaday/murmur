@@ -97,6 +97,20 @@ function listening(): ListeningTracker {
   ));
 }
 
+/** Watching counts like listening: the video player adds its time here and sends it with its progress. */
+export function addWatching(videoId: string, wallSec: number, movedSec: number, speed: number) {
+  listening().add("video", videoId, wallSec, movedSec, speed);
+}
+
+export async function sendListening(keepalive = false) {
+  const tracker = listening();
+  tracker.persist();
+  const report = tracker.pending();
+  if (!report) return;
+  await api("/api/listening", { method: "PUT", body: report, keepalive });
+  tracker.sent(report);
+}
+
 export interface PlayableFile {
   url: string;
   startSec: number;

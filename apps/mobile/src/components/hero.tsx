@@ -1,8 +1,8 @@
 import { StyleSheet, View } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { absolute, authHeaders } from "@/lib/api";
 import { useTheme } from "@/theme";
+import { imageSource } from "./cover";
 
 /**
  * Header backdrop for book and show pages and the player: a blurred copy of the artwork, so its
@@ -34,7 +34,7 @@ export function HeroBackdrop({
       {path ? (
         <Image
           // A feed's own artwork (a full URL) loads directly, without our sign-in.
-          source={/^https?:\/\//.test(path) ? { uri: path } : { uri: absolute(path), headers: authHeaders(), cacheKey: path }}
+          source={imageSource(path)}
           cachePolicy="disk"
           blurRadius={90}
           contentFit="cover"

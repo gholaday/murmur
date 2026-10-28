@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import sharp from "sharp";
 import { env } from "../env";
 import { probedVideo, type FfprobeOutput, type ProbedVideo } from "./codecs";
 
@@ -65,4 +66,35 @@ export async function grabFrame(file: string, atSec: number, hdr = false): Promi
     if (mapped?.length) return mapped;
   }
   return grab("scale=960:-2");
+}
+
+/** Where a film's still is looked for, as parts of its length; the first that's bright enough wins. */
+const STILL_AT = [0.1, 0.25, 0.4];
+/** Average brightness (0 to 255) that's good enough to stop looking; low enough to allow for black bars. */
+const BRIGHT_ENOUGH = 50;
+
+/**
+ * A frame for the video's still: a tenth of the way in, unless that's a dark scene, in which case
+ * a couple of later points are tried and the brightest kept. Black bars are left in; they're
+ * trimmed when the picture is stored.
+ */
+export async function grabStill(file: string, durationSec: number, hdr: boolean): Promise<Buffer> {
+  let best: { frame: Buffer; light: number } | null = null;
+  for (const part of STILL_AT) {
+    const frame = await grabFrame(file, Math.max(1, durationSec * part), hdr).catch((err: unknown) => {
+      if (!best) throw err;
+      return null;
+    });
+    if (!frame?.length) continue;
+    const light = await brightness(frame);
+    if (!best || light > best.light) best = { frame, light };
+    if (light >= BRIGHT_ENOUGH) break;
+  }
+  return best?.frame ?? Buffer.alloc(0);
+}
+
+/** The frame's average brightness, from its greyscale mean. */
+async function brightness(jpeg: Buffer): Promise<number> {
+  const stats = await sharp(jpeg).greyscale().stats();
+  return stats.channels[0]?.mean ?? 0;
 }

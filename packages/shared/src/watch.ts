@@ -1,5 +1,7 @@
 // Watch: movies and TV shows. What the server sends for the Watch tab, movie and show pages.
 
+import { gigabytes } from "./format";
+
 /** An audio track in a video file, in the file's own order. */
 export interface VideoAudioTrack {
   /** The stream's index among the file's audio streams (ffmpeg's `0:a:N`). */
@@ -271,7 +273,7 @@ export type StreamVideo = "copy" | "h264";
 export type VideoQuality = "full" | "light";
 export const VIDEO_QUALITIES: VideoQuality[] = ["full", "light"];
 
-/** Sound an MP4 can carry as it is; anything else is converted when prepared. */
+/** Sound an MP4 can carry as it is; anything else is converted to AAC. */
 const mp4Audio = (codec: string) => codec.startsWith("mp4a") || ["ac-3", "ec-3", "opus", "flac"].includes(codec);
 
 /** The audio track a file plays by default. */
@@ -318,7 +320,93 @@ export interface StreamSessionDto {
   start: number;
 }
 
+/**
+ * A video the server is making into an MP4 for the phone to keep (`POST apiPaths.videoDownload`).
+ * Ask again every few seconds while it's preparing; once ready, download `fileUrl` like any file
+ * (it has a length and takes range requests, so an interrupted download can resume). The file is
+ * kept on the server for a few hours, and DELETE on `fileUrl` cancels or removes it.
+ */
+export interface VideoDownloadDto {
+  id: string;
+  status: "preparing" | "ready" | "failed";
+  /** 0 to 1 while preparing, from how far into the video ffmpeg has got. */
+  progress: number;
+  /** Bytes, once ready. */
+  size: number | null;
+  error: string | null;
+  fileUrl: string;
+}
+
 /** "S2 E4", or "Special 3" for season 0. */
 export function episodeLabel(season: number, episode: number): string {
   return season === 0 ? `Special ${episode}` : `S${season} E${episode}`;
+}
+
+// ---------- The player's rules, the same on the web and the app ----------
+
+export const QUALITY_LABEL: Record<VideoQuality, string> = { full: "1080p", light: "720p" };
+
+export const VIDEO_PLAYER = {
+  saveEveryMs: 10_000,
+  /** Seeks within a stream stay this far from its live edge, so the player doesn't stall there. */
+  edgeSec: 2,
+  /** This many stalls on a converted stream and the player says the server can't keep up. */
+  slowAfterStalls: 3,
+  /** The next-episode card shows this long before the end, and counts down from `countdown`. */
+  nextCardAtSec: 30,
+  countdown: 10,
+  hideAfterMs: 3000,
+  doubleTapMs: 300,
+  /** Your place is only saved once the video has moved this far from where it opened. */
+  touchedAfterSec: 3,
+} as const;
+
+/** Where the speed and the audio language are remembered, per movie and per show. */
+export const videoSpeedKey = (key: string) => `murmur.videoSpeed.${key}`;
+export const videoLanguageKey = (key: string) => `murmur.videoAudio.${key}`;
+export const validSpeed = (v: unknown): number => (typeof v === "number" && VIDEO_SPEEDS.includes(v) ? v : 1);
+
+/** How far through, as a percentage, for progress bars. */
+export const percentDone = (positionSec: number, durationSec: number) => (durationSec ? Math.min(100, (positionSec / durationSec) * 100) : 0);
+
+/** Where a video opens: your place, unless it's finished or only the credits are left, which starts over. */
+export const resumeStart = (startAt: number, durationSec: number) => (startAt > 0 && startAt < durationSec * WATCHED_AT ? startAt : 0);
+
+/** The remembered language's track, when the file has one and it isn't already the default; else the default. */
+export function trackForLanguage(file: VideoFileInfo, language: string | null): number {
+  const main = defaultAudioTrack(file);
+  if (!language || file.audioTracks.find((t) => t.index === main)?.language === language) return main;
+  return file.audioTracks.find((t) => t.language === language)?.index ?? main;
+}
+
+let languageNames: Intl.DisplayNames | null = null;
+
+/** "English" for "eng"; the track's title, or its number, when the file doesn't say. */
+export function trackName(t: VideoAudioTrack): string {
+  let language: string | null = null;
+  if (t.language && t.language !== "und") {
+    try {
+      languageNames ??= new Intl.DisplayNames(undefined, { type: "language" });
+      language = languageNames.of(t.language) ?? null;
+    } catch {
+      language = t.language.toUpperCase();
+    }
+  }
+  if (language && t.title && !t.title.toLowerCase().includes(language.toLowerCase())) return `${language}, ${t.title}`;
+  return t.title ?? language ?? `Track ${t.index + 1}`;
+}
+
+/** "Dolby Digital 5.1": a track's codec and channels. */
+export const trackDetails = (t: VideoAudioTrack) => [codecName(t.codec), channelsLabel(t.channels)].filter(Boolean).join(" ");
+
+/** "HEVC", "HDR10", "Dolby Digital 5.1", "MKV", "4.2 GB": the pills under File. */
+export function fileDetailParts(file: VideoFileInfo): string[] {
+  const audio = file.audioTracks.find((t) => t.isDefault) ?? file.audioTracks[0];
+  return [
+    file.videoCodec ? codecName(file.videoCodec) : null,
+    file.hdr ? (file.hdr === "dolby-vision" ? "Dolby Vision" : file.hdr === "hlg" ? "HLG" : "HDR10") : null,
+    audio ? `${codecName(audio.codec)}${audio.channels && audio.channels > 2 ? ` ${channelsLabel(audio.channels)}` : ""}` : null,
+    codecName(file.container),
+    gigabytes(file.size),
+  ].filter((p): p is string => !!p);
 }

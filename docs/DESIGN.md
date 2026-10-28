@@ -38,12 +38,13 @@ Dark is the default theme; light follows the system or a choice under You > Appe
 | `danger` | `#ff8a8a` | `#c43c3c` | Destructive actions and errors |
 | `stat-2` | `#f2a65a` | `#b8620f` | Podcasts in the listening stats |
 | `stat-3` | `#4fb39a` | `#1e7a63` | Music in the listening stats |
+| `stat-4` | `#e27fae` | `#b03a72` | Watch in the listening stats |
 | `nav` | `#17181b` | `#ffffff` | The tab bar and sidebar |
 | `tab-inactive` | `#9a9aa0` | `#8a8984` | Unselected tabs. Only 3.5:1 on light `nav` |
 
 Fixed colours used in both themes: `#5ccf8a` success and `#f0b45a` warning (status dots, match scores; both read poorly on white, so pair them with words), and the ad colours `#ef9f27`, `#ba7517` (already played) and `#412402` (text on the Skip ad button).
 
-**How to use them.** Build every screen from the same grounds: `bg` for the page, `surface` for raised cards and sheets, `surface-2` for buttons and the mini player, `chip` for chips and pills. `accent` is the only hue in the chrome. `stat-2` and `stat-3` only tell podcasts and music apart in the stats.
+**How to use them.** Build every screen from the same grounds: `bg` for the page, `surface` for raised cards and sheets, `surface-2` for buttons and the mini player, `chip` for chips and pills. `accent` is the only hue in the chrome. `stat-2`, `stat-3` and `stat-4` only tell podcasts, music and Watch apart in the stats.
 
 **Covers carry the colour.** A book, show or album header tints its background from the cover, with a blurred copy bleeding out behind it; the full player, the now-playing card and the mini player tint the same way. Don't add brand colour around covers.
 
@@ -131,6 +132,7 @@ Web class names are in `globals.css`; the app has matching components under `app
 - **Settings card** (`SettingsCard`, `Setting`, `SettingSub`, `SettingLink`, `SwitchRow`, `StatusDot`; `.card-box`, `.setting`). Rows with a title, optional sub line, and a value with chevron, a switch or a button. One setting per row. A status dot before the title is green when fine, amber when it needs a look.
 - **Confirm remove** (`ConfirmRemove`). A danger button that turns into Keep and the confirm button on the first click, for removing a folder or a user.
 - **Form controls** (`.input`, `.switch`, checkboxes). 44px inputs on `surface` with a `line` border that turns `accent` on focus. Placeholders say what to type ("Playlist name"). Each form has one primary button.
-- **Stats card** (`ListeningStats`, `StatTile`, `.stats-*`). Total and comparison, bars (current one `accent`), the books / podcasts / music split, then tiles. Hidden tabs hide their parts.
+- **Stats card** (`ListeningStats`, `StatTile`, `.stats-*`). Period chips, then a card: the total and the comparison with the period before, a chart with each bar stacked by kind (books, podcasts, music, Watch in `accent`, `stat-2`, `stat-3`, `stat-4`, books at the bottom; today's label bold), and a 2×2 legend that is also the filter. Picking a kind outlines it in its colour, fades the others, and turns the total, chart, tiles and top cards to that kind, with Show all to go back. Then tiles (Streak, Daily average, one count per kind with its dot; or the picked kind's counts and daily average), then Top this week as two-column cards with a square cover and the kind as a small uppercase label. A hidden tab, or a server with no music or videos, leaves its kind out everywhere, the total included; with only books left there's no legend. Your library follows, three tiles to a row.
+- **Episode rows** (`.episode-row`). A 16:9 still with a progress bar, then the title over "S1 E2, 31m" in a smaller muted line, both sitting on the still's bottom edge, and a watched toggle on the right. The video player's Next episodes list uses the same row and scrolls with a thin bar and no arrows; on short windows the picture shrinks so a row and a half still show.
 - **Browse row** (`.browse-row`). A full-width `surface` row with an icon tile, title, sub line, optional "N new" pill and chevron, leading to the rest of a catalogue. One per screen.
 - **Empty state** (`EmptyState`; `.empty`, `.music-empty`). One bold line and one muted sentence, no illustrations, no blame.

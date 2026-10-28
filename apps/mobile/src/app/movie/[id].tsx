@@ -11,7 +11,7 @@ import { Sheet, SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { IconButton, RoundButton, Text } from "@/components/ui";
-import { FileDetails, QualityButton, WatchHero, WatchMatchSheet, WidePlayButton } from "@/components/watch";
+import { FileDetails, QualityButton, startMovieDownload, VideoDownloadButton, WatchHero, WatchMatchSheet, WidePlayButton } from "@/components/watch";
 import { useSession } from "@/lib/session";
 import { markWatched, openVideoPlayer, useMovie } from "@/lib/watch";
 import { fonts, useTheme } from "@/theme";
@@ -94,6 +94,7 @@ function MovieView({ movie }: { movie: MovieDetail }) {
             }
           />
           <QualityButton file={version.file} value={quality} onChange={setQuality} />
+          <VideoDownloadButton type="movie" id={movie.id} title={movie.title} round onDownload={() => void startMovieDownload(movie, versionId, quality)} />
           <RoundButton label={finished ? "Mark as not watched" : "Mark as watched"} active={finished} onPress={() => void mark(!finished)}>
             <CheckIcon size={22} color={finished ? t.accent : t.text} />
           </RoundButton>

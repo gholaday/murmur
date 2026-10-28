@@ -1,6 +1,6 @@
 import type { PlaybackSupport, VideoFileInfo } from "@murmur/shared/client";
 
-// What this browser can play, for the playback rules in @murmur/shared (playbackProblem).
+// What this browser can play, for the playback rules in @murmur/shared (playbackPlan).
 // MediaSource answers for codecs; containers are known per browser, since none of them says.
 
 const WEBM_CODEC = /^(vp8|vp09|av01|opus|vorbis)/;

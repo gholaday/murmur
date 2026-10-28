@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { router } from "expo-router";
-import { albumCover, apiPaths, plural } from "@murmur/shared/client";
-import { formatBytes, removeAllDownloads, removeDownload, useDownload, useDownloads, type Download } from "@/lib/downloads";
+import { albumCover, apiPaths, episodeLabel, plural } from "@murmur/shared/client";
+import { downloadingText, formatBytes, removeAllDownloads, removeDownload, useDownload, useDownloads, type Download } from "@/lib/downloads";
+import { openMovie, openTvShow, openVideoPlayer } from "@/lib/watch";
 import { bookToPlayable, episodeToPlayable, play, playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
@@ -21,8 +22,18 @@ export function DownloadsView() {
   const bottom = useBottomPad();
   const all = Object.values(useDownloads()).sort((a, b) => b.savedAt - a.savedAt);
   const books = all.filter((d) => d.type === "book");
-  const episodes = all.filter((d) => d.type === "episode");
+  const episodes = all.filter((d) => d.type === "podcast");
   const music = all.filter((d) => d.type === "album" || d.type === "track");
+  const movies = all.filter((d) => d.type === "movie");
+  // TV episodes in a section per show, in watching order.
+  const shows = new Map<string, { title: string; list: (Download & { type: "show" })[] }>();
+  for (const d of all) {
+    if (d.type !== "show") continue;
+    const group = shows.get(d.show.id) ?? { title: d.show.title, list: [] };
+    group.list.push(d);
+    shows.set(d.show.id, group);
+  }
+  for (const g of shows.values()) g.list.sort((a, b) => a.episode.season - b.episode.season || a.episode.episode - b.episode.episode);
   const bytes = all.reduce((sum, d) => sum + d.bytes, 0);
   const [removing, setRemoving] = useState<Download | null>(null);
   const [removingAll, setRemovingAll] = useState(false);
@@ -67,6 +78,22 @@ export function DownloadsView() {
             ))}
           </>
         ) : null}
+        {movies.length ? (
+          <>
+            <SectionTitle title="Movies" count={movies.length} />
+            {movies.map((d) => (
+              <DownloadRow key={d.id} download={d} onRemove={() => onRemove(d)} />
+            ))}
+          </>
+        ) : null}
+        {[...shows].map(([showId, g]) => (
+          <View key={showId}>
+            <SectionTitle title={g.title} count={g.list.length} />
+            {g.list.map((d) => (
+              <DownloadRow key={d.id} download={d} onRemove={() => onRemove(d)} />
+            ))}
+          </View>
+        ))}
       </ScrollView>
       <BottomMiniPlayer />
 
@@ -98,12 +125,16 @@ function titleOf(d: Download) {
   switch (d.type) {
     case "book":
       return d.book.title;
-    case "episode":
+    case "podcast":
       return d.episode.title;
     case "album":
       return d.album.title;
     case "track":
       return d.track.title;
+    case "movie":
+      return d.movie.title;
+    case "show":
+      return d.episode.title;
   }
 }
 
@@ -119,7 +150,7 @@ function describe(d: Download) {
         open: () => router.push(`/book/${d.book.id}`),
         play: () => play(bookToPlayable(d.book)),
       };
-    case "episode":
+    case "podcast":
       return {
         cover: d.episode.podcastCoverHash ? apiPaths.podcastCoverUrl(d.episode.podcastId, d.episode.podcastCoverHash, 200) : null,
         color: d.episode.podcastCoverColor,
@@ -146,6 +177,26 @@ function describe(d: Download) {
         open: () => router.push(`/album/${d.track.albumId}`),
         play: () => playMusic({ kind: "album", refId: d.track.albumId, title: d.track.album, tracks: [d.track] }, 0),
       };
+    case "movie":
+      return {
+        cover: d.movie.posterHash ? apiPaths.movieArtUrl(d.movie.id, "poster", d.movie.posterHash, "small") : null,
+        color: d.movie.color,
+        aspectRatio: 2 / 3,
+        sub: d.movie.year ?? "Movie",
+        kind: null,
+        open: () => openMovie(d.movie.id),
+        play: () => openVideoPlayer({ kind: "movie", id: d.movie.id, version: d.versionId === d.movie.versionList[0]?.id ? undefined : d.versionId }),
+      };
+    case "show":
+      return {
+        cover: d.episode.stillHash ? apiPaths.videoStillUrl(d.episode.id, d.episode.stillHash, "small") : null,
+        color: d.show.color,
+        aspectRatio: 16 / 9,
+        sub: episodeLabel(d.episode.season, d.episode.episode),
+        kind: null,
+        open: () => openTvShow(d.show.id),
+        play: () => openVideoPlayer({ kind: "episode", id: d.episode.id, showId: d.show.id }),
+      };
   }
 }
 
@@ -154,13 +205,15 @@ function DownloadRow({ download, onRemove }: { download: Download; onRemove: () 
   const d = useDownload(download.type, download.id) ?? download;
   const v = describe(d);
   const title = titleOf(d);
+  const ratio = ("aspectRatio" in v && v.aspectRatio) || 1;
   // Music says what it is too: "Album, 13 songs, 118 MB".
   const size = v.kind ? `${v.kind}, ${formatBytes(d.bytes)}` : formatBytes(d.bytes);
 
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: t.line }}>
       <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={v.open} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <Cover path={v.cover} title={title} color={v.color ?? null} size={56} radius={8} />
+        {/* Posters and stills keep their shape, at the cover's height. */}
+        <Cover path={v.cover} title={title} color={v.color ?? null} size={56 * ratio} aspectRatio={ratio} radius={8} />
         <View style={{ flex: 1, gap: 2 }}>
           <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 15, lineHeight: 20 }}>
             {title}
@@ -169,7 +222,7 @@ function DownloadRow({ download, onRemove }: { download: Download; onRemove: () 
             {v.sub}
           </Text>
           <Text variant="small" style={d.status === "error" ? { color: t.danger } : d.status === "downloading" ? { color: t.accent } : undefined}>
-            {d.status === "downloading" ? `Downloading ${Math.round(d.progress * 100)}%` : d.status === "error" ? "Download failed" : size}
+            {d.status === "downloading" ? downloadingText(d) : d.status === "error" ? "Download failed" : size}
           </Text>
         </View>
       </Pressable>

@@ -9,6 +9,7 @@ import {
   duration,
   episodeLabel,
   errorText,
+  percentDone,
   plural,
   type ShowDetail,
   timeLeft,
@@ -19,13 +20,13 @@ import { CheckIcon, MoreIcon, PlayedIcon, PlayIcon } from "../icons";
 import { setManyFinished } from "../progress";
 import { Sheet, SheetItem } from "../sheet";
 import { BackButton, Chip, Chips } from "../ui";
-import { percentDone, playHref, Poster, Still } from "./cards";
+import { playHref, Poster, Still } from "./cards";
 import { WatchMatchDialog } from "./match-sheet";
 import { QualityPick } from "./quality-pick";
 
 const seasonName = (season: number) => (season === 0 ? "Specials" : `Season ${season}`);
 
-/** An episode row: still with how far you are, number and title, time, and a watched toggle. */
+/** An episode row: still with how far you are, title, "S1 E2" with the time, and a watched toggle. */
 function EpisodeRow({ e, onMark }: { e: VideoEpisode; onMark: (e: VideoEpisode, done: boolean) => void }) {
   const finished = !!e.progress?.finished;
   const position = e.progress && !finished ? e.progress.positionSec : 0;
@@ -41,10 +42,10 @@ function EpisodeRow({ e, onMark }: { e: VideoEpisode; onMark: (e: VideoEpisode, 
           ) : null}
         </div>
         <div className="list-row-main">
-          <span className="list-row-title">
-            {e.episode}. {e.title}
+          <span className="list-row-title">{e.title}</span>
+          <span className="list-row-sub">
+            {episodeLabel(e.season, e.episode)}, {position > 0 ? timeLeft(e.durationSec, position) : duration(e.durationSec)}
           </span>
-          <span className="list-row-sub">{position > 0 ? timeLeft(e.durationSec, position) : duration(e.durationSec)}</span>
         </div>
       </Link>
       <button

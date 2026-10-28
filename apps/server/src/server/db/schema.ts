@@ -383,7 +383,7 @@ export const progress = sqliteTable(
     userId: integer("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    itemType: text("item_type", { enum: ["book", "episode"] }).notNull(),
+    itemType: text("item_type", { enum: ["book", "episode", "video"] }).notNull(),
     itemId: text("item_id").notNull(),
     positionSec: real("position_sec").notNull(),
     durationSec: real("duration_sec").notNull(),
@@ -439,7 +439,7 @@ export const listeningDays = sqliteTable(
       .references(() => users.id, { onDelete: "cascade" }),
     clientId: text("client_id").notNull(),
     day: text("day").notNull(),
-    itemType: text("item_type", { enum: ["book", "episode", "track"] }).notNull(),
+    itemType: text("item_type", { enum: ["book", "episode", "track", "video"] }).notNull(),
     itemId: text("item_id").notNull(),
     listenedSec: real("listened_sec").notNull(),
     contentSec: real("content_sec").notNull(),

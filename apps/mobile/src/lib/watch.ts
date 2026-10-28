@@ -2,19 +2,22 @@ import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import {
   apiPaths,
-  channelsLabel,
-  codecName,
+  duration,
+  episodeLabel,
   type MovieDetail,
   type MovieSummary,
   type ShowDetail,
   type ShowSummary,
-  VIDEO_SPEEDS,
-  type VideoAudioTrack,
+  timeLeft,
+  validSpeed,
   type VideoEpisode,
+  videoLanguageKey,
   type VideoQuality,
+  videoSpeedKey,
   type WatchHomeDto,
 } from "@murmur/shared/client";
 import { api } from "./api";
+import { savedMovie, savedShow } from "./downloads";
 import { queryClient } from "./query";
 import { getJson, removeKey, setJson } from "./storage";
 
@@ -32,10 +35,21 @@ export const watchKeys = {
 export const useWatchHome = () => useQuery({ queryKey: watchKeys.home, queryFn: () => api<WatchHomeDto>(apiPaths.watchHome) });
 export const useMovies = (enabled = true) => useQuery({ queryKey: watchKeys.movies, queryFn: () => api<MovieSummary[]>(apiPaths.movies), enabled });
 export const useShows = (enabled = true) => useQuery({ queryKey: watchKeys.shows, queryFn: () => api<ShowSummary[]>(apiPaths.shows), enabled });
+// A downloaded movie or show opens from its saved details until (or unless) the server answers.
 export const useMovie = (id: string | undefined) =>
-  useQuery({ queryKey: watchKeys.movie(id ?? ""), queryFn: () => api<MovieDetail>(apiPaths.movie(id!)), enabled: !!id });
+  useQuery({
+    queryKey: watchKeys.movie(id ?? ""),
+    queryFn: () => api<MovieDetail>(apiPaths.movie(id!)),
+    enabled: !!id,
+    placeholderData: () => (id ? savedMovie(id) : undefined),
+  });
 export const useShow = (id: string | undefined) =>
-  useQuery({ queryKey: watchKeys.show(id ?? ""), queryFn: () => api<ShowDetail>(apiPaths.show(id!)), enabled: !!id });
+  useQuery({
+    queryKey: watchKeys.show(id ?? ""),
+    queryFn: () => api<ShowDetail>(apiPaths.show(id!)),
+    enabled: !!id,
+    placeholderData: () => (id ? savedShow(id) : undefined),
+  });
 
 /** Everything on the Watch tab and pages loads again, after watching or marking something. */
 export const invalidateWatch = () => void queryClient.invalidateQueries({ queryKey: watchKeys.all });
@@ -62,10 +76,13 @@ export async function markWatched(items: { id: string; durationSec: number }[], 
 /** A show's episodes in watching order: seasons in order, Specials last, as the server lists them. */
 export const showEpisodes = (show: ShowDetail): VideoEpisode[] => show.seasonList.flatMap((s) => s.episodes);
 
-export const seasonName = (season: number) => (season === 0 ? "Specials" : `Season ${season}`);
+/** An episode row's sub line: "S1 E2, 31m", with the time left once started. */
+export function episodeSub(e: VideoEpisode): string {
+  const position = e.progress && !e.progress.finished ? e.progress.positionSec : 0;
+  return `${episodeLabel(e.season, e.episode)}, ${position > 0 ? timeLeft(e.durationSec, position) : duration(e.durationSec)}`;
+}
 
-/** How far through, as a percentage, for progress bars. */
-export const percentDone = (positionSec: number, durationSec: number) => (durationSec ? Math.min(100, (positionSec / durationSec) * 100) : 0);
+export const seasonName =(season: number) => (season === 0 ? "Specials" : `Season ${season}`);
 
 export const openMovie = (id: string) => router.push({ pathname: "/movie/[id]", params: { id } });
 export const openTvShow = (id: string) => router.push({ pathname: "/tv/[id]", params: { id } });
@@ -87,38 +104,13 @@ export const openVideoPlayer = (target: WatchTarget) => router.push({ pathname: 
 
 // ---------- Audio tracks and quality ----------
 
-const languageKey = (key: string) => `murmur.videoAudio.${key}`;
-
 /** The audio language picked for a movie or show, so its next file opens with the same one. */
-export const readVideoLanguage = (key: string) => getJson<string>(languageKey(key));
+export const readVideoLanguage = (key: string) => getJson<string>(videoLanguageKey(key));
 
 export function saveVideoLanguage(key: string, language: string | null) {
-  if (language) setJson(languageKey(key), language);
-  else removeKey(languageKey(key));
+  if (language) setJson(videoLanguageKey(key), language);
+  else removeKey(videoLanguageKey(key));
 }
-
-let languageNames: Intl.DisplayNames | null = null;
-
-/** "English" for "eng"; the track's title, or its number, when the file doesn't say. */
-export function trackName(t: VideoAudioTrack): string {
-  let language: string | null = null;
-  if (t.language && t.language !== "und") {
-    try {
-      languageNames ??= new Intl.DisplayNames(undefined, { type: "language" });
-      language = languageNames.of(t.language) ?? null;
-    } catch {
-      language = t.language.toUpperCase();
-    }
-  }
-  if (language && t.title && !t.title.toLowerCase().includes(language.toLowerCase())) return `${language}, ${t.title}`;
-  return t.title ?? language ?? `Track ${t.index + 1}`;
-}
-
-/** "Dolby Digital 5.1": a track's codec and channels. */
-export const trackDetails = (t: VideoAudioTrack) => [codecName(t.codec), channelsLabel(t.channels)].filter(Boolean).join(" ");
-
-export const QUALITY_LABEL: Record<VideoQuality, string> = { full: "1080p", light: "720p" };
-export const QUALITY_SUB: Record<VideoQuality, string> = { full: "Full", light: "Lighter, easier on the server" };
 
 // Media3 plays nearly any picture, so what this phone can't decode is only known once a file is
 // tried (10-bit HEVC on an older phone, say). The codecs that failed are kept, so the next file
@@ -137,14 +129,9 @@ export function markPictureUnplayable(codec: string | null) {
 
 // ---------- Speed, remembered per movie and per show ----------
 
-const speedKey = (key: string) => `murmur.videoSpeed.${key}`;
-
-export function readVideoSpeed(key: string): number {
-  const v = getJson<number>(speedKey(key));
-  return v !== null && VIDEO_SPEEDS.includes(v) ? v : 1;
-}
+export const readVideoSpeed = (key: string): number => validSpeed(getJson<number>(videoSpeedKey(key)));
 
 export function saveVideoSpeed(key: string, speed: number) {
-  if (speed === 1) removeKey(speedKey(key));
-  else setJson(speedKey(key), speed);
+  if (speed === 1) removeKey(videoSpeedKey(key));
+  else setJson(videoSpeedKey(key), speed);
 }

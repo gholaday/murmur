@@ -8,7 +8,7 @@ import { IMAGE_EXTENSIONS, extname, isIgnoredName } from "../library/parse";
 import { createLimiter } from "../library/probe";
 import type { ScanState } from "../library/scanner";
 import { storeArt } from "./art";
-import { ffmpegAvailable, grabFrame, probeVideo } from "./ffmpeg";
+import { ffmpegAvailable, grabStill, probeVideo } from "./ffmpeg";
 import {
   ART_NAMES,
   editionOf,
@@ -301,26 +301,29 @@ export function createWatchScanner(deps: WatchScannerDeps) {
       )
       .all() as Array<{ id: string; folder_id: number; rel_path: string; duration_sec: number; hdr: string | null; backdrop_hash: string | null }>;
     const setStill = sqlite.prepare("UPDATE videos SET still_hash = ?, still_from_file = ? WHERE id = ?");
+    // The whole body holds a slot: a thumbnail's sharp work is as heavy as a frame grab.
     await Promise.all(
-      videos.map(async (v) => {
-        const root = roots.get(v.folder_id);
-        if (!root) return;
-        const dir = dirOf(v.rel_path);
-        const thumb = pickArt(images(v.folder_id, dir), [`${stem(path.posix.basename(v.rel_path))}-thumb`]);
-        let still: string | null;
-        if (thumb) still = await storeImage(root, dir, thumb, "wide");
-        else if (v.backdrop_hash) still = v.backdrop_hash;
-        else {
-          try {
-            const frame = await probeLimit(() => grabFrame(path.join(root, v.rel_path), Math.max(1, v.duration_sec * 0.1), v.hdr !== null));
-            still = frame.length ? await storeArt(deps.coversDir, frame, "wide", { trimBars: true }) : "";
-          } catch (err) {
-            log.warn("frame could not be grabbed", { file: v.rel_path, error: errorMessage(err) });
-            still = ""; // tried; the cards fall back to the poster
+      videos.map((v) =>
+        probeLimit(async () => {
+          const root = roots.get(v.folder_id);
+          if (!root) return;
+          const dir = dirOf(v.rel_path);
+          const thumb = pickArt(images(v.folder_id, dir), [`${stem(path.posix.basename(v.rel_path))}-thumb`]);
+          let still: string | null;
+          if (thumb) still = await storeImage(root, dir, thumb, "wide");
+          else if (v.backdrop_hash) still = v.backdrop_hash;
+          else {
+            try {
+              const frame = await grabStill(path.join(root, v.rel_path), v.duration_sec, v.hdr !== null);
+              still = frame.length ? await storeArt(deps.coversDir, frame, "wide", { trimBars: true }) : "";
+            } catch (err) {
+              log.warn("frame could not be grabbed", { file: v.rel_path, error: errorMessage(err) });
+              still = ""; // tried; the cards fall back to the poster
+            }
           }
-        }
-        if (still !== null) setStill.run(still, thumb && still ? 1 : 0, v.id);
-      }),
+          if (still !== null) setStill.run(still, thumb && still ? 1 : 0, v.id);
+        }),
+      ),
     );
   }
 

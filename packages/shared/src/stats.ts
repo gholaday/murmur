@@ -1,4 +1,4 @@
-import type { PlayType } from "./index";
+import type { StatsType } from "./index";
 
 // Listening stats: how long you listened, by day. Days are the listener's own calendar days
 // (YYYY-MM-DD), worked out on the device, so "today" and "this week" are yours wherever the
@@ -7,8 +7,18 @@ import type { PlayType } from "./index";
 export type StatsPeriod = "week" | "month" | "year" | "all";
 export const STATS_PERIODS: StatsPeriod[] = ["week", "month", "year", "all"];
 
-/** Listening under this on a day doesn't count toward a streak or an episode played. */
+/** Listening under this on a day doesn't count toward a streak, or an episode played or watched. */
 export const COUNTS_AS_LISTENED_SEC = 60;
+/** A song counts as played after this much of it. */
+export const COUNTS_AS_SONG_SEC = 30;
+
+/** The four kinds the stats split time into: books, podcasts ("episode"), music and Watch. */
+export type StatsKind = "book" | "episode" | "music" | "watch";
+export const STATS_KINDS: StatsKind[] = ["book", "episode", "music", "watch"];
+export type StatsSplit = Record<StatsKind, number>;
+export const emptySplit = (): StatsSplit => ({ book: 0, episode: 0, music: 0, watch: 0 });
+/** Which kind a listening row's item type adds to. */
+export const STATS_KIND_OF: Record<StatsType, StatsKind> = { book: "book", episode: "episode", track: "music", video: "watch" };
 
 // ---------- Days ----------
 
@@ -144,10 +154,11 @@ export function streakDays(listenedDays: ReadonlySet<string>, today: string): nu
 // ---------- What the server sends ----------
 
 export interface StatsTop {
-  kind: "book" | "podcast" | "album" | "song";
-  /** The book, show, album or song. */
+  kind: "book" | "podcast" | "album" | "song" | "movie" | "tvshow";
+  /** The book, show, album, song, movie or TV show. */
   id: string;
   title: string;
+  /** For a movie or TV show, its poster's hash. */
   coverHash: string | null;
   sec: number;
   /** For a song: its album, whose cover it shows and which it opens. */
@@ -156,8 +167,23 @@ export interface StatsTop {
   plays?: number;
 }
 
+/** The days of the period so far: up to today, or the whole period once it's over. */
+export function daysSoFar(stats: Pick<StatsDto, "from" | "to">, today: string): number {
+  const end = today < stats.to ? today : stats.to;
+  return Math.max(1, daysBetween(stats.from, end) + 1);
+}
+
+/** Time per day over the period so far, for the Daily average tile. */
+export const dailyAverage = (sec: number, stats: Pick<StatsDto, "from" | "to">, today: string): number => Math.round(sec / daysSoFar(stats, today));
+
+/** Which kind of time a top item belongs to. */
+export const statsTopKind = (t: StatsTop): StatsKind =>
+  t.kind === "book" ? "book" : t.kind === "podcast" ? "episode" : t.kind === "album" || t.kind === "song" ? "music" : "watch";
+
 /** The line under a Most played row: "Most played book", or "Most played song, 12 plays". */
 export function statsTopLabel(t: StatsTop): string {
+  if (t.kind === "movie") return "Most watched movie";
+  if (t.kind === "tvshow") return "Most watched show";
   const noun = { book: "book", podcast: "show", album: "album", song: "song" }[t.kind];
   return t.plays ? `Most played ${noun}, ${t.plays === 1 ? "1 play" : `${t.plays} plays`}` : `Most played ${noun}`;
 }
@@ -169,13 +195,27 @@ export interface StatsDto {
   totalSec: number;
   /** The same stretch of the period before; null for all time. */
   previousSec: number | null;
-  bars: Array<{ key: string; label: string; sec: number }>;
-  split: Record<"book" | "episode" | "music", number>;
+  /** Each bar's time, and how it splits by kind, so a chart can stack them or show one kind. */
+  bars: Array<{ key: string; label: string; sec: number; split: StatsSplit }>;
+  split: StatsSplit;
+  /** The period before, by kind; null for all time. */
+  previousSplit: StatsSplit | null;
   streakDays: number;
   finishedBooks: number;
+  /** Podcast episodes played for at least a minute. */
   episodesPlayed: number;
-  /** Time saved by listening faster than 1x. */
+  /** Songs played for at least 30 seconds, and the albums they're on. */
+  songsPlayed: number;
+  albumsPlayed: number;
+  /** TV episodes and movies watched for at least a minute. */
+  showEpisodesWatched: number;
+  moviesWatched: number;
+  /** Time saved by listening faster than 1x. No longer shown; kept for older apps. */
   savedSec: number;
+  /**
+   * What you spent longest on: up to two books, two podcasts, the top album and song, and the top
+   * TV show and movie, each kind longest first.
+   */
   top: StatsTop[];
 }
 
@@ -183,7 +223,7 @@ export interface StatsDto {
 
 export interface ListeningItem {
   day: string;
-  itemType: PlayType;
+  itemType: StatsType;
   itemId: string;
   /** Real time spent listening. */
   listenedSec: number;
@@ -231,7 +271,7 @@ export class ListeningTracker {
    * position moved. The smaller of the two counts, so a seek forward doesn't add the skipped part
    * and a paused or frozen player adds nothing.
    */
-  add(itemType: PlayType, itemId: string, wallSec: number, movedSec: number, speed: number, now = Date.now()) {
+  add(itemType: StatsType, itemId: string, wallSec: number, movedSec: number, speed: number, now = Date.now()) {
     const seconds = Math.min(wallSec, movedSec / speed);
     if (!(seconds > 0) || seconds > MAX_TICK_SEC) return;
     const day = localDay(now);

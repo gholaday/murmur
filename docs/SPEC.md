@@ -4,7 +4,7 @@ How Murmur works and why. For installing it, see [Getting started](GETTING_START
 
 ## Overview
 
-Murmur is a self-hosted server for audiobooks, podcasts and music, with a web player and an Android app. It reads an existing audiobook folder (the Audiobookshelf layout), follows podcasts by RSS, plays music from a folder of albums, and keeps listening progress in sync across devices. It runs as one Docker container.
+Murmur is a self-hosted server for audiobooks, podcasts, music, movies and TV shows, with a web player and an Android app. It reads an existing audiobook folder (the Audiobookshelf layout), follows podcasts by RSS, plays music from a folder of albums, streams movies and shows from their folders, and keeps progress in sync across devices. It runs as one Docker container.
 
 It trades breadth for reliability: fewer features than larger media servers, each one solid.
 
@@ -48,9 +48,18 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 - Download albums or songs to the phone
 - Album Match and artist photos for admins
 
+**Watch** (optional; see Watch)
+
+- Movie and show folders managed by the admin under You > Library; with none, Watch doesn't show
+- Posters, descriptions and episode names from TMDB when a key is set, matched on their own like Plex, with Match to fix a wrong one
+- Plays the file as it is when the device can, else streams it through ffmpeg with the sound or the picture converted, on the GPU where there is one
+- Quality (1080p or 720p) for converted video, picked per video or as a setting; audio track choice; the next episode with a countdown
+- Download movies and episodes to the phone
+
 **Listening stats**
 
-- On You: time listened this week, month, year or all time against the period before, a chart, the split between books, podcasts and music, your streak, and what you played most
+- On You: time listened and watched this week, month, year or all time against the period before, a chart stacked by books, podcasts, music and Watch, your streak and daily average, a count for each kind, and what you played and watched most. Picking a kind in the legend shows only that kind
+- Kinds whose tab is hidden, or that the server doesn't have, are left out of the stats altogether, the total included
 - Podcasts and Music can each be hidden per person under Tabs; their tabs and their parts of You go away
 
 **Player**
@@ -66,7 +75,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 
 - Listening position saved to the server every few seconds and on pause
 - Resume on any device where you left off
-- Download books and episodes to the phone; offline progress syncs when back online
+- Download books, episodes, music, movies and TV episodes to the phone; offline progress syncs when back online
 
 **Accounts**
 
@@ -82,12 +91,13 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 | Database | SQLite via `better-sqlite3` + Drizzle ORM | A single file in `/data`; typed queries and migrations |
 | Background jobs | Started from `instrumentation.ts` with `node-cron` and `chokidar` | Feed checks and library watching inside the same process |
 | Audio metadata | `music-metadata` (pure JavaScript, no ffmpeg) | Reads tags, duration, chapters and embedded covers from m4b, mp3, flac and ogg/opus |
+| Video | `ffmpeg` and `ffprobe` (with the VAAPI drivers in the image) | Reads video files, grabs stills, and makes HLS streams and downloads; only Watch needs them |
 | RSS | `rss-parser` | Parses podcast feeds and iTunes tags |
 | Auth | Session cookie for web, bearer token for the app; passwords hashed with argon2 | Simple, no external provider |
 | Web styling | Plain CSS with custom properties (`apps/server/src/app/globals.css`) | Light and dark themes without a build step |
 | Android app | Expo (React Native) + Expo Router | React and TypeScript; shares types with the server |
 | App playback | `expo-audio` | Background audio, lock-screen and notification controls, Bluetooth buttons |
-| App downloads | `expo-file-system` | Offline books and episodes |
+| App downloads | `expo-file-system` | Offline books, episodes, music, movies and TV episodes |
 | App data | TanStack Query persisted to `expo-sqlite` key-value storage | Cached lists that open offline, offline progress queue |
 | Shared code | `packages/shared`: API types and Zod schemas | One definition used by server, web and app |
 | Repo | pnpm workspace monorepo | `apps/server`, `apps/mobile`, `packages/shared`, `addons/adscan` |
@@ -361,6 +371,17 @@ The books pattern, for albums: "Match metadata…" in an album's menu, and Match
 - "Change photo…" on the artist page (admins) picks another or goes back to the album cover.
 
 **Rejected:** audio fingerprinting (AcoustID needs `fpcalc` in the image and decoding every file), and TheAudioDB and fanart.tv (both need API keys).
+
+## Watch
+
+Movies and TV shows, built on the `watch` branch. [WATCH.md](WATCH.md) has the full design: folder layout, scanning, matching, streaming and the players. In short:
+
+- **Folders.** Movies go in "Title (Year)" folders and shows in Show/Season folders, each kind under its own library folders. ffprobe reads each file once, and again only when its size or modified time changes. Without ffmpeg, Watch stays empty and nothing else is affected.
+- **Details.** Local art and .nfo files come first. With `TMDB_API_KEY` set, everything not yet tried is matched after each scan, one request at a time, and Match fixes a wrong one. A still is grabbed for each file without one: a tenth of the way in, or the brightest of a few later frames when that one is dark.
+- **Playing.** `playbackPlan` (shared) decides per device. A file the device plays as it is plays directly, with range requests. Otherwise an ffmpeg HLS session copies the picture, or converts it to H.264, from wherever playback starts, and converts the sound to AAC when needed. A far seek starts a new session. A session keeps only about three minutes behind the player on disk, and nothing once it ends.
+- **Converting.** The first working encoder is used: NVENC, Quick Sync, VAAPI, AMF, VideoToolbox, then the CPU. A GPU that fails on a file is dropped for the CPU. Quality is 1080p or 720p, picked per video or as a setting under You > Playback.
+- **Progress and stats.** Progress is saved like a book's, with `itemType: "video"`. Watching adds to the same listening totals as audio, so it shows on You and counts towards the streak.
+- **Downloads.** The phone keeps the file as it is when it can play it. Otherwise the server makes an MP4 into its cache as a job the phone checks on, then the phone downloads it like any file and the server deletes its copy. One conversion per person runs at a time.
 
 ## Android app
 

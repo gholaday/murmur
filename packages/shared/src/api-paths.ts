@@ -78,6 +78,14 @@ export const apiPaths = {
   videoUrl: (videoId: string) => `/api/stream/video/${videoId}`,
   /** POST starts a remuxed (HLS) stream of a video. */
   videoStream: (videoId: string) => `/api/watch/videos/${videoId}/stream`,
+  /**
+   * POST `{ track, audio, video, quality }` starts making a video into an MP4 for the phone to keep,
+   * or reports on the one already being made: VideoDownloadDto. For files the phone can't play as
+   * they are; others download from videoUrl.
+   */
+  videoDownload: (videoId: string) => `/api/watch/videos/${videoId}/download`,
+  /** GET the finished MP4 (range requests work); DELETE cancels or removes it. */
+  videoDownloadFile: (downloadId: string) => `/api/watch/downloads/${downloadId}`,
   /** DELETE ends a stream session. */
   streamSession: (sessionId: string) => `/api/watch/streams/${sessionId}`,
 };

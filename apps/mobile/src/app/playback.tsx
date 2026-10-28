@@ -1,9 +1,9 @@
-import { SKIP_BACK_OPTIONS, SKIP_FORWARD_OPTIONS, type VideoQuality } from "@murmur/shared/client";
-import { Card, Row } from "@/components/settings";
+import { QUALITY_LABEL, SKIP_BACK_OPTIONS, SKIP_FORWARD_OPTIONS, type VideoQuality } from "@murmur/shared/client";
+import { Card, Row, SwitchRow } from "@/components/settings";
 import { SettingsPage } from "@/components/settings-page";
 import { Chips } from "@/components/ui";
-import { saveVideoQuality, useVideoQuality } from "@/lib/data";
-import { QUALITY_LABEL, useWatchHome } from "@/lib/watch";
+import { saveAutoplayNext, saveVideoQuality, useAutoplayNext, useVideoQuality } from "@/lib/data";
+import { useWatchHome } from "@/lib/watch";
 import { AD_MODES, adPrefsStore, useAdDetection, useAdPrefs } from "@/player/ad-prefs";
 import { setSkip, usePlayer } from "@/player/engine";
 
@@ -19,6 +19,7 @@ export default function PlaybackSettings() {
   const adDetection = useAdDetection();
   const watch = !!useWatchHome().data?.enabled;
   const quality = useVideoQuality();
+  const autoplayNext = useAutoplayNext();
   return (
     <SettingsPage title="Playback">
       <Card>
@@ -29,9 +30,12 @@ export default function PlaybackSettings() {
           <Chips kind="radio" wrap options={SKIP_FORWARD} value={skip.forward} onPick={(v) => setSkip({ ...skip, forward: v })} />
         </Row>
         {watch ? (
-          <Row title="Converted video" sub="When the server has to convert a video. 720p is easier on a small server" stacked last={!adDetection}>
-            <Chips kind="radio" wrap options={QUALITIES} value={quality} onPick={(q: VideoQuality) => saveVideoQuality(q)} />
-          </Row>
+          <>
+            <Row title="Converted video" sub="When the server has to convert a video. 720p is easier on a small server" stacked>
+              <Chips kind="radio" wrap options={QUALITIES} value={quality} onPick={(q: VideoQuality) => saveVideoQuality(q)} />
+            </Row>
+            <SwitchRow title="Play next episode" label="Play next episode" value={autoplayNext} onChange={saveAutoplayNext} last={!adDetection} />
+          </>
         ) : null}
         {adDetection ? (
           <Row title="Ads" sub={`This device only. ${AD_MODES.find((m) => m.id === adPrefs.mode)?.hint}.`} stacked last>

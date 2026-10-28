@@ -56,7 +56,10 @@ function Navigation() {
           <Stack.Screen name="playlist/[id]" />
           <Stack.Screen name="movie/[id]" />
           <Stack.Screen name="tv/[id]" />
-          <Stack.Screen name="watch-player" options={{ animation: "slide_from_bottom" }} />
+          <Stack.Screen
+            name="watch-player"
+            options={{ presentation: "transparentModal", animation: "slide_from_bottom", contentStyle: { backgroundColor: "transparent" } }}
+          />
           <Stack.Screen name="add-songs" />
           <Stack.Screen name="browse" />
           <Stack.Screen name="group" />

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { apiPaths, episodeLabel } from "@murmur/shared";
 import { getContext } from "@/server/context";
+import { getPrefs } from "@/server/prefs";
 import { requirePageUser } from "@/server/session";
 import { getEpisodePlay, getMovie } from "@/server/watch/queries";
 import type { PlayerItem } from "@/web/watch/video-player";
@@ -18,8 +19,9 @@ export default async function PlayPage({
   const ctx = await getContext();
   const { kind, id } = await params;
   const { v, q } = await searchParams;
+  const prefs = getPrefs(ctx, user.id);
   // A quality picked before pressing Play (`?q=`), for this video only; otherwise your setting applies.
-  const quality = q === "full" || q === "light" ? q : null;
+  const quality = q === "full" || q === "light" ? q : prefs.videoQuality;
   let item: PlayerItem;
   if (kind === "movie") {
     const movie = await getMovie(ctx, user.id, id);
@@ -41,6 +43,7 @@ export default async function PlayPage({
       startAt: movie.progress && !movie.progress.finished ? movie.progress.positionSec : 0,
       backHref: `/watch/movie/${movie.id}`,
       next: [],
+      autoplayNext: false,
       speedKey: movie.id,
     };
   } else if (kind === "episode") {
@@ -63,6 +66,7 @@ export default async function PlayPage({
       startAt: e.progress && !e.progress.finished ? e.progress.positionSec : 0,
       backHref: `/watch/show/${play.show.id}?season=${e.season}`,
       next: play.next,
+      autoplayNext: prefs.autoplayNext,
       speedKey: play.show.id,
     };
   } else notFound();

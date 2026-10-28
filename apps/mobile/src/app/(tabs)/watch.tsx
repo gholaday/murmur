@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { FlatList, TextInput, View } from "react-native";
-import type { MovieSummary, ShowSummary, WatchCard } from "@murmur/shared/client";
+import { type MovieSummary, percentDone, type ShowSummary, type WatchCard } from "@murmur/shared/client";
 import { CloseIcon, SearchIcon } from "@/components/icons";
 import { GAP, gridRows, PAD, Shelf, useGridWidth, useShelfWidth } from "@/components/library";
 import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
@@ -8,8 +8,10 @@ import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, Skeleton } from "@/components/skeleton";
 import { Chips, IconButton } from "@/components/ui";
 import { type PosterItem, PosterCard, RescanButton, StillCard } from "@/components/watch";
+import { useDownloads } from "@/lib/downloads";
+import { useOnline } from "@/lib/query";
 import { useSession } from "@/lib/session";
-import { openMovie, openTvShow, percentDone, useMovies, useShows, useWatchHome } from "@/lib/watch";
+import { openMovie, openTvShow, useMovies, useShows, useWatchHome } from "@/lib/watch";
 import { fonts, useTheme } from "@/theme";
 
 type Tab = "home" | "movies" | "shows" | "watched";
@@ -66,19 +68,25 @@ export default function Watch() {
   const shows = useShows();
   const refresh = usePullRefresh(() => Promise.all([home.refetch(), movies.refetch(), shows.refetch()]));
 
-  const all = useMemo(
-    () =>
-      [...(movies.data ?? []).map(movieItem), ...(shows.data ?? []).map(showItem)].sort((a, b) =>
-        a.title.localeCompare(b.title, undefined, { sensitivity: "base" }),
-      ),
-    [movies.data, shows.data],
-  );
+  // Offline, only what's downloaded: movies, and shows with an episode saved.
+  const online = useOnline();
+  const downloads = useDownloads();
+  const all = useMemo(() => {
+    const saved = new Set(
+      Object.values(downloads).flatMap((d) => (d.status !== "done" ? [] : d.type === "movie" ? [`movie-${d.id}`] : d.type === "show" ? [`show-${d.show.id}`] : [])),
+    );
+    return [...(movies.data ?? []).map(movieItem), ...(shows.data ?? []).map(showItem)]
+      .filter((i) => online || saved.has(`${i.kind}-${i.id}`))
+      .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
+  }, [movies.data, shows.data, online, downloads]);
   const q = query.trim().toLowerCase();
 
   const rows = useMemo((): Row[] => {
     const grid = (list: PosterItem[]): Row[] => gridRows(list).map((r) => ({ kind: "grid", key: `${r[0]!.kind}-${r[0]!.id}`, items: r }));
     if (q) return grid((tab === "home" ? all : all.filter(inTab(tab))).filter((i) => i.title.toLowerCase().includes(q)));
     if (tab !== "home") return grid(all.filter(inTab(tab)));
+    // Home's shelves are the server's; offline it's just the downloads.
+    if (!online) return grid(all);
     const h = home.data;
     if (!h) return [];
     const byKey = new Map(all.map((i) => [`${i.kind}-${i.id}`, i]));
@@ -91,7 +99,7 @@ export default function Watch() {
     if (recentMovies.length) out.push({ kind: "shelf", key: "movies", title: "Recently added movies", items: recentMovies });
     if (recentShows.length) out.push({ kind: "shelf", key: "shows", title: "Recently added shows", items: recentShows });
     return out;
-  }, [all, home.data, q, tab]);
+  }, [all, home.data, q, tab, online]);
 
   const loading = movies.isPending || shows.isPending || (tab === "home" && home.isPending);
   const failed = movies.error ?? shows.error ?? (tab === "home" ? home.error : null);
@@ -139,6 +147,8 @@ export default function Watch() {
     </Skeleton>
   ) : failed ? (
     <Empty title="Couldn't load Watch">{failed.message}</Empty>
+  ) : !online && all.length === 0 ? (
+    <Empty title="Nothing downloaded" />
   ) : all.length === 0 ? (
     <Empty title="Nothing to watch yet">Movies and shows show up here once the scan finds them.</Empty>
   ) : q ? (

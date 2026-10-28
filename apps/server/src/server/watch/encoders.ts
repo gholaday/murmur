@@ -158,7 +158,7 @@ async function works(encoder: Encoder): Promise<boolean> {
     await ffmpeg(["-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30", "-frames:v", "10", ...after, "-f", "null", "-"], 30_000);
     return true;
   } catch (err) {
-    log.info("encoder not available", { encoder, error: err instanceof Error ? err.message : String(err) });
+    log.debug("encoder not available", { encoder, error: err instanceof Error ? err.message : String(err) });
     return false;
   }
 }
@@ -176,6 +176,7 @@ async function probe(): Promise<Encoder> {
     }
   }
   if (want !== "auto") log.warn("hardware encoder not available, using the CPU", { wanted: want });
+  else log.info("no hardware encoder, using the CPU");
   return "cpu";
 }
 

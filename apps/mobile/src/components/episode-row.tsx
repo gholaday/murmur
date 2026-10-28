@@ -30,7 +30,7 @@ export const EpisodeRow = memo(function EpisodeRow({
   const t = useTheme();
   const player = usePlayer();
   const live = useItemPosition("episode", episode.id) ?? 0;
-  const dl = useDownload("episode", episode.id);
+  const dl = useDownload("podcast", episode.id);
   const [open, setOpen] = useState(false);
   const notes = useEpisodeNotes(episode, open);
   const [busy, setBusy] = useState(false);
@@ -82,7 +82,7 @@ export const EpisodeRow = memo(function EpisodeRow({
 
   const onDownload = () => {
     if (dl?.status === "done") setConfirmRemove(true);
-    else if (dl) removeDownload("episode", episode.id);
+    else if (dl) removeDownload("podcast", episode.id);
     else downloadEpisode(episode);
   };
 
@@ -198,7 +198,7 @@ export const EpisodeRow = memo(function EpisodeRow({
         </View>
       </View>
       {confirmRemove ? (
-        <RemoveDownloadSheet open title={episode.title} onConfirm={() => removeDownload("episode", episode.id)} onClose={() => setConfirmRemove(false)} />
+        <RemoveDownloadSheet open title={episode.title} onConfirm={() => removeDownload("podcast", episode.id)} onClose={() => setConfirmRemove(false)} />
       ) : null}
     </View>
   );

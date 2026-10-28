@@ -2,7 +2,7 @@ import { type StreamSessionDto, watchStreamSchema } from "@murmur/shared";
 import { requireUser } from "@/server/auth";
 import { getContext } from "@/server/context";
 import { HttpError, json, readJson, route } from "@/server/http";
-import { getPrepareSource } from "@/server/watch/queries";
+import { getStreamSource } from "@/server/watch/queries";
 import { startStream } from "@/server/watch/stream-session";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -13,7 +13,7 @@ export const POST = route<Ctx>(async (req, { params }) => {
   const user = requireUser(ctx, req);
   const videoId = (await params).id;
   const { track, audio, video, quality, start } = await readJson(req, watchStreamSchema);
-  const found = getPrepareSource(ctx, videoId);
+  const found = getStreamSource(ctx, videoId);
   if (!found) throw new HttpError(404, "Video not found.");
   if (found.audioCodecs.length > 0 && track >= found.audioCodecs.length) throw new HttpError(400, "That audio track isn't in the file.");
   const { file, videoCodec, width, height, hdr } = found;

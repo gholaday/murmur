@@ -10,6 +10,8 @@ export class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /** Extra response headers, like `Retry-After` on a 503. */
+    readonly headers?: Record<string, string>,
   ) {
     super(message);
   }
@@ -60,7 +62,7 @@ export function route<C>(handler: Handler<C>): Handler<C> {
     try {
       return await handler(req, ctx);
     } catch (err) {
-      if (isHttpError(err)) return json({ error: err.message }, { status: err.status });
+      if (isHttpError(err)) return json({ error: err.message }, { status: err.status, headers: err.headers });
       if (err instanceof ZodError) {
         const issue = err.issues[0];
         const where = issue?.path.length ? `${issue.path.join(".")}: ` : "";

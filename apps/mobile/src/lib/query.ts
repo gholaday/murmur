@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import * as Network from "expo-network";
 import { dehydrate, focusManager, hydrate, onlineManager, QueryClient, type DehydratedState } from "@tanstack/react-query";
@@ -47,6 +48,8 @@ const PERSISTED = new Set([
   "artist",
   "playlists",
   "playlist",
+  // Movies and shows: the Watch tab, its lists and pages.
+  "watch",
 ]);
 // Albums, artists and songs come in two scopes; only your own ("mine") is kept, not Browse's "all".
 const SCOPED = new Set(["albums", "artists", "tracks"]);
@@ -77,3 +80,6 @@ onlineManager.setEventListener((setOnline) => {
 });
 
 AppState.addEventListener("change", (state) => focusManager.setFocused(state === "active"));
+
+/** Whether the phone has a connection, as React Query sees it. */
+export const useOnline = () => useSyncExternalStore(onlineManager.subscribe.bind(onlineManager), () => onlineManager.isOnline());

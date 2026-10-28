@@ -4,21 +4,23 @@ import { useIsFocused } from "expo-router";
 import { createVideoPlayer, type VideoPlayer, type VideoSource } from "expo-video";
 import {
   apiPaths,
-  defaultAudioTrack,
   errorText,
   type PlaybackPlan,
   playbackPlan,
   type PlaybackSupport,
+  resumeStart,
   type StreamRequest,
   type StreamSessionDto,
+  trackForLanguage,
+  VIDEO_PLAYER,
   type VideoFileInfo,
   type VideoQuality,
   WATCHED_AT,
 } from "@murmur/shared/client";
 import { absolute, api, authHeaders } from "@/lib/api";
 import { readVideoQuality, saveVideoQuality } from "@/lib/data";
+import { localVideo, type VideoDownloadSource } from "@/lib/downloads";
 import {
-  invalidateWatch,
   markPictureUnplayable,
   pictureUnplayable,
   readVideoLanguage,
@@ -27,7 +29,7 @@ import {
   saveVideoSpeed,
   type WatchTarget,
 } from "@/lib/watch";
-import { getPlayerState, onPlayerChange, stop as stopAudio } from "./engine";
+import { countWatching, getPlayerState, onPlayerChange, queueProgress, stop as stopAudio } from "./engine";
 
 // The video being watched, kept outside the screens so it plays on in the mini player, like the
 // audio engine. One expo-video player for the whole app; screens show it with a VideoView.
@@ -82,11 +84,8 @@ export interface VideoState {
   slow: boolean;
 }
 
-const SAVE_EVERY_MS = 10_000;
-/** Seeks within a stream stay this far from what's been made, so the player doesn't stall there. */
-const EDGE_SEC = 2;
-/** This many stalls on a converted stream and the player says the server can't keep up. */
-const SLOW_AFTER_STALLS = 3;
+/** A paused stream's playlist is asked for this often, so the server keeps its session. */
+const KEEP_ALIVE_MS = 120_000;
 /** A stream that fails is started again from where it was, this many times in a row at most. */
 const MAX_RETRIES = 2;
 
@@ -127,12 +126,17 @@ let offset = 0;
 /** Where the source loading now should go once it's open, in the video's time. */
 let pendingAt = 0;
 let session: string | null = null;
+/** The open stream's playlist, asked for while paused to keep its session. */
+let playlist: string | null = null;
+let aliveTimer: ReturnType<typeof setInterval> | null = null;
 /** Bumped on every new source, so answers for an older one are ignored. */
 let generation = 0;
 let forceTranscode = false;
 let stalls = 0;
 let retries = 0;
 let saveTimer: ReturnType<typeof setInterval> | null = null;
+/** When the last time update came while playing, for watch time; 0 when it wasn't. */
+let watchedAt = 0;
 const stateListeners = new Set<() => void>();
 const positionListeners = new Set<() => void>();
 
@@ -165,8 +169,14 @@ export function videoPlayer(): VideoPlayer {
   p.addListener("timeUpdate", ({ currentTime }) => {
     // Before the source opens (and goes to its start) the time reads 0; it isn't your place.
     if (!loaded) return;
+    const before = position;
     setPosition(offset + currentTime);
-    if (state.item && p.playing && Math.abs(position - state.item.startAt) > 3) touched = true;
+    const it = state.item;
+    if (it && p.playing && Math.abs(position - it.startAt) > VIDEO_PLAYER.touchedAfterSec) touched = true;
+    // Watch time for the stats, counted like listening: the smaller of the clock and the picture's moves.
+    const now = Date.now();
+    if (it && p.playing && watchedAt) countWatching(it.progressId, (now - watchedAt) / 1000, position - before, state.speed);
+    watchedAt = p.playing ? now : 0;
   });
   p.addListener("sourceLoad", ({ availableVideoTracks }) => {
     const it = state.item;
@@ -190,8 +200,9 @@ export function videoPlayer(): VideoPlayer {
   p.addListener("playingChange", ({ isPlaying }) => {
     set({ playing: isPlaying, ...(isPlaying ? { ended: false } : {}) });
     if (saveTimer) clearInterval(saveTimer);
-    saveTimer = isPlaying ? setInterval(save, SAVE_EVERY_MS) : null;
-    if (!isPlaying) save();
+    saveTimer = isPlaying ? setInterval(() => save(), VIDEO_PLAYER.saveEveryMs) : null;
+    if (!isPlaying) save(true);
+    keepAlive(!isPlaying);
   });
   p.addListener("statusChange", ({ status, error }) => {
     if (!state.item) return;
@@ -200,7 +211,7 @@ export function videoPlayer(): VideoPlayer {
     else if (status === "loading") {
       set({ loading: true });
       // A converted stream running dry after it started means the server can't keep up.
-      if (loaded && state.plan === "transcode" && position > offset + 1 && ++stalls >= SLOW_AFTER_STALLS) set({ slow: true });
+      if (loaded && state.plan === "transcode" && position > offset + 1 && ++stalls >= VIDEO_PLAYER.slowAfterStalls) set({ slow: true });
     }
   });
   p.addListener("playToEnd", () => {
@@ -211,7 +222,7 @@ export function videoPlayer(): VideoPlayer {
     setPosition(it.durationSec);
     touched = true;
     set({ playing: false, ended: true });
-    save();
+    save(true);
   });
   player = p;
   return p;
@@ -243,6 +254,20 @@ function playError(message: string | undefined): string {
 function endSession() {
   if (session) void api(apiPaths.streamSession(session), { method: "DELETE" }).catch(() => undefined);
   session = null;
+  playlist = null;
+  keepAlive(false);
+}
+
+/**
+ * While a stream is paused, asks for its playlist now and then: the server ends a session nobody
+ * asks for, and resuming after a long pause would then have to start a new one.
+ */
+function keepAlive(on: boolean) {
+  if (aliveTimer) clearInterval(aliveTimer);
+  aliveTimer = null;
+  if (!on || !playlist || state.playing) return;
+  const url = absolute(playlist);
+  aliveTimer = setInterval(() => void fetch(url, { headers: authHeaders() }).catch(() => undefined), KEEP_ALIVE_MS);
 }
 
 /** Your setting for converted pictures, read when a converted stream first needs it. */
@@ -259,14 +284,24 @@ async function start(at: number, forceRemux = false) {
   const gen = ++generation;
   endSession();
   loaded = false;
+  watchedAt = 0;
   pendingAt = at;
   stalls = 0;
-  const plan = playbackPlan(it.file, phoneSupport(forceTranscode), { track: state.track, forceRemux });
-  set({ plan: plan.kind, loading: true, error: null, slow: false });
   const metadata = {
     title: it.kind === "episode" ? (it.showTitle ?? it.title) : it.title,
     artist: it.kind === "episode" ? `${it.label}, ${it.title}` : undefined,
   };
+  // A download plays from the phone, even online, while it holds the audio track you're on.
+  // One that wouldn't open (forceRemux) is streamed instead.
+  const saved = forceRemux ? null : localVideo(it.videoId);
+  if (saved && saved.track === state.track) {
+    set({ plan: "direct", loading: true, error: null, slow: false });
+    offset = 0;
+    if (gen === generation) await p.replaceAsync({ uri: saved.uri, metadata });
+    return;
+  }
+  const plan = playbackPlan(it.file, phoneSupport(forceTranscode), { track: state.track, forceRemux });
+  set({ plan: plan.kind, loading: true, error: null, slow: false });
   let source: VideoSource;
   if (plan.kind === "direct") {
     offset = 0;
@@ -288,6 +323,7 @@ async function start(at: number, forceRemux = false) {
       return;
     }
     session = s.sessionId;
+    playlist = s.playlistUrl;
     offset = s.start;
     pendingAt = Math.max(at, s.start);
     source = { uri: absolute(s.playlistUrl), headers: authHeaders(), contentType: "hls", metadata };
@@ -295,8 +331,11 @@ async function start(at: number, forceRemux = false) {
   if (gen === generation) await p.replaceAsync(source);
 }
 
-/** Saves your place, the same as books: every few seconds while playing, and on pause. */
-function save() {
+/**
+ * Saves your place, the same as books: every few seconds while playing, and on pause. Only
+ * `refresh` (pause, the end, closing) reloads the Watch lists, once the server has it.
+ */
+function save(refresh = false) {
   const it = state.item;
   if (!it || !touched || !loaded) return;
   // A stream only knows the part made so far; the file's length comes from the server.
@@ -304,23 +343,34 @@ function save() {
   if (!dur) return;
   const at = state.ended ? dur : position;
   const finished = at >= dur * WATCHED_AT;
-  api("/api/progress", {
-    method: "PUT",
-    body: {
-      items: [{ itemType: "video", itemId: it.progressId, positionSec: finished ? dur : at, durationSec: dur, finished, updatedAt: Date.now() }],
-    },
-  })
-    .then(invalidateWatch)
-    .catch(() => undefined);
+  // Through the audio engine's outbox, so a download watched offline syncs later.
+  queueProgress(
+    { itemType: "video", itemId: it.progressId, positionSec: finished ? dur : at, durationSec: dur, finished, speed: state.speed, updatedAt: Date.now() },
+    refresh || finished,
+  );
 }
 
-/** The remembered language's track, when the file has one and it isn't the default. */
-function rememberedTrack(it: VideoItem): number {
-  const main = defaultAudioTrack(it.file);
-  const language = readVideoLanguage(it.speedKey);
-  const mainLanguage = it.file.audioTracks.find((t) => t.index === main)?.language;
-  if (!language || mainLanguage === language) return main;
-  return it.file.audioTracks.find((t) => t.language === language)?.index ?? main;
+/** The audio track for the language remembered for the movie or show (`key`), else the default. */
+const trackFor = (file: VideoFileInfo, key: string) => trackForLanguage(file, readVideoLanguage(key));
+
+const rememberedTrack = (it: VideoItem) => trackFor(it.file, it.speedKey);
+
+/**
+ * Where a movie version or episode (`videoId`) downloads from: the file as it is when this phone
+ * plays it, else an MP4 the server makes with your audio track and, for a converted picture, the
+ * page's quality or your setting. `key` is the movie or show, for the remembered audio language.
+ */
+export async function videoDownloadSource(file: VideoFileInfo, videoId: string, key: string, quality: VideoQuality | null): Promise<VideoDownloadSource> {
+  const track = trackFor(file, key);
+  const plan = playbackPlan(file, phoneSupport(false), { track });
+  if (plan.kind === "direct") return { made: false, url: apiPaths.videoUrl(videoId), track };
+  const video = plan.kind === "transcode" ? "h264" : "copy";
+  return {
+    made: true,
+    videoId,
+    request: { track: plan.track, audio: plan.audio, video, quality: quality ?? (await readVideoQuality()) },
+    track: plan.track,
+  };
 }
 
 /**
@@ -330,7 +380,7 @@ function rememberedTrack(it: VideoItem): number {
 export function openVideo(item: VideoItem) {
   const cur = state.item;
   if (cur && cur.progressId === item.progressId && cur.videoId === item.videoId) return;
-  if (cur) save();
+  if (cur) save(true);
   stopAudio();
   videoPlayer();
   touched = false;
@@ -345,14 +395,13 @@ export function openVideo(item: VideoItem) {
     track: rememberedTrack(item),
     quality: item.quality ?? "full",
   });
-  // A finished movie, or one with only the credits left, starts over.
-  void start(item.startAt > 0 && item.startAt < item.durationSec * WATCHED_AT ? item.startAt : 0);
+  void start(resumeStart(item.startAt, item.durationSec));
 }
 
 /** Ends the video: from the mini player's close button, or when it can't play. */
 export function closeVideo() {
   if (!state.item) return;
-  save();
+  save(true);
   generation++;
   loaded = false;
   if (saveTimer) clearInterval(saveTimer);
@@ -395,7 +444,7 @@ export function seekVideo(sec: number) {
   setPosition(to);
   if (state.ended) set({ ended: false });
   const rel = to - offset;
-  if (state.plan === "direct" || (loaded && rel >= 0 && rel <= p.duration - EDGE_SEC)) {
+  if (state.plan === "direct" || (loaded && rel >= 0 && rel <= p.duration - VIDEO_PLAYER.edgeSec)) {
     p.currentTime = rel;
     p.play();
   } else void start(to);

@@ -93,7 +93,12 @@ export async function readVideoQuality(): Promise<VideoQuality> {
   }
 }
 
-export const saveVideoQuality = (videoQuality: VideoQuality) => savePrefs({ videoQuality }, "Couldn't save the quality.");
+/** Whether the next episode starts on its own when one ends; on until your prefs say otherwise. */
+export const useAutoplayNext = (): boolean => usePrefs().data?.autoplayNext ?? true;
+
+export const saveAutoplayNext = (autoplayNext: boolean) => savePrefs({ autoplayNext }, "Couldn't save that.");
+
+export const saveVideoQuality =(videoQuality: VideoQuality) => savePrefs({ videoQuality }, "Couldn't save the quality.");
 
 export const useBooks = () => useQuery({ queryKey: keys.books, queryFn: () => api<BookSummary[]>("/api/books") });
 
@@ -252,6 +257,8 @@ export function invalidateListening() {
   void queryClient.invalidateQueries({ queryKey: keys.podcasts });
   void queryClient.invalidateQueries({ queryKey: ["episodes"] });
   void queryClient.invalidateQueries({ queryKey: ["book"] });
+  // Movies and shows (watchKeys.all), whose progress goes through the same outbox.
+  void queryClient.invalidateQueries({ queryKey: ["watch"] });
 }
 
 /** Book details, from cache when available (works offline for anything opened before). */
