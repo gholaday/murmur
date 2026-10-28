@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { FlatList, TextInput, View } from "react-native";
-import { albumInMusic, albumMatches, ALBUM_SORTS, type AlbumSummary, isNewAlbum, plural, sortAlbums } from "@murmur/shared/client";
+import { albumInMusic, albumMatches, ALBUM_SORTS, isNewAlbum, plural, sortAlbums } from "@murmur/shared/client";
 import { CloseIcon, FilterIcon, SearchIcon } from "@/components/icons";
-import { GAP, PAD, useGridWidth } from "@/components/library";
+import { GAP, gridRows, PAD, useGridWidth } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { AlbumCard, AlbumSortSheet, useAlbumSort } from "@/components/music";
 import { BackRow, Empty, PageTitle, useBottomPad, useTopInset } from "@/components/page";
@@ -27,7 +27,7 @@ export default function Browse() {
   const t = useTheme();
   const top = useTopInset();
   const bottom = useBottomPad();
-  const width = useGridWidth(2);
+  const width = useGridWidth();
   const summary = useMusicSummary().data;
   const albums = useAlbums("all");
   const sort = useAlbumSort();
@@ -42,9 +42,7 @@ export default function Browse() {
     const list = sortAlbums(albums.data ?? [], sort).filter(
       (a) => albumMatches(a, q) && (filter === "all" || (filter === "new" ? isNewAlbum(a) : albumInMusic(a) !== "all")),
     );
-    const out: AlbumSummary[][] = [];
-    for (let i = 0; i < list.length; i += 2) out.push(list.slice(i, i + 2));
-    return out;
+    return gridRows(list);
   }, [albums.data, sort, filter, q]);
 
   const header = (
@@ -98,7 +96,7 @@ export default function Browse() {
         ListEmptyComponent={
           albums.isPending ? (
             <Skeleton>
-              <CoverGridBones count={4} columns={2} />
+              <CoverGridBones count={6} />
             </Skeleton>
           ) : albums.isError ? (
             <Empty title="Couldn't load the albums">{albums.error.message}</Empty>

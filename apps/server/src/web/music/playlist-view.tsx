@@ -11,6 +11,7 @@ import {
   errorText,
   type PlaylistDetail,
   type PlaylistSummary,
+  playlistCoverTiles,
   plural,
   songLength,
   songSub,
@@ -25,18 +26,23 @@ import { EmptyState } from "../ui";
 import { MusicBackRow } from "./album-view";
 import { SongMenuButton } from "./song-menu";
 
-/** Four album covers in a square, or the first one when there are fewer, or a tile with the name. */
+/** The playlist's album covers sharing one square (playlistCoverTiles), or a tile with the name when it has none. */
 export function PlaylistCover({ playlist, large }: { playlist: PlaylistSummary; large?: boolean }) {
   const { covers } = playlist;
-  if (covers.length < 4) {
+  if (covers.length < 2) {
     const first = covers[0];
     return <Cover src={first ? albumCover(first.albumId, first.coverHash, large ? 600 : 200) : null} color={null} title={playlist.name} large={large} />;
   }
   return (
     <div className="cover playlist-cover" aria-hidden="true">
-      {covers.map((c) => (
+      {playlistCoverTiles(covers).map(({ cover, x, y, w, h }) => (
         // eslint-disable-next-line @next/next/no-img-element -- pre-sized WebP from our own server
-        <img key={c.albumId} src={albumCover(c.albumId, c.coverHash, large ? 600 : 200)!} alt="" />
+        <img
+          key={cover.albumId}
+          src={albumCover(cover.albumId, cover.coverHash, large ? 600 : 200)!}
+          alt=""
+          style={{ left: `${x * 100}%`, top: `${y * 100}%`, width: `${w * 100}%`, height: `${h * 100}%` }}
+        />
       ))}
     </div>
   );

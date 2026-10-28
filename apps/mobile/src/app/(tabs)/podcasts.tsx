@@ -13,7 +13,7 @@ import {
 import { Cover } from "@/components/cover";
 import { EpisodeRow } from "@/components/episode-row";
 import { FilterIcon, PlusIcon } from "@/components/icons";
-import { PAD, SectionHead, Shelf, useGridWidth } from "@/components/library";
+import { PAD, SectionHead, Shelf, useShelfWidth } from "@/components/library";
 import { Empty, PageTitle, useTopInset } from "@/components/page";
 import { openPodcastList, ShowCard, SortSheet, useSort } from "@/components/podcasts";
 import { usePullRefresh } from "@/components/pull-refresh";
@@ -30,7 +30,7 @@ import { useTheme } from "@/theme";
 export default function Podcasts() {
   const t = useTheme();
   const top = useTopInset();
-  const cardWidth = useGridWidth();
+  const cardWidth = useShelfWidth();
   const podcasts = usePodcasts();
   const newEpisodes = useNewEpisodes();
   const continueEpisodes = useContinueEpisodes();

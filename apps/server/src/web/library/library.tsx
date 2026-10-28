@@ -328,7 +328,11 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
               <div className="bar thick">
                 <div style={{ width: `${progressPct(b)}%` }} />
               </div>
-              <div className="muted small">{timeLeft(b.durationSec, b.progress!.positionSec)}</div>
+              <div className="continue-text">
+                <div className="card-title">{b.title}</div>
+                {b.author ? <div className="card-sub">{b.author}</div> : null}
+                <div className="card-sub">{timeLeft(b.durationSec, b.progress!.positionSec)}</div>
+              </div>
             </Link>
           ))}
         </div>

@@ -30,7 +30,7 @@ import { BookSortSheet, useBookSort } from "@/components/book-sort";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, FadeIn, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { DragHandle, SortableList, SortableScrollProvider, useSortableScroll } from "@/components/sortable-list";
-import { GAP, Grid, Group, openAllBooks, openGroup, openShelf, PAD, Shelf, shelfSub, todayKey, useGridWidth } from "@/components/library";
+import { GAP, Grid, Group, openAllBooks, openGroup, openShelf, PAD, Shelf, shelfSub, todayKey, useGridWidth, useShelfWidth } from "@/components/library";
 import { Bar, Button, Chips, CountPill, IconButton, Text } from "@/components/ui";
 import { saveBookSections, useBookSections, useBooks } from "@/lib/data";
 import { fonts, useTheme } from "@/theme";
@@ -48,6 +48,7 @@ export default function Library() {
   const t = useTheme();
   const top = useTopInset();
   const cardWidth = useGridWidth();
+  const shelfWidth = useShelfWidth();
   const books = useBooks();
   const [tab, setTab] = useState<Tab>("books");
   const sort = useBookSort();
@@ -235,7 +236,7 @@ export default function Library() {
           render={(g) => (
             <Group title={g.name} count={g.books.length} sub={g.sub} side={g.side} onOpen={g.open}>
               {g.books.map((b) => (
-                <BookCard key={b.id} book={b} width={cardWidth} sub={g.cardSub(b)} />
+                <BookCard key={b.id} book={b} width={shelfWidth} sub={g.cardSub(b)} />
               ))}
             </Group>
           )}
@@ -359,7 +360,7 @@ function BooksTab({
   onCustomize: () => void;
 }) {
   const t = useTheme();
-  const cardWidth = useGridWidth();
+  const cardWidth = useShelfWidth();
   const sections = useBookSections();
   const { scroll, props: scrollProps } = useSortableScroll<Animated.ScrollView>();
   const day = todayKey();
@@ -397,7 +398,7 @@ function BooksTab({
       return continuing.length ? (
         <Shelf>
           {continuing.slice(0, SHELF_SIZE).map((b) => (
-            <ContinueCard key={b.id} book={b} />
+            <ContinueCard key={b.id} book={b} width={Math.round(cardWidth * 1.15)} />
           ))}
         </Shelf>
       ) : null;
@@ -521,17 +522,26 @@ function SectionHeading({
 }
 
 
-function ContinueCard({ book }: { book: BookSummary }) {
+/** A book in progress: a little bigger than the shelf covers, so it stands out at the top. */
+function ContinueCard({ book, width }: { book: BookSummary; width: number }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={book.title}
       onPress={() => router.push(`/book/${book.id}`)}
-      style={({ pressed }) => ({ width: 150, gap: 8, opacity: pressed ? 0.75 : 1 })}
+      style={({ pressed }) => ({ width, gap: 8, opacity: pressed ? 0.75 : 1 })}
     >
       <Cover path={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 600) : null} title={book.title} color={book.coverColor} radius={12} />
       <Bar pct={progressPct(book)} height={4} />
-      <Text variant="small">{timeLeft(book.durationSec, book.progress!.positionSec)}</Text>
+      <View>
+        <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14 }}>
+          {book.title}
+        </Text>
+        <Text variant="small" numberOfLines={1}>
+          {book.author ?? "Unknown author"}
+        </Text>
+        <Text variant="small">{timeLeft(book.durationSec, book.progress!.positionSec)}</Text>
+      </View>
     </Pressable>
   );
 }

@@ -21,7 +21,7 @@ const PHOTO = 96;
 export default function ArtistScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const t = useTheme();
-  const width = useGridWidth(2);
+  const width = useGridWidth();
   const artist = useArtist(id);
   const refresh = usePullRefresh(artist.refetch);
   const fade = useJustLoaded(!artist.isPending);
@@ -112,7 +112,7 @@ export default function ArtistScreen() {
             <Bone width="45%" height={14} />
           </View>
         </View>
-        <CoverGridBones count={4} columns={2} />
+        <CoverGridBones count={6} />
       </Skeleton>
     );
   }

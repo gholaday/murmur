@@ -1,7 +1,9 @@
 import { memo, useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { albumCover, duration, plural, type PlaylistDetail, type PlaylistSummary } from "@murmur/shared/client";
+import { Image } from "expo-image";
+import { albumCover, duration, plural, type PlaylistDetail, playlistCoverTiles, type PlaylistSummary } from "@murmur/shared/client";
+import { absolute, authHeaders } from "@/lib/api";
 import { addToPlaylist, createPlaylist, usePlaylists } from "@/lib/data";
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
@@ -15,20 +17,31 @@ export const openPlaylist = (id: string) => router.push(`/playlist/${id}`);
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
 
-/** Four album covers in a 2×2 grid; with fewer, the first one; with none, the name on a tile. */
+/**
+ * The playlist's albums tiled into one square, each shown once (see playlistCoverTiles); one
+ * album is its own cover, and none is the name on a tile.
+ */
 export function PlaylistCover({ playlist, size }: { playlist: PlaylistSummary; size?: number }) {
   const { covers, name } = playlist;
-  if (covers.length < 4) {
+  if (covers.length < 2) {
     const first = covers[0];
     return <Cover path={first ? albumCover(first.albumId, first.coverHash, 600) : null} title={name} size={size} />;
   }
   return (
-    <View style={{ width: size ?? "100%", aspectRatio: 1, borderRadius: 10, overflow: "hidden", flexDirection: "row", flexWrap: "wrap" }}>
-      {covers.slice(0, 4).map((c) => (
-        <View key={c.albumId} style={{ width: "50%", aspectRatio: 1 }}>
-          <Cover path={albumCover(c.albumId, c.coverHash)} title="" radius={0} />
-        </View>
-      ))}
+    <View style={{ width: size ?? "100%", aspectRatio: 1, borderRadius: 10, overflow: "hidden" }}>
+      {playlistCoverTiles(covers).map(({ cover, x, y, w, h }) => {
+        // A full-height half needs the larger image to stay sharp.
+        const path = albumCover(cover.albumId, cover.coverHash, h === 1 ? 600 : undefined)!;
+        return (
+          <Image
+            key={cover.albumId}
+            source={{ uri: absolute(path), headers: authHeaders(), cacheKey: path }}
+            cachePolicy="memory-disk"
+            contentFit="cover"
+            style={{ position: "absolute", left: `${x * 100}%`, top: `${y * 100}%`, width: `${w * 100}%`, height: `${h * 100}%` }}
+          />
+        );
+      })}
     </View>
   );
 }

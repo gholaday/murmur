@@ -17,7 +17,7 @@ import {
   type TrackDto,
 } from "@murmur/shared/client";
 import { BrowseIcon, CloseIcon, FilterIcon, MusicIcon, PlusIcon, SearchIcon } from "@/components/icons";
-import { GAP, Group, PAD, useGridWidth } from "@/components/library";
+import { GAP, gridRows, Group, PAD, useGridWidth, useShelfWidth } from "@/components/library";
 import { Eyebrow } from "@/components/listening";
 import { AlbumAddRow, AlbumCard, AlbumSortSheet, openArtist, PlayButton, ShuffleButton, SongRow, SongSheet, useAlbumSort } from "@/components/music";
 import { Empty, PageTitle, useTopInset } from "@/components/page";
@@ -59,8 +59,8 @@ const RowGap = () => <View style={{ height: 18 }} />;
 export default function Music() {
   const t = useTheme();
   const top = useTopInset();
-  const width = useGridWidth(2);
-  const shelfWidth = useGridWidth();
+  const width = useGridWidth();
+  const shelfWidth = useShelfWidth();
   const [view, setView] = useState<View_>("albums");
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
@@ -91,12 +91,12 @@ export default function Music() {
     if (view === "playlists") {
       // Only your playlists; there's nothing to add from elsewhere.
       const list = (playlists.data ?? []).filter((p) => p.name.toLowerCase().includes(q));
-      for (let i = 0; i < list.length; i += 2) out.push({ kind: "playlists", key: list[i]!.id, playlists: list.slice(i, i + 2) });
+      for (const row of gridRows(list)) out.push({ kind: "playlists", key: row[0]!.id, playlists: row });
       return out;
     }
     if (view === "albums") {
       const list = sortAlbums(albums.data ?? [], sort).filter((a) => albumMatches(a, q));
-      for (let i = 0; i < list.length; i += 2) out.push({ kind: "albums", key: list[i]!.id, albums: list.slice(i, i + 2) });
+      for (const row of gridRows(list)) out.push({ kind: "albums", key: row[0]!.id, albums: row });
     } else if (view === "artists") {
       // Each artist's albums come from the album list already loaded.
       const byArtist = albumsByArtist(albums.data ?? []);
@@ -198,7 +198,7 @@ export default function Music() {
   ) : current.isPending ? (
     <Skeleton>
       {view === "albums" || view === "playlists" ? (
-        <CoverGridBones count={4} columns={2} />
+        <CoverGridBones count={6} />
       ) : view === "artists" ? (
         [0, 1].map((i) => (
           <View key={i}>

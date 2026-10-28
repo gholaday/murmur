@@ -351,3 +351,31 @@ export function albumsByArtist(albums: AlbumSummary[]): Map<string, AlbumSummary
   for (const list of out.values()) list.sort((x, y) => (y.year ?? "").localeCompare(x.year ?? ""));
   return out;
 }
+
+/** One album cover in a playlist's cover, placed as fractions of the square. */
+export interface CoverTile<T> {
+  cover: T;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * How a playlist's album covers fill its square, each album once: one fills it, two split it
+ * down the middle, three are a left half with two quarters on the right, four are a 2×2 grid.
+ */
+export function playlistCoverTiles<T>(covers: T[]): CoverTile<T>[] {
+  const [a, b, c, d] = covers;
+  if (!a) return [];
+  if (!b) return [{ cover: a, x: 0, y: 0, w: 1, h: 1 }];
+  if (!c) return [{ cover: a, x: 0, y: 0, w: 0.5, h: 1 }, { cover: b, x: 0.5, y: 0, w: 0.5, h: 1 }];
+  if (!d) {
+    return [
+      { cover: a, x: 0, y: 0, w: 0.5, h: 1 },
+      { cover: b, x: 0.5, y: 0, w: 0.5, h: 0.5 },
+      { cover: c, x: 0.5, y: 0.5, w: 0.5, h: 0.5 },
+    ];
+  }
+  return [a, b, c, d].map((cover, i) => ({ cover, x: (i % 2) / 2, y: Math.floor(i / 2) / 2, w: 0.5, h: 0.5 }));
+}

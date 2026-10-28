@@ -72,6 +72,13 @@ it("leaves Next in series books out of Not started", () => {
   expect(notStarted(books, "2026-10-19")).toHaveLength(1);
 });
 
+it("leaves Play next books out of Next in series and Not started", () => {
+  const next = { ...book("G", 2), playNext: 0 };
+  const books = [book("G", 1, { finished: true }), next, book("G", 3)];
+  expect(nextInSeries(books)).toEqual([]);
+  expect(notStarted(books, "2026-10-19").map((b) => b.id)).not.toContain(next.id);
+});
+
 it("fills in a missing layout with every section shown, in the default order", () => {
   expect(bookSections(undefined)).toEqual(BOOK_SECTION_IDS.map((id) => ({ id, hidden: false })));
 });

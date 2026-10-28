@@ -47,7 +47,8 @@ export function nextInSeries(books: BookSummary[]): BookSummary[] {
     const lastDone = ordered.findLastIndex((b) => b.progress?.finished);
     if (lastDone === -1) continue;
     const next = ordered.slice(lastDone + 1).find((b) => !started(b));
-    if (next) picks.push({ book: next, finishedAt: ordered[lastDone]!.progress!.updatedAt });
+    // A book you already put on Play next shows there instead.
+    if (next && next.playNext === null) picks.push({ book: next, finishedAt: ordered[lastDone]!.progress!.updatedAt });
   }
   return picks.sort((a, b) => b.finishedAt - a.finishedAt).map((p) => p.book);
 }
@@ -67,8 +68,8 @@ export function recentlyAdded(books: BookSummary[]): BookSummary[] {
 
 /**
  * Books you've never played, in an order that reshuffles once a day. Seeded by the date
- * so it stays put between visits on the same day. Books already in Next in series are
- * left out so the two shelves don't repeat each other.
+ * so it stays put between visits on the same day. Books already in Play next or Next in
+ * series are left out so the shelves don't repeat each other.
  */
 export function notStarted(books: BookSummary[], day: string): BookSummary[] {
   const rank = (id: string) => {
@@ -77,7 +78,7 @@ export function notStarted(books: BookSummary[], day: string): BookSummary[] {
     return h >>> 0;
   };
   const next = new Set(nextInSeries(books).map((b) => b.id));
-  return books.filter((b) => present(b) && !started(b) && !next.has(b.id)).sort((a, b) => rank(a.id) - rank(b.id));
+  return books.filter((b) => present(b) && !started(b) && b.playNext === null && !next.has(b.id)).sort((a, b) => rank(a.id) - rank(b.id));
 }
 
 export function shelfBooks(id: ShelfId, books: BookSummary[], day: string): BookSummary[] {

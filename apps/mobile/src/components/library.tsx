@@ -7,10 +7,32 @@ import { CountPill, Text } from "./ui";
 export const PAD = 20;
 export const GAP = 14;
 
-/** Width of one cover in a three-column grid. */
-export function useGridWidth(columns = 3) {
+/**
+ * Every grid of covers (books, albums, podcasts, playlists) is this many across, and every
+ * sideways shelf shows two and a half (useShelfWidth), so books and albums are always one size.
+ */
+export const GRID_COLUMNS = 3;
+
+/** Width of one cover in a grid. */
+export function useGridWidth() {
   const { width } = useWindowDimensions();
-  return Math.floor((width - PAD * 2 - GAP * (columns - 1)) / columns);
+  return Math.floor((width - PAD * 2 - GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS);
+}
+
+/** Splits a list into grid rows, for lists that render a row at a time. */
+export function gridRows<T>(list: T[]): T[][] {
+  const rows: T[][] = [];
+  for (let i = 0; i < list.length; i += GRID_COLUMNS) rows.push(list.slice(i, i + GRID_COLUMNS));
+  return rows;
+}
+
+/**
+ * Width of one cover in a sideways shelf: two and a half fit on screen, so titles have room and
+ * the cut-off third shows there's more.
+ */
+export function useShelfWidth() {
+  const { width } = useWindowDimensions();
+  return Math.floor((width - PAD - GAP * 2) / 2.5);
 }
 
 export function Grid({ children }: { children: React.ReactNode }) {

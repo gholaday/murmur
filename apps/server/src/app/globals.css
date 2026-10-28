@@ -393,18 +393,21 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--tex
 .row-scroll { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; margin: 0 -20px; padding: 0 20px; }
 .continue-card { width: 169px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
 .continue-card .cover { border-radius: 10px; }
+/* Kept a step bigger than the shelves' 200px covers on wide screens. */
+@media (min-width: 600px) { .continue-card { width: 212px; } }
+.continue-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 @media (min-width: 600px) { .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; } }
 /* A big library's All books grid has hundreds of cards; skip laying out and painting the ones
    off screen. "auto" remembers each card's real height once it has been shown. */
 .grid > .card { content-visibility: auto; contain-intrinsic-size: auto 240px; }
-/* One row of cards that scrolls sideways once it runs out of room: three across on phones, like .grid. No snapping. */
+/* One row of cards that scrolls sideways once it runs out of room: two and a half across on phones, so titles cut off less. No snapping. */
 .shelf {
-  display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 24px) / 3); gap: 12px;
+  display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 24px) / 2.5); gap: 12px;
   overflow-x: auto; scrollbar-width: none; margin: 0 -20px; padding: 0 20px;
 }
-@media (min-width: 600px) { .shelf { grid-auto-columns: 160px; gap: 16px; } }
+@media (min-width: 600px) { .shelf { grid-auto-columns: 200px; gap: 16px; } }
 /*
  * A mouse can't swipe, so sideways rows get a slim bar there: no arrow buttons, and it only
  * fades in while the pointer is over the row. The thumb is drawn in currentColor so the
@@ -1206,8 +1209,8 @@ button.track-title:hover { color: var(--accent); }
 .track-list li.playing .track-title, .track-list li.playing .track-num { color: var(--accent); }
 .list-row-play { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; }
 .list-row-play:hover .list-row-title, .list-row.playing .list-row-title, .queue-row.playing .list-row-title { color: var(--accent); }
-.playlist-cover { display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; aspect-ratio: 1; }
-.playlist-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.playlist-cover { position: relative; overflow: hidden; aspect-ratio: 1; }
+.playlist-cover img { position: absolute; object-fit: cover; display: block; }
 .songs-actions { display: flex; gap: 10px; margin-bottom: 8px; }
 .songs-actions .btn { flex: 1; max-width: 200px; height: 44px; }
 .context-row { width: 100%; }
