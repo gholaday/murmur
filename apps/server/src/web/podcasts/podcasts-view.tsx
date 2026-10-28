@@ -23,7 +23,7 @@ import {
 import { api } from "../api";
 import { Cover } from "../cover";
 import { FilterIcon, PlusIcon } from "../icons";
-import { EmptyState, NestedHead, SearchBox, SectionTitle } from "../ui";
+import { EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle } from "../ui";
 import { Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
@@ -191,11 +191,11 @@ export function PodcastsView({
         <>
           <section className="section" style={{ marginTop: 0 }}>
             <SectionHead title={PODCAST_LIST_TITLES.podcasts} count={podcasts.length} noun="podcast" onOpen={() => open("podcasts")} />
-            <div className="shelf">
+            <ScrollRow>
               {shows.map((p) => (
                 <PodcastCard key={p.id} podcast={p} />
               ))}
-            </div>
+            </ScrollRow>
           </section>
 
           {continueEpisodes.length ? (

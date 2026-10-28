@@ -21,7 +21,6 @@ export function MiniPlayer() {
   const dur = item.durationSec || 0;
   const chapter = item.chapters[chapterAt(item.chapters, pos)];
   const pct = dur ? Math.min(100, (pos / dur) * 100) : 0;
-  // The chapter and time left each get a line rather than one joined string.
   const chapterLine = item.chapters.length > 1 ? chapter?.title : null;
   // A song shows its artist; a book or episode the time left.
   const song = item.type === "track";
@@ -52,8 +51,15 @@ export function MiniPlayer() {
               <span className="mini-sub error">{error}</span>
             ) : (
               <>
-                {chapterLine ? <span className="mini-sub">{chapterLine}</span> : null}
-                {leftLine ? <span className="mini-sub">{leftLine}</span> : null}
+                {chapterLine ? (
+                  // A book's chapter and time left share a line, like the app; a long chapter name gives way first.
+                  <span className="mini-sub mini-split">
+                    <span>{chapterLine}</span>
+                    {leftLine ? <span className="mini-time">{leftLine}</span> : null}
+                  </span>
+                ) : leftLine ? (
+                  <span className="mini-sub">{leftLine}</span>
+                ) : null}
               </>
             )}
           </span>

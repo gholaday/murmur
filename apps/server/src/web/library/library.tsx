@@ -33,7 +33,7 @@ import { CustomizeIcon, DragIcon, FilterIcon, SearchIcon } from "../icons";
 import { EditBookDialog, type EditTab } from "../book/edit-dialog";
 import { Sheet, SheetItem } from "../sheet";
 import { useSortable } from "../sortable";
-import { Chip, Chips, EmptyState, NestedHead, SearchBox, SectionTitle } from "../ui";
+import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle } from "../ui";
 import { BookActionsContext, BookCard } from "./book-card";
 import { BulkMatch } from "./bulk-match";
 import { PlayNextList } from "./play-next-list";
@@ -85,7 +85,7 @@ export function GroupGrid({
         </div>
         {side ? <span className="muted small">{side}</span> : null}
       </div>
-      <div className="shelf">{children}</div>
+      <ScrollRow>{children}</ScrollRow>
     </section>
   );
 }
@@ -288,21 +288,21 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
                 <div className="section-head">
                   <SectionTitle title={name} count={items.length} noun="book" onOpen={() => go({ series: name })} />
                 </div>
-                <div className="shelf">
+                <ScrollRow>
                   {[...items].sort(bySeriesOrder).map((b) => (
                     <BookCard key={b.id} book={b} sub={b.seriesPosition !== null ? `Book ${b.seriesPosition}` : null} />
                   ))}
-                </div>
+                </ScrollRow>
               </section>
             ))}
             {standalone.length ? (
               <section className="section">
                 {groups.length ? <h2 className="section-title">Standalone</h2> : null}
-                <div className="shelf">
+                <ScrollRow>
                   {sortBooks(standalone, "title").map((b) => (
                     <BookCard key={b.id} book={b} sub={null} />
                   ))}
-                </div>
+                </ScrollRow>
               </section>
             ) : null}
           </>
@@ -315,7 +315,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
   const sectionBody = (id: BookSectionId): React.ReactNode => {
     if (id === "continue") {
       return continuing.length ? (
-        <div className="row-scroll">
+        <ScrollRow className="row-scroll">
           {continuing.slice(0, SHELF_SIZE).map((b) => (
             <Link key={b.id} href={`/book/${b.id}`} className="continue-card">
               <Cover
@@ -335,16 +335,16 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
               </div>
             </Link>
           ))}
-        </div>
+        </ScrollRow>
       ) : null;
     }
     const list = id === "all" ? sorted : shelves[id];
     return list.length ? (
-      <div className="shelf">
+      <ScrollRow>
         {list.slice(0, SHELF_SIZE).map((b) => (
           <BookCard key={b.id} book={b} sub={id === "next" ? nextInSeriesSub(b) : undefined} />
         ))}
-      </div>
+      </ScrollRow>
     ) : null;
   };
 

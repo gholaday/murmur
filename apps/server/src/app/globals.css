@@ -393,8 +393,23 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--tex
 .row-scroll { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; margin: 0 -20px; padding: 0 20px; }
 .continue-card { width: 169px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
 .continue-card .cover { border-radius: 10px; }
-/* Kept a step bigger than the shelves' 200px covers on wide screens. */
-@media (min-width: 600px) { .continue-card { width: 212px; } }
+/* ScrollRow: round arrows over a sideways row's ends, centred on the covers. Mouse only, shown while hovering. */
+.scroll-row { position: relative; --arrow-y: 100px; }
+.scroll-row:has(.row-scroll) { --arrow-y: 125px; }
+.scroll-arrow {
+  display: none; position: absolute; top: var(--arrow-y); z-index: 2; translate: 0 -50%;
+  width: 40px; height: 40px; border-radius: 50%; place-items: center;
+  background: var(--surface-2); color: var(--text); box-shadow: var(--shadow);
+  opacity: 0; transition: opacity 150ms ease;
+}
+.scroll-arrow.prev { left: -16px; }
+.scroll-arrow.next { right: -16px; }
+@media (hover: hover) and (pointer: fine) and (min-width: 600px) {
+  .scroll-arrow:not([hidden]) { display: grid; }
+  .scroll-row:hover .scroll-arrow { opacity: 1; }
+}
+/* About a quarter bigger than the shelves' 200px covers on wide screens, like the app. */
+@media (min-width: 600px) { .continue-card { width: 250px; } }
 .continue-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
@@ -710,6 +725,9 @@ a.episode-show:hover { color: var(--accent); }
 .mini-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .mini-title { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mini-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-split { display: flex; gap: 14px; }
+.mini-split > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mini-time { flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .mini-bar { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--accent); }
 @media (min-width: 900px) {
   .mini {

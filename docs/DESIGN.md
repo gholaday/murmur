@@ -114,7 +114,9 @@ Web class names are in `globals.css`; the app has matching components under `app
 - **Search box** (`SearchBox`). Opens under the page head from the search button, focused, with a placeholder that says what it searches.
 - **Pill** (`.pill`, `.pills`). Two or three short facts in a header (1977, 11 songs, 39m) instead of a dotted string. Not clickable.
 - **Cover** (`Cover` in `web/cover.tsx`). Square artwork with a tinted fallback that shows the title. Artists are round; playlists with four or more albums show a 2×2 grid. No borders, no text over real artwork.
-- **Card** (`.card`, `.grid`, `.shelf`). A cover with a title and one sub line, straight on `bg`. A started book adds a progress bar; a finished one gets the accent check.
+- **Card** (`.card`, `.grid`, `.shelf`). A cover with a title and one sub line, straight on `bg`. A started book adds a progress bar; a finished one gets the accent check. Books, albums, podcasts and playlists share one size: grids are 3 across and shelves 2.5 across on phones. Continue listening cards are about a quarter bigger and show the title, author and time left.
+- **Scroll row** (`ScrollRow`, web only). Wraps a shelf so a mouse gets round arrows at its ends while hovering, each hidden once that end is reached. Touch screens just swipe.
+- **Mini player sub line** (`.mini-split`). A book's chapter and time left share one line; the chapter name gives way first.
 - **List row** (`.list-row`, `.queue-row`). Thumbnail, bold title, one muted sub line, trailing controls (length, ⋯ menu, drag handle). The left part is the tap target. The playing row's title is `accent`.
 - **Track list** (`.track-list`, `.chapter-list`). Numbered rows for an album's songs or a book's chapters, numbers right-aligned and tabular, no thumbnails.
 - **Mini player** (`.mini`). Cover, title, sub line, transport and a 2px accent progress line. Books and episodes get skip back 10 / forward 30; songs get previous / next, never speed or skip-seconds.

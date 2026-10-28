@@ -7,9 +7,51 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { plural } from "@murmur/shared/client";
 import { BackIcon, ChevronIcon, SearchIcon } from "./icons";
+
+/**
+ * A sideways row (`shelf` or `row-scroll`) with arrows that page it left and right. They only
+ * show for a mouse, while it's over the row, and each hides once its end is reached.
+ */
+export function ScrollRow({ className = "shelf", children }: { className?: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [ends, setEnds] = useState({ start: true, end: true });
+  const update = () => {
+    const el = ref.current;
+    if (!el) return;
+    const start = el.scrollLeft <= 1;
+    const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
+    setEnds((e) => (e.start === start && e.end === end ? e : { start, end }));
+  };
+  // Cards can arrive or change after the first paint, and the window can be resized.
+  useEffect(update);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const page = (dir: 1 | -1) => {
+    const el = ref.current;
+    el?.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: "smooth" });
+  };
+  return (
+    <div className="scroll-row">
+      <div ref={ref} className={className} onScroll={update}>
+        {children}
+      </div>
+      <button type="button" className="scroll-arrow prev" aria-label="Scroll left" tabIndex={-1} hidden={ends.start} onClick={() => page(-1)}>
+        <ChevronIcon size={20} style={{ transform: "rotate(180deg)" }} />
+      </button>
+      <button type="button" className="scroll-arrow next" aria-label="Scroll right" tabIndex={-1} hidden={ends.end} onClick={() => page(1)}>
+        <ChevronIcon size={20} />
+      </button>
+    </div>
+  );
+}
 
 /** Goes back, or to `fallback` when the page was opened directly. */
 export function BackButton({ fallback = "/", onClick }: { fallback?: string; onClick?: () => void }) {
