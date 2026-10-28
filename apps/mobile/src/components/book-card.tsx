@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { apiPaths, bookStarted, type BookSummary, progressPct } from "@murmur/shared/client";
 import { fetchBook, setFinished, setPlayNext } from "@/lib/data";
 import { useDownload } from "@/lib/downloads";
+import { withLongPressHaptic } from "@/lib/haptics";
 import { bookToPlayable, isCurrent, markCurrent, play, toggle, usePlayer } from "@/player/engine";
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
@@ -31,7 +32,7 @@ export const BookCard = memo(function BookCard({ book, sub, width }: { book: Boo
       accessibilityActions={[{ name: "longpress", label: "Options" }]}
       onAccessibilityAction={() => setMenu(true)}
       onPress={() => router.push(`/book/${book.id}`)}
-      onLongPress={() => setMenu(true)}
+      onLongPress={withLongPressHaptic(() => setMenu(true))}
       style={({ pressed }) => ({ width, gap: 6, opacity: pressed ? 0.75 : 1 })}
     >
       {menu ? <BookMenu book={book} started={started} onClose={() => setMenu(false)} /> : null}

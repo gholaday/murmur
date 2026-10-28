@@ -21,7 +21,7 @@ import {
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { CheckIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
+import { MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
 import { MixerBars } from "../mixer";
 import { BackRow, SectionTitle } from "../ui";
@@ -79,12 +79,6 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
             {album.artist}
           </Link>
           <div className="pills">
-            {state === "all" ? (
-              <span className="pill">
-                <CheckIcon size={13} />
-                In your music
-              </span>
-            ) : null}
             {albumPills(album).map((p) => (
               <span key={p} className="pill">
                 {p}

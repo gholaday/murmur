@@ -17,6 +17,7 @@ import { DragHandle, SortableList, SortableScrollView } from "@/components/sorta
 import { toast } from "@/components/toast";
 import { Caption, IconButton, Text } from "@/components/ui";
 import { deletePlaylist, keys, updatePlaylist, usePlaylist } from "@/lib/data";
+import { withLongPressHaptic } from "@/lib/haptics";
 import { queryClient } from "@/lib/query";
 import { type MusicSource, playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
@@ -220,7 +221,7 @@ function PlaylistSongRow({ track, onPlay, onMore }: { track: TrackDto; onPlay: (
         accessibilityRole="button"
         accessibilityHint="Plays the playlist from this song. Long press for more options"
         onPress={onPlay}
-        onLongPress={onMore}
+        onLongPress={withLongPressHaptic(onMore)}
         style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}
       >
         <View>

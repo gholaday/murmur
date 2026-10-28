@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import {
   addItem,
+  EMPTY_UP_NEXT,
   moveItem,
   nextIndex,
   previousIndex,
@@ -64,17 +65,37 @@ it("keeps playing the moved item wherever it goes", () => {
   expect(moveItem(album(2), 4, 0).index).toBe(3);
 });
 
-it("shuffles only the album's songs to come, and turning it off picks up after the playing one", () => {
+it("puts the whole album back in order around the playing song when shuffle goes off", () => {
+  const mixed = startMusic(EMPTY_UP_NEXT, source, ["a", "b", "c", "d", "e"].map((id) => song(id)), 2, true);
+  const off = setShuffle(mixed, false);
+  expect(ids(off)).toEqual(["a", "b", "c", "d", "e"]);
+  expect(off.index).toBe(2);
+  expect(ids(setShuffle(off, true)).length).toBe(5);
+});
+
+it("shuffles with the playing song on top, keeping what you added next and episodes last", () => {
   const start = album(1, [ep("x")]);
   const withAdd = addItem(start, song("q"), "next");
   const on = setShuffle(withAdd, true);
-  expect(ids(on).slice(0, 3)).toEqual(["a", "b", "q"]);
+  expect(on.index).toBe(0);
+  expect(ids(on).slice(0, 2)).toEqual(["b", "q"]);
   expect(ids(on).at(-1)).toBe("x");
-  expect([...ids(on).slice(3, 6)].sort()).toEqual(["c", "d", "e"]);
-  const off = setShuffle({ ...on, items: [...on.items.slice(0, 3), song("e"), song("c"), song("d"), ep("x")], index: 3 }, false);
-  // "e" played (it's the one playing), so after it nothing of the album is left but what came before isn't replayed.
-  expect(ids(off)).toEqual(["a", "b", "q", "e", "x"]);
+  expect([...ids(on).slice(2, 6)].sort()).toEqual(["a", "c", "d", "e"]);
   expect(ids(setShuffle(on, false))).toEqual(["a", "b", "q", "c", "d", "e", "x"]);
+  // Turning it on again mixes the whole album again, not only what was left; the added "q" already played, so it goes.
+  const again = setShuffle({ ...on, index: 4 }, true);
+  expect(again.index).toBe(0);
+  expect(ids(again)[0]).toBe(on.items[4]!.itemId);
+  expect([...ids(again).slice(0, 5)].sort()).toEqual(["a", "b", "c", "d", "e"]);
+  expect(ids(again).at(-1)).toBe("x");
+});
+
+it("turning shuffle off later in the list puts the album above the playing song in order", () => {
+  const l: UpNextList = { ...album(3), items: ["b", "q", "a", "e", "c", "d"].map((id) => song(id, id === "q")).concat(ep("x")), shuffled: true };
+  const off = setShuffle(l, false);
+  // "e" is playing, so the rest of the album goes above it and only the episode is left to come.
+  expect(ids(off)).toEqual(["a", "b", "c", "d", "q", "e", "x"]);
+  expect(off.index).toBe(5);
 });
 
 it("repeats the song only when it ends by itself, and goes round on Repeat all", () => {

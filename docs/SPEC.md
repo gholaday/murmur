@@ -56,7 +56,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 **Player**
 
 - Mini player, expanding to a full-screen player tinted from the cover
-- Skip back and forward (configurable, defaults 10 s and 30 s), chapter skip
+- Skip back and forward (configurable, defaults 10 s and 30 s), chapter skip. On an episode without chapters, previous and next (in the player, media keys and the notification) go to the item before or after it in Up Next, and past either end to the episode above or below it in its show's list (`GET /episodes/:id/neighbor`). Previous restarts the episode first once it's more than 3 s in
 - Playback speed 0.5× to 3× (2× on Android), remembered per book and per show
 - Sleep timer: minutes or end of chapter
 - Volume slider and mute in the web player on desktop, remembered per browser (phones use their own buttons)
@@ -318,11 +318,11 @@ Music is optional. It comes from one or more music folders, managed by the admin
 - While that music is playing, its Play button turns into Pause and Resume, like a book's.
 - Shuffle and Repeat work like Spotify's and are kept in your settings (`shuffle`, `repeat` in `users.prefs`), so they stay on between sessions and devices. The player for songs shows Repeat left of Previous and Shuffle right of Next, in the accent colour when on. The round Shuffle beside Play lights up while Shuffle is on; it turns Shuffle on and plays, or just toggles it when on or when that music is already playing.
   - With Shuffle on, Play starts on any song, and tapping a song plays it first and then the rest shuffled.
-  - Turning Shuffle on mid-play shuffles the album's songs still to come; songs you added and episodes keep their places. Turning it off puts the album's songs after the one playing back in order, leaving out ones already played.
+  - Turning Shuffle on mid-play moves the item playing to the top, with nothing above it, and shuffles all the album's other songs after it, in a new order each time. Songs you added that are still to come and waiting episodes keep their places. Turning it off puts the whole album back in its own order around the song playing: the songs before it go above it and the ones after it are still to come.
   - Repeat goes off, all, one. Repeat one replays a song that ends by itself; pressing Next moves on and switches to Repeat all. Repeat all starts Up Next over from the top.
 - Previous restarts the song after 3 seconds. Otherwise it goes back one item in Up Next, and on Repeat all the first goes round to the last.
 - Two players take turns: the spare one loads the next song 10 seconds before the end and takes over at once.
-- Previous and next step through songs in the player, the media session and the notification. Speed is hidden. The app's notification and Android Auto also have Shuffle and Repeat.
+- Previous and next step through songs in the player, the media session and the notification. Speed is hidden. Shuffle and Repeat are only in the player, not the app's notification or Android Auto (both read the same media session).
 - Song time counts in the listening stats as Music.
 
 **Playlists and Up Next**

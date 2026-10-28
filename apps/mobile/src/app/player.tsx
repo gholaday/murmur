@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, useWindowDimensions, View, type ViewInstance } from "react-native";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import Slider from "@react-native-community/slider";
 import {
   chapterAt,
@@ -44,6 +47,7 @@ import { toast } from "@/components/toast";
 import { Caption, Chips, IconButton, NumberBadge, Text } from "@/components/ui";
 import { UpNextSheet } from "@/components/up-next";
 import { cachedAlbumColor } from "@/lib/data";
+import { dragEndHaptic, selectHaptic, tapHaptic } from "@/lib/haptics";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdDetection, useAdPrefs, type AdMode } from "@/player/ad-prefs";
 import {
   chapterStep,
@@ -65,6 +69,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fonts, mixColor, useTheme } from "@/theme";
 
+/** How far a pull, or how fast a flick, minimises the player; the same as a sheet's. */
+const CLOSE_DISTANCE = 120;
+const CLOSE_VELOCITY = 900;
+
 // Ad marks, the same in light and dark like the web's --ad colours.
 const AD = "#ef9f27";
 const AD_HEARD = "#ba7517";
@@ -85,9 +93,36 @@ export default function Player() {
   const [now, setNow] = useState(() => Date.now());
   const [titleY, setTitleY] = useState(0);
   const titleRef = useRef<ViewInstance>(null);
+  /** Where the seek thumb was on the last change, for the ticks it passes. */
+  const scrubFrom = useRef(0);
   const { item } = p;
   // A song plays at 1x with no chapters: previous and next step through the songs.
   const song = item?.type === "track";
+
+  // Pulling down anywhere from the top bar to the bottom of the cover minimises the player: it
+  // follows the finger, uncovering the screen below, and closes past a distance or on a flick.
+  const pull = useSharedValue(0);
+  const pullSpeed = useSharedValue(0);
+  const close = () => router.back();
+  const pullDown = usePanGesture({
+    activeOffsetY: 12,
+    failOffsetX: [-24, 24],
+    // Down to where the title starts, just below the cover; the player fills the screen.
+    hitSlop: { bottom: -(height - (titleY || height * 0.5)) },
+    onUpdate: (e) => {
+      pullSpeed.set(e.velocityY);
+      pull.set(Math.max(0, e.translationY));
+    },
+    onFinalize: () => {
+      const pulled = pull.get();
+      if (pulled > CLOSE_DISTANCE || (pulled > 0 && pullSpeed.get() > CLOSE_VELOCITY)) {
+        pull.set(withTiming(height, { duration: 200, easing: Easing.in(Easing.cubic) }, () => scheduleOnRN(close)));
+      } else if (pulled > 0) {
+        pull.set(withTiming(0, { duration: 180 }));
+      }
+    },
+  });
+  const pullStyle = useAnimatedStyle(() => ({ transform: [{ translateY: pull.value }] }));
 
   // The sleep countdown ticks once a second.
   useEffect(() => {
@@ -141,7 +176,8 @@ export default function Player() {
   const ended = item.type === "book" && !p.playing && !p.loading && item.durationSec > 0 && pos >= item.durationSec - 1;
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
+    <GestureDetector gesture={pullDown}>
+    <Animated.View style={[{ flex: 1, backgroundColor: t.bg }, pullStyle]}>
       <LinearGradient colors={[tintTop, tintBottom]} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} />
       <HeroBackdrop
         path={item.coverPathLarge}
@@ -260,9 +296,22 @@ export default function Player() {
               minimumTrackTintColor={marks.length ? "transparent" : t.text}
               maximumTrackTintColor={marks.length ? "transparent" : trackColor}
               thumbTintColor={t.text}
-              onSlidingStart={(v) => setScrub(span.start + v)}
-              onValueChange={(v) => scrub !== null && setScrub(span.start + v)}
+              onSlidingStart={(v) => {
+                tapHaptic();
+                scrubFrom.current = v;
+                setScrub(span.start + v);
+              }}
+              onValueChange={(v) => {
+                if (scrub === null) return;
+                // A tick at each end and as the thumb crosses into or out of an ad.
+                const from = scrubFrom.current;
+                const edges = [0, spanLen, ...marks.flatMap((a) => [a.startSec - span.start, a.endSec - span.start])];
+                if (edges.some((e) => (from < e && v >= e) || (from > e && v <= e))) selectHaptic();
+                scrubFrom.current = v;
+                setScrub(span.start + v);
+              }}
               onSlidingComplete={(v) => {
+                dragEndHaptic();
                 seek(span.start + v);
                 setScrub(null);
               }}
@@ -295,7 +344,7 @@ export default function Player() {
               </>
             ) : (
               <>
-                <IconButton label={multiChapter ? "Previous chapter" : "Back 30 seconds"} onPress={() => chapterStep(-1)}>
+                <IconButton label={multiChapter ? "Previous chapter" : item.type === "episode" ? "Previous" : "Back 30 seconds"} onPress={() => chapterStep(-1)}>
                   <PrevChapterIcon color={t.muted} />
                 </IconButton>
                 <SkipButton seconds={p.skip.back} label={`Skip back ${p.skip.back} seconds`} onPress={() => skipBy(-p.skip.back)}>
@@ -339,7 +388,7 @@ export default function Player() {
                 <SkipButton seconds={p.skip.forward} label={`Skip forward ${p.skip.forward} seconds`} onPress={() => skipBy(p.skip.forward)}>
                   <SkipForwardIcon size={40} color={t.text} />
                 </SkipButton>
-                <IconButton label={multiChapter ? "Next chapter" : "Forward 30 seconds"} onPress={() => chapterStep(1)}>
+                <IconButton label={multiChapter ? "Next chapter" : item.type === "episode" ? "Next" : "Forward 30 seconds"} onPress={() => chapterStep(1)}>
                   <NextChapterIcon color={t.muted} />
                 </IconButton>
               </>
@@ -483,7 +532,8 @@ export default function Player() {
       </Sheet>
 
       <UpNextSheet open={sheet === "upnext"} onClose={() => setSheet(null)} />
-    </View>
+    </Animated.View>
+    </GestureDetector>
   );
 }
 

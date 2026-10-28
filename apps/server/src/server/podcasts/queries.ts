@@ -231,6 +231,22 @@ export function subscribedFeeds(sqlite: Sqlite, userId: number) {
     .all(userId) as Array<{ title: string; feedUrl: string }>;
 }
 
+/**
+ * The episode beside this one in its show's list (newest first): 1 is the one below it (older), -1
+ * the one above (newer). Null at either end, or for a show you don't follow.
+ */
+export function neighborEpisode(sqlite: Sqlite, episodeId: string, userId: number, dir: 1 | -1): string | null {
+  const row = sqlite
+    .prepare(
+      `SELECT n.id FROM episodes e
+       JOIN subscriptions s ON s.podcast_id = e.podcast_id AND s.user_id = ?
+       JOIN episodes n ON n.podcast_id = e.podcast_id AND ${dir === 1 ? "n.published_at < e.published_at" : "n.published_at > e.published_at"}
+       WHERE e.id = ? ORDER BY n.published_at ${dir === 1 ? "DESC" : "ASC"} LIMIT 1`,
+    )
+    .get(userId, episodeId) as { id: string } | undefined;
+  return row?.id ?? null;
+}
+
 export function isSubscribed(sqlite: Sqlite, podcastId: string, userId: number): boolean {
   return !!sqlite.prepare("SELECT 1 FROM subscriptions WHERE podcast_id = ? AND user_id = ?").get(podcastId, userId);
 }

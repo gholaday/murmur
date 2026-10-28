@@ -57,6 +57,20 @@ export function selectHaptic() {
   else android(sdk >= UPSIDE_DOWN_CAKE ? AndroidHaptics.Segment_Tick : AndroidHaptics.Clock_Tick);
 }
 
+/** A long press that opens a row's or card's menu. */
+export function longPressHaptic() {
+  if (isIOS) ios(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
+  else android(AndroidHaptics.Long_Press);
+}
+
+/** An onLongPress handler that gives the long-press haptic first; none when there's no `fn`. */
+export const withLongPressHaptic = (fn: (() => void) | undefined) =>
+  fn &&
+  (() => {
+    longPressHaptic();
+    fn();
+  });
+
 /** A row lifted to drag. */
 export function dragStartHaptic() {
   if (isIOS) ios(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));

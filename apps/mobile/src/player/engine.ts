@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { AppState, Platform } from "react-native";
-import { requireOptionalNativeModule } from "expo";
+import { AppState } from "react-native";
 import { type AudioLockScreenOptions, type AudioMetadata, type AudioPlayer, createAudioPlayer, setAudioModeAsync, type AudioStatus } from "expo-audio";
 import { File, Directory, Paths } from "expo-file-system";
 import { onlineManager } from "@tanstack/react-query";
@@ -420,6 +419,12 @@ void setAudioModeAsync({ shouldPlayInBackground: true, interruptionMode: "doNotM
 
 let fileIndex = 0;
 let pendingSeek: number | null = null;
+/**
+ * Set by load until the player reports the new file not loaded yet. A status sent just before the
+ * replace still describes the old file, loaded: taken for the new one, it spent the restore seek
+ * and gave an episode the song's length (an episode after a song showed 5:12 and stuck there).
+ */
+let awaitingSource = false;
 let autoplayAfterLoad = false;
 let seeking = false;
 /** Whether the loaded file is the phone's downloaded copy rather than the server's stream. */
@@ -457,6 +462,7 @@ function load(it: Playable, at: number, autoplay: boolean) {
   const idx = fileAt(it, at);
   fileIndex = idx;
   pendingSeek = at - (it.files[idx]?.startSec ?? 0);
+  awaitingSource = true;
   autoplayAfterLoad = autoplay;
   setPosition(at);
   set({ error: null, loading: true });
@@ -488,6 +494,10 @@ function onStatus(s: AudioStatus) {
     }
     set({ loading: false, playing: false, error: "Couldn't play this. Check your connection and try again." });
     return;
+  }
+  if (awaitingSource) {
+    if (s.isLoaded) return;
+    awaitingSource = false;
   }
   if (s.isLoaded && pendingSeek !== null) {
     const to = pendingSeek;
@@ -606,6 +616,7 @@ function go(l: UpNextDto, save: "list" | "index") {
     preloaded = null;
     fileIndex = 0;
     pendingSeek = null;
+    awaitingSource = false;
     seeking = false;
     autoplayAfterLoad = false;
     playingLocal = !!localFor(it, 0);
@@ -655,26 +666,32 @@ function playNext(next: "again" | number | null) {
   player.play();
 }
 
-/** Previous and next for songs. Previous restarts the song once it's more than 3 s in. */
+/**
+ * Previous and next for songs and episodes (and the notification's pair), as the web's: previous
+ * restarts the item once it's more than 3 s in. Repeat is for songs; an episode steps through Up
+ * Next, and past either end of it moves to the episode beside it in its show's list.
+ */
 export function trackStep(dir: -1 | 1) {
   const it = state.item;
-  if (!it || it.type !== "track") return;
+  if (!it || it.type === "book") return;
   tapHaptic();
-  if (dir === 1) {
-    // Skipping on Repeat one moves on, so repeat drops to the whole list.
-    if (state.repeat === "one") setMusicPrefs({ repeat: "all" }, true);
-    return playNext(nextIndex(state.upNext, state.repeat, false));
-  }
-  if (position > 3) return seek(0);
-  const index = previousIndex(state.upNext, state.repeat);
-  if (index === null) seek(0);
-  else playAt(index);
+  const l = state.upNext;
+  const repeat = it.type === "track" ? state.repeat : "off";
+  if (dir === -1 && position > 3) return seek(0);
+  // Skipping on Repeat one moves on, so repeat drops to the whole list.
+  if (dir === 1 && repeat === "one") setMusicPrefs({ repeat: "all" }, true);
+  const index = l.index < 0 ? null : dir === 1 ? nextIndex(l, repeat, false) : previousIndex(l, repeat);
+  if (typeof index === "number") return playAt(index);
+  if (it.type === "track") return dir === -1 ? seek(0) : undefined;
+  void api<{ id: string | null }>(apiPaths.episodeNeighbor(it.id, dir)).then(
+    ({ id }) => (id ? playRef({ itemType: "episode", itemId: id }) : dir === -1 ? seek(0) : undefined),
+    () => undefined,
+  );
 }
 
 /** Sets shuffle and repeat here, and on the server when `persist` (an older server ignores them). */
 function setMusicPrefs(prefs: { shuffle?: boolean; repeat?: RepeatMode }, persist: boolean) {
   set(prefs);
-  showMusicButtons();
   if (!persist) return;
   const cached = queryClient.getQueryData<UserPrefs>(keys.prefs);
   if (cached) queryClient.setQueryData<UserPrefs>(keys.prefs, { ...cached, ...prefs });
@@ -727,7 +744,6 @@ async function showOnLockScreen(it: Playable) {
   };
   if (state.item !== it && state.item?.id !== it.id) return;
   lockScreenMetadata = metadata;
-  showMusicButtons();
   // A new song can be on the other player, and songs show different buttons, so either means
   // setting the controls up again rather than just changing the text.
   const songs = it.type === "track";
@@ -735,20 +751,6 @@ async function showOnLockScreen(it: Playable) {
   else player.setActiveForLockScreen(true, metadata, lockScreenOptions());
   lockScreenOn = player;
   lockScreenSongs = songs;
-}
-
-// The patched expo-audio shows Shuffle and Repeat on the notification and in Android Auto for
-// songs, and sends their taps here.
-type MusicButtonsModule = {
-  setMusicButtons(shuffle: boolean | null, repeat: RepeatMode | null): void;
-  addListener(event: "musicCommand", fn: (e: { command: "shuffle" | "repeat" }) => void): unknown;
-};
-const audioModule = Platform.OS === "android" ? requireOptionalNativeModule<MusicButtonsModule>("ExpoAudio") : null;
-audioModule?.addListener("musicCommand", ({ command }) => (command === "shuffle" ? toggleShuffle() : cycleRepeat()));
-
-function showMusicButtons() {
-  const songs = state.item?.type === "track";
-  audioModule?.setMusicButtons(songs ? state.shuffle : null, songs ? state.repeat : null);
 }
 
 // ---------- Progress (saved to an outbox first, so offline listening syncs later) ----------
@@ -988,12 +990,13 @@ export function skipBy(delta: number) {
   if (delta > 0) skipAdCrossed(from, position, position);
 }
 
-/** Previous and next: the chapter for books, the song for music. */
+/** Previous and next: the chapter, else the song or episode (see trackStep), else 30 s for a book. */
 export function chapterStep(dir: -1 | 1) {
   const it = state.item;
   if (!it) return;
   if (it.type === "track") return trackStep(dir);
-  if (it.chapters.length === 0) return skipBy(dir * 30);
+  // Without chapters, an episode's previous and next move through Up Next and then its show; a book skips 30 s.
+  if (it.chapters.length <= 1) return it.type === "book" ? skipBy(dir * 30) : trackStep(dir);
   tapHaptic();
   const i = chapterAt(it.chapters, position);
   if (dir === 1) {

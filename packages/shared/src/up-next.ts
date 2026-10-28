@@ -125,33 +125,34 @@ export function moveItem<E extends UpNextRef>(l: UpNextList<E>, from: number, to
 }
 
 /**
- * Shuffle on: the source's songs still to come swap places at random, while what you added and
- * episodes keep theirs. Off: the source's songs after the one playing come back in its own order,
- * leaving out the ones already played.
+ * Shuffle on: the item playing goes to the top, with nothing above it, and all the source's other
+ * songs follow in a new random order each time; what you added and episodes waiting keep their
+ * places after it. Off: the source's songs go back to its own order around the one playing,
+ * with the songs before it above and the ones after it still to come, each once.
  */
 export function setShuffle<E extends UpNextRef>(l: UpNextList<E>, on: boolean): UpNextList<E> {
   if (!l.source) return { ...l, shuffled: on };
   const slots = l.items.flatMap((e, i) => (i > l.index && isSourceSong(e) ? [i] : []));
+  const rest = l.items.slice(l.index + 1).filter((e) => !isSourceSong(e));
+  // The source's songs to come go back where its first one waiting was, else after what you added next.
+  let at = slots.length ? l.items.slice(l.index + 1, slots[0]).filter((e) => !isSourceSong(e)).length : 0;
+  if (!slots.length) while (rest[at]?.added) at++;
+  const playing = playingItem(l);
   if (on) {
-    const mixed = shuffled(slots.map((i) => l.items[i]!));
-    const items = [...l.items];
-    slots.forEach((slot, n) => (items[slot] = mixed[n]!));
-    return { ...l, items, shuffled: true };
+    // A fresh mix every time: the item playing goes to the top, and every other song of the source after it.
+    rest.splice(at, 0, ...shuffled(l.items.filter((e) => isSourceSong(e) && e !== playing)));
+    return { ...l, items: playing ? [playing, ...rest] : rest, index: playing ? 0 : -1, shuffled: true };
   }
   // Carry on from the last song of the source at or before the one playing.
-  const anchor = l.items.slice(0, l.index + 1).findLast(isSourceSong);
-  const from = anchor ? l.originalIds.indexOf(anchor.itemId) + 1 : 0;
-  const played = new Set(l.items.slice(0, l.index + 1).map((e) => `${e.itemType}:${e.itemId}`));
+  const head = l.items.slice(0, l.index + 1);
+  const anchor = head.findLast(isSourceSong);
+  const pos = anchor ? l.originalIds.indexOf(anchor.itemId) : -1;
   const byId = new Map(l.items.filter(isSourceSong).map((e) => [e.itemId, e]));
-  const next = l.originalIds
-    .slice(from)
-    .flatMap((id) => (played.has(`track:${id}`) ? [] : (byId.get(id) ?? [])));
-  const kept = l.items.filter((e, i) => i <= l.index || !isSourceSong(e));
-  // The source's songs go back where its first one waiting was, else after what you added next.
-  let at = slots[0] ?? l.index + 1;
-  if (!slots.length) while (kept[at]?.added) at++;
-  kept.splice(at, 0, ...next);
-  return { ...l, items: kept, shuffled: false };
+  const songs = (ids: string[]) => ids.flatMap((id) => byId.get(id) ?? []);
+  // Above: the source's songs before the anchor in its order, then the anchor and what you added.
+  const above = [...songs(l.originalIds.slice(0, Math.max(pos, 0))), ...head.filter((e) => !isSourceSong(e) || e === anchor)];
+  rest.splice(at, 0, ...songs(l.originalIds.slice(pos + 1)));
+  return { ...l, items: [...above, ...rest], index: above.length - 1, shuffled: false };
 }
 
 /**

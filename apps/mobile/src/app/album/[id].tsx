@@ -4,7 +4,7 @@ import { useLocalSearchParams } from "expo-router";
 import { albumCover, type AlbumDetail, albumDiscs, albumInMusic, albumPills, plural, songNumber, type TrackDto } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { CheckIcon, DownloadIcon, MoreIcon, PlusIcon } from "@/components/icons";
-import { ActionButton, addSongsToUpNext, openArtist, Pill, Pills, PlayButton, ShuffleButton, SongSheet, TrackRow } from "@/components/music";
+import { ActionButton, addSongsToUpNext, openArtist, Pills, PlayButton, ShuffleButton, SongSheet, TrackRow } from "@/components/music";
 import { Empty, NestedScreen, SectionTitle } from "@/components/page";
 import { AddToPlaylistSheet } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
@@ -53,7 +53,7 @@ export default function AlbumScreen() {
                 {a.artist}
               </Text>
             </Pressable>
-            <Pills labels={albumPills(a)}>{state === "all" ? <Pill label="In your music" check /> : null}</Pills>
+            <Pills labels={albumPills(a)} />
           </View>
         </View>
 

@@ -255,7 +255,10 @@ interface PlayerApi {
   isWaiting: (ref: QueueRef) => boolean;
   /** Takes `ref` out of what's still to come. */
   removeWaiting: (ref: QueueRef) => void;
-  /** Previous and next song: back restarts the song unless it's just begun. */
+  /**
+   * Previous and next in Up Next, for songs and episodes: back restarts the item unless it's just
+   * begun. Past either end of the list, an episode moves to the one beside it in its show's list.
+   */
   trackStep: (dir: -1 | 1) => void;
   /** Your shuffle and repeat settings for music, kept between sessions. */
   shuffle: boolean;
@@ -656,19 +659,22 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const trackStep = useCallback(
     (dir: -1 | 1) => {
       const it = itemRef.current;
-      if (!it || it.type !== "track") return;
       const l = listRef.current;
-      if (dir === 1) {
-        // Skipping on Repeat one moves on, so repeat drops to the whole list.
-        if (repeatRef.current === "one") setMusicPrefs({ repeat: "all" }, true);
-        return playNext(nextIndex(l, repeatRef.current, false));
-      }
-      if (positionRef.current > 3) return seek(0);
-      const index = previousIndex(l, repeatRef.current);
-      if (index === null) seek(0);
-      else playAt(index);
+      if (!it || it.type === "book") return;
+      // Repeat is for songs; an episode just steps through the list.
+      const repeat = it.type === "track" ? repeatRef.current : "off";
+      if (dir === -1 && positionRef.current > 3) return seek(0);
+      if (dir === 1 && repeat === "one") setMusicPrefs({ repeat: "all" }, true);
+      const index = l.index < 0 ? null : dir === 1 ? nextIndex(l, repeat, false) : previousIndex(l, repeat);
+      if (typeof index === "number") return playNext(index);
+      if (it.type === "track") return dir === -1 ? seek(0) : undefined;
+      // Nothing more in Up Next: an episode moves to the one beside it in its show's list.
+      void api<{ id: string | null }>(apiPaths.episodeNeighbor(it.id, dir)).then(
+        ({ id }) => (id ? playRef({ itemType: "episode", itemId: id }, undefined) : dir === -1 ? seek(0) : undefined),
+        () => undefined,
+      );
     },
-    [playAt, playNext, seek, setMusicPrefs],
+    [playNext, playRef, seek, setMusicPrefs],
   );
 
   const toggleShuffle = useCallback(() => {
@@ -713,7 +719,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const it = itemRef.current;
       if (!it) return;
       const chapters = it.chapters;
-      if (chapters.length === 0) return skipBy(dir * 30);
+      // Without chapters, an episode's previous and next move through Up Next and then its show; a book skips 30 s.
+      if (chapters.length <= 1) return it.type === "book" ? skipBy(dir * 30) : trackStep(dir);
       const i = chapterAt(chapters, positionRef.current);
       if (dir === 1) {
         const next = chapters[i + 1];
@@ -725,7 +732,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (cur && positionRef.current - cur.startSec > 3) seek(cur.startSec);
       else seek(chapters[Math.max(0, i - 1)]?.startSec ?? 0);
     },
-    [seek, skipBy],
+    [seek, skipBy, trackStep],
   );
 
   const setSpeed = useCallback(

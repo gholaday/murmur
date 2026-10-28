@@ -69,7 +69,11 @@ function Navigation() {
           <Stack.Screen name="users" />
           <Stack.Screen name="tab-settings" />
           <Stack.Screen name="downloads" />
-          <Stack.Screen name="player" options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
+          {/* See-through, so the screen below shows as the player is pulled down to minimise it. */}
+          <Stack.Screen
+            name="player"
+            options={{ presentation: "transparentModal", animation: "slide_from_bottom", contentStyle: { backgroundColor: "transparent" } }}
+          />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="login" />

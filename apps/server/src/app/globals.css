@@ -818,6 +818,9 @@ a.episode-show:hover { color: var(--accent); }
 @keyframes rise { from { transform: translateY(24px); opacity: 0; } }
 .player.closing { animation: sink 0.2s ease-in forwards; pointer-events: none; }
 @keyframes sink { to { transform: translateY(24px); opacity: 0; } }
+/* Pulled down on a phone: it has already slid away, so it skips the sink. */
+.player.pulled { animation: none; pointer-events: none; }
+@media (max-width: 899px) { .player-pull { touch-action: none; user-select: none; } }
 .player-top { display: flex; align-items: center; justify-content: space-between; padding: 16px 12px 0; }
 .player-from { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.6px; text-transform: uppercase; }
 .player-main { width: 100%; max-width: 440px; margin: 0 auto; padding: 0 32px; display: flex; flex-direction: column; }

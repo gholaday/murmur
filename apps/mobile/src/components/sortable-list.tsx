@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect } from "react";
 import { View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import Animated, {
+  Easing,
   measure,
   scrollTo,
   useAnimatedReaction,
@@ -21,8 +22,12 @@ import { useTheme } from "@/theme";
 // passes slide out of its way, and it glides into its slot on release. Rows are absolutely
 // positioned from a shared order, so the new order shows at once and nothing jumps back.
 
-const SLIDE_MS = 200;
+const SLIDE_MS = 160;
 const DROP_MS = 180;
+// The web's curve: most of the way at once, then easing in. Reanimated's default starts slowly,
+// so on a quick drag the rows lagged behind the finger.
+const SLIDE = { duration: SLIDE_MS, easing: Easing.bezier(0.2, 0, 0, 1) };
+const DROP = { duration: DROP_MS, easing: Easing.bezier(0.2, 0, 0, 1) };
 const EDGE = 80;
 const EDGE_SPEED = 12;
 
@@ -152,29 +157,15 @@ export function SortableList<T>({
     },
   );
 
-  // Near the top or bottom edge, scroll and keep the lifted row under the finger.
-  useFrameCallback(() => {
-    if (active.get() === null) return;
-    // The finger's place within the scroll view, which in a sheet starts well down the screen.
-    const y = pointerY.get() - (measure(scroll.ref)?.pageY ?? 0);
-    const viewport = scroll.viewport.get();
-    let delta = 0;
-    if (y < EDGE) delta = -EDGE_SPEED * (1 - Math.max(0, y) / EDGE);
-    else if (y > viewport - EDGE) delta = EDGE_SPEED * (1 - Math.max(0, viewport - y) / EDGE);
-    if (!delta) return;
-    const max = Math.max(0, scroll.content.get() - viewport);
-    const next = Math.min(max, Math.max(0, scroll.offset.get() + delta));
-    if (next === scroll.offset.get()) return;
-    scrollTo(scroll.ref, 0, next, false);
-    reflow(next);
-  });
-
   /**
    * Places the lifted row under the finger and moves it past each row whose middle its leading
    * edge has crossed: its top going up, its bottom going down. Comparing centres instead would
    * keep a tall row from ever passing a shorter one at the top or bottom of the list.
+   * A const above the frame callback, not a hoisted function: the worklets plugin turns a worklet
+   * declaration into an assignment, so a callback built before it captured it as undefined and
+   * crashed the app the moment a drag reached an edge.
    */
-  function reflow(offset: number) {
+  const reflow = (offset: number) => {
     "worklet";
     const key = active.get();
     if (key === null) return;
@@ -194,7 +185,24 @@ export function SortableList<T>({
       others.splice(at, 0, key);
       order.set(others);
     }
-  }
+  };
+
+  // Near the top or bottom edge, scroll and keep the lifted row under the finger.
+  useFrameCallback(() => {
+    if (active.get() === null) return;
+    // The finger's place within the scroll view, which in a sheet starts well down the screen.
+    const y = pointerY.get() - (measure(scroll.ref)?.pageY ?? 0);
+    const viewport = scroll.viewport.get();
+    let delta = 0;
+    if (y < EDGE) delta = -EDGE_SPEED * (1 - Math.max(0, y) / EDGE);
+    else if (y > viewport - EDGE) delta = EDGE_SPEED * (1 - Math.max(0, viewport - y) / EDGE);
+    if (!delta) return;
+    const max = Math.max(0, scroll.content.get() - viewport);
+    const next = Math.min(max, Math.max(0, scroll.offset.get() + delta));
+    if (next === scroll.offset.get()) return;
+    scrollTo(scroll.ref, 0, next, false);
+    reflow(next);
+  });
 
   const drag: Drag = {
     order,
@@ -248,7 +256,7 @@ function Row({ id, liftInset, children }: { id: string; liftInset: number; child
     (target) => {
       if (target === null) top.value = -1;
       else if (top.value < 0) top.value = target;
-      else top.value = withTiming(target, { duration: active.value === null ? DROP_MS : SLIDE_MS });
+      else top.value = withTiming(target, active.value === null ? DROP : SLIDE);
     },
   );
   const style = useAnimatedStyle(() => {
@@ -340,7 +348,7 @@ export function DragHandle({ label, children }: { label: string; children: React
       const keys = [...order.get()];
       scheduleOnRN(dragEndHaptic);
       activeTop.set(
-        withTiming(topOf(keys, heights.get(), id), { duration: DROP_MS }, () => {
+        withTiming(topOf(keys, heights.get(), id), DROP, () => {
           active.set(null);
           scheduleOnRN(commit, keys);
         }),

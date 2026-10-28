@@ -14,7 +14,7 @@ import {
   type TrackDto,
 } from "@murmur/shared/client";
 import { setInMusic } from "@/lib/data";
-import { selectHaptic } from "@/lib/haptics";
+import { selectHaptic, withLongPressHaptic } from "@/lib/haptics";
 import { downloadTrack, removeDownload, useDownload, useInAlbumDownload } from "@/lib/downloads";
 import { getJson, setJson } from "@/lib/storage";
 import { addToUpNext, isCurrent, isPlayingFrom, isWaiting, removeWaiting, toggle, toggleShuffle, usePlayerSelect } from "@/player/engine";
@@ -300,7 +300,7 @@ export const SongRow = memo(function SongRow({
       accessibilityRole="button"
       accessibilityHint={onPlay ? "Plays this song" : "Opens its album"}
       onPress={onPlay ?? (() => openAlbum(track.albumId))}
-      onLongPress={onMore}
+      onLongPress={withLongPressHaptic(onMore)}
       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, borderBottomWidth: 1, borderBottomColor: t.line, opacity: pressed ? 0.7 : 1 })}
     >
       <View>
@@ -356,7 +356,7 @@ export function TrackRow({
         accessibilityHint="Plays the album from this song. Long press for more options"
         disabled={!onPlay}
         onPress={onPlay}
-        onLongPress={onMore}
+        onLongPress={withLongPressHaptic(onMore)}
         style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}
       >
         {/* A 28 wide slot, centred, in the title's size, so numbers line up with the titles. */}
@@ -506,10 +506,9 @@ export function ShuffleButton({ from, onPlay }: { from: MusicRef; onPlay: () => 
 }
 
 /** A wrapping row of Pills, under a title. */
-export function Pills({ labels, children }: { labels: string[]; children?: React.ReactNode }) {
+export function Pills({ labels }: { labels: string[] }) {
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-      {children}
       {labels.map((label) => (
         <Pill key={label} label={label} />
       ))}
@@ -517,12 +516,11 @@ export function Pills({ labels, children }: { labels: string[]; children?: React
   );
 }
 
-/** A small grey label, for an album's year, song count and length; `check` marks "In your music". */
-export function Pill({ label, check }: { label: string; check?: boolean }) {
+/** A small grey label, for an album's year, song count and length. */
+export function Pill({ label }: { label: string }) {
   const t = useTheme();
   return (
-    <View style={{ height: 24, paddingHorizontal: 9, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: t.chip }}>
-      {check ? <CheckIcon size={13} color={t.accent} /> : null}
+    <View style={{ height: 24, paddingHorizontal: 9, borderRadius: 12, flexDirection: "row", alignItems: "center", backgroundColor: t.chip }}>
       <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: t.text2 }}>{label}</Text>
     </View>
   );
