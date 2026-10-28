@@ -111,16 +111,20 @@ export const albumSortSchema = z.enum(["added", "name", "artist", "year"]).catch
 /** Lists default to everything, so older apps keep working. */
 export const musicScopeSchema = z.enum(["mine", "all"]).catch("all");
 /** What you're playing music from: an album, an artist, or a list of songs, in play order. */
-export const playContextSchema = z.object({
-  kind: z.enum(["album", "artist", "songs", "playlist"]),
-  refId: z.string().max(64).nullable(),
-  title: z.string().min(1).max(300),
-  trackIds: z.array(z.string().min(1).max(64)).min(1).max(5000),
-  index: z.number().int().min(0),
+/** The whole Up Next list, saved after every change (see up-next.ts). */
+export const upNextSchema = z.object({
+  items: z
+    .array(z.object({ itemType: z.enum(["episode", "track"]), itemId: z.string().min(1).max(64), added: z.boolean() }))
+    .max(5000),
+  index: z.number().int().min(-1),
+  source: z
+    .object({ kind: z.enum(["album", "artist", "songs", "playlist"]), refId: z.string().max(64).nullable(), title: z.string().min(1).max(300) })
+    .nullable(),
+  originalIds: z.array(z.string().min(1).max(64)).max(5000),
   shuffled: z.boolean(),
 });
-export type PlayContextInput = z.infer<typeof playContextSchema>;
-export const playContextIndexSchema = z.object({ index: z.number().int().min(0) });
+export type UpNextInput = z.infer<typeof upNextSchema>;
+export const upNextIndexSchema = z.object({ index: z.number().int().min(-1) });
 export const trackPlaySchema = z.object({ trackId: z.string().min(1).max(64) });
 export const musicMineSchema = z
   .object({
@@ -160,12 +164,8 @@ export const queueRefSchema = z.object({
 });
 export type QueueRef = z.infer<typeof queueRefSchema>;
 
-/** Replaces the whole queue: reorder, remove and clear are all this one call. */
-export const queueReplaceSchema = z.object({ items: z.array(queueRefSchema).max(500) });
-export type QueueReplaceInput = z.input<typeof queueReplaceSchema>;
-
 export const queueAddSchema = queueRefSchema.extend({
-  /** "next" plays it after the current item; "last" appends. */
+  /** "next" plays it after the item playing and anything added right after it; "last" appends. */
   at: z.enum(["next", "last"]).default("last"),
 });
 export type QueueAddInput = z.input<typeof queueAddSchema>;
@@ -183,6 +183,9 @@ export const userPrefsSchema = z.object({
     .max(BOOK_SECTION_IDS.length * 2),
   /** Optional tabs you've chosen to show. Books, Listening and You are always there. */
   tabs: z.object({ podcasts: z.boolean(), music: z.boolean().default(true) }),
+  /** Music plays shuffled; stays on for the next album or list, like Spotify. */
+  shuffle: z.boolean(),
+  repeat: z.enum(["off", "all", "one"]),
 });
 export type UserPrefs = z.infer<typeof userPrefsSchema>;
 export const userPrefsPatchSchema = userPrefsSchema.partial();
@@ -707,3 +710,4 @@ export * from "./podcasts";
 export * from "./settings";
 export * from "./shelves";
 export * from "./stats";
+export * from "./up-next";

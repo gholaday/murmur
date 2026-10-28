@@ -17,7 +17,7 @@ import { Button, IconButton, Text } from "@/components/ui";
 import { api } from "@/lib/api";
 import { invalidateListening, keys, useEpisodes, useFirstEpisodes, usePodcast } from "@/lib/data";
 import { queryClient } from "@/lib/query";
-import { refreshQueue } from "@/player/engine";
+import { refreshUpNext } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
 type Item = "top" | "heading" | "empty" | EpisodeWithShow;
@@ -301,7 +301,7 @@ export default function ShowScreen() {
                   void queryClient.invalidateQueries({ queryKey: keys.podcasts });
                   void queryClient.invalidateQueries({ queryKey: keys.newEpisodes });
                   void queryClient.invalidateQueries({ queryKey: keys.continueEpisodes });
-                  void refreshQueue();
+                  void refreshUpNext();
                   router.back();
                 })
               }

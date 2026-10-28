@@ -8,6 +8,7 @@ import {
   type AlbumSort,
   type AlbumSummary,
   guestArtist,
+  type UpNextSource,
   songLength,
   songSub,
   type TrackDto,
@@ -16,10 +17,11 @@ import { setInMusic } from "@/lib/data";
 import { selectHaptic } from "@/lib/haptics";
 import { downloadTrack, removeDownload, useDownload, useInAlbumDownload } from "@/lib/downloads";
 import { getJson, setJson } from "@/lib/storage";
-import { isCurrent, queueAdd, usePlayer } from "@/player/engine";
+import { addToUpNext, isCurrent, isPlayingFrom, toggle, toggleShuffle, usePlayerSelect } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { CheckIcon, MoreIcon, PlayIcon, PlusIcon, ShuffleIcon } from "./icons";
+import { CheckIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon, ShuffleIcon } from "./icons";
+import { Mixer, MixerBars, useNowPlaying } from "./mixer";
 import { AddToPlaylistSheet } from "./playlists";
 import { Sheet, SheetItem } from "./sheet";
 import { toast } from "./toast";
@@ -85,6 +87,8 @@ const BADGE_INK = "#141833";
 export const AlbumCard = memo(function AlbumCard({ album, width, sub, badge }: { album: AlbumSummary; width: number; sub?: string | null; badge?: boolean }) {
   const t = useTheme();
   const all = albumInMusic(album) === "all";
+  // From the album itself, a playlist or Up Next: any song of this album playing counts.
+  const now = useNowPlaying((s) => s.item?.type === "track" && s.item.album?.id === album.id);
   return (
     <Pressable
       accessibilityRole="button"
@@ -94,6 +98,7 @@ export const AlbumCard = memo(function AlbumCard({ album, width, sub, badge }: {
     >
       <View>
         <Cover path={albumCover(album.id, album.coverHash, 600)} title={album.title} color={album.coverColor} />
+        {now ? <Mixer playing={now === "playing"} /> : null}
         {badge ? (
           <Pressable
             accessibilityRole="button"
@@ -122,7 +127,7 @@ export const AlbumCard = memo(function AlbumCard({ album, width, sub, badge }: {
         ) : null}
       </View>
       <View style={{ gap: 2 }}>
-        <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14 }}>
+        <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14, color: now ? t.accent : t.text }}>
           {album.title}
         </Text>
         <Text variant="small" numberOfLines={1}>
@@ -139,12 +144,15 @@ export function ActionButton({
   icon,
   primary,
   round,
+  selected,
   onPress,
 }: {
   label: string;
   icon: React.ReactNode;
   primary?: boolean;
   round?: boolean;
+  /** For a button that stays on, like Shuffle. */
+  selected?: boolean;
   onPress?: () => void;
 }) {
   const t = useTheme();
@@ -152,7 +160,7 @@ export function ActionButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: !onPress }}
+      accessibilityState={{ disabled: !onPress, selected }}
       disabled={!onPress}
       onPress={onPress}
       style={({ pressed }) => ({
@@ -230,7 +238,7 @@ function SongSheetItems({ track, onClose, hideAlbum, onAddToPlaylist }: { track:
     );
   return (
     <>
-      <SheetItem label="Add to Up Next" onPress={run(() => queueAdd({ itemType: "track", itemId: track.id }, "last"), "Added to Up Next")} />
+      <SheetItem label="Add to Up Next" onPress={run(() => addToUpNext({ itemType: "track", itemId: track.id }, "next"), "Added to Up Next")} />
       <SheetItem label="Add to playlist…" onPress={onAddToPlaylist} />
       {hideAlbum ? null : <SheetItem label="Go to album" onPress={close(() => openAlbum(track.albumId))} />}
       {own ? (
@@ -249,7 +257,8 @@ function SongSheetItems({ track, onClose, hideAlbum, onAddToPlaylist }: { track:
 }
 
 /** Whether this song is the one playing, for drawing it in the accent colour. */
-export const usePlayingSong = (id: string) => isCurrent(usePlayer(), "track", id);
+/** "playing" or "paused" while this song is the one loaded, else null; only that row renders again. */
+export const usePlayingSong = (id: string) => useNowPlaying((s) => isCurrent(s, "track", id));
 
 /**
  * A song with its album's cover, title, "Artist, Album" and length; `toggle` adds a + / ✓ at the
@@ -277,7 +286,10 @@ export const SongRow = memo(function SongRow({
       onLongPress={onMore}
       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, borderBottomWidth: 1, borderBottomColor: t.line, opacity: pressed ? 0.7 : 1 })}
     >
-      <Cover path={albumCover(track.albumId, track.coverHash)} title="" size={44} radius={6} />
+      <View>
+        <Cover path={albumCover(track.albumId, track.coverHash)} title="" size={44} radius={6} />
+        {playing ? <Mixer thumb radius={6} playing={playing === "playing"} /> : null}
+      </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 15, color: playing ? t.accent : t.text }}>
           {track.title}
@@ -330,11 +342,27 @@ export function TrackRow({
         onLongPress={onMore}
         style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}
       >
-        <Text
-          style={{ width: 24, textAlign: "right", fontFamily: fonts.semibold, fontSize: 13, color: playing ? t.accent : t.muted, fontVariant: ["tabular-nums"] }}
-        >
-          {n}
-        </Text>
+        {/* A 28 wide slot, centred, in the title's size, so numbers line up with the titles. */}
+        {playing ? (
+          <View style={{ width: 28, alignItems: "center" }}>
+            <MixerBars playing={playing === "playing"} color={t.accent} />
+          </View>
+        ) : (
+          <Text
+            style={{
+              width: 28,
+              textAlign: "center",
+              fontFamily: fonts.medium,
+              fontSize: 15,
+              lineHeight: 15,
+              includeFontPadding: false,
+              color: t.muted,
+              fontVariant: ["tabular-nums"],
+            }}
+          >
+            {n}
+          </Text>
+        )}
         <View style={{ flex: 1, gap: 2, paddingVertical: 8 }}>
           <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 15, color: playing ? t.accent : t.text }}>
             {track.title}
@@ -414,15 +442,50 @@ function Length({ track }: { track: TrackDto }) {
 }
 
 /** The accent Play button over an album, playlist or your songs. */
-export function PlayButton({ label = "Play", onPress }: { label?: string; onPress: () => void }) {
+/** Where the songs on a screen play from: an album, a playlist, or Songs (refId null). */
+export type MusicRef = { kind: UpNextSource["kind"]; refId: string | null };
+
+/**
+ * Play for an album, list or Songs. While music from that same place is loaded, it pauses and
+ * resumes instead of starting over, as the Play button on a book does.
+ */
+export function PlayButton({ label = "Play", from, round, onPress }: { label?: string; from: MusicRef; round?: boolean; onPress: () => void }) {
   const t = useTheme();
-  return <ActionButton label={label} primary icon={<PlayIcon size={20} color={t.onAccent} />} onPress={onPress} />;
+  const live = usePlayerSelect((s) => isPlayingFrom(s, from.kind, from.refId));
+  const playing = usePlayerSelect((s) => s.playing);
+  const color = round ? t.text : t.onAccent;
+  if (live) {
+    return (
+      <ActionButton
+        label={playing ? "Pause" : "Resume"}
+        primary={!round}
+        round={round}
+        icon={playing ? <PauseIcon size={20} color={color} /> : <PlayIcon size={20} color={color} />}
+        onPress={toggle}
+      />
+    );
+  }
+  return <ActionButton label={label} primary={!round} round={round} icon={<PlayIcon size={20} color={color} />} onPress={onPress} />;
 }
 
-/** The Shuffle button beside Play. */
-export function ShuffleButton({ onPress }: { onPress: () => void }) {
+/**
+ * The round Shuffle beside Play, lit while shuffle is on. Off, it turns shuffle on and plays (`onPlay`
+ * passes shuffle); on, or while this music is already playing, it just toggles shuffle.
+ */
+export function ShuffleButton({ from, onPlay }: { from: MusicRef; onPlay: () => void }) {
   const t = useTheme();
-  return <ActionButton label="Shuffle" icon={<ShuffleIcon size={20} color={t.text} />} onPress={onPress} />;
+  const live = usePlayerSelect((s) => isPlayingFrom(s, from.kind, from.refId));
+  const shuffle = usePlayerSelect((s) => s.shuffle);
+  return (
+    <ActionButton
+      label="Shuffle"
+      round
+      primary={shuffle}
+      selected={shuffle}
+      icon={<ShuffleIcon size={20} color={shuffle ? t.onAccent : t.text} />}
+      onPress={() => (live || shuffle ? toggleShuffle() : onPlay())}
+    />
+  );
 }
 
 /** A wrapping row of Pills, under a title. */

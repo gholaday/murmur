@@ -36,9 +36,12 @@ export const apiPaths = {
   tracks: (scope: "mine" | "all", q?: string) => `/api/music/tracks?scope=${scope}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
   /** PUT adds songs to your music, DELETE removes them: body MusicMineChange. */
   mine: "/api/music/mine",
-  /** GET PlayContextDto (or null), PUT a new context, PATCH { index } as songs move on. */
-  playContext: "/api/music/context",
-  /** POST { trackId } once a song counts as played. */
+  /**
+   * Up Next, one running list. GET UpNextDto; PUT the whole list (UpNextInput) after a change;
+   * PATCH { index } as it moves on; POST { itemType, itemId, at } adds an item from anywhere.
+   */
+  upNext: "/api/up-next",
+  /** POST { trackId } once a song counts as played; GET TrackDto[], most recently played first. */
   trackPlays: "/api/music/plays",
   /** TrackDto. */
   track: (trackId: string) => `/api/music/tracks/${trackId}`,

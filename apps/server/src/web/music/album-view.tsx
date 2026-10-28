@@ -20,7 +20,9 @@ import {
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { CheckIcon, MoreIcon, PlayIcon, PlusIcon, ShuffleIcon } from "../icons";
+import { CheckIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
+import { ShuffleButton } from "./shuffle-button";
+import { MixerBars } from "../mixer";
 import { BackRow, SectionTitle } from "../ui";
 import { Sheet, SheetItem } from "../sheet";
 import { type MusicSource, usePlayer } from "../player/engine";
@@ -45,6 +47,7 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
   const toAdd = album.trackCount - album.songsInMusic;
   const p = usePlayer();
   const source: MusicSource = { kind: "album", refId: album.id, title: album.title, tracks: album.tracks };
+  const from = p.isPlayingFrom("album", album.id);
 
   const change = async (add: boolean) => {
     setBusy(true);
@@ -92,13 +95,11 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
 
       {state === "all" ? (
         <div className="actions">
-          <button type="button" className="btn btn-primary btn-big" onClick={() => p.playMusic(source, 0)}>
-            <PlayIcon size={22} />
-            <span>Play</span>
+          <button type="button" className="btn btn-primary btn-big" onClick={() => (from ? p.toggle() : p.playMusic(source, -1))}>
+            {from && p.playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
+            <span>{from ? (p.playing ? "Pause" : "Resume") : "Play"}</span>
           </button>
-          <button type="button" className="btn-round" aria-label="Shuffle" onClick={() => p.playMusic(source, -1, true)}>
-            <ShuffleIcon />
-          </button>
+          <ShuffleButton source={source} />
         </div>
       ) : (
         <>
@@ -107,8 +108,13 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
               <PlusIcon size={20} />
               <span>{state === "none" ? "Add to your music" : `Add the other ${plural(toAdd, "song")}`}</span>
             </button>
-            <button type="button" className="btn-round" aria-label="Play" onClick={() => p.playMusic(source, 0)}>
-              <PlayIcon />
+            <button
+              type="button"
+              className="btn-round"
+              aria-label={from && p.playing ? "Pause" : "Play"}
+              onClick={() => (from ? p.toggle() : p.playMusic(source, -1))}
+            >
+              {from && p.playing ? <PauseIcon /> : <PlayIcon />}
             </button>
           </div>
           <p className="muted small" style={{ margin: "10px 0 0" }}>
@@ -124,7 +130,7 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
           <ol className="track-list">
             {d.tracks.map((t, i) => (
               <li key={t.id} className={p.isCurrent("track", t.id) ? "playing" : undefined}>
-                <span className="track-num">{songNumber(t, i)}</span>
+                <span className="track-num">{p.isCurrent("track", t.id) ? <MixerBars playing={p.playing} /> : songNumber(t, i)}</span>
                 <span className="track-main">
                   <button type="button" className="track-title" onClick={() => p.playMusic(source, album.tracks.indexOf(t))}>
                     {t.title}

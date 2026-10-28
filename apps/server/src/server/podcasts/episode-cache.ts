@@ -3,6 +3,7 @@ import path from "node:path";
 import type { Sqlite } from "../db";
 import { errorMessage, type Logger } from "../log";
 import { getServerSettings } from "../settings";
+import { WAITING_EPISODES_SQL } from "../waiting-episodes";
 import { audioExtension, evictionOrder } from "./cache-rules";
 
 interface Deps {
@@ -252,8 +253,7 @@ export function createEpisodeCache(deps: Deps) {
   function wanted(perShow: number): string[] {
     const upNext = sqlite
       .prepare(
-        `SELECT q.item_id AS id FROM queue_items q JOIN episodes e ON e.id = q.item_id
-         WHERE q.item_type = 'episode' ORDER BY q.position`,
+        `SELECT w.id FROM (${WAITING_EPISODES_SQL}) w JOIN episodes e ON e.id = w.id`,
       )
       .all() as Array<{ id: string }>;
     const newest = sqlite
@@ -314,7 +314,7 @@ export function createEpisodeCache(deps: Deps) {
     const perShow = getServerSettings(sqlite).episodesPerShow;
     const keep = new Set<string>(active.keys());
     const ids = (sql: string, ...args: unknown[]) => (sqlite.prepare(sql).all(...args) as Array<{ id: string }>).map((r) => r.id);
-    for (const id of ids("SELECT item_id AS id FROM queue_items WHERE item_type = 'episode'")) keep.add(id);
+    for (const id of ids(WAITING_EPISODES_SQL)) keep.add(id);
     for (const id of ids("SELECT item_id AS id FROM progress WHERE item_type = 'episode' AND finished = 0 AND position_sec > 5")) keep.add(id);
     for (const id of ids(
       `SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY podcast_id ORDER BY published_at DESC) AS rn FROM episodes) WHERE rn <= ?`,

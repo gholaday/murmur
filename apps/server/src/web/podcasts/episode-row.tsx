@@ -47,7 +47,7 @@ export function EpisodeRow({
   const dur = (current ? player.item?.durationSec : null) || episode.durationSec || 0;
   const position = current ? live : episode.progress && !episode.progress.finished ? episode.progress.positionSec : 0;
   const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
-  const queued = player.queue.some((q) => q.itemType === "episode" && q.itemId === episode.id);
+  const queued = player.isWaiting({ itemType: "episode", itemId: episode.id });
   const pausing = current && player.playing;
   const showHref = `/podcasts/${episode.podcastId}`;
 
@@ -73,16 +73,8 @@ export function EpisodeRow({
 
   const toggleQueue = () =>
     queued
-      ? run(
-          () =>
-            player.queueReplace(
-              player.queue
-                .filter((q) => !(q.itemType === "episode" && q.itemId === episode.id))
-                .map((q) => ({ itemType: q.itemType, itemId: q.itemId })),
-            ),
-          "Removed from Up Next",
-        )
-      : run(() => player.queueAdd({ itemType: "episode", itemId: episode.id }, "last"), "Added to Up Next");
+      ? run(async () => player.removeWaiting({ itemType: "episode", itemId: episode.id }), "Removed from Up Next")
+      : run(() => player.addToUpNext({ itemType: "episode", itemId: episode.id }, "last"), "Added to Up Next");
 
   const togglePlayed = () =>
     run(async () => {

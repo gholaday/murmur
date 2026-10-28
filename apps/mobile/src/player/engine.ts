@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
+import { requireOptionalNativeModule } from "expo";
 import { type AudioLockScreenOptions, type AudioMetadata, type AudioPlayer, createAudioPlayer, setAudioModeAsync, type AudioStatus } from "expo-audio";
 import { File, Directory, Paths } from "expo-file-system";
 import { onlineManager } from "@tanstack/react-query";
@@ -13,22 +14,35 @@ import {
   clampSpeed,
   type EpisodeAdsDto,
   type EpisodeWithShow,
+  EMPTY_UP_NEXT,
   type ListeningStore,
   ListeningTracker,
+  moveItem as moveListItem,
+  nextIndex,
+  nextRepeatMode,
   NOW_PLAYING_KEY,
   parseSkip,
   PLAY_COUNTS_AFTER_SEC,
-  type PlayContextDto,
   type PlayType,
+  previousIndex,
   type ProgressItem,
-  type QueueEntry,
   type QueueRef,
+  removeAt as removeListItem,
+  type RepeatMode,
   SAVE_EVERY_MS,
-  shuffled,
+  setShuffle,
   SKIP_KEY,
   type SkipSettings,
   type SleepTimer,
+  startMusic,
+  startSingle,
   type TrackDto,
+  type UpNextDto,
+  type UpNextEntry,
+  type UpNextInput,
+  type UpNextList,
+  type UpNextSource,
+  type UserPrefs,
 } from "@murmur/shared/client";
 import { absolute, api, authHeaders } from "@/lib/api";
 import { fetchBook, fetchEpisode, invalidateListening, keys } from "@/lib/data";
@@ -185,18 +199,23 @@ export interface PlayerState {
   speed: number;
   sleep: SleepTimer;
   skip: SkipSettings;
-  queue: QueueEntry[];
-  /** False until the queue has come back from the server once, so screens don't flash "empty". */
-  queueLoaded: boolean;
+  /**
+   * Up Next: one running list of what played, what's playing (`index`) and what's next, kept on the
+   * server. A book isn't in it (index -1), so all of it is still to come.
+   */
+  upNext: UpNextDto;
+  /** False until Up Next has come back from the server once, so screens don't flash "empty". */
+  upNextLoaded: boolean;
   /** Ad detection for the current episode; null for books and until the server answers. */
   ads: EpisodeAdsDto | null;
-  /** The album, artist or song list music is playing from; null for books and episodes. */
-  context: PlayContextDto | null;
+  /** Your shuffle and repeat settings for music, kept on the server so every device shares them. */
+  shuffle: boolean;
+  repeat: RepeatMode;
 }
 
 /** Where music plays from, as the album, artist and Songs screens hand it to the player. */
 export interface MusicSource {
-  kind: PlayContextDto["kind"];
+  kind: UpNextSource["kind"];
   refId: string | null;
   title: string;
   tracks: TrackDto[];
@@ -212,10 +231,12 @@ let state: PlayerState = {
   speed: 1,
   sleep: { mode: "off" },
   skip: parseSkip(getJson<SkipSettings>(SKIP_KEY)),
-  queue: [],
-  queueLoaded: false,
+  // The copy saved on this phone, so Up Next shows offline too; the server's replaces it.
+  upNext: queryClient.getQueryData<UpNextDto>(keys.upNext) ?? EMPTY_UP_NEXT,
+  upNextLoaded: false,
   ads: null,
-  context: null,
+  shuffle: false,
+  repeat: "off",
 };
 let position = 0;
 const stateListeners = new Set<() => void>();
@@ -250,6 +271,20 @@ export function usePlayer(): PlayerState {
       return () => stateListeners.delete(l);
     },
     () => state,
+  );
+}
+
+/**
+ * One value picked from the player state. Return a primitive, so a component (a card in a long
+ * grid, say) only renders again when that value changes, not on every player update.
+ */
+export function usePlayerSelect<T>(select: (s: PlayerState) => T): T {
+  return useSyncExternalStore(
+    (l) => {
+      stateListeners.add(l);
+      return () => stateListeners.delete(l);
+    },
+    () => select(state),
   );
 }
 
@@ -507,15 +542,12 @@ function onStatus(s: AudioStatus) {
       save();
       // "End of song" on the sleep timer stops here rather than going on.
       if (state.sleep.mode === "chapter") return set({ sleep: { mode: "off" } });
-      // On to the next song in the album or list, then to Up Next once it's done.
-      const c = state.context;
-      if (c && c.index + 1 < c.tracks.length) return playContextAt(c.index + 1);
-      void advance();
-      return;
+      // The same song on Repeat one, else what's next in Up Next.
+      return playNext(nextIndex(state.upNext, state.repeat, true));
     }
     save(true);
-    // A book ends there; nothing starts on its own. An episode goes on to Up Next.
-    if (it.type === "episode") void advance();
+    // A book ends there; nothing starts on its own. An episode goes on down Up Next (repeat is for songs).
+    if (it.type === "episode") playNext(nextIndex(state.upNext, "off", true));
   }
 }
 
@@ -536,9 +568,10 @@ function musicTick(it: Playable, pos: number, heard: number) {
     counted = true;
     void api(apiPaths.trackPlays, { method: "POST", body: { trackId: it.id } }).catch(() => undefined);
   }
-  const c = state.context;
-  const next = c?.tracks[c.index + 1];
-  if (next && dur > 0 && dur - pos < PRELOAD_SEC) preload(next);
+  if (!(dur > 0 && dur - pos < PRELOAD_SEC)) return;
+  const next = nextIndex(state.upNext, state.repeat, true);
+  const e = typeof next === "number" ? state.upNext.items[next] : undefined;
+  if (e?.itemType === "track") preload(e.track);
 }
 
 /** The spare player starts loading `track`, so it can take over the moment the current song ends. */
@@ -557,20 +590,16 @@ function dropPreloaded() {
   spare().replace(null);
 }
 
-/** Plays song `index` of the current context and tells the server where it is now. */
-export function playContextAt(index: number) {
-  if (!state.context?.tracks[index]) return;
-  startContextSong(index);
-  void api(apiPaths.playContext, { method: "PATCH", body: { index } }).catch(() => undefined);
-}
-
-/** Plays song `index` of the current context, from the spare player when it has it ready. */
-function startContextSong(index: number) {
-  const c = state.context;
-  const track = c?.tracks[index];
-  if (!c || !track) return;
-  const it = trackToPlayable(track);
-  if (preloaded === track.id) {
+/**
+ * Shows and saves `l`, and plays its item at `l.index`: from the spare player when it preloaded
+ * that song, so it follows without a gap.
+ */
+function go(l: UpNextDto, save: "list" | "index") {
+  const e = l.items[l.index];
+  if (!e) return;
+  setList(l, save);
+  const it = entryToPlayable(e);
+  if (e.itemType === "track" && preloaded === e.itemId) {
     // The gapless hand-over: the spare player already has the song loaded.
     const old = player;
     player = spare();
@@ -595,40 +624,76 @@ function startContextSong(index: number) {
     void showOnLockScreen(it);
   } else {
     dropPreloaded();
-    play(it, 0);
+    // Songs play from the start; an episode carries on where you left it.
+    play(it, e.itemType === "track" ? 0 : undefined, true);
   }
-  set({ context: { ...c, index } });
 }
 
+/** Plays the Up Next item at `index`. */
+export const playAt = (index: number) => go({ ...state.upNext, index }, "index");
+
 /**
- * Starts music from an album, an artist or a list of songs, from song `index`. Shuffled, that song
- * goes first, or any song when `index` is -1.
+ * Starts music from an album, an artist or a list of songs, from song `index` (-1 for Play: the
+ * first song, or any song with shuffle on). Its songs take over Up Next; episodes waiting stay after
+ * them. Shuffle follows your setting; `shuffle` true turns it on first, for the Shuffle buttons.
  */
 export function playMusic(source: MusicSource, index: number, shuffle = false) {
   if (!source.tracks.length) return;
-  const first = source.tracks[index];
-  const tracks = shuffle ? shuffled(source.tracks, index >= 0 ? first : undefined) : source.tracks;
-  const at = shuffle ? 0 : Math.max(0, index);
-  set({ context: { kind: source.kind, refId: source.refId, title: source.title, tracks, index: at, shuffled: shuffle } });
+  if (shuffle && !state.shuffle) setMusicPrefs({ shuffle: true }, true);
+  const { kind, refId, title } = source;
   dropPreloaded();
-  startContextSong(at);
-  void api(apiPaths.playContext, {
-    method: "PUT",
-    body: { kind: source.kind, refId: source.refId, title: source.title, trackIds: tracks.map((t) => t.id), index: at, shuffled: shuffle },
-  }).catch(() => undefined);
+  go(startMusic(state.upNext, { kind, refId, title }, source.tracks.map(trackEntry), index, shuffle || state.shuffle), "list");
+}
+
+/** Plays what `nextIndex` picked: the same song again, or another item. */
+function playNext(next: "again" | number | null) {
+  if (next === null) return;
+  if (next !== "again") return playAt(next);
+  heardSec = 0;
+  counted = false;
+  seek(0);
+  player.play();
 }
 
 /** Previous and next for songs. Previous restarts the song once it's more than 3 s in. */
 export function trackStep(dir: -1 | 1) {
-  const c = state.context;
   const it = state.item;
   if (!it || it.type !== "track") return;
   tapHaptic();
-  if (dir === -1 && position > 3) return seek(0);
-  const index = (c?.index ?? 0) + dir;
-  if (c && index >= 0 && index < c.tracks.length) playContextAt(index);
-  else if (dir === -1) seek(0);
-  else void advance();
+  if (dir === 1) {
+    // Skipping on Repeat one moves on, so repeat drops to the whole list.
+    if (state.repeat === "one") setMusicPrefs({ repeat: "all" }, true);
+    return playNext(nextIndex(state.upNext, state.repeat, false));
+  }
+  if (position > 3) return seek(0);
+  const index = previousIndex(state.upNext, state.repeat);
+  if (index === null) seek(0);
+  else playAt(index);
+}
+
+/** Sets shuffle and repeat here, and on the server when `persist` (an older server ignores them). */
+function setMusicPrefs(prefs: { shuffle?: boolean; repeat?: RepeatMode }, persist: boolean) {
+  set(prefs);
+  showMusicButtons();
+  if (!persist) return;
+  const cached = queryClient.getQueryData<UserPrefs>(keys.prefs);
+  if (cached) queryClient.setQueryData<UserPrefs>(keys.prefs, { ...cached, ...prefs });
+  void api(apiPaths.prefs, { method: "PUT", body: prefs }).catch(() => undefined);
+}
+
+/** Turns shuffle on or off, reordering the album's or list's songs still to come. */
+export function toggleShuffle() {
+  tapHaptic();
+  const on = !state.shuffle;
+  setMusicPrefs({ shuffle: on }, true);
+  if (!state.upNext.source) return;
+  setList(setShuffle(state.upNext, on), "list");
+}
+
+/** Repeat off, then all, then one. */
+export function cycleRepeat() {
+  tapHaptic();
+  setMusicPrefs({ repeat: nextRepeatMode(state.repeat) }, true);
 }
 
 // ---------- Lock screen ----------
@@ -662,6 +727,7 @@ async function showOnLockScreen(it: Playable) {
   };
   if (state.item !== it && state.item?.id !== it.id) return;
   lockScreenMetadata = metadata;
+  showMusicButtons();
   // A new song can be on the other player, and songs show different buttons, so either means
   // setting the controls up again rather than just changing the text.
   const songs = it.type === "track";
@@ -669,6 +735,20 @@ async function showOnLockScreen(it: Playable) {
   else player.setActiveForLockScreen(true, metadata, lockScreenOptions());
   lockScreenOn = player;
   lockScreenSongs = songs;
+}
+
+// The patched expo-audio shows Shuffle and Repeat on the notification and in Android Auto for
+// songs, and sends their taps here.
+type MusicButtonsModule = {
+  setMusicButtons(shuffle: boolean | null, repeat: RepeatMode | null): void;
+  addListener(event: "musicCommand", fn: (e: { command: "shuffle" | "repeat" }) => void): unknown;
+};
+const audioModule = Platform.OS === "android" ? requireOptionalNativeModule<MusicButtonsModule>("ExpoAudio") : null;
+audioModule?.addListener("musicCommand", ({ command }) => (command === "shuffle" ? toggleShuffle() : cycleRepeat()));
+
+function showMusicButtons() {
+  const songs = state.item?.type === "track";
+  audioModule?.setMusicButtons(songs ? state.shuffle : null, songs ? state.repeat : null);
 }
 
 // ---------- Progress (saved to an outbox first, so offline listening syncs later) ----------
@@ -759,61 +839,81 @@ AppState.addEventListener("change", (s) => {
   if (s === "active") void flush(true);
 });
 
-// ---------- Queue ----------
+// ---------- Up Next ----------
 
-function setQueue(q: QueueEntry[]) {
-  set({ queue: q, queueLoaded: true });
-  queryClient.setQueryData(keys.queue, q);
-}
-
-export async function refreshQueue() {
-  try {
-    setQueue(await api<QueueEntry[]>("/api/queue"));
-  } catch {
-    // Keep what we have; offline, that's the honest answer rather than a placeholder forever.
-    set({ queueLoaded: true });
-  }
-}
-
-export async function queueReplace(refs: QueueRef[]) {
-  setQueue(await api<QueueEntry[]>("/api/queue", { method: "PUT", body: { items: refs } }));
-}
-
-export async function queueAdd(ref: QueueRef, at: "next" | "last") {
-  setQueue(await api<QueueEntry[]>("/api/queue", { method: "POST", body: { ...ref, at } }));
-}
-
-function removeFromQueue(ref: QueueRef) {
-  const q = state.queue;
-  if (!q.some((e) => e.itemType === ref.itemType && e.itemId === ref.itemId)) return;
-  void queueReplace(
-    q.filter((e) => !(e.itemType === ref.itemType && e.itemId === ref.itemId)).map((e) => ({ itemType: e.itemType, itemId: e.itemId })),
-  ).catch(() => undefined);
-}
-
-async function advance() {
-  const next = state.queue[0];
-  if (next) await playQueued({ itemType: next.itemType, itemId: next.itemId });
-}
+const trackEntry = (track: TrackDto): UpNextEntry => ({ itemType: "track", itemId: track.id, added: false, track });
+const toRefs = (l: UpNextList): UpNextInput => ({ ...l, items: l.items.map(({ itemType, itemId, added }) => ({ itemType, itemId, added })) });
+const entryToPlayable = (e: UpNextEntry): Playable => (e.itemType === "track" ? trackToPlayable(e.track) : episodeToPlayable(e.episode));
+const sameRef = (a: QueueRef, b: QueueRef) => a.itemType === b.itemType && a.itemId === b.itemId;
 
 /**
- * Plays an Up Next item. A song plays on its own: it leaves the queue, and the album or list it
- * interrupts ends. Episodes leave the queue as they start, in `play`.
+ * Shows a changed list at once and saves it: "list" sends the whole list, "index" only where it's
+ * at. A copy stays on this phone, so Up Next shows offline.
  */
-export async function playQueued(ref: QueueRef) {
-  await playRef(ref);
-  if (ref.itemType !== "track" || !isCurrent(state, "track", ref.itemId)) return;
-  removeFromQueue(ref);
-  if (state.context) {
-    dropPreloaded();
-    set({ context: null });
-    void api(apiPaths.playContext, { method: "DELETE" }).catch(() => undefined);
+function setList(l: UpNextDto, save: "list" | "index" | false) {
+  set({ upNext: l, upNextLoaded: true });
+  queryClient.setQueryData(keys.upNext, l);
+  if (save === "index") void api(apiPaths.upNext, { method: "PATCH", body: { index: l.index } }).catch(() => undefined);
+  if (save === "list") void api(apiPaths.upNext, { method: "PUT", body: toRefs(l) }).catch(() => undefined);
+}
+
+export async function refreshUpNext() {
+  try {
+    setList(await api<UpNextDto>(apiPaths.upNext), false);
+  } catch {
+    // Keep what we have; offline, that's the honest answer rather than a placeholder forever.
+    set({ upNextLoaded: true });
   }
 }
+
+/** Saves a list with an item this phone has no details for yet (a new episode), and shows the server's copy. */
+async function putRefs(l: UpNextInput) {
+  setList(await api<UpNextDto>(apiPaths.upNext, { method: "PUT", body: l }), false);
+}
+
+/** Adds an item from anywhere: "next" after the item playing (and what you added after it), or "last". */
+export async function addToUpNext(ref: QueueRef, at: "next" | "last") {
+  setList(await api<UpNextDto>(apiPaths.upNext, { method: "POST", body: { ...ref, at } }), false);
+}
+
+/** Takes out the item at `index`. Taking out the one playing moves on, or stops when nothing comes after it. */
+export function removeAt(index: number) {
+  const was = state.upNext.index;
+  const { list, play: next } = removeListItem(state.upNext, index);
+  if (next !== null) return go(list, "list");
+  setList(list, "list");
+  if (index === was) stop();
+}
+
+export const moveUpNext = (from: number, to: number) => setList(moveListItem(state.upNext, from, to), "list");
+
+/** Empties what's still to come; what played and the item playing stay. */
+export const clearUpNext = () => setList({ ...state.upNext, items: state.upNext.items.slice(0, state.upNext.index + 1) }, "list");
+
+/** Puts back a list from before a change, for Undo. */
+export const restoreUpNext = (l: UpNextDto) => setList(l, "list");
+
+/** Whether `ref` is still to come in Up Next (not played already, not playing). */
+export const isWaiting = (l: UpNextList, ref: QueueRef) => l.items.some((e, i) => i > l.index && sameRef(e, ref));
+
+/** Takes `ref` out of what's still to come. */
+export function removeWaiting(ref: QueueRef) {
+  const l = state.upNext;
+  const at = l.items.findIndex((e, i) => i > l.index && sameRef(e, ref));
+  if (at >= 0) removeAt(at);
+}
+
+/** Whether the music playing comes from this album, artist, playlist or your songs. */
+export const isPlayingFrom = (s: PlayerState, kind: UpNextSource["kind"], refId: string | null) =>
+  s.item?.type === "track" && s.upNext.source?.kind === kind && s.upNext.source.refId === refId;
 
 // ---------- Controls ----------
 
-export function play(it: Playable, startAt?: number) {
+/**
+ * Loads and plays `it`. `fromList` is for Up Next's own items, which leave the list as it is; a
+ * book, or an episode from its show, takes over: the songs leave Up Next and waiting episodes stay.
+ */
+export function play(it: Playable, startAt?: number, fromList = false) {
   const cur = state.item;
   if (cur && cur.type === it.type && cur.id === it.id) {
     if (startAt !== undefined) seek(startAt);
@@ -827,14 +927,10 @@ export function play(it: Playable, startAt?: number) {
   load(it, startAt ?? it.startAt, true);
   setJson(NOW_PLAYING_KEY, { itemType: it.type, itemId: it.id } satisfies PlayRef);
   void showOnLockScreen(it);
-  if (it.type === "track") return;
-  if (it.type === "episode") removeFromQueue({ itemType: it.type, itemId: it.id });
-  // A book or episode takes over from music, so the rest of the album leaves Up Next.
+  if (fromList || it.type === "track") return;
   dropPreloaded();
-  if (state.context) {
-    set({ context: null });
-    void api(apiPaths.playContext, { method: "DELETE" }).catch(() => undefined);
-  }
+  if (it.type === "book") setList(startSingle(state.upNext, null), "list");
+  else void putRefs(startSingle(toRefs(state.upNext), { itemType: "episode", itemId: it.id, added: false })).catch(() => undefined);
 }
 
 export async function playRef(ref: PlayRef, startAt?: number) {
@@ -975,18 +1071,17 @@ function clear() {
 /** Called once signed in: loads Up Next and puts back whatever was playing last, paused. */
 export async function restorePlayer() {
   void flush();
-  void refreshQueue();
+  // Up Next comes back from the server with its place, so next and previous work after a restart.
+  void refreshUpNext();
+  // Older servers have no shuffle or repeat; those stay off.
+  api<UserPrefs>(apiPaths.prefs)
+    .then((p) => {
+      queryClient.setQueryData(keys.prefs, p);
+      setMusicPrefs({ shuffle: p.shuffle ?? false, repeat: p.repeat ?? "off" }, false);
+    })
+    .catch(() => undefined);
   const saved = getJson<PlayRef>(NOW_PLAYING_KEY);
   if (!saved || state.item) return;
-  // A song comes back with the album or list it was playing from, so next and Up Next work.
-  if (saved.itemType === "track") {
-    api<PlayContextDto | null>(apiPaths.playContext)
-      .then((c) => {
-        const at = c ? c.tracks.findIndex((t) => t.id === saved.itemId) : -1;
-        if (c && at >= 0 && !state.context) set({ context: { ...c, index: at } });
-      })
-      .catch(() => undefined);
-  }
   try {
     const it = await loadPlayable(saved);
     if (state.item) return;

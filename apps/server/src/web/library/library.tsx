@@ -29,6 +29,8 @@ import {
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
+import { Mixer } from "../mixer";
+import { usePlayer } from "../player/engine";
 import { CustomizeIcon, DragIcon, FilterIcon, SearchIcon } from "../icons";
 import { EditBookDialog, type EditTab } from "../book/edit-dialog";
 import { Sheet, SheetItem } from "../sheet";
@@ -131,6 +133,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
   const shelfParam = params.get("shelf");
   const shelf = shelfParam && shelfParam in SHELF_TITLES ? (shelfParam as ShelfId) : null;
   const allBooks = shelfParam === "all";
+  const player = usePlayer();
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [sort, setSort] = useState<Sort>("added");
@@ -317,14 +320,17 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
       return continuing.length ? (
         <ScrollRow className="row-scroll">
           {continuing.slice(0, SHELF_SIZE).map((b) => (
-            <Link key={b.id} href={`/book/${b.id}`} className="continue-card">
-              <Cover
-                src={b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 600) : null}
-                color={b.coverColor}
-                title={b.title}
-                subtitle={b.author}
-                large
-              />
+            <Link key={b.id} href={`/book/${b.id}`} className={`continue-card${player.isCurrent("book", b.id) ? " playing" : ""}`}>
+              <div className="card-cover">
+                <Cover
+                  src={b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 600) : null}
+                  color={b.coverColor}
+                  title={b.title}
+                  subtitle={b.author}
+                  large
+                />
+                {player.isCurrent("book", b.id) ? <Mixer playing={player.playing} /> : null}
+              </div>
               <div className="bar thick">
                 <div style={{ width: `${progressPct(b)}%` }} />
               </div>

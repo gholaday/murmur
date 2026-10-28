@@ -22,15 +22,22 @@ import {
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
+import { Mixer } from "../mixer";
+import { usePlayer } from "../player/engine";
 import { FilterIcon, PlusIcon } from "../icons";
 import { EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle } from "../ui";
 import { Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
 function PodcastCard({ podcast: p }: { podcast: PodcastSummary }) {
+  const player = usePlayer();
+  const current = player.item?.type === "episode" && player.item.podcastId === p.id;
   return (
-    <Link href={`/podcasts/${p.id}`} className="card" title={p.title}>
-      <Cover src={p.coverHash ? apiPaths.podcastCoverUrl(p.id, p.coverHash, 200) : null} color={p.coverColor} title={p.title} />
+    <Link href={`/podcasts/${p.id}`} className={`card${current ? " playing" : ""}`} title={p.title}>
+      <div className="card-cover">
+        <Cover src={p.coverHash ? apiPaths.podcastCoverUrl(p.id, p.coverHash, 200) : null} color={p.coverColor} title={p.title} />
+        {current ? <Mixer playing={player.playing} /> : null}
+      </div>
       {p.unplayedCount > 0 ? <span className="badge-count">{p.unplayedCount > 99 ? "99+" : p.unplayedCount}</span> : null}
       <div className="card-title">{p.title}</div>
       {p.lastError ? <div className="card-sub error">Feed problem</div> : null}

@@ -7,6 +7,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import { fonts, useTheme } from "@/theme";
 import { CheckIcon } from "./icons";
 import { type SortableScroll, SortableScrollProvider } from "./sortable-list";
+import { Toaster, useToastLayer } from "./toast";
 import { Button, InSheet, Text } from "./ui";
 
 /** "Are you sure?" for actions that delete something: a message, then Cancel and the action. */
@@ -116,6 +117,7 @@ export function Sheet({
   // mounted after `open` turns false until it has slid away.
   const [mounted, setMounted] = useState(open);
   if (open && !mounted) setMounted(true);
+  const toastLayer = useToastLayer(mounted);
   // The slide in waits until the sheet has been measured, then starts just below the screen's
   // edge. From the full screen height, a short sheet would spend half the slide out of sight and
   // then pop up.
@@ -264,6 +266,7 @@ export function Sheet({
             </SheetScroll>
           </Animated.View>
         </GestureDetector>
+        <Toaster layer={toastLayer} />
       </GestureHandlerRootView>
     </Modal>
   );

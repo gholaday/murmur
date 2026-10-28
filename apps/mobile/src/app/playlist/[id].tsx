@@ -3,10 +3,11 @@ import { Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { albumCover, type PlaylistDetail, songLength, songSub, type TrackDto } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
-import { DragIcon, MoreIcon } from "@/components/icons";
+import { Mixer } from "@/components/mixer";
+import { DragIcon, MoreIcon, PlusIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { Pills, PlayButton, ShuffleButton, SongMoreButton, SongSheet, usePlayingSong } from "@/components/music";
+import { ActionButton, Pills, PlayButton, ShuffleButton, SongMoreButton, SongSheet, usePlayingSong } from "@/components/music";
 import { BackRow, Empty, useBottomPad, useTopInset } from "@/components/page";
 import { NamePlaylistSheet, PlaylistCover, playlistPills } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
@@ -48,6 +49,7 @@ export default function PlaylistScreen() {
       toast.error(err instanceof Error ? err.message : "Couldn't save the playlist.");
     });
   };
+  const addSongs = () => router.push({ pathname: "/add-songs", params: { id } });
   const remove = (track: TrackDto) => {
     if (!p) return;
     const before = p.tracks;
@@ -71,8 +73,9 @@ export default function PlaylistScreen() {
         {p.tracks.length ? (
           <>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <PlayButton onPress={() => playMusic(source, 0)} />
-              <ShuffleButton onPress={() => playMusic(source, -1, true)} />
+              <PlayButton from={source} onPress={() => playMusic(source, -1)} />
+              <ShuffleButton from={source} onPlay={() => playMusic(source, -1, true)} />
+              <ActionButton label="Add songs" round icon={<PlusIcon size={22} color={t.text} />} onPress={addSongs} />
             </View>
             <View style={{ marginHorizontal: -8 }}>
               <SortableList
@@ -87,7 +90,12 @@ export default function PlaylistScreen() {
             </View>
           </>
         ) : (
-          <Empty title="No songs yet">Add songs from the menu on any song, with Add to playlist.</Empty>
+          <View style={{ alignItems: "center", gap: 16 }}>
+            <Empty title="No songs yet">Find songs and add them with one tap.</Empty>
+            <View style={{ width: 180 }}>
+              <ActionButton label="Add songs" primary icon={<PlusIcon size={20} color={t.onAccent} />} onPress={addSongs} />
+            </View>
+          </View>
         )}
       </FadeIn>
     );
@@ -206,7 +214,10 @@ function PlaylistSongRow({ track, onPlay, onMore }: { track: TrackDto; onPlay: (
         onLongPress={onMore}
         style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}
       >
-        <Cover path={albumCover(track.albumId, track.coverHash)} title="" size={44} radius={6} />
+        <View>
+          <Cover path={albumCover(track.albumId, track.coverHash)} title="" size={44} radius={6} />
+          {playing ? <Mixer thumb radius={6} playing={playing === "playing"} /> : null}
+        </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 15, color: playing ? t.accent : t.text }}>
             {track.title}

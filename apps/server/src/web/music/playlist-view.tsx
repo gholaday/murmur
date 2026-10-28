@@ -18,7 +18,9 @@ import {
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { DragIcon, MoreIcon, PlayIcon, PlusIcon, ShuffleIcon } from "../icons";
+import { Mixer } from "../mixer";
+import { DragIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
+import { ShuffleButton } from "./shuffle-button";
 import { type MusicSource, usePlayer } from "../player/engine";
 import { Sheet, SheetItem } from "../sheet";
 import { useSortable } from "../sortable";
@@ -49,12 +51,15 @@ export function PlaylistCover({ playlist, large }: { playlist: PlaylistSummary; 
 }
 
 export function PlaylistCard({ playlist }: { playlist: PlaylistSummary }) {
+  const player = usePlayer();
+  const current = player.isPlayingFrom("playlist", playlist.id);
   return (
-    <div className="card">
+    <div className={`card${current ? " playing" : ""}`}>
       <div className="card-cover">
         <Link href={`/music/playlist/${playlist.id}`} aria-label={playlist.name} tabIndex={-1}>
           <PlaylistCover playlist={playlist} />
         </Link>
+        {current ? <Mixer playing={player.playing} /> : null}
       </div>
       <Link href={`/music/playlist/${playlist.id}`} className="card-link">
         <div className="card-title">{playlist.name}</div>
@@ -128,6 +133,7 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
   const [busy, setBusy] = useState(false);
   const { tracks } = playlist;
   const source: MusicSource = { kind: "playlist", refId: playlist.id, title: playlist.name, tracks };
+  const from = player.isPlayingFrom("playlist", playlist.id);
 
   const save = async (change: { name?: string; trackIds?: string[] }, done?: string) => {
     setBusy(true);
@@ -199,13 +205,14 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
       {tracks.length ? (
         <>
           <div className="actions">
-            <button type="button" className="btn btn-primary btn-big" onClick={() => player.playMusic(source, 0)}>
-              <PlayIcon size={22} />
-              <span>Play</span>
+            <button type="button" className="btn btn-primary btn-big" onClick={() => (from ? player.toggle() : player.playMusic(source, -1))}>
+              {from && player.playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
+              <span>{from ? (player.playing ? "Pause" : "Resume") : "Play"}</span>
             </button>
-            <button type="button" className="btn-round" aria-label="Shuffle" onClick={() => player.playMusic(source, -1, true)}>
-              <ShuffleIcon />
-            </button>
+            <ShuffleButton source={source} />
+            <Link href={`/music/playlist/${playlist.id}/add`} className="btn-round" aria-label="Add songs">
+              <PlusIcon />
+            </Link>
           </div>
           <section className="section">
             <div ref={sortable.listRef} className={`list ${sortable.sorting ? "sorting" : ""}`}>
@@ -214,7 +221,10 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
                 return (
                   <div key={t.id} data-row className={`queue-row${player.isCurrent("track", t.id) ? " playing" : ""} ${row.className}`} style={row.style}>
                     <button type="button" className="list-row-play" onClick={() => player.playMusic(source, i)}>
-                      <Cover src={albumCover(t.albumId, t.coverHash)} color={null} title={t.album} className="thumb" />
+                      <span className="thumb-wrap">
+                        <Cover src={albumCover(t.albumId, t.coverHash)} color={null} title={t.album} className="thumb" />
+                        {player.isCurrent("track", t.id) ? <Mixer playing={player.playing} thumb /> : null}
+                      </span>
                       <span className="list-row-main">
                         <span className="list-row-title">{t.title}</span>
                         <span className="list-row-sub">{songSub(t)}</span>
@@ -260,7 +270,11 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
         </>
       ) : (
         <EmptyState title="No songs yet" style={{ marginTop: 24 }}>
-          <div className="muted small">Add songs from the menu on any song, with Add to playlist.</div>
+          <div className="muted small">Find songs and add them with one tap.</div>
+          <Link href={`/music/playlist/${playlist.id}/add`} className="btn btn-primary btn-big" style={{ marginTop: 12 }}>
+            <PlusIcon size={20} />
+            <span>Add songs</span>
+          </Link>
         </EmptyState>
       )}
 

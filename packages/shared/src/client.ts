@@ -12,3 +12,4 @@ export * from "./podcasts";
 export * from "./settings";
 export * from "./shelves";
 export * from "./stats";
+export * from "./up-next";

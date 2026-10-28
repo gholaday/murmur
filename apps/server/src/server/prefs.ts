@@ -21,7 +21,12 @@ function readSaved(ctx: AppContext, userId: number): UserPrefsPatch {
 /** Your settings with defaults filled in. */
 export function getPrefs(ctx: AppContext, userId: number): UserPrefs {
   const saved = readSaved(ctx, userId);
-  return { bookSections: bookSections(saved.bookSections), tabs: { podcasts: true, music: true, ...saved.tabs } };
+  return {
+    bookSections: bookSections(saved.bookSections),
+    tabs: { podcasts: true, music: true, ...saved.tabs },
+    shuffle: saved.shuffle ?? false,
+    repeat: saved.repeat ?? "off",
+  };
 }
 
 /** Saves the settings that were sent and leaves the rest as they were. */

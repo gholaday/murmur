@@ -31,7 +31,17 @@ export const MusicIcon = (p: IconProps) => (
 );
 export const ShuffleIcon = (p: IconProps) => (
   <Icon {...p}>
-    <path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+    <path d="m18 14 4 4-4 4M18 2l4 4-4 4M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22M2 6h1.9c1.5 0 2.9.9 3.6 2.2M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8" />
+  </Icon>
+);
+export const RepeatIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m17 2 4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3" />
+  </Icon>
+);
+export const RepeatOneIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m17 2 4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3M11 10h1v4" />
   </Icon>
 );
 export const QueueIcon = (p: IconProps) => (
@@ -51,6 +61,13 @@ export const BookmarkAddIcon = ({ added, ...p }: IconProps & { added?: boolean }
   <Icon {...p}>
     <path d="M6 4h12v16l-6-4-6 4z" />
     {added ? <path d="M9 10l2 2 4-4" /> : <path d="M12 7.5v5M9.5 10h5" />}
+  </Icon>
+);
+/** A circled plus to add a song to a playlist, or a filled check once it's in. */
+export const AddCircleIcon = ({ added, ...p }: IconProps & { added?: boolean }) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="10" fill={added ? "currentColor" : "none"} />
+    {added ? <path d="M7.5 12.5l3 3 6-6.5" stroke="var(--on-accent)" /> : <path d="M12 8v8M8 12h8" />}
   </Icon>
 );
 /** A circled check, filled once played. */

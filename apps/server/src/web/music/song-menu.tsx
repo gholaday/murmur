@@ -40,7 +40,7 @@ export function SongMenuButton({
         <MoreIcon size={18} />
       </button>
       <Sheet open={open} onClose={close} title={track.title}>
-        <SheetItem onClick={() => run(() => player.queueAdd({ itemType: "track", itemId: track.id }, "last"), "Added to Up Next")}>
+        <SheetItem onClick={() => run(() => player.addToUpNext({ itemType: "track", itemId: track.id }, "next"), "Added to Up Next")}>
           Add to Up Next
         </SheetItem>
         <SheetItem

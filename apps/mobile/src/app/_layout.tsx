@@ -54,6 +54,7 @@ function Navigation() {
           <Stack.Screen name="album/[id]" />
           <Stack.Screen name="artist/[id]" />
           <Stack.Screen name="playlist/[id]" />
+          <Stack.Screen name="add-songs" />
           <Stack.Screen name="browse" />
           <Stack.Screen name="group" />
           <Stack.Screen name="shelf" />

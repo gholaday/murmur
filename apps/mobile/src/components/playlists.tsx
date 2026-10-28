@@ -5,8 +5,10 @@ import { Image } from "expo-image";
 import { albumCover, duration, plural, type PlaylistDetail, playlistCoverTiles, type PlaylistSummary } from "@murmur/shared/client";
 import { absolute, authHeaders } from "@/lib/api";
 import { addToPlaylist, createPlaylist, usePlaylists } from "@/lib/data";
+import { isPlayingFrom } from "@/player/engine";
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
+import { Mixer, useNowPlaying } from "./mixer";
 import { Sheet, SheetItem } from "./sheet";
 import { toast } from "./toast";
 import { Button, Field, Text } from "./ui";
@@ -21,11 +23,16 @@ const errorText = (err: unknown, fallback: string) => (err instanceof Error ? er
  * The playlist's albums tiled into one square, each shown once (see playlistCoverTiles); one
  * album is its own cover, and none is the name on a tile.
  */
-export function PlaylistCover({ playlist, size }: { playlist: PlaylistSummary; size?: number }) {
+export function PlaylistCover({ playlist, size, children }: { playlist: PlaylistSummary; size?: number; /** Drawn over the cover, like the mixer. */ children?: React.ReactNode }) {
   const { covers, name } = playlist;
   if (covers.length < 2) {
     const first = covers[0];
-    return <Cover path={first ? albumCover(first.albumId, first.coverHash, 600) : null} title={name} size={size} />;
+    return (
+      <View>
+        <Cover path={first ? albumCover(first.albumId, first.coverHash, 600) : null} title={name} size={size} />
+        {children}
+      </View>
+    );
   }
   return (
     <View style={{ width: size ?? "100%", aspectRatio: 1, borderRadius: 10, overflow: "hidden" }}>
@@ -42,12 +49,15 @@ export function PlaylistCover({ playlist, size }: { playlist: PlaylistSummary; s
           />
         );
       })}
+      {children}
     </View>
   );
 }
 
 /** A playlist in the grid: its cover, name, and how many songs. */
 export const PlaylistCard = memo(function PlaylistCard({ playlist, width }: { playlist: PlaylistSummary; width: number }) {
+  const t = useTheme();
+  const now = useNowPlaying((s) => isPlayingFrom(s, "playlist", playlist.id));
   return (
     <Pressable
       accessibilityRole="button"
@@ -55,9 +65,9 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, width }: { pl
       onPress={() => openPlaylist(playlist.id)}
       style={({ pressed }) => ({ width, gap: 8, opacity: pressed ? 0.75 : 1 })}
     >
-      <PlaylistCover playlist={playlist} />
+      <PlaylistCover playlist={playlist}>{now ? <Mixer playing={now === "playing"} /> : null}</PlaylistCover>
       <View style={{ gap: 2 }}>
-        <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14 }}>
+        <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14, color: now ? t.accent : t.text }}>
           {playlist.name}
         </Text>
         <Text variant="small" numberOfLines={1}>

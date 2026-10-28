@@ -130,7 +130,7 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | `podcasts` | Feed URL, title, author, artwork, last checked |
 | `episodes` | GUID, title, publish date, duration, audio URL |
 | `progress` | Per user and item: position, finished flag, last updated, speed |
-| `queue` | Per user: ordered Up Next episodes and songs |
+| `up_next` | Per user: Up Next as one running list of episodes and songs, with the one playing |
 | `play_next` | Per user: the ordered Play next books |
 | `episode_files`, `episode_ads`, `ad_scans` | The episode cache and ad times (see Podcast episode cache and ad detection) |
 
@@ -144,7 +144,7 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | Streaming | `GET /stream/book/:id/:fileIndex`, `GET /stream/episode/:id` (range requests) |
 | Podcasts | `GET/POST /podcasts`, `GET /podcasts/search?q=` (directory search, marks podcasts you follow), `GET /podcasts/preview?feedUrl=` (reads a feed without subscribing), `DELETE /podcasts/:id`, `GET /podcasts/:id/episodes`, `POST /podcasts/:id/refresh`, OPML import and export |
 | Progress | `GET /progress?since=`, `PUT /progress` (batched, newest update wins) |
-| Queue | `GET /queue`, `PUT /queue` |
+| Up Next | `GET /up-next`, `PUT /up-next` (the whole list), `PATCH /up-next` (where it's at), `POST /up-next` (add one item) |
 | Play next | `POST/DELETE /books/:id/play-next`, `PUT /play-next` (order) |
 | Admin | `GET/POST/DELETE /users`, `GET/PUT /library/folders`, `POST /library/folders/check`, `GET /library/browse?path=` |
 | Episode cache and ads | `GET /episodes/:id/ads`; admin: `GET/PUT /server/cache`, `POST /server/ads/retry` |
@@ -314,16 +314,34 @@ Music is optional. It comes from one or more music folders, managed by the admin
 **Playback**
 
 - A song always plays from the start at 1×, keeps no position and is never marked finished. It counts as played after 30 seconds or half its length, whichever is shorter (`track_plays`, kept per person with no foreign key, like progress).
-- Playing an album, an artist's songs, your songs or a playlist saves a play context (`play_context`, one row per person). Up Next shows the rest of it as one row that opens up. When a song ends, the next one in the context plays, then Up Next.
+- Playing an album, an artist's songs, your songs or a playlist fills Up Next with its songs (see Up Next below) and remembers where they came from and their own order, for Shuffle.
+- While that music is playing, its Play button turns into Pause and Resume, like a book's.
+- Shuffle and Repeat work like Spotify's and are kept in your settings (`shuffle`, `repeat` in `users.prefs`), so they stay on between sessions and devices. The player for songs shows Repeat left of Previous and Shuffle right of Next, in the accent colour when on. The round Shuffle beside Play lights up while Shuffle is on; it turns Shuffle on and plays, or just toggles it when on or when that music is already playing.
+  - With Shuffle on, Play starts on any song, and tapping a song plays it first and then the rest shuffled.
+  - Turning Shuffle on mid-play shuffles the album's songs still to come; songs you added and episodes keep their places. Turning it off puts the album's songs after the one playing back in order, leaving out ones already played.
+  - Repeat goes off, all, one. Repeat one replays a song that ends by itself; pressing Next moves on and switches to Repeat all. Repeat all starts Up Next over from the top.
+- Previous restarts the song after 3 seconds. Otherwise it goes back one item in Up Next, and on Repeat all the first goes round to the last.
 - Two players take turns: the spare one loads the next song 10 seconds before the end and takes over at once.
-- Previous and next step through songs in the player, the media session and the notification. Speed is hidden.
+- Previous and next step through songs in the player, the media session and the notification. Speed is hidden. The app's notification and Android Auto also have Shuffle and Repeat.
 - Song time counts in the listening stats as Music.
 
 **Playlists and Up Next**
 
 - Playlists are each person's own (`playlists`, `playlist_tracks`). A playlist plays as its own context, and its songs can be reordered by dragging, removed, renamed or deleted. `.m3u` files in the music folders are not read.
+- A playlist's + button (and Add songs on an empty one) opens Add songs: search your songs, what you played recently (`GET /music/plays`) or Browse, and tap + to add a song to the end or its check to take it out, with Undo. Songs from Browse join the playlist without being added to your music.
 - Every song has a menu: Add to Up Next, Add to playlist, Go to album.
-- Up Next takes single songs, added at the end. A song played from Up Next plays on its own and ends the context.
+
+**Up Next**
+
+One running list of songs and episodes, like YouTube Music's (`up_next`, one row per person: the items in order, which one is playing, and where the songs came from). The rules are shared (`packages/shared/src/up-next.ts`).
+
+- What played stays above the item playing and what's next follows it. The sheet opens on the item playing.
+- Tapping a row plays it; tapping the one playing pauses and resumes. Any row, played or not, can be dragged to a new place or taken out. Taking out the one playing starts the one after it.
+- Starting an album, artist, your songs or a playlist replaces the list with its songs. Starting an episode from its show, or a book, does the same with nothing but that episode. Either way, episodes you added that haven't played yet stay, after the new songs.
+- Add to Up Next on a song puts it right after the item playing and anything you added just before; an episode goes at the end. Something already waiting moves instead of doubling up.
+- When an item ends, the next one plays. Books are never in the list: one playing sits above it, and when it ends, playback stops.
+- Clear empties what's still to come, with Undo.
+- Lists from before 0.5 (the album in `play_context` and the queue in `queue_items`) carry over the first time each person opens Up Next.
 
 **Downloads (app):** a whole album or one song. Downloaded has a Music section, and downloaded music plays offline.
 
@@ -357,7 +375,7 @@ The layout follows the familiar podcast-app pattern: bottom tabs, a persistent m
 | Music | Your albums, artists, songs and playlists, with Browse for the rest |
 | You | Downloaded at the top in the app (what's saved on the phone, with its size), then Stats and Settings tabs: Stats has the listening stats and your library counts, Settings has account, appearance, playback, server, tabs, and admin settings |
 | Book, show, album, artist or playlist page | Header with cover and colour band, description, chapters, episodes or songs, download and play buttons |
-| Full-screen player | Large cover, chapter or song name, scrubber, speed, sleep timer, skip buttons, chapter list, and an Up Next tile with its count that opens the queue (episodes and songs, drag to reorder, remove, Clear) |
+| Full-screen player | Large cover, chapter or song name, scrubber, speed, sleep timer, skip buttons, chapter list, and an Up Next tile with what's still to come that opens the running list (what played, what's playing and what's next; drag to reorder, remove, Clear) |
 
 Podcasts and Music can be turned off under You > Tabs; Books and You are always there.
 

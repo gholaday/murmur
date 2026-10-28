@@ -8,6 +8,7 @@ import { bookToPlayable, isCurrent, markCurrent, play, toggle, usePlayer } from 
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { CheckIcon, DownloadIcon } from "./icons";
+import { Mixer, useNowPlaying } from "./mixer";
 import { Sheet, SheetItem } from "./sheet";
 import { toast } from "./toast";
 import { Bar, Text } from "./ui";
@@ -22,6 +23,7 @@ export const BookCard = memo(function BookCard({ book, sub, width }: { book: Boo
   const pct = progressPct(book);
   const started = !!book.progress && !book.progress.finished && pct > 0;
   const [menu, setMenu] = useState(false);
+  const now = useNowPlaying((s) => isCurrent(s, "book", book.id));
   return (
     <Pressable
       accessibilityRole="button"
@@ -44,10 +46,11 @@ export const BookCard = memo(function BookCard({ book, sub, width }: { book: Boo
             <DownloadIcon size={13} color={t.onAccent} />
           </Badge>
         ) : null}
+        {now ? <Mixer playing={now === "playing"} /> : null}
       </View>
       {started ? <Bar pct={pct} /> : null}
       <View>
-        <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14 }}>
+        <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14, color: now ? t.accent : t.text }}>
           {book.title}
         </Text>
         <Text variant="small" numberOfLines={1}>

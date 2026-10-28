@@ -454,6 +454,37 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--tex
 .chip-warn:not([aria-pressed="true"]) { color: #f0b45a; }
 .card-link { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .card-cover { position: relative; }
+.card.playing .card-title, .continue-card.playing .card-title { color: var(--accent); }
+/* The playing mixer (web/mixer.tsx): the same light bars on a dark disc in both themes, so it reads on any cover. */
+.mixer { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 44px; height: 44px; border-radius: 50%; background: rgba(11, 11, 13, 0.62); color: #8e9bff; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 1; }
+.mixer-bars { display: flex; align-items: flex-end; gap: 3px; height: 18px; }
+.mixer-bars i { width: 3px; height: 100%; border-radius: 2px; background: currentColor; transform-origin: bottom; animation: mixer 1s ease-in-out infinite alternate; }
+.mixer-bars i:nth-child(1) { animation-duration: 0.82s; animation-delay: -0.3s; }
+.mixer-bars i:nth-child(2) { animation-duration: 1.06s; animation-delay: -0.6s; }
+.mixer-bars i:nth-child(3) { animation-duration: 0.74s; animation-delay: -0.1s; }
+.mixer-bars i:nth-child(4) { animation-duration: 0.95s; animation-delay: -0.45s; }
+.mixer-bars i:nth-child(5) { animation-duration: 0.88s; animation-delay: -0.75s; }
+.mixer-bars.inline { display: inline-flex; gap: 2px; height: 14px; vertical-align: -1px; }
+.mixer-bars.inline i { width: 2px; }
+.thumb-wrap { position: relative; flex-shrink: 0; display: flex; }
+/* Marquee (web/marquee.tsx): a title that doesn't fit scrolls sideways, fading at the edges. */
+.marquee { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.marquee.moving { text-overflow: clip; mask-image: linear-gradient(90deg, #000 calc(100% - 16px), transparent); }
+.marquee-track { display: inline-flex; animation: marquee 12s linear infinite; }
+.marquee-track span { padding-right: 40px; }
+@keyframes marquee { 0%, 15% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+/* Up Next's running list: what already played is quieter than what's to come. */
+.queue-row.played .list-row-title, .queue-row.played .list-row-sub { color: var(--faint); }
+.queue-row.played .thumb { opacity: 0.55; }
+.up-next-sub { display: flex; gap: 8px; min-width: 0; }
+.up-next-sub span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.up-next-sub span:last-child { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.now-row { width: 100%; text-align: left; color: inherit; font: inherit; }
+.thumb-mixer { inset: 0; left: 0; top: 0; transform: none; width: auto; height: auto; border-radius: 8px; }
+.thumb-mixer .mixer-bars { gap: 2px; height: 14px; }
+.thumb-mixer .mixer-bars i { width: 2px; }
+@keyframes mixer { 0% { transform: scaleY(0.25); } 35% { transform: scaleY(0.9); } 65% { transform: scaleY(0.45); } 100% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .mixer-bars i { animation: none; transform: scaleY(0.6); } }
 .card-unmatched { position: absolute; left: 6px; bottom: 6px; padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; background: rgba(17, 18, 20, 0.72); color: #f0b45a; pointer-events: none; }
 .card-menu { position: absolute; top: 6px; right: 6px; z-index: 2; }
 .card-dots { width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: rgba(17, 18, 20, 0.72); color: #f3f1ec; opacity: 0; transition: opacity 0.12s; }
@@ -800,6 +831,7 @@ a.episode-show:hover { color: var(--accent); }
 .player-times { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 4px; }
 .player-controls { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; }
 .player-controls .icon-btn.dim { color: var(--muted); }
+.player-controls .icon-btn.on { color: var(--accent); }
 .player-volume { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 260px; margin: 20px auto 0; }
 .player-volume .icon-btn.dim { color: var(--muted); flex-shrink: 0; }
 /* Phones and tablets set volume with their own buttons (iOS ignores it from the page). */
@@ -809,7 +841,9 @@ a.episode-show:hover { color: var(--accent); }
 .skip-btn span { position: absolute; font-size: 11px; font-weight: 800; padding-top: 3px; }
 .play-btn { width: 80px; height: 80px; border-radius: 40px; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center; }
 .player-error { text-align: center; color: var(--danger); }
-.player-tiles { width: 100%; max-width: 440px; margin: auto auto 0; padding: 24px 20px 28px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+/* Four across; fewer (songs have no speed or chapters) stay that size and sit in the middle. */
+.player-tiles { width: 100%; max-width: 440px; margin: auto auto 0; padding: 24px 20px 28px; display: flex; justify-content: center; gap: 8px; }
+.player-tiles > * { flex: 0 1 calc((100% - 24px) / 4); min-width: 0; }
 .tile {
   height: 56px;
   border-radius: 14px;
@@ -1176,7 +1210,8 @@ a.episode-show:hover { color: var(--accent); }
 .pill { height: 24px; padding: 0 10px; border-radius: 12px; display: inline-flex; align-items: center; background: var(--chip); color: var(--text-2); font-size: 12px; font-weight: 600; }
 .track-list { list-style: none; margin: 0; padding: 0; }
 .track-list li { display: flex; align-items: center; gap: 12px; min-height: 52px; border-bottom: 1px solid var(--line); }
-.track-num { width: 24px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+/* Centered in a fixed slot at the title's size, so one- and two-digit numbers and the mixer line up. */
+.track-num { width: 28px; text-align: center; font-size: 15px; font-weight: 500; line-height: 1; color: var(--muted); flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .track-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .track-title { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .track-artist { font-size: 12px; color: var(--muted); }
@@ -1204,6 +1239,10 @@ a.episode-show:hover { color: var(--accent); }
 .add-badge .i, .song-toggle .i { stroke-width: 2.4; }
 .song-toggle { color: var(--muted); flex-shrink: 0; margin-right: -8px; }
 .song-toggle[aria-pressed="true"] { color: var(--accent); }
+/* Add songs to a playlist: a circled plus, filled in as an accent check once added. */
+.add-song-info { display: flex; gap: 12px; align-items: center; flex: 1; min-width: 0; }
+.add-song { color: var(--text-2); flex-shrink: 0; margin-right: -8px; }
+.add-song[aria-pressed="true"] { color: var(--accent); }
 .btn-outline { background: none; border: 1px solid var(--track); }
 .add-all { width: 100%; height: 44px; margin-top: 12px; gap: 8px; }
 @media (min-width: 600px) { .add-all { width: auto; padding: 0 22px; } }
@@ -1231,7 +1270,5 @@ button.track-title:hover { color: var(--accent); }
 .playlist-cover img { position: absolute; object-fit: cover; display: block; }
 .songs-actions { display: flex; gap: 10px; margin-bottom: 8px; }
 .songs-actions .btn { flex: 1; max-width: 200px; height: 44px; }
-.context-row { width: 100%; }
-.context-row .i { color: var(--muted); transition: transform 0.2s; }
-.context-row[aria-expanded="true"] .i { transform: rotate(180deg); }
+.songs-actions .btn-round { width: 44px; height: 44px; }
 .speed-wrap[hidden] { display: none; }

@@ -23,6 +23,7 @@ import {
 } from "@murmur/shared/client";
 import { BookCard } from "@/components/book-card";
 import { Cover } from "@/components/cover";
+import { Mixer, useNowPlaying } from "@/components/mixer";
 import { CloseIcon, CustomizeIcon, DragIcon, FilterIcon, SearchIcon } from "@/components/icons";
 import { Empty, PageTitle, useTopInset } from "@/components/page";
 import { SmallButton } from "@/components/settings";
@@ -33,6 +34,7 @@ import { DragHandle, SortableList, SortableScrollProvider, useSortableScroll } f
 import { GAP, Grid, Group, openAllBooks, openGroup, openShelf, PAD, Shelf, shelfSub, todayKey, useGridWidth, useShelfWidth } from "@/components/library";
 import { Bar, Button, Chips, CountPill, IconButton, Text } from "@/components/ui";
 import { saveBookSections, useBookSections, useBooks } from "@/lib/data";
+import { isCurrent } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
 type Tab = "books" | "authors" | "series" | "finished";
@@ -524,6 +526,8 @@ function SectionHeading({
 
 /** A book in progress: a little bigger than the shelf covers, so it stands out at the top. */
 function ContinueCard({ book, width }: { book: BookSummary; width: number }) {
+  const t = useTheme();
+  const now = useNowPlaying((s) => isCurrent(s, "book", book.id));
   return (
     <Pressable
       accessibilityRole="button"
@@ -531,10 +535,13 @@ function ContinueCard({ book, width }: { book: BookSummary; width: number }) {
       onPress={() => router.push(`/book/${book.id}`)}
       style={({ pressed }) => ({ width, gap: 8, opacity: pressed ? 0.75 : 1 })}
     >
-      <Cover path={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 600) : null} title={book.title} color={book.coverColor} radius={12} />
+      <View>
+        <Cover path={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 600) : null} title={book.title} color={book.coverColor} radius={12} />
+        {now ? <Mixer playing={now === "playing"} /> : null}
+      </View>
       <Bar pct={progressPct(book)} height={4} />
       <View>
-        <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14 }}>
+        <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14, color: now ? t.accent : t.text }}>
           {book.title}
         </Text>
         <Text variant="small" numberOfLines={1}>

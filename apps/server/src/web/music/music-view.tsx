@@ -26,7 +26,9 @@ import {
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { ChevronIcon, CloseIcon, FilterIcon, FolderIcon, MusicIcon, PlayIcon, SearchIcon, ShuffleIcon } from "../icons";
+import { Mixer } from "../mixer";
+import { ChevronIcon, CloseIcon, FilterIcon, FolderIcon, MusicIcon, PauseIcon, PlayIcon, SearchIcon } from "../icons";
+import { ShuffleButton } from "./shuffle-button";
 import { type MusicSource, usePlayer } from "../player/engine";
 import { GroupGrid } from "../library/library";
 import { Sheet, SheetItem } from "../sheet";
@@ -87,12 +89,16 @@ export function AlbumSortSheet({ open, onClose, sort, onPick }: { open: boolean;
 
 /** Cover with title and a sub line; `badge` puts the add / added button on the cover. */
 export function AlbumCard({ album, sub, badge }: { album: AlbumSummary; sub?: string | null; badge?: boolean }) {
+  const player = usePlayer();
+  // Any of its songs, from the album itself or from a playlist or Up Next.
+  const current = player.item?.type === "track" && player.item.albumId === album.id;
   return (
-    <div className="card">
+    <div className={`card${current ? " playing" : ""}`}>
       <div className="card-cover">
         <Link href={`/music/album/${album.id}`} aria-label={`${album.title}, ${album.artist}`} tabIndex={-1}>
           <Cover src={albumCover(album.id, album.coverHash)} color={album.coverColor} title={album.title} subtitle={album.artist} />
         </Link>
+        {current ? <Mixer playing={player.playing} /> : null}
         {badge ? <AlbumBadge title={album.title} added={albumInMusic(album) === "all"} albumId={album.id} /> : null}
       </div>
       <Link href={`/music/album/${album.id}`} className="card-link">
@@ -121,10 +127,13 @@ export function SongRow({
   /** More items for the song's ⋯ menu, such as removing it from a playlist. */
   menuExtra?: (close: () => void) => React.ReactNode;
 }) {
-  const { isCurrent } = usePlayer();
+  const { isCurrent, playing } = usePlayer();
   const body = (
     <>
-      <Cover src={albumCover(track.albumId, track.coverHash)} color={null} title={track.album} className="thumb" />
+      <span className="thumb-wrap">
+        <Cover src={albumCover(track.albumId, track.coverHash)} color={null} title={track.album} className="thumb" />
+        {isCurrent("track", track.id) ? <Mixer playing={playing} thumb /> : null}
+      </span>
       <span className="list-row-main">
         <span className="list-row-title">{track.title}</span>
         <span className="list-row-sub">{sub ?? songSub(track)}</span>
@@ -301,6 +310,7 @@ export function MusicView({
   const shownSongs = (songs ?? []).filter((t) => songMatches(t, q));
   const shownPlaylists = playlists.filter((p) => p.name.toLowerCase().includes(q));
   const songsSource: MusicSource = { kind: "songs", refId: null, title: "Your songs", tracks: shownSongs };
+  const songsFrom = player.isPlayingFrom("songs", null);
 
   return (
     <>
@@ -382,14 +392,11 @@ export function MusicView({
         ) : shownSongs.length ? (
           <>
             <div className="songs-actions">
-              <button type="button" className="btn btn-primary" onClick={() => player.playMusic(songsSource, 0)}>
-                <PlayIcon size={18} />
-                Play all
+              <button type="button" className="btn btn-primary" onClick={() => (songsFrom ? player.toggle() : player.playMusic(songsSource, -1))}>
+                {songsFrom && player.playing ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
+                {songsFrom ? (player.playing ? "Pause" : "Resume") : "Play all"}
               </button>
-              <button type="button" className="btn" onClick={() => player.playMusic(songsSource, -1, true)}>
-                <ShuffleIcon size={18} />
-                Shuffle
-              </button>
+              <ShuffleButton source={songsSource} size={20} />
             </div>
             <div className="list">
               {shownSongs.map((t, i) => (

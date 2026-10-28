@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Pressable, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,7 +30,30 @@ export const toast = {
   error: (message: string) => set({ id: nextId++, message, error: true, duration: VISIBLE_MS }),
 };
 
-export function Toaster() {
+// An open sheet is a modal over everything, so a toast drawn by the app's own Toaster would sit under
+// its backdrop, with an Undo out of reach. Each open sheet draws one too, and only the top one shows.
+const layers: number[] = [];
+let nextLayer = 1;
+const layerListeners = new Set<() => void>();
+const notifyLayers = () => layerListeners.forEach((l) => l());
+
+/** For a sheet: while `open`, toasts are drawn by its own Toaster with the layer this returns. */
+export function useToastLayer(open: boolean): number {
+  const [layer] = useState(() => nextLayer++);
+  useEffect(() => {
+    if (!open) return;
+    layers.push(layer);
+    notifyLayers();
+    return () => {
+      layers.splice(layers.indexOf(layer), 1);
+      notifyLayers();
+    };
+  }, [open, layer]);
+  return layer;
+}
+
+/** Draws the current toast; `layer` is a sheet's (see useToastLayer), 0 for the app's own. */
+export function Toaster({ layer = 0 }: { layer?: number }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const item = useSyncExternalStore(
@@ -39,6 +62,13 @@ export function Toaster() {
       return () => listeners.delete(l);
     },
     () => current,
+  );
+  const top = useSyncExternalStore(
+    (l) => {
+      layerListeners.add(l);
+      return () => layerListeners.delete(l);
+    },
+    () => layers.at(-1) ?? 0,
   );
   // A toast stays current until it has faded out, so it's drawn straight from the store.
   const shown = item;
@@ -62,7 +92,7 @@ export function Toaster() {
     return () => clearTimeout(timer);
   }, [item, anim]);
 
-  if (!shown) return null;
+  if (!shown || top !== layer) return null;
   const color = shown.error ? t.danger : t.isDark ? t.text : t.bg;
   return (
     <View pointerEvents="box-none" style={{ position: "absolute", top: insets.top + 56, left: 0, right: 0, alignItems: "center" }}>

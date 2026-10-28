@@ -30,19 +30,9 @@ export interface MusicSummaryDto {
   mine: { albums: number; tracks: number };
 }
 
-/** What music is playing from; Up Next shows the songs after `index` as one row. */
-export interface PlayContextDto {
-  kind: "album" | "artist" | "songs" | "playlist";
-  /** The album, artist or playlist, for a link back. */
-  refId: string | null;
-  /** "Back In Black", "AC/DC", "Your songs" or the playlist's name. */
-  title: string;
-  /** In play order (shuffled already when `shuffled`); songs gone from the server are left out. */
-  tracks: TrackDto[];
-  /** The song playing now. */
-  index: number;
-  shuffled: boolean;
-}
+/** Repeat off, the whole album or list, or the one song: the player's loop button cycles through them. */
+export type RepeatMode = "off" | "all" | "one";
+export const REPEAT_MODES: RepeatMode[] = ["off", "all", "one"];
 
 /** A song counts as played after this long, or half its length if that's shorter. */
 export const PLAY_COUNTS_AFTER_SEC = 30;

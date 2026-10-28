@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { apiPaths, duration, type EpisodeWithShow, shortDate, timeLeft } from "@murmur/shared/client";
 import { setFinished, useEpisodeNotes } from "@/lib/data";
 import { downloadEpisode, removeDownload, useDownload } from "@/lib/downloads";
-import { episodeToPlayable, isCurrent, markCurrent, play, queueAdd, queueReplace, toggle, useItemPosition, usePlayer } from "@/player/engine";
+import { addToUpNext, episodeToPlayable, isCurrent, isWaiting, markCurrent, play, removeWaiting, toggle, useItemPosition, usePlayer } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { AdsCheckedIcon, DownloadIcon, PauseIcon, PlayedIcon, PlayIcon, QueueAddIcon } from "./icons";
@@ -42,10 +42,10 @@ export const EpisodeRow = memo(function EpisodeRow({
   const dur = (current ? player.item?.durationSec : null) || episode.durationSec || 0;
   const position = current ? live : episode.progress && !episode.progress.finished ? episode.progress.positionSec : 0;
   const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
-  const queued = player.queue.some((q) => q.itemType === "episode" && q.itemId === episode.id);
+  const ref = { itemType: "episode" as const, itemId: episode.id };
+  const queued = isWaiting(player.upNext, ref);
   const pausing = current && player.playing;
   const time = played ? "Played" : position > 5 && dur ? timeLeft(dur, position) : duration(dur);
-  const ref = { itemType: "episode" as const, itemId: episode.id };
 
   const openShow = () => router.push(`/show/${episode.podcastId}`);
 
@@ -68,14 +68,8 @@ export const EpisodeRow = memo(function EpisodeRow({
 
   const toggleQueue = () =>
     queued
-      ? run(
-          () =>
-            queueReplace(
-              player.queue.filter((q) => !(q.itemType === "episode" && q.itemId === episode.id)).map((q) => ({ itemType: q.itemType, itemId: q.itemId })),
-            ),
-          "Removed from Up Next",
-        )
-      : run(() => queueAdd(ref, "last"), "Added to Up Next");
+      ? run(async () => removeWaiting(ref), "Removed from Up Next")
+      : run(() => addToUpNext(ref, "last"), "Added to Up Next");
 
   const togglePlayed = () =>
     run(

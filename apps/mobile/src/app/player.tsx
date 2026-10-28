@@ -31,6 +31,9 @@ import {
   PlusIcon,
   PrevChapterIcon,
   QueueIcon,
+  RepeatIcon,
+  RepeatOneIcon,
+  ShuffleIcon,
   SkipBackIcon,
   SkipForwardIcon,
 } from "@/components/icons";
@@ -41,7 +44,23 @@ import { Caption, Chips, IconButton, NumberBadge, Text } from "@/components/ui";
 import { UpNextSheet } from "@/components/up-next";
 import { cachedAlbumColor } from "@/lib/data";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdDetection, useAdPrefs, type AdMode } from "@/player/ad-prefs";
-import { chapterStep, markCurrent, play, type Playable, seek, setSleep, setSpeed, skipBy, stop, toggle, trackStep, usePlayer, usePosition } from "@/player/engine";
+import {
+  chapterStep,
+  cycleRepeat,
+  markCurrent,
+  play,
+  type Playable,
+  seek,
+  setSleep,
+  setSpeed,
+  skipBy,
+  stop,
+  toggle,
+  toggleShuffle,
+  trackStep,
+  usePlayer,
+  usePosition,
+} from "@/player/engine";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fonts, mixColor, useTheme } from "@/theme";
 
@@ -135,7 +154,7 @@ export default function Player() {
           <IconButton label="Close player" onPress={() => router.back()}>
             <DownIcon color={t.text} />
           </IconButton>
-          <Caption style={{ letterSpacing: 0.6, color: soft }}>Playing from {song ? (p.context?.title ?? "Music") : item.type === "book" ? "Library" : "Podcasts"}</Caption>
+          <Caption style={{ letterSpacing: 0.6, color: soft }}>Playing from {song ? (p.upNext.source?.title ?? "Music") : item.type === "book" ? "Library" : "Podcasts"}</Caption>
           <IconButton label="More options" onPress={() => setSheet("more")}>
             <MoreIcon color={t.text} />
           </IconButton>
@@ -260,11 +279,16 @@ export default function Player() {
             </View>
           </View>
 
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: ended ? "center" : song ? "space-evenly" : "space-between" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: ended ? "center" : "space-between" }}>
             {ended ? null : song ? (
-              <IconButton label="Previous song" style={{ width: 56, height: 56 }} onPress={() => trackStep(-1)}>
-                <PrevChapterIcon size={36} color={t.text} />
-              </IconButton>
+              <>
+                <IconButton label={p.repeat === "one" ? "Repeat song" : p.repeat === "all" ? "Repeat all" : "Repeat off"} onPress={cycleRepeat}>
+                  {p.repeat === "one" ? <RepeatOneIcon color={t.accent} /> : <RepeatIcon color={p.repeat === "all" ? t.accent : t.muted} />}
+                </IconButton>
+                <IconButton label="Previous song" style={{ width: 56, height: 56 }} onPress={() => trackStep(-1)}>
+                  <PrevChapterIcon size={36} color={t.text} />
+                </IconButton>
+              </>
             ) : (
               <>
                 <IconButton label={multiChapter ? "Previous chapter" : "Back 30 seconds"} onPress={() => chapterStep(-1)}>
@@ -298,9 +322,14 @@ export default function Player() {
               )}
             </Pressable>
             {ended ? null : song ? (
-              <IconButton label="Next song" style={{ width: 56, height: 56 }} onPress={() => trackStep(1)}>
-                <NextChapterIcon size={36} color={t.text} />
-              </IconButton>
+              <>
+                <IconButton label="Next song" style={{ width: 56, height: 56 }} onPress={() => trackStep(1)}>
+                  <NextChapterIcon size={36} color={t.text} />
+                </IconButton>
+                <IconButton label="Shuffle" accessibilityState={{ selected: p.shuffle }} onPress={toggleShuffle}>
+                  <ShuffleIcon color={p.shuffle ? t.accent : t.muted} />
+                </IconButton>
+              </>
             ) : (
               <>
                 <SkipButton seconds={p.skip.forward} label={`Skip forward ${p.skip.forward} seconds`} onPress={() => skipBy(p.skip.forward)}>
@@ -337,7 +366,7 @@ export default function Player() {
               <ListIcon size={20} color={t.text} />
             </Tile>
           )}
-          <Tile label="Up Next" count={p.queue.length} onPress={() => setSheet("upnext")}>
+          <Tile label="Up Next" count={p.upNext.items.length - p.upNext.index - 1} onPress={() => setSheet("upnext")}>
             <QueueIcon size={20} color={t.text} />
           </Tile>
         </View>

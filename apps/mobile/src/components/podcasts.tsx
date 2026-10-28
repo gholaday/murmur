@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { apiPaths, PODCAST_SORT_LABEL, type PodcastListId, type PodcastSort, type PodcastSummary } from "@murmur/shared/client";
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
+import { Mixer, useNowPlaying } from "./mixer";
 import { Sheet, SheetItem } from "./sheet";
 import { NumberBadge, Text } from "./ui";
 
@@ -49,6 +50,7 @@ export function openPodcastList(id: PodcastListId) {
 
 export function ShowCard({ show, width }: { show: PodcastSummary; width: number }) {
   const t = useTheme();
+  const now = useNowPlaying((s) => s.item?.type === "episode" && s.item.podcastId === show.id);
   return (
     <Pressable
       accessibilityRole="button"
@@ -65,8 +67,9 @@ export function ShowCard({ show, width }: { show: PodcastSummary; width: number 
             style={{ position: "absolute", top: 6, right: 6 }}
           />
         ) : null}
+        {now ? <Mixer playing={now === "playing"} /> : null}
       </View>
-      <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 13 }}>
+      <Text variant="bodyStrong" numberOfLines={2} style={{ fontSize: 13, color: now ? t.accent : t.text }}>
         {show.title}
       </Text>
       {show.lastError ? (

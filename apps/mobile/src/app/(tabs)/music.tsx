@@ -166,8 +166,8 @@ export default function Music() {
       )}
       {view === "songs" && !q && tracks.data?.length ? (
         <View style={{ flexDirection: "row", gap: 10 }}>
-          <PlayButton label="Play all" onPress={() => playSongs(tracks.data, 0)} />
-          <ShuffleButton onPress={() => playSongs(tracks.data, -1, true)} />
+          <PlayButton label="Play all" from={{ kind: "songs", refId: null }} onPress={() => playSongs(tracks.data, -1)} />
+          <ShuffleButton from={{ kind: "songs", refId: null }} onPlay={() => playSongs(tracks.data, -1, true)} />
         </View>
       ) : null}
       {view === "playlists" && !q ? (

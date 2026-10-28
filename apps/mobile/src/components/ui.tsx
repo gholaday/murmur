@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { selectHaptic } from "@/lib/haptics";
 import { fonts, useTheme, type Theme } from "@/theme";
-import { ChevronIcon } from "./icons";
+import { ChevronIcon, SearchIcon } from "./icons";
 
 type Variant = "title" | "heading" | "body" | "bodyStrong" | "small" | "caption";
 
@@ -296,6 +296,26 @@ export function Caption({ children, style }: { children: React.ReactNode; style?
     <Text variant="caption" style={[{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.8 }, style]}>
       {children}
     </Text>
+  );
+}
+
+/** A search box: a magnifier and the text, on a surface. */
+export function SearchBox({ value, onChange, placeholder, autoFocus }: { value: string; onChange: (text: string) => void; placeholder: string; autoFocus?: boolean }) {
+  const t = useTheme();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, height: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: t.surface }}>
+      <SearchIcon size={20} color={t.muted} />
+      <TextInput
+        autoFocus={autoFocus}
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor={t.faint}
+        selectionColor={t.accent}
+        accessibilityLabel={placeholder}
+        style={{ flex: 1, color: t.text, fontFamily: fonts.medium, fontSize: 15 }}
+      />
+    </View>
   );
 }
 

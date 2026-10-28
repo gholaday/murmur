@@ -12,6 +12,7 @@ import { setMarkedMatched } from "../book/match-mark";
 import { setPlayNext } from "../book/play-next";
 import { Cover } from "../cover";
 import { CheckIcon, MoreIcon } from "../icons";
+import { Mixer } from "../mixer";
 import { usePlayer } from "../player/engine";
 import { setFinished } from "../progress";
 
@@ -23,8 +24,10 @@ export const BookCard = memo(function BookCard({ book, sub }: { book: BookSummar
   const actions = useContext(BookActionsContext);
   const pct = progressPct(book);
   const started = !!book.progress && !book.progress.finished && pct > 0;
+  const player = usePlayer();
+  const current = player.isCurrent("book", book.id);
   return (
-    <div className="card">
+    <div className={`card${current ? " playing" : ""}`}>
       <Link href={`/book/${book.id}`} className="card-link">
         <div className="card-cover">
           <Cover
@@ -33,6 +36,7 @@ export const BookCard = memo(function BookCard({ book, sub }: { book: BookSummar
             title={book.title}
             subtitle={book.author}
           />
+          {current ? <Mixer playing={player.playing} /> : null}
           {/* Admins see which books haven't been matched yet. */}
           {actions?.isAdmin && !book.matched ? <span className="card-unmatched">Not matched</span> : null}
         </div>

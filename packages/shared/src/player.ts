@@ -1,6 +1,7 @@
 import { apiPaths } from "./api-paths";
 import { clock, duration } from "./format";
 import type { ChapterDto, QueueEntry, QueueRef } from "./index";
+import { REPEAT_MODES, type RepeatMode } from "./music";
 
 // Player rules shared by the web player and the app's, so both behave the same.
 
@@ -80,7 +81,8 @@ export function queueEntryView(e: QueueEntry) {
     return {
       kind: t.artist,
       title: t.title,
-      length: duration(t.durationSec),
+      // Songs read like a track list (3:19); episodes in hours and minutes.
+      length: t.durationSec > 0 ? clock(t.durationSec) : "",
       cover: t.coverHash ? apiPaths.albumCoverUrl(t.albumId, t.coverHash, 200) : null,
       color: null,
       remaining: t.durationSec,
@@ -98,3 +100,6 @@ export function queueEntryView(e: QueueEntry) {
     remaining: Math.max(0, dur - pos),
   };
 }
+
+/** Repeat off, then all, then one. */
+export const nextRepeatMode = (m: RepeatMode): RepeatMode => REPEAT_MODES[(REPEAT_MODES.indexOf(m) + 1) % REPEAT_MODES.length]!;

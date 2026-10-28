@@ -232,7 +232,25 @@ export const trackOverrides = sqliteTable("track_overrides", {
   trackNo: integer("track_no"),
 });
 
-/** What each person is playing music from, so Up Next and every device can show the rest of it. */
+/** Each person's Up Next: one running list of songs and episodes, with the one playing (see shared up-next.ts). */
+export const upNext = sqliteTable("up_next", {
+  userId: integer("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  /** JSON array of { itemType, itemId, added }, played first, then the one playing, then what's next. */
+  items: text("items").notNull(),
+  /** The item playing; -1 when it isn't in the list (a book). */
+  index: integer("idx").notNull(),
+  sourceKind: text("source_kind", { enum: ["album", "artist", "songs", "playlist"] }),
+  sourceRef: text("source_ref"),
+  sourceTitle: text("source_title"),
+  /** JSON array of the source's song ids in its own order. */
+  originalIds: text("original_ids").notNull(),
+  shuffled: integer("shuffled", { mode: "boolean" }).notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+/** Replaced by `up_next`; read once per person to carry their album over, then left alone. */
 export const playContext = sqliteTable("play_context", {
   userId: integer("user_id")
     .primaryKey()
@@ -242,6 +260,8 @@ export const playContext = sqliteTable("play_context", {
   title: text("title").notNull(),
   /** JSON array of track ids in play order. */
   trackIds: text("track_ids").notNull(),
+  /** JSON array of the same ids in the album's or list's own order; null means the play order is it. */
+  originalIds: text("original_ids"),
   index: integer("idx").notNull(),
   shuffled: integer("shuffled", { mode: "boolean" }).notNull(),
   updatedAt: integer("updated_at").notNull(),
@@ -391,7 +411,7 @@ export const playNext = sqliteTable(
   (t) => [primaryKey({ columns: [t.userId, t.bookId] })],
 );
 
-/** Each user's Up Next queue of episodes and songs, in play order. */
+/** Replaced by `up_next`; read once per person to carry their queue over, then left alone. */
 export const queueItems = sqliteTable(
   "queue_items",
   {

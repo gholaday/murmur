@@ -5,6 +5,7 @@ import { env } from "./env";
 import { HttpError } from "./http";
 import { cleanAdSpans } from "./podcasts/cache-rules";
 import { readState, writeState } from "./settings";
+import { WAITING_EPISODES_SQL } from "./waiting-episodes";
 
 /** A scan handed out is the add-on's for this long; after that it goes back in the queue. */
 const LEASE_MS = 30 * 60_000;
@@ -95,7 +96,7 @@ export function claimNext(sqlite: Sqlite): AddonJob | null {
          WHERE (s.status = 'queued' AND (s.not_before IS NULL OR s.not_before <= @now))
             OR (s.status = 'scanning' AND s.lease_until < @now)
          ORDER BY (s.wanted_at IS NOT NULL AND s.wanted_at > @wanted) DESC,
-           EXISTS (SELECT 1 FROM queue_items q WHERE q.item_type = 'episode' AND q.item_id = e.id) DESC,
+           e.id IN (${WAITING_EPISODES_SQL}) DESC,
            e.published_at DESC
          LIMIT 1`,
       )

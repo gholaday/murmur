@@ -8,8 +8,6 @@ import type {
   MusicMineChange,
   MusicScope,
   MusicSummaryDto,
-  PlayContextDto,
-  PlayContextInput,
   TrackDto,
 } from "@murmur/shared";
 import { NEW_ALBUM_DAYS } from "@murmur/shared";
@@ -253,6 +251,17 @@ export function listTracks(ctx: AppContext, userId: number, scope: MusicScope, q
   return rows.map(toTrack);
 }
 
+/** The songs you played most recently, newest first. */
+export function recentTracks(ctx: AppContext, userId: number): TrackDto[] {
+  const rows = ctx.sqlite
+    .prepare(
+      `${TRACK_SELECT} AND t.id IN (SELECT track_id FROM track_plays WHERE user_id = @user)
+       ORDER BY (SELECT last_played_at FROM track_plays p WHERE p.user_id = @user AND p.track_id = t.id) DESC LIMIT 200`,
+    )
+    .all({ user: userId }) as TrackRow[];
+  return rows.map(toTrack);
+}
+
 /** The song ids a change names: its songs, plus every song on its albums. */
 function changeTrackIds(ctx: AppContext, change: MusicMineChange): string[] {
   const ids = new Set(change.trackIds ?? []);
@@ -287,61 +296,6 @@ export function getTrackFile(ctx: AppContext, id: string): { root: string | null
 }
 
 // ---------- Playing ----------
-
-interface ContextRow {
-  kind: PlayContextDto["kind"];
-  ref_id: string | null;
-  title: string;
-  track_ids: string;
-  idx: number;
-  shuffled: number;
-}
-
-/** What a person is playing music from, with its songs; null when there's nothing or none are left. */
-export function getPlayContext(ctx: AppContext, userId: number): PlayContextDto | null {
-  const row = ctx.sqlite.prepare("SELECT kind, ref_id, title, track_ids, idx, shuffled FROM play_context WHERE user_id = ?").get(userId) as
-    | ContextRow
-    | undefined;
-  if (!row) return null;
-  const ids = JSON.parse(row.track_ids) as string[];
-  // Songs removed from the server drop out; the index follows the song it pointed at.
-  const current = ids[row.idx];
-  const tracks = tracksByIds(ctx, userId, ids);
-  if (!tracks.length) return null;
-  const index = Math.max(0, tracks.findIndex((t) => t.id === current));
-  return { kind: row.kind, refId: row.ref_id, title: row.title, tracks, index, shuffled: row.shuffled === 1 };
-}
-
-export function savePlayContext(ctx: AppContext, userId: number, input: PlayContextInput): void {
-  ctx.sqlite
-    .prepare(
-      `INSERT INTO play_context (user_id, kind, ref_id, title, track_ids, idx, shuffled, updated_at)
-       VALUES (@user, @kind, @refId, @title, @ids, @index, @shuffled, @now)
-       ON CONFLICT (user_id) DO UPDATE SET kind = excluded.kind, ref_id = excluded.ref_id, title = excluded.title,
-         track_ids = excluded.track_ids, idx = excluded.idx, shuffled = excluded.shuffled, updated_at = excluded.updated_at`,
-    )
-    .run({
-      user: userId,
-      kind: input.kind,
-      refId: input.refId,
-      title: input.title,
-      ids: JSON.stringify(input.trackIds),
-      index: Math.min(input.index, input.trackIds.length - 1),
-      shuffled: input.shuffled ? 1 : 0,
-      now: Date.now(),
-    });
-}
-
-/** Moves the context on to another of its songs. */
-export function setPlayContextIndex(ctx: AppContext, userId: number, index: number): void {
-  ctx.sqlite
-    .prepare("UPDATE play_context SET idx = MIN(@index, json_array_length(track_ids) - 1), updated_at = @now WHERE user_id = @user")
-    .run({ user: userId, index, now: Date.now() });
-}
-
-export function clearPlayContext(ctx: AppContext, userId: number): void {
-  ctx.sqlite.prepare("DELETE FROM play_context WHERE user_id = ?").run(userId);
-}
 
 /** One more play of a song. */
 export function addTrackPlay(ctx: AppContext, userId: number, trackId: string): void {

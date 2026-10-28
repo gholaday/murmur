@@ -3,7 +3,7 @@ import { Pressable, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { albumCover, type AlbumDetail, albumDiscs, albumInMusic, albumPills, plural, songNumber, type TrackDto } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
-import { CheckIcon, DownloadIcon, MoreIcon, PlayIcon, PlusIcon } from "@/components/icons";
+import { CheckIcon, DownloadIcon, MoreIcon, PlusIcon } from "@/components/icons";
 import { ActionButton, openArtist, Pill, Pills, PlayButton, ShuffleButton, SongSheet, TrackRow } from "@/components/music";
 import { Empty, NestedScreen, SectionTitle } from "@/components/page";
 import { AddToPlaylistSheet } from "@/components/playlists";
@@ -59,8 +59,8 @@ export default function AlbumScreen() {
 
         {state === "all" ? (
           <View style={{ flexDirection: "row", gap: 10 }}>
-            <PlayButton onPress={() => playAlbum(a, 0)} />
-            <ShuffleButton onPress={() => playAlbum(a, -1, true)} />
+            <PlayButton from={{ kind: "album", refId: a.id }} onPress={() => playAlbum(a, -1)} />
+            <ShuffleButton from={{ kind: "album", refId: a.id }} onPlay={() => playAlbum(a, -1, true)} />
             <AlbumDownloadButton album={a} />
           </View>
         ) : (
@@ -75,7 +75,7 @@ export default function AlbumScreen() {
                   void setInMusic({ albums: [a] }, true);
                 }}
               />
-              <ActionButton label="Play" icon={<PlayIcon size={20} color={t.text} />} round onPress={() => playAlbum(a, 0)} />
+              <PlayButton from={{ kind: "album", refId: a.id }} round onPress={() => playAlbum(a, -1)} />
             </View>
             <Text variant="small" style={{ textAlign: "center" }}>
               {state === "some"

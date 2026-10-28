@@ -12,12 +12,27 @@ import {
   type ChapterDto,
   type EpisodeWithShow,
   type ItemType,
-  type PlayContextDto,
   type PlayType,
   type TrackDto,
   albumCover,
   PLAY_COUNTS_AFTER_SEC,
-  shuffled as shuffleList,
+  addItem,
+  EMPTY_UP_NEXT,
+  moveItem as moveListItem,
+  nextIndex,
+  nextRepeatMode,
+  previousIndex,
+  removeAt as removeListItem,
+  type RepeatMode,
+  setShuffle,
+  startMusic,
+  startSingle,
+  type UpNextDto,
+  type UpNextEntry,
+  type UpNextInput,
+  type UpNextList,
+  type UpNextSource,
+  type UserPrefs,
   type ListeningStore,
   ListeningTracker,
   type ProgressItem,
@@ -182,11 +197,19 @@ async function loadPlayable(ref: PlayRef): Promise<Playable> {
 
 /** Where music plays from, as the album, artist and Songs pages hand it to the player. */
 export interface MusicSource {
-  kind: PlayContextDto["kind"];
+  kind: UpNextSource["kind"];
   refId: string | null;
   title: string;
   tracks: TrackDto[];
 }
+
+const trackEntry = (track: TrackDto): UpNextEntry => ({ itemType: "track", itemId: track.id, added: false, track });
+const toRefs = (l: UpNextList): UpNextInput => ({
+  ...l,
+  items: l.items.map(({ itemType, itemId, added }) => ({ itemType, itemId, added })),
+});
+const entryToPlayable = (e: UpNextEntry): Playable => (e.itemType === "track" ? trackToPlayable(e.track) : episodeToPlayable(e.episode));
+const sameRef = (a: QueueRef, b: QueueRef) => a.itemType === b.itemType && a.itemId === b.itemId;
 
 /** Start the next song loading this long before the current one ends, so it follows without a gap. */
 const PRELOAD_SEC = 10;
@@ -205,18 +228,41 @@ interface PlayerApi {
   adsEnabled: boolean;
   /** Ad times for the current episode, empty until it's scanned. */
   ads: AdSpan[];
-  queue: QueueEntry[];
-  /** False until the queue has been fetched once, so an empty list isn't shown too early. */
-  queueLoaded: boolean;
-  /** The album, artist or song list music is playing from; Up Next shows the rest of it. */
-  musicContext: PlayContextDto | null;
+  /** Up Next: one running list of what played, what's playing and what's next. */
+  upNext: UpNextDto;
+  /** False until Up Next has been fetched once, so an empty list isn't shown too early. */
+  upNextLoaded: boolean;
   isCurrent: (type: PlayType, id: string) => boolean;
-  /** Plays `source` from its song at `index`, or shuffled (starting with that song when one is given). */
+  /** True while the current song comes from this album, artist, playlist or song list. */
+  isPlayingFrom: (kind: UpNextSource["kind"], refId: string | null) => boolean;
+  /**
+   * Plays `source` from its song at `index` (-1 for Play: the first song, or any song with shuffle on).
+   * Shuffle follows your setting; `shuffle` true turns it on first, for the Shuffle buttons.
+   */
   playMusic: (source: MusicSource, index: number, shuffle?: boolean) => void;
-  /** Jumps to another song in the current context. */
-  playContextAt: (index: number) => void;
+  /** Plays the item at `index` in Up Next. */
+  playAt: (index: number) => void;
+  /** Takes an item out of Up Next; taking out the one playing moves on to the next. */
+  removeAt: (index: number) => void;
+  moveItem: (from: number, to: number) => void;
+  /** Empties what's still to come. */
+  clearUpNext: () => void;
+  /** Puts back a list from before, for Undo. */
+  restoreUpNext: (l: UpNextDto) => void;
+  addToUpNext: (ref: QueueRef, at: "next" | "last") => Promise<void>;
+  /** True while `ref` is still to come in Up Next. */
+  isWaiting: (ref: QueueRef) => boolean;
+  /** Takes `ref` out of what's still to come. */
+  removeWaiting: (ref: QueueRef) => void;
   /** Previous and next song: back restarts the song unless it's just begun. */
   trackStep: (dir: -1 | 1) => void;
+  /** Your shuffle and repeat settings for music, kept between sessions. */
+  shuffle: boolean;
+  repeat: RepeatMode;
+  /** Turns shuffle on or off, reordering what's left of the album or list. */
+  toggleShuffle: () => void;
+  /** Repeat off, then all, then one. */
+  cycleRepeat: () => void;
   /** Plays an item, resuming where you left off unless `startAt` is given. */
   play: (item: Playable, startAt?: number) => void;
   playRef: (ref: PlayRef, startAt?: number) => Promise<void>;
@@ -232,9 +278,6 @@ interface PlayerApi {
   /** Marks the current item finished (or not) and saves it. */
   markCurrent: (finished: boolean) => void;
   stop: () => void;
-  queueAdd: (ref: QueueRef, at: "next" | "last") => Promise<void>;
-  queueReplace: (refs: QueueRef[]) => Promise<void>;
-  refreshQueue: () => Promise<void>;
 }
 
 const PlayerContext = createContext<PlayerApi | null>(null);
@@ -295,7 +338,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const spare = () => (players.current[0] === audio.current ? players.current[1] : players.current[0]);
   /** The song id the spare player holds, ready to go. */
   const preloaded = useRef<string | null>(null);
-  const contextRef = useRef<PlayContextDto | null>(null);
+  const listRef = useRef<UpNextDto>(EMPTY_UP_NEXT);
   /** Seconds of the current song heard, toward counting it as played. */
   const heardSec = useRef(0);
   const counted = useRef(false);
@@ -316,7 +359,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     apply();
     return volumeStore.subscribe(apply);
   }, []);
-  const queueRef = useRef<QueueEntry[]>([]);
   const sleepRef = useRef<SleepTimer>({ mode: "off" });
   const adsRef = useRef<AdSpan[]>([]);
   /** Ads you chose to hear with Undo; not skipped again while this item stays loaded. */
@@ -337,18 +379,34 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [sleep, setSleepState] = useState<SleepTimer>({ mode: "off" });
   const [skip, setSkipState] = useState<SkipSettings>(DEFAULT_SKIP);
   const [expanded, setExpanded] = useState(false);
-  const [queue, setQueueState] = useState<QueueEntry[]>([]);
-  const [queueLoaded, setQueueLoaded] = useState(false);
   const [adsInfo, setAdsInfo] = useState<EpisodeAdsDto | null>(null);
-  const [musicContext, setMusicContextState] = useState<PlayContextDto | null>(null);
-  const setMusicContext = useCallback((c: PlayContextDto | null) => {
-    contextRef.current = c;
-    setMusicContextState(c);
+  const [upNext, setUpNextState] = useState<UpNextDto>(EMPTY_UP_NEXT);
+  const [upNextLoaded, setUpNextLoaded] = useState(false);
+  /**
+   * Shows a changed list at once and saves it: "list" sends the whole list, "index" only where it's
+   * at. A list that needs details this device doesn't have (a new episode) waits for the server's copy.
+   */
+  const setList = useCallback((l: UpNextDto, save: "list" | "index" | false) => {
+    listRef.current = l;
+    setUpNextState(l);
+    if (save === "index") void api(apiPaths.upNext, { method: "PATCH", body: { index: l.index } }).catch(() => undefined);
+    if (save === "list") void api(apiPaths.upNext, { method: "PUT", body: toRefs(l) }).catch(() => undefined);
   }, []);
 
-  const setQueue = useCallback((q: QueueEntry[]) => {
-    queueRef.current = q;
-    setQueueState(q);
+  const [shuffle, setShuffleState] = useState(false);
+  const [repeat, setRepeatState] = useState<RepeatMode>("off");
+  const shuffleRef = useRef(false);
+  const repeatRef = useRef<RepeatMode>("off");
+  const setMusicPrefs = useCallback((prefs: { shuffle?: boolean; repeat?: RepeatMode }, persist: boolean) => {
+    if (prefs.shuffle !== undefined) {
+      shuffleRef.current = prefs.shuffle;
+      setShuffleState(prefs.shuffle);
+    }
+    if (prefs.repeat !== undefined) {
+      repeatRef.current = prefs.repeat;
+      setRepeatState(prefs.repeat);
+    }
+    if (persist) void api(apiPaths.prefs, { method: "PUT", body: prefs }).catch(() => undefined);
   }, []);
 
   // ---------- Progress ----------
@@ -442,46 +500,31 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     [load, save],
   );
 
-  const refreshQueue = useCallback(async () => {
+  const refreshUpNext = useCallback(async () => {
     try {
-      setQueue(await api<QueueEntry[]>("/api/queue"));
+      setList(await api<UpNextDto>(apiPaths.upNext), false);
     } catch {
       // keep what we have
     } finally {
-      setQueueLoaded(true);
+      setUpNextLoaded(true);
     }
-  }, [setQueue]);
+  }, [setList]);
 
-  const queueReplace = useCallback(
-    async (refs: QueueRef[]) => {
-      setQueue(await api<QueueEntry[]>("/api/queue", { method: "PUT", body: { items: refs } }));
-    },
-    [setQueue],
+  /** Saves a list with an item this device has no details for yet, and shows the server's copy. */
+  const putRefs = useCallback(
+    async (l: UpNextInput) => setList(await api<UpNextDto>(apiPaths.upNext, { method: "PUT", body: l }), false),
+    [setList],
   );
 
-  const queueAdd = useCallback(
-    async (ref: QueueRef, at: "next" | "last") => {
-      setQueue(await api<QueueEntry[]>("/api/queue", { method: "POST", body: { ...ref, at } }));
-    },
-    [setQueue],
+  const addToUpNext = useCallback(
+    async (ref: QueueRef, at: "next" | "last") =>
+      setList(await api<UpNextDto>(apiPaths.upNext, { method: "POST", body: { ...ref, at } }), false),
+    [setList],
   );
 
-  const removeFromQueue = useCallback(
-    (ref: QueueRef) => {
-      const q = queueRef.current;
-      if (!q.some((e) => e.itemType === ref.itemType && e.itemId === ref.itemId)) return;
-      void queueReplace(
-        q.filter((e) => !(e.itemType === ref.itemType && e.itemId === ref.itemId)).map((e) => ({
-          itemType: e.itemType,
-          itemId: e.itemId,
-        })),
-      ).catch(() => undefined);
-    },
-    [queueReplace],
-  );
-
+  /** Loads and plays `it`. `fromList` is for Up Next's own items, which leave the list as it is. */
   const play = useCallback(
-    (it: Playable, startAt?: number) => {
+    (it: Playable, startAt?: number, fromList = false) => {
       const el = audio.current;
       if (!el) return;
       const current = itemRef.current;
@@ -504,15 +547,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // private mode
       }
-      if (it.type === "track") return;
-      if (it.type === "episode") removeFromQueue({ itemType: "episode", itemId: it.id });
-      // A book or episode takes over from music, so its "rest of the album" leaves Up Next.
-      if (contextRef.current) {
-        setMusicContext(null);
-        void api(apiPaths.playContext, { method: "DELETE" }).catch(() => undefined);
-      }
+      if (fromList || it.type === "track") return;
+      // A book, or an episode from its show, takes over: the songs leave Up Next and waiting episodes stay.
+      const l = listRef.current;
+      if (it.type === "book") setList(startSingle(l, null), "list");
+      else void putRefs(startSingle(toRefs(l), { itemType: "episode", itemId: it.id, added: false })).catch(() => undefined);
     },
-    [load, removeFromQueue, save, seek, setMusicContext],
+    [load, putRefs, save, seek, setList],
   );
 
   /** The spare player starts loading `track`, so it can take over the moment the current song ends. */
@@ -525,15 +566,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     el.load();
   }, []);
 
-  /** Plays song `index` of the current context, from a player that preloaded it when there is one. */
-  const playContextAt = useCallback(
-    (index: number) => {
-      const c = contextRef.current;
-      const track = c?.tracks[index];
-      if (!c || !track) return;
-      const it = trackToPlayable(track);
+  /**
+   * Shows and saves `l`, and plays its item at `l.index`: from the spare player when it preloaded
+   * that song, so it follows without a gap.
+   */
+  const go = useCallback(
+    (l: UpNextDto, save: "list" | "index") => {
+      const e = l.items[l.index];
+      if (!e) return;
+      setList(l, save);
+      const it = entryToPlayable(e);
       const next = spare();
-      if (preloaded.current === track.id && next) {
+      if (e.itemType === "track" && preloaded.current === e.itemId && next) {
         // The gapless hand-over: the spare player already has the song loaded.
         const old = audio.current;
         audio.current = next;
@@ -563,43 +607,23 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         preloaded.current = null;
-        play(it, 0);
+        play(it, e.itemType === "track" ? 0 : undefined, true);
       }
-      setMusicContext({ ...c, index });
-      void api(apiPaths.playContext, { method: "PATCH", body: { index } }).catch(() => undefined);
     },
-    [play, setMusicContext],
+    [play, setList],
   );
+
+  const playAt = useCallback((index: number) => go({ ...listRef.current, index }, "index"), [go]);
 
   const playMusic = useCallback(
-    (source: MusicSource, index: number, shuffle = false) => {
+    (source: MusicSource, index: number, shuffleOn = false) => {
       if (!source.tracks.length) return;
-      const first = source.tracks[index];
-      const tracks = shuffle ? shuffleList(source.tracks, index >= 0 ? first : undefined) : source.tracks;
-      const at = shuffle ? 0 : Math.max(0, index);
-      const c: PlayContextDto = { kind: source.kind, refId: source.refId, title: source.title, tracks, index: at, shuffled: shuffle };
-      setMusicContext(c);
+      if (shuffleOn && !shuffleRef.current) setMusicPrefs({ shuffle: true }, true);
+      const { kind, refId, title } = source;
       preloaded.current = null;
-      playContextAt(at);
-      void api(apiPaths.playContext, {
-        method: "PUT",
-        body: { kind: c.kind, refId: c.refId, title: c.title, trackIds: tracks.map((t) => t.id), index: at, shuffled: shuffle },
-      }).catch(() => undefined);
+      go(startMusic(listRef.current, { kind, refId, title }, source.tracks.map(trackEntry), index, shuffleOn || shuffleRef.current), "list");
     },
-    [playContextAt, setMusicContext],
-  );
-
-  const trackStep = useCallback(
-    (dir: -1 | 1) => {
-      const c = contextRef.current;
-      const it = itemRef.current;
-      if (!c || !it || it.type !== "track") return;
-      if (dir === -1 && positionRef.current > 3) return seek(0);
-      const index = c.index + dir;
-      if (index >= 0 && index < c.tracks.length) playContextAt(index);
-      else if (dir === -1) seek(0);
-    },
-    [playContextAt, seek],
+    [go, setMusicPrefs],
   );
 
   const playRef = useCallback(
@@ -608,25 +632,59 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         play(await loadPlayable(ref), startAt);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Couldn't load that.");
-        return;
-      }
-      if (ref.itemType !== "track") return;
-      // A song from Up Next plays on its own: it leaves the queue, and any album it interrupts ends.
-      removeFromQueue({ itemType: "track", itemId: ref.itemId });
-      if (contextRef.current) {
-        setMusicContext(null);
-        void api(apiPaths.playContext, { method: "DELETE" }).catch(() => undefined);
       }
     },
-    [play, removeFromQueue, setMusicContext],
+    [play],
   );
 
+  /** Plays what `nextIndex` picked: the same song again, or another item. */
+  const playNext = useCallback(
+    (next: "again" | number | null) => {
+      if (next === null) return;
+      if (next !== "again") return playAt(next);
+      heardSec.current = 0;
+      counted.current = false;
+      seek(0);
+      void audio.current?.play().catch(() => setPlaying(false));
+    },
+    [playAt, seek],
+  );
 
-  /** Plays the next thing in Up Next, if anything. */
-  const advance = useCallback(async () => {
-    const next = queueRef.current[0];
-    if (next) await playRef({ itemType: next.itemType, itemId: next.itemId }, undefined);
-  }, [playRef]);
+  const trackStep = useCallback(
+    (dir: -1 | 1) => {
+      const it = itemRef.current;
+      if (!it || it.type !== "track") return;
+      const l = listRef.current;
+      if (dir === 1) {
+        // Skipping on Repeat one moves on, so repeat drops to the whole list.
+        if (repeatRef.current === "one") setMusicPrefs({ repeat: "all" }, true);
+        return playNext(nextIndex(l, repeatRef.current, false));
+      }
+      if (positionRef.current > 3) return seek(0);
+      const index = previousIndex(l, repeatRef.current);
+      if (index === null) seek(0);
+      else playAt(index);
+    },
+    [playAt, playNext, seek, setMusicPrefs],
+  );
+
+  const toggleShuffle = useCallback(() => {
+    const on = !shuffleRef.current;
+    setMusicPrefs({ shuffle: on }, true);
+    const l = listRef.current;
+    if (l.source) setList(setShuffle(l, on), "list");
+  }, [setList, setMusicPrefs]);
+
+  const cycleRepeat = useCallback(() => setMusicPrefs({ repeat: nextRepeatMode(repeatRef.current) }, true), [setMusicPrefs]);
+
+  const moveItem = useCallback((from: number, to: number) => setList(moveListItem(listRef.current, from, to), "list"), [setList]);
+
+  const clearUpNext = useCallback(() => {
+    const l = listRef.current;
+    setList({ ...l, items: l.items.slice(0, l.index + 1) }, "list");
+  }, [setList]);
+
+  const restoreUpNext = useCallback((l: UpNextDto) => setList(l, "list"), [setList]);
 
   const toggle = useCallback(() => {
     const el = audio.current;
@@ -724,6 +782,32 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     unload();
   }, [save, unload]);
 
+  const removeAt = useCallback(
+    (index: number) => {
+      const was = listRef.current.index;
+      const { list, play: next } = removeListItem(listRef.current, index);
+      if (next !== null) return go(list, "list");
+      setList(list, "list");
+      // The item playing went and nothing comes after it.
+      if (index === was) stop();
+    },
+    [go, setList, stop],
+  );
+
+  const isWaiting = useCallback(
+    (ref: QueueRef) => upNext.items.some((e, i) => i > upNext.index && sameRef(e, ref)),
+    [upNext],
+  );
+
+  const removeWaiting = useCallback(
+    (ref: QueueRef) => {
+      const l = listRef.current;
+      const at = l.items.findIndex((e, i) => i > l.index && sameRef(e, ref));
+      if (at >= 0) removeAt(at);
+    },
+    [removeAt],
+  );
+
   const markCurrent = useCallback(
     (finished: boolean) => {
       let saved: Promise<void> | undefined;
@@ -746,7 +830,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setSkipState(readSkip());
-    void refreshQueue();
+    // Up Next comes back from the server with its place, so next and previous work after a reload.
+    void refreshUpNext();
+    api<UserPrefs>(apiPaths.prefs)
+      .then((p) => setMusicPrefs({ shuffle: p.shuffle, repeat: p.repeat }, false))
+      .catch(() => undefined);
     let saved: PlayRef | null = null;
     try {
       saved = JSON.parse(localStorage.getItem(NOW_PLAYING_KEY) ?? "null") as PlayRef | null;
@@ -754,18 +842,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       saved = null;
     }
     if (!saved) return;
-    const songId = saved.itemType === "track" ? saved.itemId : null;
-    // A song comes back with the album or list it was playing from, so next and Up Next work.
-    if (songId) {
-      api<PlayContextDto | null>(apiPaths.playContext)
-        .then((c) => {
-          if (c && !contextRef.current) {
-            const at = c.tracks.findIndex((t) => t.id === songId);
-            if (at >= 0) setMusicContext({ ...c, index: at });
-          }
-        })
-        .catch(() => undefined);
-    }
     loadPlayable(saved)
       .then((it) => {
         if (itemRef.current) return; // something else started meanwhile
@@ -781,7 +857,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           // private mode
         }
       });
-  }, [load, refreshQueue, setMusicContext]);
+  }, [load, refreshUpNext, setMusicPrefs]);
 
   // Save when the page is hidden or closed, and retry unsaved progress once back online.
   useEffect(() => {
@@ -887,9 +963,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       counted.current = true;
       void api(apiPaths.trackPlays, { method: "POST", body: { trackId: it.id } }).catch(() => undefined);
     }
-    const c = contextRef.current;
-    const next = c?.tracks[c.index + 1];
-    if (next && dur > 0 && dur - pos < PRELOAD_SEC) preload(next);
+    if (!(dur > 0 && dur - pos < PRELOAD_SEC)) return;
+    const next = nextIndex(listRef.current, repeatRef.current, true);
+    const e = typeof next === "number" ? listRef.current.items[next] : undefined;
+    if (e?.itemType === "track") preload(e.track);
   };
 
   // ---------- Lock screen, notification and headset controls ----------
@@ -949,6 +1026,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   };
 
   const isCurrent = useCallback((type: PlayType, id: string) => item?.type === type && item.id === id, [item]);
+  const isPlayingFrom = useCallback(
+    (kind: UpNextSource["kind"], refId: string | null) =>
+      item?.type === "track" && upNext.source?.kind === kind && upNext.source.refId === refId,
+    [item, upNext],
+  );
 
   const value = useMemo<PlayerApi>(
     () => ({
@@ -962,12 +1044,23 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       expanded,
       adsEnabled: adsInfo?.enabled ?? false,
       ads: adsInfo?.ads ?? [],
-      queue,
-      queueLoaded,
-      musicContext,
+      upNext,
+      upNextLoaded,
+      isPlayingFrom,
       playMusic,
-      playContextAt,
+      playAt,
+      removeAt,
+      moveItem,
+      clearUpNext,
+      restoreUpNext,
+      addToUpNext,
+      isWaiting,
+      removeWaiting,
       trackStep,
+      shuffle,
+      repeat,
+      toggleShuffle,
+      cycleRepeat,
       isCurrent,
       play,
       playRef,
@@ -982,9 +1075,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setExpanded,
       markCurrent,
       stop,
-      queueAdd,
-      queueReplace,
-      refreshQueue,
     }),
     [
       item,
@@ -996,12 +1086,23 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       skip,
       expanded,
       adsInfo,
-      queue,
-      queueLoaded,
-      musicContext,
+      upNext,
+      upNextLoaded,
+      isPlayingFrom,
       playMusic,
-      playContextAt,
+      playAt,
+      removeAt,
+      moveItem,
+      clearUpNext,
+      restoreUpNext,
+      addToUpNext,
+      isWaiting,
+      removeWaiting,
       trackStep,
+      shuffle,
+      repeat,
+      toggleShuffle,
+      cycleRepeat,
       isCurrent,
       play,
       playRef,
@@ -1015,9 +1116,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setSkip,
       markCurrent,
       stop,
-      queueAdd,
-      queueReplace,
-      refreshQueue,
     ],
   );
 
@@ -1100,16 +1198,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               return;
             }
             if (it.type === "track") {
-              // On to the next song in the album or list, then to Up Next once it's done.
               void save();
-              const c = contextRef.current;
-              if (c && c.index + 1 < c.tracks.length) return playContextAt(c.index + 1);
-              void advance();
-              return;
+              return playNext(nextIndex(listRef.current, repeatRef.current, true));
             }
             void save(true)?.then(() => router.refresh());
             // A finished book just stops: Up Next is for episodes and songs, never what follows a book.
-            if (it.type === "episode") void advance();
+            // Repeat is for songs, so an episode just moves on.
+            if (it.type === "episode") playNext(nextIndex(listRef.current, "off", true));
           }}
           onError={(e) => {
             if (e.currentTarget !== audio.current) return;

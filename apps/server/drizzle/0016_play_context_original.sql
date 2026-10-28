@@ -1,0 +1,1 @@
+ALTER TABLE `play_context` ADD `original_ids` text;

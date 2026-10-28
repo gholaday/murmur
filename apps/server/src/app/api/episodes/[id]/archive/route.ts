@@ -3,6 +3,7 @@ import { requireUser } from "@/server/auth";
 import { getContext } from "@/server/context";
 import { HttpError, json, readJson, route } from "@/server/http";
 import { getEpisodeForUser } from "@/server/podcasts/queries";
+import { dropWaitingEpisode } from "@/server/up-next";
 
 /** Archiving hides an episode from your lists without touching anyone else's. */
 export const PUT = route<{ params: Promise<{ id: string }> }>(async (req, { params }) => {
@@ -15,7 +16,7 @@ export const PUT = route<{ params: Promise<{ id: string }> }>(async (req, { para
     ctx.sqlite
       .prepare("INSERT OR IGNORE INTO episode_archives (user_id, episode_id, archived_at) VALUES (?, ?, ?)")
       .run(user.id, id, Date.now());
-    ctx.sqlite.prepare("DELETE FROM queue_items WHERE user_id = ? AND item_type = 'episode' AND item_id = ?").run(user.id, id);
+    dropWaitingEpisode(ctx, user.id, id);
   } else {
     ctx.sqlite.prepare("DELETE FROM episode_archives WHERE user_id = ? AND episode_id = ?").run(user.id, id);
   }

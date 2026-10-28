@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   type AlbumDetail,
   type AlbumSummary,
@@ -19,7 +19,6 @@ import {
   type EpisodeWithShow,
   type PodcastDetail,
   type PodcastSummary,
-  type QueueEntry,
   type UserPrefs,
   type UserPrefsPatch,
   EPISODE_PAGE,
@@ -36,7 +35,8 @@ export const keys = {
   episodes: (podcastId: string) => ["episodes", podcastId] as const,
   newEpisodes: ["newEpisodes"] as const,
   continueEpisodes: ["continueEpisodes"] as const,
-  queue: ["queue"] as const,
+  /** The player's own copy of Up Next, kept for offline; the player owns it, nothing fetches it. */
+  upNext: ["upNext"] as const,
   prefs: ["prefs"] as const,
   music: ["music"] as const,
   albums: (scope: MusicScope) => ["albums", scope] as const,
@@ -45,6 +45,7 @@ export const keys = {
   artist: (id: string) => ["artist", id] as const,
   tracks: (scope: MusicScope) => ["tracks", scope] as const,
   playlists: ["playlists"] as const,
+  trackPlays: ["trackPlays"] as const,
   playlist: (id: string) => ["playlist", id] as const,
 };
 
@@ -179,6 +180,18 @@ export const createPlaylist = async (name: string, trackIds: string[] = []) =>
 export const updatePlaylist = async (id: string, change: { name?: string; trackIds?: string[] }) =>
   savedPlaylist(await api<PlaylistDetail>(apiPaths.playlist(id), { method: "PATCH", body: change }));
 
+/** Songs to pick from: yours or everything on the server, matching a search the server runs. */
+export const useTrackSearch = (scope: MusicScope, q: string, enabled = true) =>
+  useQuery({
+    queryKey: q ? [...keys.tracks(scope), q] : keys.tracks(scope),
+    queryFn: () => api<TrackDto[]>(apiPaths.tracks(scope, q || undefined)),
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+
+/** Songs you've played, most recent first. */
+export const useRecentTracks = (enabled = true) => useQuery({ queryKey: keys.trackPlays, queryFn: () => api<TrackDto[]>(apiPaths.trackPlays), enabled });
+
 /** Adds songs to the end; ones already in it stay where they are. */
 export const addToPlaylist = async (id: string, trackIds: string[]) =>
   savedPlaylist(await api<PlaylistDetail>(apiPaths.playlistTracks(id), { method: "POST", body: { trackIds } }));
@@ -215,8 +228,6 @@ export const useNewEpisodes = () =>
 /** Started, unfinished episodes, most recently listened first. */
 export const useContinueEpisodes = () =>
   useQuery({ queryKey: keys.continueEpisodes, queryFn: () => api<EpisodeWithShow[]>("/api/episodes/continue?limit=20&short=1") });
-
-export const useQueue = () => useQuery({ queryKey: keys.queue, queryFn: () => api<QueueEntry[]>("/api/queue") });
 
 /** After progress, played or archived state changes, refresh the lists that show it. */
 export function invalidateListening() {

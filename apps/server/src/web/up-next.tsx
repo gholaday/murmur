@@ -1,26 +1,35 @@
 "use client";
 
 import { toast } from "sonner";
-import { useState } from "react";
-import { albumCover, chapterAt, duration, plural, type QueueEntry, queueEntryView, queueRef, timeLeft } from "@murmur/shared/client";
+import { useEffect, useRef } from "react";
+import { chapterAt, queueEntryView, timeLeft, type UpNextEntry } from "@murmur/shared/client";
 import { Cover } from "./cover";
-import { CloseIcon, DownIcon, DragIcon } from "./icons";
-import { SongRow } from "./music/music-view";
+import { CloseIcon, DragIcon } from "./icons";
+import { Marquee } from "./marquee";
+import { Mixer } from "./mixer";
 import { type Playable, usePlayer, usePosition } from "./player/engine";
 import { Sheet } from "./sheet";
 import { QueueRowsSkeleton } from "./skeletons";
 import { useSortable } from "./sortable";
 import { EmptyState } from "./ui";
 
-/** Its own component so the playhead ticks redraw this row, not the whole queue below it. */
-function NowPlayingRow({ item }: { item: Playable }) {
+/**
+ * A book playing isn't in Up Next, so it sits on its own above the list. Its own component so the
+ * playhead ticks redraw this row, not the whole list below it.
+ */
+function BookRow({ item }: { item: Playable }) {
   const position = usePosition();
+  const { playing, toggle } = usePlayer();
   const where = item.chapters[chapterAt(item.chapters, position)]?.title ?? item.subtitle;
   return (
     <section>
       <div className="eyebrow">Now playing</div>
-      <div className="queue-row playing">
-        <Cover className="thumb" src={item.coverUrl} color={item.color} title={item.title} />
+      {/* Tapping it pauses and resumes. */}
+      <button type="button" className="queue-row playing now-row" onClick={toggle} aria-label={`${playing ? "Pause" : "Play"} ${item.title}`}>
+        <span className="thumb-wrap">
+          <Cover className="thumb" src={item.coverUrl} color={item.color} title={item.title} />
+          <Mixer playing={playing} thumb resume />
+        </span>
         <span className="list-row-main">
           <span className="list-row-title" style={{ fontSize: 14 }}>
             {item.title}
@@ -28,147 +37,131 @@ function NowPlayingRow({ item }: { item: Playable }) {
           {where ? <span className="list-row-sub">{where}</span> : null}
           {item.durationSec ? <span className="list-row-sub">{timeLeft(item.durationSec, position)}</span> : null}
         </span>
-      </div>
+      </button>
     </section>
   );
 }
 
-/** Episodes and songs lined up after what's playing, opened from the full player. Books go on Play next instead. */
+/**
+ * Up Next as one running list, like YouTube Music's: what played stays above the item playing and
+ * what's next follows it. Any row plays when tapped (the playing one pauses), and moves or comes out.
+ */
 export function UpNextSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const player = usePlayer();
-  const { item } = player;
-  // Shown right away while the server saves, so a dropped row doesn't jump back first.
-  const [pending, setPending] = useState<QueueEntry[] | null>(null);
-  const queue = pending ?? player.queue;
+  const { upNext, item } = player;
+  const { items, index } = upNext;
+  const waiting = items.length - index - 1;
+  const sortable = useSortable((from, to) => {
+    if (from !== to && to >= 0 && to < items.length) player.moveItem(from, to);
+  });
 
-  const save = (entries: QueueEntry[]) => {
-    setPending(entries);
-    player
-      .queueReplace(entries.map(queueRef))
-      .catch((err: unknown) => {
-        toast.error(err instanceof Error ? err.message : "Couldn't save the queue.");
-        void player.refreshQueue();
-      })
-      .finally(() => setPending(null));
+  // Opens on the item playing, with a little of what played above it.
+  const playingRow = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open) playingRow.current?.scrollIntoView({ block: "center" });
+  }, [open]);
+
+  const clear = () => {
+    const before = upNext;
+    player.clearUpNext();
+    toast("Up Next cleared", { action: { label: "Undo", onClick: () => player.restoreUpNext(before) } });
   };
-
-  const move = (from: number, to: number) => {
-    if (from === to || to < 0 || to >= queue.length) return;
-    const next = [...queue];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved!);
-    save(next);
-  };
-
-  const sortable = useSortable(move);
-
-  const total = queue.reduce((sum, e) => sum + queueEntryView(e).remaining, 0);
 
   return (
     <Sheet
       open={open}
       onClose={onClose}
       title="Up Next"
-      count={queue.length}
-      sub={queue.length ? `${duration(total)} to listen` : null}
+      count={Math.max(0, waiting)}
+      sub={upNext.source ? `From ${upNext.source.title}` : null}
       action={
-        queue.length ? (
-          <button
-            type="button"
-            className="btn"
-            style={{ background: "none", color: "var(--accent)", padding: 0, minHeight: 0 }}
-            onClick={() => {
-              const previous = queue;
-              save([]);
-              toast("Up Next cleared", { action: { label: "Undo", onClick: () => save(previous) } });
-            }}
-          >
+        waiting > 0 ? (
+          <button type="button" className="btn" style={{ background: "none", color: "var(--accent)", padding: 0, minHeight: 0 }} onClick={clear}>
             Clear
           </button>
         ) : null
       }
     >
-      {item ? <NowPlayingRow item={item} /> : null}
-      <RestOfMusic />
-
-      <section>
-        {queue.length || !player.queueLoaded ? <div className="eyebrow">Next</div> : null}
-        {!player.queueLoaded ? (
-          <QueueRowsSkeleton />
-        ) : queue.length === 0 ? (
-          <EmptyState title="Your queue is empty" />
-        ) : (
-          <div ref={sortable.listRef} className={`list ${sortable.sorting ? "sorting" : ""}`}>
-            {queue.map((e, i) => {
-              const v = queueEntryView(e);
-              const row = sortable.rowProps(i);
-              return (
-                <div key={`${e.itemType}:${e.itemId}`} data-row className={`queue-row ${row.className}`} style={row.style}>
-                  <Cover className="thumb" src={v.cover} color={v.color} title={v.title} />
-                  <button type="button" className="list-row-main" style={{ textAlign: "left" }} onClick={() => void player.playRef(queueRef(e))}>
-                    <span className="list-row-meta">{v.kind}</span>
-                    <span className="list-row-title" style={{ fontSize: 14 }}>
-                      {v.title}
-                    </span>
-                    <span className="list-row-sub">{v.length}</span>
-                  </button>
-                  <button type="button" className="icon-btn dim" aria-label={`Remove ${v.title}`} onClick={() => save(queue.filter((_, j) => j !== i))}>
-                    <CloseIcon size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn drag-handle"
-                    aria-label={`Reorder ${v.title}. Use arrow keys to move.`}
-                    onKeyDown={(ev) => {
-                      if (ev.key === "ArrowUp") {
-                        ev.preventDefault();
-                        move(i, i - 1);
-                      } else if (ev.key === "ArrowDown") {
-                        ev.preventDefault();
-                        move(i, i + 1);
-                      }
-                    }}
-                    {...sortable.handleProps(i)}
-                  >
-                    <DragIcon />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+      {item?.type === "book" ? <BookRow item={item} /> : null}
+      {!player.upNextLoaded ? (
+        <QueueRowsSkeleton />
+      ) : items.length === 0 ? (
+        item?.type === "book" ? null : <EmptyState title="Up Next is empty" />
+      ) : (
+        <div ref={sortable.listRef} className={`list ${sortable.sorting ? "sorting" : ""}`}>
+          {items.map((e, i) => (
+            <UpNextRow
+              key={`${e.itemType}:${e.itemId}:${i}`}
+              entry={e}
+              index={i}
+              state={i < index ? "played" : i === index ? "playing" : "next"}
+              rowRef={i === index ? playingRow : undefined}
+              sortable={sortable}
+            />
+          ))}
+        </div>
+      )}
     </Sheet>
   );
 }
 
-/** The rest of the album or list music is playing from, as one row that opens to show the songs. */
-function RestOfMusic() {
+function UpNextRow({
+  entry,
+  index,
+  state,
+  rowRef,
+  sortable,
+}: {
+  entry: UpNextEntry;
+  index: number;
+  state: "played" | "playing" | "next";
+  rowRef?: React.Ref<HTMLDivElement>;
+  sortable: ReturnType<typeof useSortable>;
+}) {
   const player = usePlayer();
-  const [open, setOpen] = useState(false);
-  const c = player.musicContext;
-  if (!c || player.item?.type !== "track") return null;
-  const rest = c.tracks.slice(c.index + 1);
-  if (!rest.length) return null;
-  const first = rest[0]!;
+  const v = queueEntryView(entry);
+  const row = sortable.rowProps(index);
+  const playingNow = state === "playing";
   return (
-    <section>
-      <div className="eyebrow">Playing from</div>
-      <button type="button" className="list-row context-row" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <Cover className="thumb" src={albumCover(first.albumId, first.coverHash)} color={null} title={c.title} />
-        <span className="list-row-main" style={{ textAlign: "left" }}>
-          <span className="list-row-title">Rest of {c.title}</span>
-          <span className="list-row-sub">{plural(rest.length, "song")}</span>
+    <div ref={rowRef} data-row className={`queue-row ${state === "next" ? "" : state} ${row.className}`} style={row.style}>
+      <button
+        type="button"
+        className="list-row-play now-row"
+        onClick={() => (playingNow ? player.toggle() : player.playAt(index))}
+        aria-label={`${playingNow && player.playing ? "Pause" : "Play"} ${v.title}`}
+      >
+        <span className="thumb-wrap">
+          <Cover className="thumb" src={v.cover} color={v.color} title={v.title} />
+          {playingNow ? <Mixer playing={player.playing} thumb resume /> : null}
         </span>
-        <DownIcon className="context-chevron" />
+        <span className="list-row-main">
+          <Marquee className="list-row-title" text={v.title} />
+          <span className="list-row-sub up-next-sub">
+            <span>{v.kind}</span>
+            <span>{v.length}</span>
+          </span>
+        </span>
       </button>
-      {open ? (
-        <div className="list">
-          {rest.map((t, i) => (
-            <SongRow key={t.id} track={t} onPlay={() => player.playContextAt(c.index + 1 + i)} />
-          ))}
-        </div>
-      ) : null}
-    </section>
+      <button type="button" className="icon-btn dim" aria-label={`Remove ${v.title}`} onClick={() => player.removeAt(index)}>
+        <CloseIcon size={18} />
+      </button>
+      <button
+        type="button"
+        className="icon-btn drag-handle"
+        aria-label={`Reorder ${v.title}. Use arrow keys to move.`}
+        onKeyDown={(ev) => {
+          if (ev.key === "ArrowUp") {
+            ev.preventDefault();
+            player.moveItem(index, Math.max(0, index - 1));
+          } else if (ev.key === "ArrowDown") {
+            ev.preventDefault();
+            player.moveItem(index, index + 1);
+          }
+        }}
+        {...sortable.handleProps(index)}
+      >
+        <DragIcon />
+      </button>
+    </div>
   );
 }

@@ -28,6 +28,9 @@ import {
   PlusIcon,
   PrevChapterIcon,
   QueueIcon,
+  RepeatIcon,
+  RepeatOneIcon,
+  ShuffleIcon,
   SkipBackIcon,
   SkipForwardIcon,
   VolumeIcon,
@@ -108,6 +111,7 @@ export function FullPlayer() {
   const showAds = item.type === "episode" && p.adsEnabled;
   // Songs: previous and next instead of skips and chapters, no speed, no position kept.
   const song = item.type === "track";
+  const waiting = p.upNext.items.length - p.upNext.index - 1;
   const adMode = adModeFor(adPrefs, item.podcastId);
   const marks = showAds && adMode !== "off" ? p.ads : [];
   const adIndex = marks.findIndex((a) => pos >= a.startSec && pos < a.endSec);
@@ -133,7 +137,7 @@ export function FullPlayer() {
         <button type="button" className="icon-btn" onClick={() => setExpanded(false)} aria-label="Close player">
           <DownIcon />
         </button>
-        <div className="player-from">Playing from {song ? (p.musicContext?.title ?? "Music") : item.type === "book" ? "Books" : "Podcasts"}</div>
+        <div className="player-from">Playing from {song ? (p.upNext.source?.title ?? "Music") : item.type === "book" ? "Books" : "Podcasts"}</div>
         <button type="button" className="icon-btn" onClick={() => setSheet("more")} aria-label="More options">
           <MoreIcon />
         </button>
@@ -204,9 +208,19 @@ export function FullPlayer() {
 
         <div className="player-controls">
           {song ? (
-            <button type="button" className="skip-btn" onClick={() => p.trackStep(-1)} aria-label="Previous song">
-              <PrevChapterIcon size={32} />
-            </button>
+            <>
+              <button
+                type="button"
+                className={`icon-btn dim${p.repeat !== "off" ? " on" : ""}`}
+                onClick={p.cycleRepeat}
+                aria-label={p.repeat === "one" ? "Repeat song" : p.repeat === "all" ? "Repeat all" : "Repeat off"}
+              >
+                {p.repeat === "one" ? <RepeatOneIcon /> : <RepeatIcon />}
+              </button>
+              <button type="button" className="skip-btn" onClick={() => p.trackStep(-1)} aria-label="Previous song">
+                <PrevChapterIcon size={32} />
+              </button>
+            </>
           ) : (
             <>
               <button
@@ -233,9 +247,20 @@ export function FullPlayer() {
             {p.playing ? <PauseIcon size={32} /> : <PlayIcon size={32} />}
           </button>
           {song ? (
-            <button type="button" className="skip-btn" onClick={() => p.trackStep(1)} aria-label="Next song">
-              <NextChapterIcon size={32} />
-            </button>
+            <>
+              <button type="button" className="skip-btn" onClick={() => p.trackStep(1)} aria-label="Next song">
+                <NextChapterIcon size={32} />
+              </button>
+              <button
+                type="button"
+                className={`icon-btn dim${p.shuffle ? " on" : ""}`}
+                onClick={p.toggleShuffle}
+                aria-label="Shuffle"
+                aria-pressed={p.shuffle}
+              >
+                <ShuffleIcon />
+              </button>
+            </>
           ) : (
             <>
               <button
@@ -367,7 +392,7 @@ export function FullPlayer() {
           <QueueIcon size={20} />
           <span>
             Up Next
-            {p.queue.length ? <span className="count-pill">{p.queue.length}</span> : null}
+            {waiting ? <span className="count-pill">{waiting}</span> : null}
           </span>
         </button>
       </div>
