@@ -140,7 +140,7 @@ export function ProfileView({
               <h2 className="section-title">Music folders</h2>
               {musicFolders.length === 0 ? (
                 <p className="muted small" style={{ margin: 0 }}>
-                  Add a folder of music to turn on the Music tab. Albums come from the songs' tags, or from Artist/Album folders when there are none.
+                  Albums come from the songs' tags, or from Artist/Album folders when there are none.
                 </p>
               ) : null}
               <FoldersCard kind="music" folders={musicFolders} otherPaths={pathsBesides(folders, movieFolders, showFolders)} onSaved={refresh} />
@@ -156,7 +156,7 @@ export function ProfileView({
               ) : null}
               {movieFolders.length + showFolders.length === 0 ? (
                 <p className="muted small" style={{ margin: 0 }}>
-                  Add a folder of movies or shows to turn on the Watch tab. Movies go in &quot;Title (Year)&quot; folders, and shows in Show/Season folders.
+                  Movies go in &quot;Title (Year)&quot; folders, and shows in Show/Season folders.
                 </p>
               ) : null}
               <FoldersCard kind="movies" folders={movieFolders} otherPaths={pathsBesides(folders, musicFolders, showFolders)} onSaved={refresh} />
@@ -184,12 +184,12 @@ export function ProfileView({
     );
   }
 
-  // The kinds the stats show: a hidden tab, or a server with no music or videos, leaves its kind out.
+  // The kinds the stats show: a hidden tab leaves its kind out.
   const statsKinds: StatsKind[] = [
     "book",
     ...(tabs.podcasts ? (["episode"] as const) : []),
-    ...(tabs.music && music.enabled ? (["music"] as const) : []),
-    ...(tabs.watch !== false && watch.enabled ? (["watch"] as const) : []),
+    ...(tabs.music ? (["music"] as const) : []),
+    ...(tabs.watch ? (["watch"] as const) : []),
   ];
 
   const values: Partial<Record<SettingsSection, string | null>> = {
@@ -347,25 +347,25 @@ function TabsCard({
   return (
     <SettingsCard>
       <SwitchRow title="Podcasts" label="Podcasts tab" checked={shown.podcasts} onChange={(on) => toggle("podcasts", on)} />
-      {/* Music can only be shown once the server has some. */}
-      {music.enabled ? (
-        <SwitchRow
-          title="Music"
-          sub={`${plural(music.albums, "album")} on your server`}
-          label="Music tab"
-          checked={shown.music}
-          onChange={(on) => toggle("music", on)}
-        />
-      ) : null}
-      {watch.enabled ? (
-        <SwitchRow
-          title="Watch"
-          sub={[watch.movies ? plural(watch.movies, "movie") : null, watch.shows ? plural(watch.shows, "show") : null].filter(Boolean).join(" and ") || "Nothing found yet"}
-          label="Watch tab"
-          checked={shown.watch !== false}
-          onChange={(on) => toggle("watch", on)}
-        />
-      ) : null}
+      <SwitchRow
+        title="Music"
+        sub={music.enabled ? `${plural(music.albums, "album")} on your server` : undefined}
+        label="Music tab"
+        checked={!!shown.music}
+        onChange={(on) => toggle("music", on)}
+      />
+      <SwitchRow
+        title="Watch"
+        sub={
+          watch.enabled
+            ? [watch.movies ? plural(watch.movies, "movie") : null, watch.shows ? plural(watch.shows, "show") : null].filter(Boolean).join(" and ") || "Nothing found yet"
+            : undefined
+        }
+        label="Watch tab"
+        checked={!!shown.watch}
+        onChange={(on) => toggle("watch", on)}
+      />
+
     </SettingsCard>
   );
 }

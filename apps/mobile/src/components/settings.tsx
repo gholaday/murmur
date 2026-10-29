@@ -534,11 +534,11 @@ export function LibrarySection() {
           </Text>
           {kind === "music" && lists.music?.length === 0 ? (
             <Text variant="small" style={{ marginBottom: 10 }}>
-              Add a folder of music to turn on the Music tab. Albums come from the songs&apos; tags, or from Artist/Album folders when there are none.
+              Albums come from the songs&apos; tags, or from Artist/Album folders when there are none.
             </Text>
           ) : kind === "movies" && noWatch ? (
             <Text variant="small" style={{ marginBottom: 10 }}>
-              Add a folder of movies or shows to turn on the Watch tab. Movies go in &quot;Title (Year)&quot; folders, and shows in Show/Season folders.
+              Movies go in &quot;Title (Year)&quot; folders, and shows in Show/Season folders.
             </Text>
           ) : null}
           {kind === "movies" && h?.watch ? (

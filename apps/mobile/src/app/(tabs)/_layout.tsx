@@ -6,8 +6,7 @@ import { LibraryIcon, MusicIcon, PodcastIcon, ProfileIcon, WatchIcon } from "@/c
 import { MiniPlayer } from "@/components/mini-player";
 import { Text } from "@/components/ui";
 import "@/lib/changes";
-import { useMusicSummary, useTabPrefs } from "@/lib/data";
-import { useWatchHome } from "@/lib/watch";
+import { useTabPrefs } from "@/lib/data";
 import { restorePlayer } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
@@ -39,8 +38,6 @@ function TabBar({ state, descriptors, navigateToTab }: BottomTabBarProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const tabs = useTabPrefs();
-  const music = !!useMusicSummary().data?.enabled;
-  const watch = !!useWatchHome().data?.enabled;
   return (
     <View style={{ backgroundColor: t.bg }}>
       <MiniPlayer />
@@ -54,10 +51,10 @@ function TabBar({ state, descriptors, navigateToTab }: BottomTabBarProps) {
         }}
       >
         {state.routes.map((route, i) => {
-          // Podcasts, Music and Watch can be switched off on You > Tabs; Music and Watch also need something on the server.
+          // Podcasts, Music and Watch show as you've set them on You > Tabs.
           if (route.name === "podcasts" && !tabs.podcasts) return null;
-          if (route.name === "music" && !(tabs.music && music)) return null;
-          if (route.name === "watch" && !(tabs.watch && watch)) return null;
+          if (route.name === "music" && !tabs.music) return null;
+          if (route.name === "watch" && !tabs.watch) return null;
           const focused = state.index === i;
           const Icon = ICONS[route.name as keyof typeof ICONS] ?? LibraryIcon;
           const label = descriptors[route.key]?.options.title ?? route.name;

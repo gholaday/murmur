@@ -25,13 +25,9 @@ const TABS = [
 /** Bottom tabs on phones, a sidebar on wide screens, and the player on top of both. */
 export function Shell({
   tabs,
-  hasMusic,
-  hasWatch,
   children,
 }: {
   tabs: UserPrefs["tabs"];
-  hasMusic: boolean;
-  hasWatch: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -40,12 +36,9 @@ export function Shell({
   useLiveChanges();
   // Looks for Chromecasts; Chromium browsers only, and nothing shows until one is found.
   useEffect(() => startCast(), []);
-  // Podcasts, Music and Watch can be switched off in You; Music and Watch also need something on the server.
+  // Podcasts, Music and Watch show as you've set them in You > Tabs.
   const shown = TABS.filter(
-    (t) =>
-      (t.href !== "/podcasts" || tabs.podcasts) &&
-      (t.href !== "/music" || (tabs.music && hasMusic)) &&
-      (t.href !== "/watch" || (tabs.watch !== false && hasWatch)),
+    (t) => (t.href !== "/podcasts" || tabs.podcasts) && (t.href !== "/music" || tabs.music) && (t.href !== "/watch" || tabs.watch),
   );
   const video = useVideo();
   // The video player has the whole screen on its own page, and is the mini player everywhere else.

@@ -213,7 +213,7 @@ export interface WatchPoster {
 }
 
 export interface WatchHomeDto {
-  /** A movies or shows folder is set up and the video add-on is answering. Watch is hidden everywhere when false. */
+  /** At least one movies or shows folder is set up. Watch is hidden everywhere when false. */
   enabled: boolean;
   continueWatching: WatchCard[];
   nextEpisodes: WatchCard[];
@@ -222,7 +222,7 @@ export interface WatchHomeDto {
 
 /** Whether there's anything to watch, for the tab bar and You. */
 export interface WatchSummaryDto {
-  /** A movies or shows folder is set up and the video add-on is answering. */
+  /** A movies or shows folder is set up. */
   enabled: boolean;
   movies: number;
   shows: number;

@@ -67,8 +67,8 @@ async function load<T>(queryKey: readonly unknown[], path: string): Promise<T | 
   }
 }
 
-/** The Music tab's rule: on unless switched off, and only once there's music. */
-const showsMusic = (prefs: UserPrefs | undefined, summary: MusicSummaryDto | undefined) => (prefs?.tabs?.music ?? true) && !!summary?.enabled;
+/** Music shows when its tab is on and there's music to browse. */
+const showsMusic = (prefs: UserPrefs | undefined, summary: MusicSummaryDto | undefined) => (prefs?.tabs?.music ?? false) && !!summary?.enabled;
 
 const musicOn = async () =>
   showsMusic(...(await Promise.all([load<UserPrefs>(keys.prefs, apiPaths.prefs), load<MusicSummaryDto>(keys.music, apiPaths.music)])));

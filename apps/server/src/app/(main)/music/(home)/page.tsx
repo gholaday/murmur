@@ -1,4 +1,3 @@
-import { notFound } from "next/navigation";
 import { getContext } from "@/server/context";
 import { listPlaylists } from "@/server/music/playlists";
 import { listAlbums, listArtists, musicSummary } from "@/server/music/queries";
@@ -11,7 +10,6 @@ const TABS: MusicTab[] = ["albums", "artists", "songs", "playlists"];
 export default async function MusicPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const user = await requirePageUser();
   const ctx = await getContext();
-  if (ctx.music.folders().length === 0) notFound();
   const tab = (await searchParams).tab;
   return (
     <MusicView
@@ -20,6 +18,7 @@ export default async function MusicPage({ searchParams }: { searchParams: Promis
       artists={listArtists(ctx, user.id, "mine")}
       playlists={listPlaylists(ctx, user.id)}
       tab={TABS.find((t) => t === tab) ?? "albums"}
+      isAdmin={user.isAdmin}
     />
   );
 }

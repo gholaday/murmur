@@ -40,7 +40,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 
 **Music** (optional; see Music)
 
-- Music folders managed by the admin under You > Library (`/music` is added on its own once it's mounted); with none, music doesn't show anywhere
+- Music folders managed by the admin under You > Library (`/music` is added on its own once it's mounted); with none, the Music tab (if you've turned it on) shows an empty state
 - Albums, artists and songs from the tags, with covers from the folder or the files
 - Your music: each person adds the albums or songs they want, and Browse has the rest
 - Play or shuffle an album, an artist's songs, your songs or a playlist, with the next song loaded early so albums play without a gap
@@ -50,7 +50,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 
 **Watch** (optional; see Watch)
 
-- Movie and show folders managed by the admin under You > Library; with none, or while the video add-on is down, Watch doesn't show. A Video row there says whether the video add-on works and what converts video (`watch.status` in `/api/health`, worded by the server for the web and the app)
+- Movie and show folders managed by the admin under You > Library; with none, the Watch tab (if you've turned it on) shows an empty state. A Video row there says whether the video add-on works and what converts video (`watch.status` in `/api/health`, worded by the server for the web and the app)
 - TMDB's logo and notice under You > Server while Watch is on, as TMDB's terms ask
 - Posters, descriptions and episode names from TMDB when a key is set, matched on their own like Plex, with Match to fix a wrong one
 - Plays the file as it is when the device can, else streams it through ffmpeg with the sound or the picture converted, on the GPU where there is one
@@ -60,8 +60,8 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 **Listening stats**
 
 - On You: time listened and watched this week, month, year or all time against the period before, a chart stacked by books, podcasts, music and Watch, your streak and daily average, a count for each kind, and what you played and watched most. Picking a kind in the legend shows only that kind
-- Kinds whose tab is hidden, or that the server doesn't have, are left out of the stats altogether, the total included
-- Podcasts and Music can each be hidden per person under Tabs; their tabs and their parts of You go away
+- Kinds whose tab is hidden are left out of the stats altogether, the total included
+- Podcasts, Music and Watch can each be shown or hidden per person under Tabs (Music and Watch start hidden); a hidden one's tab and its parts of You go away
 
 **Player**
 
@@ -383,7 +383,7 @@ The books pattern, for albums: "Match metadata…" in an album's menu, and Match
 
 ## Watch
 
-Movies and TV shows are optional, and fail on their own. They come from movie and show folders, managed by the admin under You > Library beside books and music. The first of each is whatever is mounted at `/movies` and `/shows`, added once something is there, and only once. Keeping the two kinds apart, as Plex does, means the scanner never guesses whether a file is a movie or an episode. With no video folder, Watch doesn't show anywhere; without the video add-on it stays empty and Settings says why. Books, podcasts and music carry on either way.
+Movies and TV shows are optional, and fail on their own. They come from movie and show folders, managed by the admin under You > Library beside books and music. The first of each is whatever is mounted at `/movies` and `/shows`, added once something is there, and only once. Keeping the two kinds apart, as Plex does, means the scanner never guesses whether a file is a movie or an episode. With no video folder, Watch is empty; without the video add-on it stays empty and Settings says why. Books, podcasts and music carry on either way.
 
 **The video add-on**
 
@@ -392,8 +392,7 @@ ffmpeg lives in its own container, `murmur-video` (`addons/video`, TypeScript on
 - Converting video is the one thing that can eat a whole server, so in its own container it gets its own `cpus` limit and GPU device, and can crash or restart without touching anything else. It can also run on another machine with a better GPU.
 - Unlike adscan, which pulls work from a queue, the add-on is a small HTTP server and Murmur its client, since a player can't wait on a queue. Its API (bearer `ADDON_SECRET`, request schemas in `packages/shared/src/video-addon.ts`): `GET /health`, `POST /probe`, `POST /still`, `POST /streams`, `GET /streams/:id/:file`, `DELETE /streams/:id`, `POST /downloads`, and `GET` and `DELETE /downloads/:id`. Stream and download files name their owner (Murmur's user id) in `x-murmur-owner`, and only that owner gets them.
 - Murmur's side is `server/watch/video-addon.ts`. The routes keep their auth and the video lookup (`videoSource` in `queries.ts`), and pass the bytes, ranges and errors (503 with `Retry-After`, 404) through to the player as they are. Murmur names files by their path, so both containers mount the folders at the same paths; a file the add-on can't see is a 404 saying so.
-- Murmur asks the add-on's `/health` at start and every 10 minutes while there are movie or show folders (the app asks Murmur every 10 minutes and when it comes to the front). While it doesn't answer, `enabled` is false in `/api/watch` and the You summary, so the web and the app hide Watch (its tab, stats and settings) rather than fail on it; `/api/health` still has `watch`, for the Video row. When it answers again, Watch comes back and a scan starts, since scans wait while it's away.
-- The add-on unreachable is a 503 to the player, a scan problem, and a warning Video row under You > Library, which otherwise says what converts video ("Working, converts video with an NVIDIA GPU"). The wording comes from the server, in `watch.status` of `/api/health`, so the web and the app say the same. A still that failed because the add-on was down is tried again on the next scan.
+- Watch stays visible while the add-on is down; nobody polls it. The add-on unreachable is a 503 to the player, which says it couldn't play the video, a scan problem (the scan stops without marking anything missing, and the next one tries again), and a warning Video row under You > Library, which otherwise says what converts video ("Working, converts video with an NVIDIA GPU"). The wording comes from the server, in `watch.status` of `/api/health`, so the web and the app say the same. A still that failed because the add-on was down is tried again on the next scan.
 - It's reachable only from Murmur; see Deployment.
 
 **Scanning**
@@ -471,7 +470,7 @@ The layout follows the familiar podcast-app pattern: bottom tabs, a persistent m
 | Book, show, album, artist or playlist page | Header with cover and colour band, description, chapters, episodes or songs, download and play buttons |
 | Full-screen player | Large cover, chapter or song name, scrubber, speed, sleep timer, skip buttons, chapter list, and an Up Next tile with what's still to come that opens the running list (what played, what's playing and what's next; drag to reorder, remove, Clear) |
 
-Podcasts and Music can be turned off under You > Tabs; Books and You are always there.
+Podcasts, Music and Watch are turned on and off under You > Tabs, and that alone decides whether they show; Music and Watch start off. Books and You are always there. A shown tab with no folder set up has an empty state, with Add a folder for admins.
 
 **Look and feel:** dark theme by default with a light option; periwinkle accent (#8E9BFF on dark, #4F5BD5 on light); the player background takes its colour from the cover; large touch targets.
 
@@ -591,7 +590,7 @@ One Docker Compose stack; see `docker-compose.yml` in the repo root and [Getting
 | Mount | Purpose | Notes |
 | --- | --- | --- |
 | `/audiobooks` | The audiobook library, the first library folder | Read-only: Murmur never writes to or renames your files. Mount more folders and add them under You > Library |
-| `/music` | Optional music folder, the first one, added once it's mounted | Read-only, like the audiobooks. Leave it out and music doesn't show |
+| `/music` | Optional music folder, the first one, added once it's mounted | Read-only, like the audiobooks. Leave it out and Music is empty |
 | `/data` | SQLite database, cover cache and backups | The only thing to back up |
 | `/cache` | Cached podcast episodes | Without it episodes are relayed. Not worth backing up. The ad add-on mounts it read-only |
 | `/movies`, `/shows` | Optional movie and show folders, the first of each, added once they're mounted | Read-only, mounted at the same paths in Murmur and the video add-on. The add-on has its own `/cache` for stream pieces and downloads being made |

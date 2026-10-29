@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -165,6 +166,25 @@ export function WatchView({
   });
   const recentMovies = recent.filter((i) => i.kind === "movie");
   const recentShows = recent.filter((i) => i.kind === "show");
+
+  // No movies or shows folder set up yet.
+  if (!home.enabled) {
+    return (
+      <>
+        <div className="page-head">
+          <h1 className="page-title">Watch</h1>
+        </div>
+        <EmptyState title="Nothing to watch yet">
+          {isAdmin ? "Add a movies or shows folder and they show up here." : "Movies and shows show up here once a folder is added."}
+          {isAdmin ? (
+            <Link href="/you/library" className="btn btn-primary" style={{ marginTop: 12 }}>
+              Add a folder
+            </Link>
+          ) : null}
+        </EmptyState>
+      </>
+    );
+  }
 
   return (
     <>

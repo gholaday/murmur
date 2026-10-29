@@ -30,7 +30,6 @@ export const watchKeys = {
   show: (id: string) => ["watch", "show", id] as const,
 };
 
-// Watch hides while the server's video add-on is down; lib/changes.ts reloads this when it comes back.
 export const useWatchHome = () => useQuery({ queryKey: watchKeys.home, queryFn: () => api<WatchHomeDto>(apiPaths.watchHome) });
 export const useMovies = (enabled = true) => useQuery({ queryKey: watchKeys.movies, queryFn: () => api<MovieSummary[]>(apiPaths.movies), enabled });
 export const useShows = (enabled = true) => useQuery({ queryKey: watchKeys.shows, queryFn: () => api<ShowSummary[]>(apiPaths.shows), enabled });

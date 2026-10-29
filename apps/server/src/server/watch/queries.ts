@@ -207,15 +207,10 @@ const toShow = (r: ShowRow, colors: Colors): ShowSummary => ({
   addedAt: r.added_at,
 });
 
-/** A movies or shows folder is set up. Settings shows the Video row from this, add-on or not. */
-export function watchSetUp(ctx: AppContext): boolean {
+export function watchEnabled(ctx: AppContext): boolean {
   const { movies, shows } = ctx.watch.folders();
   return movies.length + shows.length > 0;
 }
-
-/** Watch is shown: it's set up and the video add-on is answering. */
-export const watchEnabled = (ctx: AppContext): boolean => watchSetUp(ctx) && ctx.watch.addonUp();
-
 
 /** How many movies and shows there are, and whether Watch is set up at all. */
 export function watchSummary(ctx: AppContext): WatchSummaryDto {

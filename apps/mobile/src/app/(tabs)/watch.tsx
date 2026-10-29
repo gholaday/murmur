@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { FlatList, TextInput, View } from "react-native";
+import { router } from "expo-router";
 import { type MovieSummary, percentDone, type ShowSummary, sortWatch, type WatchCard, WATCH_SORTS } from "@murmur/shared/client";
 import { CloseIcon, FilterIcon, SearchIcon } from "@/components/icons";
 import { GAP, gridRows, PAD, Shelf, useGridWidth, useShelfWidth } from "@/components/library";
 import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, Skeleton } from "@/components/skeleton";
-import { Chips, IconButton } from "@/components/ui";
+import { Button, Chips, IconButton } from "@/components/ui";
 import { type PosterItem, PosterCard, RescanButton, StillCard, useWatchSort, WatchSortSheet } from "@/components/watch";
 import { useDownloads } from "@/lib/downloads";
 import { useOnline } from "@/lib/query";
@@ -104,6 +105,8 @@ export default function Watch() {
     return out;
   }, [all, home.data, q, tab, online]);
 
+  // No movies or shows folder on the server yet: just the title and a note.
+  const noFolder = home.data?.enabled === false;
   const loading = movies.isPending || shows.isPending || (tab === "home" && home.isPending);
   const failed = movies.error ?? shows.error ?? (tab === "home" ? home.error : null);
 
@@ -112,27 +115,29 @@ export default function Watch() {
       <PageTitle
         title="Watch"
         right={
-          <>
-            {admin ? <RescanButton /> : null}
-            <IconButton
-              label={searching ? "Close search" : "Search"}
-              onPress={() => {
-                setSearching((s) => !s);
-                setQuery("");
-              }}
-            >
-              {searching ? <CloseIcon color={t.text} /> : <SearchIcon color={t.text} />}
-            </IconButton>
-            {/* Home's shelves are in the server's order; the other views have a sort. */}
-            {tab !== "home" ? (
-              <IconButton label={`Sort, ${WATCH_SORTS.find((s) => s.id === sort)?.label}`} onPress={() => setSortOpen(true)}>
-                <FilterIcon color={t.text} />
+          noFolder ? null : (
+            <>
+              {admin ? <RescanButton /> : null}
+              <IconButton
+                label={searching ? "Close search" : "Search"}
+                onPress={() => {
+                  setSearching((s) => !s);
+                  setQuery("");
+                }}
+              >
+                {searching ? <CloseIcon color={t.text} /> : <SearchIcon color={t.text} />}
               </IconButton>
-            ) : null}
-          </>
+              {/* Home's shelves are in the server's order; the other views have a sort. */}
+              {tab !== "home" ? (
+                <IconButton label={`Sort, ${WATCH_SORTS.find((s) => s.id === sort)?.label}`} onPress={() => setSortOpen(true)}>
+                  <FilterIcon color={t.text} />
+                </IconButton>
+              ) : null}
+            </>
+          )
         }
       />
-      {searching ? (
+      {searching && !noFolder ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, height: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: t.surface }}>
           <SearchIcon size={20} color={t.muted} />
           <TextInput
@@ -146,11 +151,18 @@ export default function Watch() {
           />
         </View>
       ) : null}
-      <Chips gap={8} options={TABS} value={tab} onPick={setTab} />
+      {noFolder ? null : <Chips gap={8} options={TABS} value={tab} onPick={setTab} />}
     </View>
   );
 
-  const empty = loading ? (
+  const empty = noFolder ? (
+    <View style={{ alignItems: "center" }}>
+      <Empty title="Nothing to watch yet">
+        {admin ? "Add a movies or shows folder and they show up here." : "Movies and shows show up here once a folder is added."}
+      </Empty>
+      {admin ? <Button label="Add a folder" onPress={() => router.push("/library")} style={{ marginTop: -36 }} /> : null}
+    </View>
+  ) : loading ? (
     <Skeleton>
       <CoverGridBones count={6} />
     </Skeleton>
@@ -174,7 +186,7 @@ export default function Watch() {
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <FlatList
-        data={rows}
+        data={noFolder ? [] : rows}
         keyExtractor={(r) => r.key}
         contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24, flexGrow: 1 }}
         refreshControl={refresh}

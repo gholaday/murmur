@@ -210,8 +210,8 @@ export const userPrefsSchema = z.object({
   bookSections: z
     .array(z.object({ id: z.enum(BOOK_SECTION_IDS), hidden: z.boolean() }))
     .max(BOOK_SECTION_IDS.length * 2),
-  /** Optional tabs you've chosen to show. Books, Listening and You are always there; `watch` left out means shown. */
-  tabs: z.object({ podcasts: z.boolean(), music: z.boolean().default(true), watch: z.boolean().optional() }),
+  /** Optional tabs you've chosen to show. Books and You are always there; Music and Watch are off until turned on. */
+  tabs: z.object({ podcasts: z.boolean(), music: z.boolean().optional(), watch: z.boolean().optional() }),
   /** Music plays shuffled; stays on for the next album or list, like Spotify. */
   shuffle: z.boolean(),
   repeat: z.enum(["off", "all", "one"]),

@@ -26,6 +26,7 @@ import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, ListRowBone, SectionBone, Skeleton } from "@/components/skeleton";
 import { Button, CardLink, Chips, IconButton, Text } from "@/components/ui";
 import { createPlaylist, setInMusic, useAlbums, useArtists, useMusicSummary, usePlaylists, useTracks } from "@/lib/data";
+import { useSession } from "@/lib/session";
 import { playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
@@ -71,8 +72,10 @@ export default function Music() {
   const summary = useMusicSummary();
   const playlists = usePlaylists();
   const mine = summary.data?.mine;
+  // No music folder on the server yet: just the title and a note.
+  const noFolder = summary.data?.enabled === false;
   // The first-visit screen is for someone with no songs and no playlists either.
-  const nothingYet = mine?.tracks === 0 && !playlists.data?.length;
+  const nothingYet = noFolder || (mine?.tracks === 0 && !playlists.data?.length);
   const q = query.trim().toLowerCase();
   const albums = useAlbums("mine");
   // Artists and songs load the first time their chip is picked.
@@ -193,7 +196,9 @@ export default function Music() {
     </View>
   );
 
-  const empty = nothingYet ? (
+  const empty = noFolder ? (
+    <NoMusic />
+  ) : nothingYet ? (
     <StartHere total={summary.data?.albums ?? 0} all={allAlbums.data} />
   ) : current.isPending ? (
     <Skeleton>
@@ -305,35 +310,59 @@ function BrowseRow({ notAdded, fresh }: { notAdded: number; fresh: number }) {
   );
 }
 
-/** Nothing added yet: go and pick, or take everything. */
-function StartHere({ total, all }: { total: number; all: AlbumSummary[] | undefined }) {
+/** The music icon, a title and a line, centred, with any buttons below. */
+function MusicNote({ title, children, actions }: { title: string; children: string; actions?: React.ReactNode }) {
   const t = useTheme();
-  const [busy, setBusy] = useState(false);
   return (
     <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 14, paddingHorizontal: 12, paddingVertical: 40 }}>
       <View style={{ width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", backgroundColor: t.surface }}>
         <MusicIcon size={34} color={t.accent} />
       </View>
-      <Text style={{ fontFamily: fonts.extrabold, fontSize: 20, color: t.text, textAlign: "center" }}>Pick the music you want</Text>
+      <Text style={{ fontFamily: fonts.extrabold, fontSize: 20, color: t.text, textAlign: "center" }}>{title}</Text>
       <Text variant="body" style={{ textAlign: "center", maxWidth: 290, color: t.muted }}>
-        Add the albums and songs you like and they show up here. The rest stays out of the way.
+        {children}
       </Text>
-      <View style={{ alignSelf: "stretch", gap: 10, marginTop: 8, paddingHorizontal: 24 }}>
-        <Button label="Browse" onPress={() => router.push("/browse")} />
-        {total > 0 ? (
-          <Button
-            label={total === 1 ? "Add the album" : `Add all ${total} albums`}
-            kind="secondary"
-            busy={busy}
-            disabled={!all}
-            onPress={() => {
-              if (!all) return;
-              setBusy(true);
-              void setInMusic({ albums: all }, true).finally(() => setBusy(false));
-            }}
-          />
-        ) : null}
-      </View>
+      {actions ? <View style={{ alignSelf: "stretch", gap: 10, marginTop: 8, paddingHorizontal: 24 }}>{actions}</View> : null}
     </View>
+  );
+}
+
+/** No music folder set up yet. */
+function NoMusic() {
+  const admin = !!useSession().user?.isAdmin;
+  return (
+    <MusicNote title="No music yet" actions={admin ? <Button label="Add a folder" onPress={() => router.push("/library")} /> : undefined}>
+      {admin ? "Add a music folder and your albums show up here." : "Albums show up here once a music folder is added."}
+    </MusicNote>
+  );
+}
+
+/** Nothing added yet: go and pick, or take everything. */
+function StartHere({ total, all }: { total: number; all: AlbumSummary[] | undefined }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <MusicNote
+      title="Pick the music you want"
+      actions={
+        <>
+          <Button label="Browse" onPress={() => router.push("/browse")} />
+          {total > 0 ? (
+            <Button
+              label={total === 1 ? "Add the album" : `Add all ${total} albums`}
+              kind="secondary"
+              busy={busy}
+              disabled={!all}
+              onPress={() => {
+                if (!all) return;
+                setBusy(true);
+                void setInMusic({ albums: all }, true).finally(() => setBusy(false));
+              }}
+            />
+          ) : null}
+        </>
+      }
+    >
+      Add the albums and songs you like and they show up here. The rest stays out of the way.
+    </MusicNote>
   );
 }

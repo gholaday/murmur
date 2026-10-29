@@ -4,7 +4,7 @@ import { adsEnabled } from "@/server/ads";
 import { tokenFromRequest, userFromToken } from "@/server/auth";
 import { getContext } from "@/server/context";
 import { env } from "@/server/env";
-import { watchSetUp } from "@/server/watch/queries";
+import { watchEnabled } from "@/server/watch/queries";
 import { videoHealth, videoStatus } from "@/server/watch/video-addon";
 
 async function watchHealth(ctx: Awaited<ReturnType<typeof getContext>>): Promise<NonNullable<HealthDto["watch"]>> {
@@ -71,8 +71,7 @@ export async function GET(req: Request): Promise<Response> {
       lastError: ctx.scanState.lastError,
     },
     watcher: ctx.watcher.mode(),
-    // Set up is enough: Settings' Video row says why it isn't working when the add-on is down.
-    watch: watchSetUp(ctx) ? await watchHealth(ctx) : null,
+    watch: watchEnabled(ctx) ? await watchHealth(ctx) : null,
   };
   // Only a broken database makes the container unhealthy; an unreachable library is
   // reported but restarting the container would not fix a share that isn't mounted.

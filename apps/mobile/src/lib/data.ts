@@ -58,10 +58,10 @@ export function useBookSections(): BookSection[] {
   return bookSections(usePrefs().data?.bookSections);
 }
 
-/** Optional tabs; each is on unless you've switched it off. */
-export function useTabPrefs(): UserPrefs["tabs"] {
+/** Optional tabs: Podcasts is on and Music and Watch are off until you switch them. */
+export function useTabPrefs(): Required<UserPrefs["tabs"]> {
   const tabs = usePrefs().data?.tabs;
-  return { podcasts: tabs?.podcasts ?? true, music: tabs?.music ?? true, watch: tabs?.watch ?? true };
+  return { podcasts: tabs?.podcasts ?? true, music: tabs?.music ?? false, watch: tabs?.watch ?? false };
 }
 
 /** Saves a change, showing it at once; puts the old prefs back if the server says no. */

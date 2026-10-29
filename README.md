@@ -28,7 +28,7 @@ Murmur is inspired by [Audiobookshelf](https://www.audiobookshelf.org/) and [Ple
 ```yaml
 services:
   murmur:
-    image: ghcr.io/gholaday/murmur:0.7.2
+    image: ghcr.io/gholaday/murmur:0.7.3
     container_name: murmur
     restart: unless-stopped
     ports:
@@ -62,8 +62,8 @@ All optional.
 | `TZ` | `UTC` | Time zone, for the nightly backup hour |
 | `DATA_DIR` | `/data` | Database, covers and backups |
 | `LIBRARY_DIR` | `/audiobooks` | Development only; in Docker the volume mounted at `/audiobooks` is the first library folder. More can be added under You > Library |
-| `MUSIC_DIR` | `/music` | Development only; in Docker the volume mounted at `/music` is the first music folder, added once something is there. Without one, music doesn't show |
-| `MOVIES_DIR` / `SHOWS_DIR` | `/movies` / `/shows` | Development only; in Docker the volumes mounted at `/movies` and `/shows` are the first movie and show folders, added once something is there. Without them, Watch doesn't show |
+| `MUSIC_DIR` | `/music` | Development only; in Docker the volume mounted at `/music` is the first music folder, added once something is there. Without one, Music is empty |
+| `MOVIES_DIR` / `SHOWS_DIR` | `/movies` / `/shows` | Development only; in Docker the volumes mounted at `/movies` and `/shows` are the first movie and show folders, added once something is there. Without them, Watch is empty |
 | `AUDIBLE_REGION` | `us` | Store used by Match: `us`, `uk`, `ca`, `au`, `de`, `fr`, `it`, `es`, `in`, `jp` |
 | `GOOGLE_BOOKS_API_KEY` | | Optional, free from the [Google Cloud console](https://console.cloud.google.com/apis/library/books.googleapis.com) (enable the Books API, then create an API key). Without one, Match shares Google's small per-address quota and may be told to wait |
 | `FEED_CHECK_MINUTES` | `30` | How often each podcast feed is checked; new episodes are downloaded right after |

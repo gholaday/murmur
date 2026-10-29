@@ -16,7 +16,7 @@ import {
 } from "@murmur/shared/client";
 import { api } from "@/lib/api";
 import { useBooks, useMusicSummary, usePodcasts, useTabPrefs } from "@/lib/data";
-import { useMovies, useShows, useWatchHome } from "@/lib/watch";
+import { useMovies, useShows } from "@/lib/watch";
 import { fonts, type Theme, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { SectionTitle } from "./page";
@@ -72,16 +72,14 @@ function useStats(period: StatsPeriod) {
   });
 }
 
-/** The kinds the stats show: a hidden tab, or a server with no music or videos, leaves its kind out. */
+/** The kinds the stats show: a hidden tab leaves its kind out. */
 function useStatsKinds(): StatsKind[] {
   const tabs = useTabPrefs();
-  const music = !!useMusicSummary().data?.enabled;
-  const watch = !!useWatchHome().data?.enabled;
   return [
     "book",
     ...(tabs.podcasts ? (["episode"] as const) : []),
-    ...(tabs.music && music ? (["music"] as const) : []),
-    ...(tabs.watch !== false && watch ? (["watch"] as const) : []),
+    ...(tabs.music ? (["music"] as const) : []),
+    ...(tabs.watch ? (["watch"] as const) : []),
   ];
 }
 

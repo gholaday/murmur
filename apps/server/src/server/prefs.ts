@@ -23,7 +23,7 @@ export function getPrefs(ctx: AppContext, userId: number): UserPrefs {
   const saved = readSaved(ctx, userId);
   return {
     bookSections: bookSections(saved.bookSections),
-    tabs: { podcasts: true, music: true, watch: true, ...saved.tabs },
+    tabs: { podcasts: saved.tabs?.podcasts ?? true, music: saved.tabs?.music ?? false, watch: saved.tabs?.watch ?? false },
     shuffle: saved.shuffle ?? false,
     repeat: saved.repeat ?? "off",
     videoQuality: saved.videoQuality ?? "full",

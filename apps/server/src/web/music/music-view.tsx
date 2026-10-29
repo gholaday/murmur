@@ -193,6 +193,24 @@ function BrowseRow({ summary }: { summary: MusicSummaryDto }) {
   );
 }
 
+/** No music folder set up yet. */
+function NoMusic({ isAdmin }: { isAdmin: boolean }) {
+  return (
+    <div className="music-empty">
+      <span className="music-empty-icon">
+        <MusicIcon size={34} />
+      </span>
+      <h2>No music yet</h2>
+      <p>{isAdmin ? "Add a music folder and your albums show up here." : "Albums show up here once a music folder is added."}</p>
+      {isAdmin ? (
+        <Link href="/you/library" className="btn btn-primary btn-big">
+          Add a folder
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
 /** First visit: nothing added yet. */
 function EmptyMusic({ total }: { total: number }) {
   const send = useMineChange();
@@ -262,12 +280,14 @@ export function MusicView({
   artists,
   playlists,
   tab: initialTab,
+  isAdmin,
 }: {
   summary: MusicSummaryDto;
   albums: AlbumSummary[];
   artists: ArtistSummary[];
   playlists: PlaylistSummary[];
   tab: MusicTab;
+  isAdmin: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -294,14 +314,20 @@ export function MusicView({
   const sorted = useMemo(() => sortAlbums(albums, sort), [albums, sort]);
   const byArtist = useMemo(() => albumsByArtist(albums), [albums]);
 
-  if (summary.mine.tracks === 0 && playlists.length === 0) {
+  if (!summary.enabled || (summary.mine.tracks === 0 && playlists.length === 0)) {
     return (
       <>
         <div className="page-head">
           <h1 className="page-title">Music</h1>
         </div>
-        <BrowseRow summary={summary} />
-        <EmptyMusic total={summary.albums} />
+        {summary.enabled ? (
+          <>
+            <BrowseRow summary={summary} />
+            <EmptyMusic total={summary.albums} />
+          </>
+        ) : (
+          <NoMusic isAdmin={isAdmin} />
+        )}
       </>
     );
   }
