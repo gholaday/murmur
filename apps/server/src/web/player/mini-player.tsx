@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Cover } from "../cover";
 import { chapterAt, clock, timeLeft } from "@murmur/shared/client";
-import { NextChapterIcon, PauseIcon, PlayIcon, PrevChapterIcon, SkipBackIcon, SkipForwardIcon } from "../icons";
+import { useCast } from "../cast/cast";
+import { CastIcon, NextChapterIcon, PauseIcon, PlayIcon, PrevChapterIcon, SkipBackIcon, SkipForwardIcon } from "../icons";
 import { usePlayer, usePosition, useTint } from "./engine";
 
 /**
@@ -12,6 +13,7 @@ import { usePlayer, usePosition, useTint } from "./engine";
  */
 export function MiniPlayer() {
   const { item, playing, loading, error, toggle, skipBy, skip, seek, setExpanded, trackStep } = usePlayer();
+  const castDevice = useCast().device;
   const position = usePosition();
   const [scrub, setScrub] = useState<number | null>(null);
   const tint = useTint(item);
@@ -49,6 +51,11 @@ export function MiniPlayer() {
             <span className="mini-title">{item.title}</span>
             {error ? (
               <span className="mini-sub error">{error}</span>
+            ) : castDevice ? (
+              <span className="mini-sub mini-cast">
+                <CastIcon size={13} />
+                {castDevice}
+              </span>
             ) : (
               <>
                 {chapterLine ? (

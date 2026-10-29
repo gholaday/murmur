@@ -10,6 +10,15 @@ function Icon({ size = 24, children, ...rest }: IconProps) {
   );
 }
 
+/** Google's cast mark; `connected` fills the screen while casting. */
+export const CastIcon = ({ connected, ...p }: IconProps & { connected?: boolean }) => (
+  <Icon {...p}>
+    <path d="M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6" />
+    <path d="M2 12a9 9 0 0 1 8 8M2 16a5 5 0 0 1 4 4M2 20h.01" />
+    {connected ? <path d="M6 8h12v8h-4a12 12 0 0 0-8-7z" fill="currentColor" stroke="none" /> : null}
+  </Icon>
+);
+
 export const LibraryIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M12 7v14" />

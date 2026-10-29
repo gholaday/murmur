@@ -824,8 +824,14 @@ a.episode-show:hover { color: var(--accent); }
 /* Pulled down on a phone: it has already slid away, so it skips the sink. */
 .player.pulled { animation: none; pointer-events: none; }
 @media (max-width: 899px) { .player-pull { touch-action: none; user-select: none; } }
-.player-top { display: flex; align-items: center; justify-content: space-between; padding: 16px 12px 0; }
-.player-from { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.6px; text-transform: uppercase; }
+/* Close on the left, the label centred whatever sits on the right (cast, more). */
+.player-top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 16px 12px 0; }
+.player-top > :first-child { justify-self: start; }
+.player-top-end { justify-self: end; display: flex; gap: 4px; }
+.player-from { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.6px; text-transform: uppercase; text-align: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The cast button while casting, and the mini player's line naming the device. */
+.icon-btn.cast-on { color: var(--accent); }
+.mini-cast { display: flex; align-items: center; gap: 5px; color: var(--accent); }
 .player-main { width: 100%; max-width: 440px; margin: 0 auto; padding: 0 32px; display: flex; flex-direction: column; }
 .player-cover-wrap { position: relative; width: 100%; max-width: 340px; margin: 20px auto 0; }
 .player-cover { width: 100%; border-radius: 16px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
@@ -1345,6 +1351,10 @@ button.setting-link { width: 100%; text-align: left; color: inherit; }
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35); touch-action: manipulation; user-select: none; -webkit-user-select: none;
 }
 .vp-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+/* Casting: the backdrop dimmed, with the cast mark over it. */
+.vp-cast { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; }
+.vp-cast img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.45; }
+.vp-cast svg { position: relative; }
 /* Everything under the video fills the rest of the height, with the tiles stuck to the bottom. */
 .vp-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .vp-info { padding: 22px 20px 0; }
@@ -1422,7 +1432,6 @@ button.setting-link { width: 100%; text-align: left; color: inherit; }
 /* The scrubber spans the column; the buttons keep the audio player's width under it. */
 .vp-controls .player-controls { max-width: 376px; margin: 0 auto; }
 .vp-controls .play-btn:disabled { opacity: 0.5; }
-.vp-pill { height: 30px; padding: 0 10px; border-radius: 15px; border: 1.5px solid color-mix(in srgb, currentColor 45%, transparent); color: inherit; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .vp-scrub {
   -webkit-appearance: none; appearance: none; width: 100%; height: 20px; margin: 0; background: transparent; cursor: pointer;
 }
@@ -1489,6 +1498,5 @@ button.setting-link { width: 100%; text-align: left; color: inherit; }
 /* Speed, volume, audio, pop out and full screen: at the bottom right, level with the play row. */
 .vp-tools { display: none; }
 .vp-over .vp-tools { display: flex; align-items: center; gap: 4px; position: absolute; right: 20px; bottom: calc(env(safe-area-inset-bottom) + 24px); }
-.vp-over .vp-tools .vp-pill { margin-right: 6px; }
 .vp-over .player-controls .play-btn { width: 64px; height: 64px; background: rgba(255, 255, 255, 0.16); color: #fff; backdrop-filter: blur(6px); }
 .vp-over .vp-next { bottom: 150px; }

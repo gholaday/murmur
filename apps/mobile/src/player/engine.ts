@@ -52,6 +52,7 @@ import { queryClient } from "@/lib/query";
 import { getJson, removeKey, setJson } from "@/lib/storage";
 import { toast } from "@/components/toast";
 import { adModeFor, adPrefsStore, adToSkip, playedThrough } from "./ad-prefs";
+import { CastPlayer, onCastDevice } from "./cast";
 
 // One audio player for the whole app, kept outside React so playback, the lock screen and
 // progress saving carry on whatever screen is showing (or with the screen off).
@@ -470,22 +471,93 @@ function sourceFor(it: Playable, idx: number) {
 function load(it: Playable, at: number, autoplay: boolean) {
   const idx = fileAt(it, at);
   fileIndex = idx;
-  pendingSeek = at - (it.files[idx]?.startSec ?? 0);
-  awaitingSource = true;
-  autoplayAfterLoad = autoplay;
+  const inFile = at - (it.files[idx]?.startSec ?? 0);
   setPosition(at);
   set({ error: null, loading: true });
+  if (casting) {
+    // The TV starts there itself; a download streams from the server, which the TV can reach.
+    pendingSeek = null;
+    awaitingSource = false;
+    playingLocal = false;
+    castPlayer.load(it.files[idx]?.path ?? "", { title: it.title, subtitle: it.subtitle, image: it.coverPathLarge }, inFile, autoplay, state.speed);
+    return;
+  }
+  pendingSeek = inFile;
+  awaitingSource = true;
+  autoplayAfterLoad = autoplay;
   playingLocal = !!localFor(it, idx);
   player.replace(sourceFor(it, idx));
   // Playback starts once the position is restored (see the status listener).
 }
+
+// ---------- Casting ----------
+
+/** While casting, the Chromecast plays instead of the phone's player; there's no spare, so songs follow each other on the TV with its own short gap. */
+let casting = false;
+
+const castPlayer = new CastPlayer({
+  loaded: () => {
+    const it = state.item;
+    if (!it) return;
+    set({ loading: false, playing: castPlayer.playing });
+    setPosition((it.files[fileIndex]?.startSec ?? 0) + castPlayer.position);
+  },
+  time: () => {
+    const it = state.item;
+    if (it) tick(it, (it.files[fileIndex]?.startSec ?? 0) + castPlayer.position, castPlayer.playing);
+  },
+  playing: (playing) => {
+    const wasPlaying = state.playing;
+    set({ playing });
+    if (wasPlaying && !playing) save();
+  },
+  buffering: (loading) => loading !== state.loading && set({ loading }),
+  ended: () => state.item && fileEnded(state.item),
+});
+
+/** What plays: the phone's player, or the Chromecast while casting. */
+const media = {
+  get playing() {
+    return casting ? castPlayer.playing : player.playing;
+  },
+  get duration() {
+    return casting ? castPlayer.duration : player.duration;
+  },
+  play: () => (casting ? castPlayer.play() : player.play()),
+  pause: () => (casting ? castPlayer.pause() : player.pause()),
+  seekTo: (sec: number) => (casting ? castPlayer.seek(sec) : void player.seekTo(sec)),
+  setRate: (rate: number) => (casting ? castPlayer.setRate(rate) : player.setPlaybackRate(rate)),
+};
+
+// A connected Chromecast takes over where the phone is, playing if it was playing, and Google's
+// notification replaces this one. When casting ends, the item comes back here paused, where the TV left it.
+onCastDevice((device) => {
+  const it = state.item;
+  if (device && !casting) {
+    const wasPlaying = state.playing;
+    casting = true;
+    dropPreloaded();
+    player.pause();
+    if (lockScreenOn) lockScreenOn.clearLockScreenControls();
+    lockScreenOn = null;
+    if (it) load(it, position, wasPlaying);
+  } else if (!device && casting) {
+    casting = false;
+    castPlayer.release();
+    set({ playing: false });
+    if (it) {
+      load(it, position, false);
+      void showOnLockScreen(it);
+    }
+  }
+});
 
 // The patched expo-audio sends the notification's previous and next taps as "remoteTrack".
 type RemoteTrackEmitter = { addListener(event: "remoteTrack", fn: (e: { direction: number }) => void): unknown };
 
 for (const p of players) {
   p.addListener("playbackStatusUpdate", (s: AudioStatus) => {
-    if (p === player) onStatus(s);
+    if (p === player && !casting) onStatus(s);
   });
   (p as unknown as RemoteTrackEmitter).addListener("remoteTrack", ({ direction }) => {
     if (p === player) trackStep(direction < 0 ? -1 : 1);
@@ -532,42 +604,47 @@ function onStatus(s: AudioStatus) {
     set({ playing: s.playing, loading });
     if (wasPlaying && !s.playing && !s.didJustFinish) save();
   }
-  if (pendingSeek === null && !seeking && s.isLoaded) {
-    const pos = (it.files[fileIndex]?.startSec ?? 0) + s.currentTime;
-    const prev = position;
-    setPosition(pos);
-    if (s.playing) {
-      maybeSkipAd(prev, pos);
-      countListening(it, pos - prev);
-      if (it.type === "track") musicTick(it, pos, pos - prev);
-    } else {
-      lastTickAt = 0;
-      lastListenAt = 0;
-    }
-    if (s.playing && Date.now() - lastSaved > SAVE_EVERY_MS) save();
-    const sl = state.sleep;
-    if (sl.mode === "chapter" && pos >= sl.endSec - 0.3) {
-      player.pause();
-      set({ sleep: { mode: "off" } });
-    }
+  if (pendingSeek === null && !seeking && s.isLoaded) tick(it, (it.files[fileIndex]?.startSec ?? 0) + s.currentTime, s.playing);
+  if (s.didJustFinish) fileEnded(it);
+}
+
+/** Where the loaded file has got to, from the phone's player or the Chromecast. */
+function tick(it: Playable, pos: number, playing: boolean) {
+  const prev = position;
+  setPosition(pos);
+  if (playing) {
+    maybeSkipAd(prev, pos);
+    countListening(it, pos - prev);
+    if (it.type === "track") musicTick(it, pos, pos - prev);
+  } else {
+    lastTickAt = 0;
+    lastListenAt = 0;
   }
-  if (s.didJustFinish) {
-    const next = fileIndex + 1;
-    if (next < it.files.length) {
-      load(it, it.files[next]!.startSec, true);
-      return;
-    }
-    if (it.type === "track") {
-      save();
-      // "End of song" on the sleep timer stops here rather than going on.
-      if (state.sleep.mode === "chapter") return set({ sleep: { mode: "off" } });
-      // The same song on Repeat one, else what's next in Up Next.
-      return playNext(nextIndex(state.upNext, state.repeat, true));
-    }
-    save(true);
-    // A book ends there; nothing starts on its own. An episode goes on down Up Next (repeat is for songs).
-    if (it.type === "episode") playNext(nextIndex(state.upNext, "off", true));
+  if (playing && Date.now() - lastSaved > SAVE_EVERY_MS) save();
+  const sl = state.sleep;
+  if (sl.mode === "chapter" && pos >= sl.endSec - 0.3) {
+    media.pause();
+    set({ sleep: { mode: "off" } });
   }
+}
+
+/** The loaded file played to its end: a book's next file, else what follows the item. */
+function fileEnded(it: Playable) {
+  const next = fileIndex + 1;
+  if (next < it.files.length) {
+    load(it, it.files[next]!.startSec, true);
+    return;
+  }
+  if (it.type === "track") {
+    save();
+    // "End of song" on the sleep timer stops here rather than going on.
+    if (state.sleep.mode === "chapter") return set({ sleep: { mode: "off" } });
+    // The same song on Repeat one, else what's next in Up Next.
+    return playNext(nextIndex(state.upNext, state.repeat, true));
+  }
+  save(true);
+  // A book ends there; nothing starts on its own. An episode goes on down Up Next (repeat is for songs).
+  if (it.type === "episode") playNext(nextIndex(state.upNext, "off", true));
 }
 
 // ---------- Music ----------
@@ -581,13 +658,13 @@ let counted = false;
 /** While a song plays: count it once heard long enough, and preload the next one near its end. */
 function musicTick(it: Playable, pos: number, heard: number) {
   if (heard > 0 && heard < 5) heardSec += heard;
-  const dur = it.durationSec || player.duration || 0;
+  const dur = it.durationSec || media.duration || 0;
   const needed = dur > 0 ? Math.min(PLAY_COUNTS_AFTER_SEC, dur / 2) : PLAY_COUNTS_AFTER_SEC;
   if (!counted && heardSec >= needed) {
     counted = true;
     void api(apiPaths.trackPlays, { method: "POST", body: { trackId: it.id } }).catch(() => undefined);
   }
-  if (!(dur > 0 && dur - pos < PRELOAD_SEC)) return;
+  if (casting || !(dur > 0 && dur - pos < PRELOAD_SEC)) return;
   const next = nextIndex(state.upNext, state.repeat, true);
   const e = typeof next === "number" ? state.upNext.items[next] : undefined;
   if (e?.itemType === "track") preload(e.track);
@@ -672,7 +749,7 @@ function playNext(next: "again" | number | null) {
   heardSec = 0;
   counted = false;
   seek(0);
-  player.play();
+  media.play();
 }
 
 /**
@@ -748,6 +825,8 @@ export async function artworkFile(path: string | null): Promise<string | undefin
  * with chapters shows the chapter as the title and the book under it.
  */
 async function showOnLockScreen(it: Playable) {
+  // Google's Cast notification takes over while casting.
+  if (casting) return;
   const ci = it.chapters.length > 1 ? chapterAt(it.chapters, position) : -1;
   lockScreenChapter = ci;
   const chapter = ci >= 0 ? it.chapters[ci] : undefined;
@@ -757,7 +836,7 @@ async function showOnLockScreen(it: Playable) {
     albumTitle: it.type === "book" ? it.title : (it.album?.title ?? it.subtitle ?? undefined),
     artworkUrl: await artworkFile(it.coverPathLarge),
   };
-  if (state.item !== it && state.item?.id !== it.id) return;
+  if ((state.item !== it && state.item?.id !== it.id) || casting) return;
   lockScreenMetadata = metadata;
   // A new song can be on the other player, and songs show different buttons, so either means
   // setting the controls up again rather than just changing the text.
@@ -782,7 +861,7 @@ function save(finished = false, refreshLists = finished || !state.playing) {
     void flush();
     return;
   }
-  const dur = it.durationSec || player.duration || 0;
+  const dur = it.durationSec || media.duration || 0;
   const entry: ProgressItem = {
     itemType: it.type,
     itemId: it.id,
@@ -949,7 +1028,7 @@ export function play(it: Playable, startAt?: number, fromList = false) {
   const cur = state.item;
   if (cur && cur.type === it.type && cur.id === it.id) {
     if (startAt !== undefined) seek(startAt);
-    player.play();
+    media.play();
     return;
   }
   if (cur && state.playing) save();
@@ -979,27 +1058,27 @@ export function toggle() {
   // After an error the player is stuck; play loads it again from where it was (the
   // downloaded copy if there is one now).
   if (state.error) return load(state.item, position, true);
-  if (player.playing) player.pause();
+  if (media.playing) media.pause();
   else {
     // Reaching the end then pressing play starts again rather than doing nothing.
     if (state.item.durationSec && position >= state.item.durationSec - 1) seek(0);
-    player.play();
+    media.play();
   }
 }
 
-export const pause = () => player.pause();
+export const pause = () => media.pause();
 
 export function seek(sec: number) {
   const it = state.item;
   if (!it) return;
-  const dur = it.durationSec || player.duration || 0;
+  const dur = it.durationSec || media.duration || 0;
   const t = Math.min(Math.max(0, sec), Math.max(0, dur - 0.5));
   const idx = fileAt(it, t);
   if (idx === fileIndex && pendingSeek === null) {
-    void player.seekTo(t - (it.files[idx]?.startSec ?? 0));
+    media.seekTo(t - (it.files[idx]?.startSec ?? 0));
     setPosition(t);
   } else {
-    load(it, t, player.playing);
+    load(it, t, media.playing);
   }
   // While playing, progress saves every few seconds anyway; paused, nothing else would keep it.
   if (!state.playing) save();
@@ -1039,7 +1118,7 @@ export function chapterStep(dir: -1 | 1) {
 export function setSpeed(s: number) {
   const speed = clampSpeed(s);
   set({ speed });
-  player.setPlaybackRate(speed);
+  media.setRate(speed);
   const it = state.item;
   if (!it) return;
   set({ item: { ...it, speed } });
@@ -1058,7 +1137,7 @@ export function setSleep(s: SleepTimer) {
   if (s.mode !== "timer") return;
   sleepTimer = setInterval(() => {
     if (Date.now() < s.endsAt) return;
-    player.pause();
+    media.pause();
     setSleep({ mode: "off" });
   }, 1000);
 }
@@ -1092,6 +1171,8 @@ export function stop() {
 function clear() {
   set({ item: null, playing: false, loading: false, error: null });
   player.pause();
+  // Closing or stopping while casting stops the TV too.
+  castPlayer.stop();
   if (lockScreenOn) lockScreenOn.clearLockScreenControls();
   lockScreenOn = null;
   lockScreenChapter = -1;

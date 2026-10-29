@@ -131,6 +131,8 @@ export const watchDownloadSchema = z.object({
   quality: z.enum(["full", "light"]).default("full"),
 });
 export type WatchDownloadQuery = z.input<typeof watchDownloadSchema>;
+/** Links for a Chromecast: the path prefixes it may open (one item's stream and its cover). */
+export const castSchema = z.object({ paths: z.array(z.string().max(300)).min(1).max(8) });
 /** Lists default to everything, so older apps keep working. */
 export const musicScopeSchema = z.enum(["mine", "all"]).catch("all");
 /** What you're playing music from: an album, an artist, or a list of songs, in play order. */
@@ -752,6 +754,7 @@ export interface EpisodeCacheStatusDto {
 
 export * from "./ads";
 export * from "./api-paths";
+export * from "./cast";
 export * from "./changes";
 export * from "./format";
 export * from "./library";

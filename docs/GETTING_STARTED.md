@@ -150,6 +150,7 @@ In Portainer, use **Update the stack** as described in step 2. Database changes 
 - **Books are missing:** check that the library folder is mounted and readable inside the container, and look at **You > Library**, which shows each folder's status. Network shares that don't report file changes need `WATCH_POLLING=true`.
 - **Watch is empty:** You > Library says when the video add-on can't be reached, or can't see a folder (it needs the same paths as Murmur), and shows each movie and show folder's status.
 - **The app can't connect:** open the same address in the phone's browser. If that works, check for a login gateway that needs the `/api/*` bypass.
+- **Casting doesn't play:** the Chromecast fetches from the same address your phone or browser uses, so it has to reach that address too: `localhost` or a VPN-only name won't work. Movies and shows that need converting cast best over an https address (your tunnel or proxy); files that play as they are work over your home network too.
 - **A podcast on your own network won't add:** Murmur refuses feeds, episodes and cover links on private addresses unless `FETCH_ALLOW_PRIVATE=true` is set. Its own address is always refused.
 - **Health check:** `http://<server>:3333/api/health` answers `ok` and the version; signed in, it also reports the database, library, scans and add-ons.
 - **Logs:** `docker logs murmur` (and `docker logs murmur-adscan` or `docker logs murmur-video` for the add-ons).

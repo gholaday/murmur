@@ -9,11 +9,9 @@ import {
   type ShowDetail,
   type ShowSummary,
   timeLeft,
-  validSpeed,
   type VideoEpisode,
   videoLanguageKey,
   type VideoQuality,
-  videoSpeedKey,
   type WatchHomeDto,
 } from "@murmur/shared/client";
 import { api } from "./api";
@@ -126,13 +124,4 @@ export const pictureUnplayable = (codec: string | null) => !!codec && (getJson<s
 export function markPictureUnplayable(codec: string | null) {
   if (!codec || pictureUnplayable(codec)) return;
   setJson(UNPLAYABLE_KEY, [...(getJson<string[]>(UNPLAYABLE_KEY) ?? []), codecKind(codec)]);
-}
-
-// ---------- Speed, remembered per movie and per show ----------
-
-export const readVideoSpeed = (key: string): number => validSpeed(getJson<number>(videoSpeedKey(key)));
-
-export function saveVideoSpeed(key: string, speed: number) {
-  if (speed === 1) removeKey(videoSpeedKey(key));
-  else setJson(videoSpeedKey(key), speed);
 }

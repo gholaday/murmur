@@ -68,7 +68,9 @@ export function route<C>(handler: Handler<C>): Handler<C> {
         const where = issue?.path.length ? `${issue.path.join(".")}: ` : "";
         return json({ error: `${where}${issue?.message ?? "Invalid request."}` }, { status: 400 });
       }
-      log.error("unhandled error", { method: req.method, url: req.url, error: errorMessage(err) });
+      // A cast link carries its token in the path; it stays out of the log.
+      const url = req.url.replace(/\/api\/cast\/[^/]+/, "/api/cast/…");
+      log.error("unhandled error", { method: req.method, url, error: errorMessage(err) });
       return json({ error: "Something went wrong on the server." }, { status: 500 });
     }
   };

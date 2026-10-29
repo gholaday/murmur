@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { hash, verify } from "@node-rs/argon2";
 import { count, eq } from "drizzle-orm";
 import type { UserDto } from "@murmur/shared";
+import { CAST_HEADER, CAST_PATH, castKey, checkCastToken } from "./cast";
 import type { AppContext } from "./context";
 import { sessions, users } from "./db/schema";
 import { HttpError } from "./http";
@@ -108,9 +109,23 @@ function assertSameOrigin(req: Request) {
   if (!host || new URL(origin).host !== host) throw new HttpError(403, "Cross-site request blocked.");
 }
 
+/** A Chromecast's read of a stream or picture its cast link covers (see cast.ts). */
+function castUser(ctx: AppContext, req: Request): UserDto | null {
+  // The route sees the link as asked for (`/api/cast/<token>/<path>`), which the proxy always
+  // serves as `<path>`; where it sees the rewritten path instead, the token comes in the header.
+  const pathname = new URL(req.url).pathname;
+  const link = CAST_PATH.exec(pathname);
+  const token = link ? link[1]! : req.headers.get(CAST_HEADER);
+  if (!token) return null;
+  const id = checkCastToken(castKey(ctx.sqlite), token, req.method, link ? link[2]! : pathname);
+  if (id === null) return null;
+  const row = ctx.db.select({ id: users.id, username: users.username, isAdmin: users.isAdmin }).from(users).where(eq(users.id, id)).get();
+  return row ? toUserDto(row) : null;
+}
+
 export function requireUser(ctx: AppContext, req: Request): UserDto {
   const found = tokenFromRequest(req);
-  const user = found ? userFromToken(ctx, found.token) : null;
+  const user = (found ? userFromToken(ctx, found.token) : null) ?? castUser(ctx, req);
   if (!user) throw new HttpError(401, "Sign in to continue.");
   if (found?.viaCookie) assertSameOrigin(req);
   return user;

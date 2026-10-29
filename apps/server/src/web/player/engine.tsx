@@ -50,6 +50,7 @@ import {
   type SleepTimer,
 } from "@murmur/shared/client";
 import { api } from "../api";
+import { CAST_FAILED, CastMedia, MEDIA_EVENTS, type MediaEventName, stopCasting, useCast } from "../cast/cast";
 import { adModeFor, adPrefsStore, adToSkip, playedThrough } from "./ad-prefs";
 import { effectiveVolume, volumeStore } from "./volume";
 
@@ -347,13 +348,19 @@ function readSkip(): SkipSettings {
 
 const refOf = (item: Playable): PlayRef => ({ itemType: item.type, itemId: item.id });
 
+/** What plays: one of the <audio> elements, or the Chromecast while casting. */
+type Media = HTMLAudioElement | CastMedia;
+
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   // Two players: `audio` is the one playing, the other loads the next song ahead of time.
-  // Events from the spare one are ignored until it takes over.
+  // Events from the spare one are ignored until it takes over. While casting, `audio` is the
+  // Chromecast and there's no spare: songs follow each other on the TV with its own short gap.
   const players = useRef<[HTMLAudioElement | null, HTMLAudioElement | null]>([null, null]);
-  const audio = useRef<HTMLAudioElement | null>(null);
-  const spare = () => (players.current[0] === audio.current ? players.current[1] : players.current[0]);
+  const audio = useRef<Media | null>(null);
+  const castMedia = useRef<CastMedia | null>(null);
+  const spare = () =>
+    audio.current instanceof CastMedia ? null : players.current[0] === audio.current ? players.current[1] : players.current[0];
   /** The song id the spare player holds, ready to go. */
   const preloaded = useRef<string | null>(null);
   const listRef = useRef<UpNextDto>(EMPTY_UP_NEXT);
@@ -372,7 +379,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     audio.current ??= players.current[0];
     const apply = () => {
-      for (const el of players.current) if (el) el.volume = effectiveVolume(volumeStore.get());
+      for (const el of [...players.current, castMedia.current]) if (el) el.volume = effectiveVolume(volumeStore.get());
     };
     apply();
     return volumeStore.subscribe(apply);
@@ -490,6 +497,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     setLoading(true);
     el.src = it.files[idx]?.url ?? "";
+    if (el instanceof CastMedia) {
+      el.startAt = pendingSeek.current;
+      el.autoplay = autoplay;
+    }
     el.load();
     el.playbackRate = speedRef.current;
     if (autoplay) void el.play().catch(() => setPlaying(false));
@@ -1143,6 +1154,131 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     ],
   );
 
+  // The media events, the same whether an <audio> element or the Chromecast sends them. Events
+  // from anything but `audio.current` (the spare player preloading) are ignored.
+  const onMedia: Record<MediaEventName, (el: Media) => void> = {
+    loadedmetadata: (el) => {
+      if (pendingSeek.current !== null) {
+        el.currentTime = pendingSeek.current;
+        pendingSeek.current = null;
+      }
+      el.playbackRate = speedRef.current;
+      // Feeds often omit or misstate an episode's length; trust the file.
+      const it = itemRef.current;
+      if (it && it.type === "episode" && Number.isFinite(el.duration) && Math.abs(it.durationSec - el.duration) > 1) {
+        const fixed = { ...it, durationSec: el.duration, files: [{ ...it.files[0]!, durationSec: el.duration }] };
+        itemRef.current = fixed;
+        setItem(fixed);
+      }
+      setLoading(false);
+    },
+    waiting: () => setLoading(true),
+    playing: () => setLoading(false),
+    timeupdate: (el) => {
+      const it = itemRef.current;
+      if (!it || pendingSeek.current !== null) return;
+      const pos = (it.files[fileIndex.current]?.startSec ?? 0) + el.currentTime;
+      const prev = lastTick.current;
+      const elapsedSec = (performance.now() - lastTickAt.current) / 1000;
+      lastTick.current = pos;
+      lastTickAt.current = performance.now();
+      if (!el.paused) {
+        maybeSkipAd(prev, pos, elapsedSec);
+        const key = `${it.type}:${it.id}`;
+        if (lastListenKey.current === key) {
+          listening().add(it.type, it.id, elapsedSec, pos - prev, speedRef.current);
+          if (it.type === "track") musicTick(it, pos, Math.min(elapsedSec, pos - prev));
+        }
+        lastListenKey.current = key;
+      }
+      positionRef.current = pos;
+      setPosition(pos);
+      updatePositionState(pos);
+      if (!el.paused && Date.now() - lastSaved.current > SAVE_EVERY_MS) save();
+      const s = sleepRef.current;
+      if (s.mode === "chapter" && pos >= s.endSec - 0.3) {
+        el.pause();
+        setSleep({ mode: "off" });
+      }
+    },
+    play: () => setPlaying(true),
+    pause: () => {
+      setPlaying(false);
+      const it = itemRef.current;
+      if (!it) return;
+      // A pause right at the end is the finish, which onEnded saves.
+      const dur = it.durationSec || 0;
+      if (dur && positionRef.current >= dur - 1) return;
+      save();
+    },
+    seeked: () => updatePositionState(positionRef.current, true),
+    ended: () => {
+      const it = itemRef.current;
+      if (!it) return;
+      const next = fileIndex.current + 1;
+      if (next < it.files.length) {
+        load(it, it.files[next]!.startSec, true);
+        return;
+      }
+      if (it.type === "track") {
+        void save();
+        return playNext(nextIndex(listRef.current, repeatRef.current, true));
+      }
+      void save(true)?.then(() => router.refresh());
+      // A finished book just stops: Up Next is for episodes and songs, never what follows a book.
+      // Repeat is for songs, so an episode just moves on.
+      if (it.type === "episode") playNext(nextIndex(listRef.current, "off", true));
+    },
+    error: (el) => {
+      if (!itemRef.current || !el.getAttribute("src")) return;
+      setLoading(false);
+      setPlaying(false);
+      if (el instanceof CastMedia) {
+        // Ending the cast brings the item back here, where it can still play.
+        toast.error(CAST_FAILED);
+        stopCasting();
+        return;
+      }
+      setError("Couldn't play this. Check your connection and try again.");
+    },
+  };
+  const onMediaRef = useRef(onMedia);
+  onMediaRef.current = onMedia;
+  const fire = (name: MediaEventName, el: Media) => {
+    if (el === audio.current) onMediaRef.current[name](el);
+  };
+
+  // Casting: a connected Chromecast takes over from the <audio> element where it is, playing if
+  // it was playing; when casting ends, the item comes back here paused, where the TV left it.
+  const castDevice = useCast().device;
+  useEffect(() => {
+    const it = itemRef.current;
+    if (castDevice && !(audio.current instanceof CastMedia)) {
+      if (!castMedia.current) {
+        const cm = new CastMedia(() => {
+          const now = itemRef.current;
+          return now && { title: now.title, subtitle: now.subtitle, image: now.coverUrlLarge };
+        });
+        for (const name of MEDIA_EVENTS) cm.addEventListener(name, () => fire(name, cm));
+        castMedia.current = cm;
+      }
+      const local = audio.current;
+      const wasPlaying = !!local && !local.paused;
+      preloaded.current = null;
+      for (const p of players.current) p?.pause();
+      audio.current = castMedia.current;
+      castMedia.current.volume = effectiveVolume(volumeStore.get());
+      if (it) load(it, positionRef.current, wasPlaying);
+    } else if (!castDevice && audio.current instanceof CastMedia) {
+      const at = positionRef.current;
+      audio.current.release();
+      audio.current = players.current[0];
+      setPlaying(false);
+      if (it) load(it, at, false);
+    }
+    // Only when casting starts or ends; `fire` reads the latest handlers through a ref.
+  }, [castDevice, load]);
+
   return (
     <PlayerContext.Provider value={value}>
       {children}
@@ -1153,90 +1289,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             players.current[n] = el;
           }}
           preload="metadata"
-          onLoadedMetadata={(e) => {
-            if (e.currentTarget !== audio.current) return; // the spare player preloading
-            const el = e.currentTarget;
-            if (pendingSeek.current !== null) {
-              el.currentTime = pendingSeek.current;
-              pendingSeek.current = null;
-            }
-            el.playbackRate = speedRef.current;
-            // Feeds often omit or misstate an episode's length; trust the file.
-            const it = itemRef.current;
-            if (it && it.type === "episode" && Number.isFinite(el.duration) && Math.abs(it.durationSec - el.duration) > 1) {
-              const fixed = { ...it, durationSec: el.duration, files: [{ ...it.files[0]!, durationSec: el.duration }] };
-              itemRef.current = fixed;
-              setItem(fixed);
-            }
-            setLoading(false);
-          }}
-          onWaiting={(e) => e.currentTarget === audio.current && setLoading(true)}
-          onPlaying={(e) => e.currentTarget === audio.current && setLoading(false)}
-          onTimeUpdate={(e) => {
-            if (e.currentTarget !== audio.current) return;
-            const it = itemRef.current;
-            if (!it || pendingSeek.current !== null) return;
-            const pos = (it.files[fileIndex.current]?.startSec ?? 0) + e.currentTarget.currentTime;
-            const prev = lastTick.current;
-            const elapsedSec = (performance.now() - lastTickAt.current) / 1000;
-            lastTick.current = pos;
-            lastTickAt.current = performance.now();
-            if (!e.currentTarget.paused) {
-              maybeSkipAd(prev, pos, elapsedSec);
-              const key = `${it.type}:${it.id}`;
-              if (lastListenKey.current === key) {
-                listening().add(it.type, it.id, elapsedSec, pos - prev, speedRef.current);
-                if (it.type === "track") musicTick(it, pos, Math.min(elapsedSec, pos - prev));
-              }
-              lastListenKey.current = key;
-            }
-            positionRef.current = pos;
-            setPosition(pos);
-            updatePositionState(pos);
-            if (!e.currentTarget.paused && Date.now() - lastSaved.current > SAVE_EVERY_MS) save();
-            const s = sleepRef.current;
-            if (s.mode === "chapter" && pos >= s.endSec - 0.3) {
-              e.currentTarget.pause();
-              setSleep({ mode: "off" });
-            }
-          }}
-          onPlay={(e) => e.currentTarget === audio.current && setPlaying(true)}
-          onPause={(e) => {
-            if (e.currentTarget !== audio.current) return;
-            setPlaying(false);
-            const it = itemRef.current;
-            if (!it) return;
-            // A pause right at the end is the finish, which onEnded saves.
-            const dur = it.durationSec || 0;
-            if (dur && positionRef.current >= dur - 1) return;
-            save();
-          }}
-          onSeeked={(e) => e.currentTarget === audio.current && updatePositionState(positionRef.current, true)}
-          onEnded={(e) => {
-            if (e.currentTarget !== audio.current) return;
-            const it = itemRef.current;
-            if (!it) return;
-            const next = fileIndex.current + 1;
-            if (next < it.files.length) {
-              load(it, it.files[next]!.startSec, true);
-              return;
-            }
-            if (it.type === "track") {
-              void save();
-              return playNext(nextIndex(listRef.current, repeatRef.current, true));
-            }
-            void save(true)?.then(() => router.refresh());
-            // A finished book just stops: Up Next is for episodes and songs, never what follows a book.
-            // Repeat is for songs, so an episode just moves on.
-            if (it.type === "episode") playNext(nextIndex(listRef.current, "off", true));
-          }}
-          onError={(e) => {
-            if (e.currentTarget !== audio.current) return;
-            if (!itemRef.current || !e.currentTarget.getAttribute("src")) return;
-            setLoading(false);
-            setPlaying(false);
-            setError("Couldn't play this. Check your connection and try again.");
-          }}
+          onLoadedMetadata={(e) => fire("loadedmetadata", e.currentTarget)}
+          onWaiting={(e) => fire("waiting", e.currentTarget)}
+          onPlaying={(e) => fire("playing", e.currentTarget)}
+          onTimeUpdate={(e) => fire("timeupdate", e.currentTarget)}
+          onPlay={(e) => fire("play", e.currentTarget)}
+          onPause={(e) => fire("pause", e.currentTarget)}
+          onSeeked={(e) => fire("seeked", e.currentTarget)}
+          onEnded={(e) => fire("ended", e.currentTarget)}
+          onError={(e) => fire("error", e.currentTarget)}
         />
       ))}
     </PlayerContext.Provider>

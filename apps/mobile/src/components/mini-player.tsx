@@ -8,11 +8,12 @@ import { absolute, authHeaders } from "@/lib/api";
 import { cachedAlbumColor } from "@/lib/data";
 import { VideoView } from "expo-video";
 import { openVideoPlayer } from "@/lib/watch";
+import { useCast } from "@/player/cast";
 import { skipBy, toggle, trackStep, usePlayer, usePlayerSelect, usePosition } from "@/player/engine";
 import { closeVideo, skipVideo, toggleVideo, useVideo, useVideoHost, useVideoTime, videoPlayer } from "@/player/video";
 import { fonts, mixColor, useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { CloseIcon, NextChapterIcon, PauseIcon, PlayIcon, PrevChapterIcon, SkipBackIcon, SkipForwardIcon } from "./icons";
+import { CastIcon, CloseIcon, NextChapterIcon, PauseIcon, PlayIcon, PrevChapterIcon, SkipBackIcon, SkipForwardIcon } from "./icons";
 import { Marquee } from "./marquee";
 import { BufferingRing } from "./player-controls";
 import { Text } from "./ui";
@@ -29,6 +30,7 @@ export function MiniPlayer() {
   // The grey sub line fades into a tinted light card; the darker text keeps it readable.
   const sub = t.isDark ? undefined : { color: t.text2 };
   const tint = useAnimatedStyle(() => ({ backgroundColor: withTiming(surface, { duration: 400 }) }));
+  const castDevice = useCast().device;
   const video = useVideo().item;
   if (video) return <VideoMiniPlayer />;
   if (!item) return null;
@@ -92,6 +94,8 @@ export function MiniPlayer() {
               <Text variant="small" numberOfLines={2} style={{ color: t.danger }}>
                 {error}
               </Text>
+            ) : castDevice ? (
+              <CastLine device={castDevice} />
             ) : book && chapter ? (
               // A book's chapter and time left share a line, which scrolls as one when it's long.
               // Tabular digits keep the time's width steady as it ticks, so the scroll runs on.
@@ -174,6 +178,19 @@ function SkipButton({ label, seconds, onPress, children }: { label: string; seco
   );
 }
 
+/** The second line while casting: where it's playing, in accent. */
+function CastLine({ device }: { device: string }) {
+  const t = useTheme();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+      <CastIcon size={13} color={t.accent} connected />
+      <Text variant="small" numberOfLines={1} style={{ color: t.accent, flexShrink: 1 }}>
+        {device}
+      </Text>
+    </View>
+  );
+}
+
 function StepButton({ label, onPress, children }: { label: string; onPress: () => void; children: React.ReactNode }) {
   return (
     <Pressable
@@ -197,6 +214,7 @@ function VideoMiniPlayer() {
   const { position, total } = useVideoTime();
   const skip = usePlayerSelect((s) => s.skip);
   const host = useVideoHost();
+  const castDevice = useCast().device;
   const it = v.item;
   if (!it) return null;
   const pct = total ? Math.min(100, (position / total) * 100) : 0;
@@ -225,7 +243,19 @@ function VideoMiniPlayer() {
           style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 }}
         >
           <View style={{ width: 85, height: 48, borderRadius: 8, overflow: "hidden", backgroundColor: "#000" }}>
-            {host ? <VideoView player={videoPlayer()} nativeControls={false} surfaceType="textureView" contentFit="cover" style={{ width: "100%", height: "100%" }} /> : null}
+            {/* The picture is on the TV while casting; here, its still or backdrop. */}
+            {castDevice ? (
+              it.castArt ? (
+                <Image
+                  source={{ uri: absolute(it.castArt), headers: authHeaders(), cacheKey: it.castArt }}
+                  cachePolicy="disk"
+                  contentFit="cover"
+                  style={{ width: "100%", height: "100%" }}
+                />
+              ) : null
+            ) : host ? (
+              <VideoView player={videoPlayer()} nativeControls={false} surfaceType="textureView" contentFit="cover" style={{ width: "100%", height: "100%" }} />
+            ) : null}
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14 }}>
@@ -235,6 +265,8 @@ function VideoMiniPlayer() {
               <Text variant="small" numberOfLines={2} style={{ color: t.danger }}>
                 {v.error}
               </Text>
+            ) : castDevice ? (
+              <CastLine device={castDevice} />
             ) : (
               <Text variant="small" numberOfLines={1} style={{ fontVariant: ["tabular-nums"] }}>
                 {it.label ? `${it.label}, ${left}` : left}

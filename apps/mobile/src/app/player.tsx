@@ -42,7 +42,7 @@ import {
   SkipForwardIcon,
 } from "@/components/icons";
 import { useTopInset } from "@/components/page";
-import { SkipButton, Tile } from "@/components/player-controls";
+import { CastButton, SkipButton, Tile } from "@/components/player-controls";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
 import { Caption, Chips, IconButton, Text } from "@/components/ui";
@@ -50,6 +50,7 @@ import { UpNextSheet } from "@/components/up-next";
 import { cachedAlbumColor } from "@/lib/data";
 import { dragEndHaptic, selectHaptic, tapHaptic } from "@/lib/haptics";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdDetection, useAdPrefs, type AdMode } from "@/player/ad-prefs";
+import { useCast } from "@/player/cast";
 import {
   chapterStep,
   cycleRepeat,
@@ -85,6 +86,7 @@ export default function Player() {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const p = usePlayer();
+  const cast = useCast();
   const position = usePosition();
   const adPrefs = useAdPrefs();
   const adDetection = useAdDetection();
@@ -191,13 +193,21 @@ export default function Player() {
       />
       <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: top, paddingBottom: insets.bottom + 16, paddingHorizontal: 24 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: -10 }}>
-          <IconButton label="Close player" onPress={() => router.back()}>
-            <DownIcon color={t.text} />
-          </IconButton>
-          <Caption style={{ letterSpacing: 0.6, color: soft }}>Playing from {song ? (p.upNext.source?.title ?? "Music") : item.type === "book" ? "Library" : "Podcasts"}</Caption>
-          <IconButton label="More options" onPress={() => setSheet("more")}>
-            <MoreIcon color={t.text} />
-          </IconButton>
+          {/* As wide as the buttons on the right, so the line between stays centred. */}
+          <View style={{ width: cast.available ? 88 : 44 }}>
+            <IconButton label="Close player" onPress={() => router.back()}>
+              <DownIcon color={t.text} />
+            </IconButton>
+          </View>
+          <Caption numberOfLines={1} style={{ flex: 1, textAlign: "center", letterSpacing: 0.6, color: soft }}>
+            {cast.device ? `Playing on ${cast.device}` : `Playing from ${song ? (p.upNext.source?.title ?? "Music") : item.type === "book" ? "Library" : "Podcasts"}`}
+          </Caption>
+          <View style={{ flexDirection: "row" }}>
+            <CastButton color={t.text} />
+            <IconButton label="More options" onPress={() => setSheet("more")}>
+              <MoreIcon color={t.text} />
+            </IconButton>
+          </View>
         </View>
 
         <View style={{ flex: 1, justifyContent: "center", gap: 22, paddingVertical: 12 }}>

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { startCast } from "./cast/cast";
 import { useDragToScroll } from "./drag-scroll";
 import { useLiveChanges } from "./live-changes";
 import type { UserPrefs } from "@murmur/shared/client";
@@ -36,6 +38,8 @@ export function Shell({
   const { item } = usePlayer();
   useDragToScroll();
   useLiveChanges();
+  // Looks for Chromecasts; Chromium browsers only, and nothing shows until one is found.
+  useEffect(() => startCast(), []);
   // Podcasts, Music and Watch can be switched off in You; Music and Watch also need something on the server.
   const shown = TABS.filter(
     (t) =>

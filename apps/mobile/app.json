@@ -64,7 +64,9 @@
         {
           "android": {
             "usesCleartextTraffic": true,
-            "buildArchs": ["arm64-v8a"],
+            "buildArchs": [
+              "arm64-v8a"
+            ],
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true
           }
@@ -75,6 +77,12 @@
         {
           "supportsBackgroundPlayback": true,
           "supportsPictureInPicture": true
+        }
+      ],
+      [
+        "react-native-google-cast",
+        {
+          "androidPlayServicesCastFrameworkVersion": "22.1.0"
         }
       ]
     ],

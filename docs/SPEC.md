@@ -71,6 +71,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 - Sleep timer: minutes or end of chapter
 - Volume slider and mute in the web player on desktop, remembered per browser (phones use their own buttons)
 - Lock screen, notification, Bluetooth and headphone controls in the app
+- Casting books, podcasts, music, movies and shows to a Chromecast from the web (Chrome and Edge) and the app (see Casting)
 
 **Sync and offline**
 
@@ -163,6 +164,7 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | Admin | `GET/POST/DELETE /users`, `GET/PUT /library/folders`, `POST /library/folders/check`, `GET /library/browse?path=` |
 | Episode cache and ads | `GET /episodes/:id/ads`; admin: `GET/PUT /server/cache`, `POST /server/ads/retry` |
 | Add-on (shared secret) | `POST /addon/ads/next`, `POST /addon/ads/:fileId`, `POST /addon/status` |
+| Casting | `POST /cast` `{ paths }` (prefixes of one item's stream and cover) returns `{ base, expiresAt }`; the Chromecast opens `base` + an API path (see Casting) |
 | Changes | `GET /changes`: a 204 whose `x-murmur-changes` header is `boot.books.music.watch.busy`, a count per kind that goes up as scans and matching add or change things, and whether one is running. `src/proxy.ts` puts the same header on every API answer. Clients (`createChangesPoller` in shared) ask every 3 s while busy and every 10 minutes otherwise, only while in front, take the header from calls they make anyway, and reload a kind's lists when its count moves, so new items appear as they're scanned and posters as they're matched |
 | Health | `GET /health`: `ok` and the version with no token (Docker's check, the app recognising a server); signed in, also database, library, scan and watcher status, the add-ons and the video status. A token that no longer works gets a 401, so a client never reads the short answer as the full one |
 
@@ -421,14 +423,14 @@ Unlike books and music, Watch matches on its own, the way Plex does, since rips 
 - **Small on disk:** a piece not made yet is waited for briefly, then gets a 503 with `Retry-After` and the player asks again. Pieces more than three minutes behind the player are deleted (asking for one gets a 404, and the player starts a new session there), and ffmpeg is paused while it's more than ten minutes ahead copying, or two minutes ahead converting, so one conversion doesn't take the CPU other viewers need (not on Windows, which can't pause a process). A session nobody has asked anything of for five minutes is stopped (a paused player keeps its own alive), each person keeps at most two, and everything is cleared at start. A copied picture's keyframes are remembered per file, so scrubbing back and forth over the same minutes probes it once.
 - **Converting the picture:** H.264 High at 1080p (full) or 720p (light, about a third of the work); bigger pictures are scaled down. Converting is what can eat the server, so at most two pictures convert at once for everyone (a third viewer gets a 503 asking them to try again in a moment; copied pictures don't count), ffmpeg's threads are sized to the container's `cpus` limit rather than the host's cores, and a download's ffmpeg runs at a lower priority than streams. The first conversion tries the GPU encoders with a short test, in order NVENC, Quick Sync, VAAPI, AMF and VideoToolbox, else `libx264` on the CPU; `WATCH_HW` names one or turns them off. The GPU decodes and scales too where it can. One that stops on a file before its first piece is dropped and the CPU takes over from the same spot; one still silent after a minute hands that stream to the CPU. HDR is tone mapped on the CPU first.
 - **Quality:** your setting (You > Playback > Converted video) is the starting point; a quality button beside Play and Quality in the player's More sheet pick for one video. When a converted stream runs dry three times, the player says "Converting slower than it plays", with a Lower quality link that saves 720p.
-- **Audio tracks:** with more than one, an Audio tile lists each track's language, codec and channels. The pick is remembered per movie or show, by language, on each device, as is the speed (0.5× to 2×).
+- **Audio tracks:** with more than one, an Audio tile lists each track's language, codec and channels. The pick is remembered per movie or show, by language, on each device. Video always plays at normal speed.
 - **Progress and stats:** saved like a book's, with `itemType: "video"`; past 92% counts as watched, and a season's or show's watched state is worked out from its episodes. Watch time goes in `listening_days` as its own kind, with its own total and colour on You, and counts towards the streak.
 - **Next episode:** 30 seconds before an episode ends, a card counts down to the next one. Play next episode (`autoplayNext`) off, it just reads "Next episode".
 - Starting a video stops any audio, saving its place, and playing audio ends the video the same way. Video doesn't go in Up Next.
 
 **The player** (web and app, the audio player's layout)
 
-- **Upright:** tinted by the poster, the video at 16:9 where the cover goes, then the title, scrubber, the audio player's buttons with next episode, the next episodes, and tiles for speed, audio, picture in picture and full screen. Pulling the top row down (or Escape) shrinks it to the mini player, where it keeps playing between pages.
+- **Upright:** tinted by the poster, the video at 16:9 where the cover goes, then the title, scrubber, the audio player's buttons with next episode, the next episodes, and tiles for audio, picture in picture and full screen. Pulling the top row down (or Escape) shrinks it to the mini player, where it keeps playing between pages.
 - **Sideways or full screen:** the video fills the screen, with the title along the top and the controls along the bottom, fading after three seconds. Double-tap either side skips back or forward.
 - **Web:** one `<video>` kept in the shell beside the audio engine, so it plays on between pages; `/watch/play/[kind]/[id]` opens it. Full screen on a phone locks to landscape where allowed. **App:** `expo-video` on a full-screen route that unlocks rotation (the rest of the app stays upright), with picture in picture.
 
@@ -442,6 +444,16 @@ Unlike books and music, Watch matches on its own, the way Plex does, since rips 
 - Download beside Play on a movie, on each episode row, and Download season in the show's More menu. Downloaded has Movies and a section per show. Offline, Watch shows only what's downloaded, and progress and watch time sync later through the outbox.
 
 **Rejected:** other free sources for details. TVmaze has no movies, OMDb allows 1,000 requests a day with posters for patrons only, TheTVDB needs a paid subscription for each person, Wikidata has little artwork, and Trakt points at TMDB for images. TVmaze is the one candidate for a no-key path for shows.
+
+## Casting
+
+Books, podcasts, music, movies and shows cast to a Chromecast from the web player (Chrome and Edge, which have Google's Cast sender) and the app. The TV runs Google's Default Media Receiver, so there's no Cast developer account and nothing hosted. The phone or browser stays in charge and the TV only plays.
+
+- **Links.** The Chromecast fetches straight from Murmur, without signing in, on the address the phone or browser is using (a LAN address or a tunnel's). `POST /api/cast` signs a token for a few path prefixes (one item's stream and its cover, from `castPrefix` in shared), for the user, read-only, for 12 hours, with a key the server keeps in its database. The link is `/api/cast/<token>/api/...`: the token rides in the path because a converted stream's pieces are relative links that would drop a query. `src/proxy.ts` serves such a link as the API path inside it, with CORS for Google's player, and `requireUser` accepts the token only for a GET or HEAD under one of its prefixes. Prefixes outside the streams and pictures are refused when signing and when checking, and tokens stay out of the logs.
+- **What plays.** Audio files as they are. Video plays as it is when a Chromecast reads it (`CAST_SUPPORT`: H.264 in MP4 with AAC, MP3, Opus, Vorbis or FLAC), and is otherwise streamed remuxed or converted exactly as for a device that can't play it, with the same quality setting and the same "Converting slower" card.
+- **The players.** While casting, the player plays through a stand-in for its media element that drives the TV (`CastMedia` on the web) and reads the TV's position, so saving progress, skipping ads, chapters, the sleep timer and Up Next run as they do locally. Songs follow each other on the TV without the gapless hand-over. Starting a cast picks up where you are; ending it brings the item back paused where the TV left it; closing the player stops the TV. Reconnecting to a TV already playing the same item picks up its position. If the phone app is killed or the tab closed, the TV carries on but nothing is saved until you reconnect.
+- **Looks.** A cast button sits left of the menu in the full player's top row, only when a Chromecast is found, and turns accent while casting. The top label reads "Playing on Living Room", and the mini player's second line becomes the device name. Video shows the backdrop where the picture was, and hides Pop out and Full screen. In the app, Google's Cast notification takes over from Murmur's own.
+- **Fails on its own.** No Cast SDK (another browser) or no device: no button, playback as before. When the TV can't load an item, a toast says "The Chromecast couldn't play this from this address." and the cast ends, bringing the item back to the device. A converted stream over plain http may not play on the TV, since Google's player fetches its pieces from an https page; files that play as they are still do.
 
 ## Android app
 
@@ -614,10 +626,9 @@ These are left out on purpose; each can be added later if it earns its place.
 - Bookmarks and clips with notes
 - A yearly listening recap
 - Subtitles for movies and shows: `.srt` and `.vtt` beside the file and text tracks inside it as WebVTT, picked in the player and remembered per show. Image subtitles (PGS, VobSub) would need burning into a converted picture
-- Casting video to a Chromecast from the web and the app
 - Faster far seeks in a stream, starting with a shorter first piece
 - Smart music mixes, and trimming silence between songs
 - Smart shelves and collections
-- Home screen widget and Chromecast
+- Home screen widget
 - Skip ad in the mini player
 - Choosing which kinds of ads to skip (inserted, host reads, promos)

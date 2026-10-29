@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { NavigationBar } from "expo-navigation-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
@@ -23,12 +24,12 @@ import {
   trackDetails,
   trackName,
   VIDEO_PLAYER,
-  VIDEO_SPEEDS,
   type VideoEpisode,
   type VideoQuality,
 } from "@murmur/shared/client";
 import {
   AudioTrackIcon,
+  CastIcon,
   CloseIcon,
   DownIcon,
   FullscreenIcon,
@@ -43,11 +44,12 @@ import {
 } from "@/components/icons";
 import { Pills } from "@/components/music";
 import { Empty, NestedFallback, SectionTitle } from "@/components/page";
-import { BufferingRing, SkipButton, Tile } from "@/components/player-controls";
+import { BufferingRing, CastButton, SkipButton, Tile } from "@/components/player-controls";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
 import { Button, Caption, IconButton, Text } from "@/components/ui";
 import { QualitySheet, Still } from "@/components/watch";
+import { absolute, authHeaders } from "@/lib/api";
 import { useAutoplayNext } from "@/lib/data";
 import { localVideo, useDownloads } from "@/lib/downloads";
 import { useOnline } from "@/lib/query";
@@ -62,6 +64,7 @@ import {
   useShow,
   type WatchTarget,
 } from "@/lib/watch";
+import { useCast } from "@/player/cast";
 import { usePlayerSelect } from "@/player/engine";
 import {
   closeVideo,
@@ -69,7 +72,6 @@ import {
   openVideo,
   seekVideo,
   setVideoQuality,
-  setVideoSpeed,
   setVideoTrack,
   skipVideo,
   toggleVideo,
@@ -85,7 +87,6 @@ import { fonts, mixColor, useTheme } from "@/theme";
 const CLOSE_DISTANCE = 120;
 const CLOSE_VELOCITY = 900;
 
-const speedLabel = (s: number) => `${s}x`;
 const isQuality = (q: string | undefined): q is VideoQuality => q === "full" || q === "light";
 
 function movieItem(movie: MovieDetail, versionId: string | undefined, quality: VideoQuality | null): VideoItem {
@@ -105,10 +106,15 @@ function movieItem(movie: MovieDetail, versionId: string | undefined, quality: V
       : movie.posterHash
         ? apiPaths.movieArtUrl(movie.id, "poster", movie.posterHash, "small")
         : null,
+    castArt: movie.backdropHash
+      ? apiPaths.movieArtUrl(movie.id, "backdrop", movie.backdropHash)
+      : movie.posterHash
+        ? apiPaths.movieArtUrl(movie.id, "poster", movie.posterHash)
+        : null,
     file: version.file,
     durationSec: version.durationSec,
     startAt: movie.progress && !movie.progress.finished ? movie.progress.positionSec : 0,
-    speedKey: movie.id,
+    memoryKey: movie.id,
     quality,
   };
 }
@@ -129,10 +135,15 @@ function episodeItem(show: ShowDetail, e: VideoEpisode, quality: VideoQuality | 
       : show.posterHash
         ? apiPaths.showArtUrl(show.id, "poster", show.posterHash, "small")
         : null,
+    castArt: e.stillHash
+      ? apiPaths.videoStillUrl(e.id, e.stillHash)
+      : show.backdropHash
+        ? apiPaths.showArtUrl(show.id, "backdrop", show.backdropHash)
+        : null,
     file: e.file,
     durationSec: e.durationSec,
     startAt: e.progress && !e.progress.finished ? e.progress.positionSec : 0,
-    speedKey: show.id,
+    memoryKey: show.id,
     quality,
   };
 }
@@ -184,8 +195,9 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
   const v = useVideo();
   const skip = usePlayerSelect((s) => s.skip);
   const host = useVideoHost();
+  const { available: castAvailable, device: castDevice } = useCast();
   const [view, setView] = useState<VideoView | null>(null);
-  const [sheet, setSheet] = useState<null | "speed" | "audio" | "more" | "quality">(null);
+  const [sheet, setSheet] = useState<null | "audio" | "more" | "quality">(null);
   const [controls, setControls] = useState(true);
   const [pokedAt, setPokedAt] = useState(0);
   const [lastTap, setLastTap] = useState({ at: 0, x: 0 });
@@ -205,11 +217,12 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
     openVideo(item);
   }, [item]);
 
-  // Only the player screen turns with the phone; the rest of the app stays upright.
+  // Only the player screen turns with the phone; the rest of the app stays upright. Casting lets go
+  // of Full screen, which has no picture to fill then.
   useEffect(() => {
     void ScreenOrientation.unlockAsync();
     return () => void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-  }, []);
+  }, [castDevice]);
 
   // Full screen turns the picture sideways and holds it there until it's tapped again or you leave.
   const toggleFullscreen = () => {
@@ -339,7 +352,20 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
   const soft = sideways ? "rgba(255,255,255,0.75)" : t.isDark ? t.muted : t.text2;
   const trackColor = sideways ? "rgba(255,255,255,0.35)" : t.isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)";
 
-  const video = host ? (
+  const video = castDevice ? (
+    // The picture is on the TV; here, its backdrop with the cast mark.
+    <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center", backgroundColor: "#000" }]}>
+      {item.castArt ? (
+        <Image
+          source={{ uri: absolute(item.castArt), headers: authHeaders(), cacheKey: item.castArt }}
+          cachePolicy="disk"
+          contentFit="cover"
+          style={[StyleSheet.absoluteFill, { opacity: 0.45 }]}
+        />
+      ) : null}
+      <CastIcon size={44} color="#fff" connected />
+    </View>
+  ) : host ? (
     <VideoView
       ref={setView}
       player={videoPlayer()}
@@ -537,19 +563,6 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
           setVideoQuality(q);
         }}
       />
-      <Sheet open={sheet === "speed"} onClose={() => setSheet(null)} title="Speed">
-        {VIDEO_SPEEDS.map((s) => (
-          <SheetItem
-            key={s}
-            label={speedLabel(s)}
-            active={s === v.speed}
-            onPress={() => {
-              setVideoSpeed(s);
-              setSheet(null);
-            }}
-          />
-        ))}
-      </Sheet>
       <Sheet open={sheet === "audio"} onClose={() => setSheet(null)} title="Audio">
         {tracks.map((a) => (
           <SheetItem
@@ -598,6 +611,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
                 </Text>
               ) : null}
             </View>
+            <CastButton color="#fff" />
           </View>
           <View style={{ position: "absolute", left: Math.max(insets.left, 24), right: Math.max(insets.right, 24), bottom: Math.max(insets.bottom, 12), gap: 4 }}>
             {scrubber}
@@ -606,34 +620,22 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
               <View style={{ width: 380 }}>{controlRow}</View>
               {/* What the tiles hold, at the bottom right of the picture. */}
               <View style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end" }}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Speed ${speedLabel(v.speed)}`}
-                  onPress={() => setSheet("speed")}
-                  style={({ pressed }) => ({
-                    height: 30,
-                    paddingHorizontal: 10,
-                    marginRight: 4,
-                    borderRadius: 15,
-                    borderWidth: 1.5,
-                    borderColor: "rgba(255,255,255,0.45)",
-                    justifyContent: "center",
-                    opacity: pressed ? 0.6 : 1,
-                  })}
-                >
-                  <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: "#fff", fontVariant: ["tabular-nums"] }}>{speedLabel(v.speed)}</Text>
-                </Pressable>
                 {tracks.length > 1 ? (
                   <IconButton label="Audio" onPress={() => setSheet("audio")}>
                     <AudioTrackIcon color="#fff" />
                   </IconButton>
                 ) : null}
-                <IconButton label="Picture in picture" onPress={pip}>
-                  <PipIcon color="#fff" />
-                </IconButton>
-                <IconButton label="Exit full screen" onPress={toggleFullscreen}>
-                  <FullscreenIcon exit color="#fff" />
-                </IconButton>
+                {/* The picture is on the TV while casting, so there's nothing to pop out or fill the screen with. */}
+                {castDevice ? null : (
+                  <>
+                    <IconButton label="Picture in picture" onPress={pip}>
+                      <PipIcon color="#fff" />
+                    </IconButton>
+                    <IconButton label="Exit full screen" onPress={toggleFullscreen}>
+                      <FullscreenIcon exit color="#fff" />
+                    </IconButton>
+                  </>
+                )}
               </View>
             </View>
           </View>
@@ -652,13 +654,21 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
         <View style={{ flex: 1, paddingTop: insets.top + 4, paddingBottom: insets.bottom + 16, paddingHorizontal: 24 }}>
           <GestureDetector gesture={pullDown}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: -10 }}>
-              <IconButton label="Close player" onPress={back}>
-                <DownIcon color={t.text} />
-              </IconButton>
-              <Caption style={{ letterSpacing: 0.6, color: soft }}>Playing from {item.kind === "movie" ? "Movies" : "Shows"}</Caption>
-              <IconButton label="More options" onPress={() => setSheet("more")}>
-                <MoreIcon color={t.text} />
-              </IconButton>
+              {/* As wide as the buttons on the right, so the line between stays centred. */}
+              <View style={{ width: castAvailable ? 88 : 44 }}>
+                <IconButton label="Close player" onPress={back}>
+                  <DownIcon color={t.text} />
+                </IconButton>
+              </View>
+              <Caption numberOfLines={1} style={{ flex: 1, textAlign: "center", letterSpacing: 0.6, color: soft }}>
+                {castDevice ? `Playing on ${castDevice}` : `Playing from ${item.kind === "movie" ? "Movies" : "Shows"}`}
+              </Caption>
+              <View style={{ flexDirection: "row" }}>
+                <CastButton color={t.text} />
+                <IconButton label="More options" onPress={() => setSheet("more")}>
+                  <MoreIcon color={t.text} />
+                </IconButton>
+              </View>
             </View>
           </GestureDetector>
 
@@ -723,22 +733,26 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
             ) : null}
           </ScrollView>
 
-          <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-            <Tile label="Speed" onPress={() => setSheet("speed")} active={v.speed !== 1}>
-              <Text style={{ fontFamily: fonts.extrabold, fontSize: 16, color: v.speed !== 1 ? t.accent : t.text }}>{speedLabel(v.speed)}</Text>
-            </Tile>
-            {tracks.length > 1 ? (
-              <Tile label="Audio" onPress={() => setSheet("audio")}>
-                <AudioTrackIcon size={20} color={t.text} />
-              </Tile>
-            ) : null}
-            <Tile label="Pop out" onPress={pip}>
-              <PipIcon size={20} color={t.text} />
-            </Tile>
-            <Tile label="Full screen" onPress={toggleFullscreen}>
-              <FullscreenIcon size={20} color={t.text} />
-            </Tile>
-          </View>
+          {tracks.length > 1 || !castDevice ? (
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+              {tracks.length > 1 ? (
+                <Tile label="Audio" onPress={() => setSheet("audio")}>
+                  <AudioTrackIcon size={20} color={t.text} />
+                </Tile>
+              ) : null}
+              {/* The picture is on the TV while casting, so there's nothing to pop out or fill the screen with. */}
+              {castDevice ? null : (
+                <>
+                  <Tile label="Pop out" onPress={pip}>
+                    <PipIcon size={20} color={t.text} />
+                  </Tile>
+                  <Tile label="Full screen" onPress={toggleFullscreen}>
+                    <FullscreenIcon size={20} color={t.text} />
+                  </Tile>
+                </>
+              )}
+            </View>
+          ) : null}
         </View>
         {slowCard}
       </Animated.View>

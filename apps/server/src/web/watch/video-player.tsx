@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   apiPaths,
+  CAST_SUPPORT,
   clock,
   codecName,
   defaultAudioTrack,
@@ -22,21 +23,21 @@ import {
   trackDetails,
   trackForLanguage,
   trackName,
-  validSpeed,
   VIDEO_PLAYER,
   type VideoQuality,
-  VIDEO_SPEEDS,
   type VideoAudioTrack,
   type VideoEpisode,
   type VideoFileInfo,
   videoLanguageKey,
-  videoSpeedKey,
   WATCHED_AT,
 } from "@murmur/shared/client";
 import { toast } from "sonner";
 import { api } from "../api";
+import { CAST_FAILED, CastMedia, MEDIA_EVENTS, type MediaEventName, stopCasting, useCast } from "../cast/cast";
+import { CastButton } from "../cast/cast-button";
 import {
   AudioTrackIcon,
+  CastIcon,
   CloseIcon,
   DownIcon,
   FullscreenIcon,
@@ -75,6 +76,8 @@ export interface PlayerItem {
   label: string | null;
   /** The poster's colour, tinting the player like the audio one. */
   color: string | null;
+  /** A wide picture (the backdrop, or the episode's still) for the TV and the stage while casting. */
+  art: string | null;
   /** The quality a converted picture is made at: picked for this one before playing, else your setting. */
   quality: VideoQuality;
   src: string;
@@ -88,8 +91,8 @@ export interface PlayerItem {
   next: VideoEpisode[];
   /** Your Play next episode setting: off, the next-episode card waits for a tap. */
   autoplayNext: boolean;
-  /** Speed is remembered per movie and per show. */
-  speedKey: string;
+  /** The audio language is remembered per movie and per show. */
+  memoryKey: string;
 }
 
 const {
@@ -104,25 +107,6 @@ const {
 } = VIDEO_PLAYER;
 /** A phone on its side; a laptop window this short is rare enough to treat the same. */
 const SIDEWAYS_PHONE = "(orientation: landscape) and (max-height: 600px)";
-
-function readSpeed(key: string): number {
-  try {
-    return validSpeed(Number(localStorage.getItem(videoSpeedKey(key))));
-  } catch {
-    return 1;
-  }
-}
-
-function saveSpeed(key: string, speed: number) {
-  try {
-    if (speed === 1) localStorage.removeItem(videoSpeedKey(key));
-    else localStorage.setItem(videoSpeedKey(key), String(speed));
-  } catch {
-    // Private windows can refuse storage; the speed just isn't remembered.
-  }
-}
-
-const speedLabel = (s: number) => `${s}x`;
 
 /** Tells the server a stream is done with, so ffmpeg stops; nothing to do if that fails. */
 function endStream(sessionId: string) {
@@ -227,11 +211,18 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   const video = useVideo();
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  /** While casting the Chromecast plays instead of the <video>, through this stand-in for it. */
+  const castDevice = useCast().device;
+  const casting = !!castDevice;
+  const castRef = useRef<CastMedia | null>(null);
+  const castingRef = useRef(casting);
+  /** What plays: the <video>, or the Chromecast. */
+  const media = useCallback(() => (castingRef.current ? castRef.current : videoRef.current), []);
   /** Null until the support check ran (it needs the browser). */
   const [plan, setPlan] = useState<PlaybackPlan | null>(null);
   // The player only renders in the browser (the shell opens it), so storage can be read up front.
   /** The audio track picked; null plays the default one. */
-  const [track, setTrack] = useState<number | null>(() => rememberedTrack(item.file, item.speedKey));
+  const [track, setTrack] = useState<number | null>(() => rememberedTrack(item.file, item.memoryKey));
   /** The file was tried as it is and wouldn't open. */
   const [forceRemux, setForceRemux] = useState(false);
   /** The file played as it is; null while streaming or before it's known. */
@@ -264,8 +255,6 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   const [times] = useState(() => createClock(item.startAt));
   const [total, setTotal] = useState(item.durationSec);
   const [controls, setControls] = useState(true);
-  const [speed, setSpeed] = useState(() => readSpeed(item.speedKey));
-  const [speedOpen, setSpeedOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -288,9 +277,18 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     if (audio.item && audio.item !== audioAtStart.current) closeVideo();
   }, [audio.item, closeVideo]);
 
-  // Plays the file as it is when the browser can, or starts a stream from where you are.
+  // Casting starting or ending picks the video up from the same moment on the other side; when it
+  // ends the video comes back paused. (Before the plan below, which starts again from resumeAt.)
   useEffect(() => {
-    const p = playbackPlan(item.file, browserSupport(item.file), { track, forceRemux });
+    if (castingRef.current === casting) return;
+    castingRef.current = casting;
+    resumeAt.current = times.get().time;
+    if (!casting) wantPlay.current = false;
+  }, [casting, times]);
+
+  // Plays the file as it is when the browser (or the Chromecast) can, or starts a stream from where you are.
+  useEffect(() => {
+    const p = playbackPlan(item.file, casting ? CAST_SUPPORT : browserSupport(item.file), { track, forceRemux });
     setPlan(p);
     setStream(null);
     setSlow(false);
@@ -333,7 +331,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
       window.removeEventListener("pagehide", onHide);
       onHide();
     };
-  }, [item.file, item.src, item.videoId, item.startAt, item.durationSec, track, forceRemux, restartKey]);
+  }, [item.file, item.src, item.videoId, item.startAt, item.durationSec, track, forceRemux, restartKey, casting]);
 
   // A paused player stops fetching pieces, and the server ends a session nobody asks anything of
   // for five minutes; asking for the playlist now and then keeps it, so Play carries straight on.
@@ -346,7 +344,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   // Hands the stream to the <video>: Safari plays HLS itself, other browsers through hls.js.
   useEffect(() => {
     const v = videoRef.current;
-    if (!stream || !v) return;
+    if (!stream || !v || casting) return;
     // Chrome claims it "maybe" plays HLS natively and then can't, so only Safari (or a browser without MediaSource) gets the playlist directly.
     if (isSafari() || !("MediaSource" in window)) {
       v.src = stream.playlistUrl;
@@ -411,10 +409,47 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
       cancelled = true;
       hls?.destroy();
     };
-  }, [stream]);
+  }, [stream, casting]);
 
-  /** Where you are in the video: the <video>'s clock, plus where a stream started. */
-  const position = useCallback(() => offsetRef.current + (videoRef.current?.currentTime ?? 0), []);
+  // Closing the player while casting stops the TV too. (Before the effect below, whose cleanup lets go of it.)
+  useEffect(
+    () => () => {
+      const cm = castRef.current;
+      if (castingRef.current && cm?.src) {
+        cm.removeAttribute("src");
+        cm.load();
+      }
+    },
+    [],
+  );
+
+  // While casting, the file or the stream goes to the Chromecast instead, from where you are.
+  useEffect(() => {
+    const path = src ?? stream?.playlistUrl;
+    if (!casting || !path) return;
+    let cm = castRef.current;
+    if (!cm) {
+      const made = new CastMedia(() => ({
+        title: item.title,
+        subtitle: item.showTitle && item.label ? `${item.showTitle}, ${item.label}` : null,
+        image: item.art,
+      }));
+      for (const name of MEDIA_EVENTS) made.addEventListener(name, () => castEvents.current[name]());
+      castRef.current = cm = made;
+    }
+    cm.src = path;
+    // A stream already starts where it should; the file starts where you were.
+    cm.startAt = stream ? 0 : (resumeAt.current ?? resumeStart(item.startAt, item.durationSec));
+    if (!stream) resumeAt.current = null;
+    cm.autoplay = wantPlay.current;
+    cm.volume = effectiveVolume(volume);
+    cm.load();
+    return () => cm.release();
+    // The volume is applied by its own effect; this runs for a new file, stream or cast.
+  }, [casting, src, stream]);
+
+  /** Where you are in the video: the player's clock, plus where a stream started. */
+  const position = useCallback(() => offsetRef.current + (media()?.currentTime ?? 0), [media]);
 
   /**
    * Moves to a point in the video. A stream only has what ffmpeg has made so far from where it
@@ -423,7 +458,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
    */
   const seekTo = useCallback(
     (t: number, restart = true) => {
-      const v = videoRef.current;
+      const v = media();
       if (!v) return;
       touched.current = true;
       const to = Math.max(0, Math.min(total || 0, t));
@@ -439,7 +474,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         setRestartKey((k) => k + 1);
       }
     },
-    [total],
+    [total, media],
   );
 
   /** Another quality for this video: the stream starts again from here at it. */
@@ -476,11 +511,11 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
 
   // The volume slider is this device's, shared with the audio player.
   useEffect(() => {
-    const v = videoRef.current;
+    const v = media();
     if (!v) return;
     v.volume = effectiveVolume(volume);
     v.muted = volume.muted;
-  }, [volume, src, stream]);
+  }, [volume, src, stream, media]);
 
   /** Another audio track: remembered by language, and picks up where you are. */
   const pickTrack = (t: VideoAudioTrack) => {
@@ -488,14 +523,14 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     const current = track ?? defaultAudioTrack(item.file);
     if (t.index === current) return;
     resumeAt.current = position();
-    saveLanguage(item.speedKey, t.language);
+    saveLanguage(item.memoryKey, t.language);
     setTrack(t.index === defaultAudioTrack(item.file) ? null : t.index);
   };
 
   /** Saves your place; nothing is saved until you've actually watched or moved, so opening and closing changes nothing. */
   const save = useCallback(
     (keepalive = false) => {
-      const v = videoRef.current;
+      const v = media();
       if (!v || !touched.current) return;
       void sendListening(keepalive).catch(() => undefined);
       // A stream's <video> only knows the part made so far; the file's length comes from the server.
@@ -520,7 +555,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         },
       }).catch(() => undefined);
     },
-    [item.progressId, item.durationSec, position],
+    [item.progressId, item.durationSec, position, media],
   );
 
   useEffect(() => {
@@ -545,17 +580,17 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     setPokedAt(Date.now());
   }, []);
   useEffect(() => {
-    if (!controls || !playing || speedOpen) return;
+    if (!controls || !playing) return;
     const timer = setTimeout(() => setControls(false), HIDE_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [controls, playing, speedOpen, pokedAt]);
+  }, [controls, playing, pokedAt]);
 
   const toggle = useCallback(() => {
-    const v = videoRef.current;
+    const v = media();
     if (!v) return;
     if (v.paused) void v.play().catch(() => undefined);
     else v.pause();
-  }, []);
+  }, [media]);
 
   const skip = useCallback((delta: number) => seekTo(position() + delta), [seekTo, position]);
 
@@ -648,8 +683,8 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     const ms = navigator.mediaSession;
     ms.metadata = new MediaMetadata({ title: item.title, artist: item.showTitle ?? "", album: item.label ?? "" });
     const handlers: Array<[MediaSessionAction, MediaSessionActionHandler | null]> = [
-      ["play", () => void videoRef.current?.play()],
-      ["pause", () => videoRef.current?.pause()],
+      ["play", () => void media()?.play()],
+      ["pause", () => media()?.pause()],
       ["seekbackward", () => skip(-audio.skip.back)],
       ["seekforward", () => skip(audio.skip.forward)],
       ["nexttrack", next ? goNext : null],
@@ -689,7 +724,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   };
 
   const onTimeUpdate = () => {
-    const v = videoRef.current;
+    const v = media();
     if (!v) return;
     const at = position();
     times.set({ time: at, buffered: v.buffered.length ? offsetRef.current + v.buffered.end(v.buffered.length - 1) : times.get().buffered });
@@ -707,10 +742,12 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   };
 
   const onLoaded = () => {
-    const v = videoRef.current;
+    const v = media();
     if (!v) return;
-    v.playbackRate = speed;
-    if (streamingRef.current) {
+    if (v instanceof CastMedia) {
+      // The cast was sent from the right place already.
+      setTotal(item.durationSec);
+    } else if (streamingRef.current) {
       // The stream already starts where it should; the <video> just plays from its beginning.
       setTotal(item.durationSec);
       if (v.currentTime > 1) v.currentTime = 0; // Safari can open a live playlist near its edge
@@ -729,6 +766,12 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   };
 
   const onError = () => {
+    if (castingRef.current) {
+      // Ending the cast brings the video back here, where it can still play.
+      toast.error(CAST_FAILED);
+      stopCasting();
+      return;
+    }
     const err = videoRef.current?.error;
     // MKV is only a guess outside Safari: a file that won't open as it is gets streamed remuxed instead.
     if (err?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED && src === item.src && !forceRemux) {
@@ -751,11 +794,39 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     );
   };
 
-  const changeSpeed = (s: number) => {
-    setSpeed(s);
-    saveSpeed(item.speedKey, s);
-    if (videoRef.current) videoRef.current.playbackRate = s;
-    setSpeedOpen(false);
+  const onPlay = () => {
+    setPlaying(true);
+    wantPlay.current = true;
+  };
+  // A converted stream that keeps running dry means the server converts slower than it plays.
+  const onWaiting = () => {
+    setBuffering(true);
+    if (plan?.kind === "transcode" && position() > offsetRef.current + 1 && ++stalls.current >= SLOW_AFTER_STALLS) setSlow(true);
+  };
+  const onPause = () => {
+    setPlaying(false);
+    wantPlay.current = false;
+    setControls(true);
+    save();
+  };
+  const onEnded = () => {
+    setPlaying(false);
+    setControls(true);
+    save();
+    if (!mini && next && !nextDismissed.current && item.autoplayNext) goNext();
+  };
+  /** The same handlers for the Chromecast, which sends the same events as the <video>. */
+  const castEvents = useRef<Record<MediaEventName, () => void>>(null!);
+  castEvents.current = {
+    loadedmetadata: onLoaded,
+    timeupdate: onTimeUpdate,
+    play: onPlay,
+    playing: () => setBuffering(false),
+    waiting: onWaiting,
+    pause: onPause,
+    seeked: () => undefined,
+    ended: onEnded,
+    error: onError,
   };
 
   /** Leaves the player's page; the video carries on in the mini player. */
@@ -811,20 +882,29 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
       role={mini ? "region" : undefined}
       aria-label={mini ? "Now watching" : undefined}
       onPointerMove={(e) => e.pointerType === "mouse" && poke()}
-      onPointerLeave={(e) => e.pointerType === "mouse" && playing && !speedOpen && setControls(false)}
+      onPointerLeave={(e) => e.pointerType === "mouse" && playing && setControls(false)}
     >
       <div className="vp-head player-top player-pull" {...pull.handlers}>
         <button type="button" className="icon-btn" aria-label="Close player" onClick={back}>
           <DownIcon />
         </button>
-        <div className="player-from">Playing from {item.kind === "movie" ? "Movies" : "Shows"}</div>
-        <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMoreOpen(true)}>
-          <MoreIcon />
-        </button>
+        <div className="player-from">{castDevice ? `Playing on ${castDevice}` : `Playing from ${item.kind === "movie" ? "Movies" : "Shows"}`}</div>
+        <div className="player-top-end">
+          <CastButton />
+          <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMoreOpen(true)}>
+            <MoreIcon />
+          </button>
+        </div>
       </div>
 
       <div className="vp-stage" onClick={onStageTap}>
-        {src || stream ? (
+        {casting ? (
+          // The picture is on the TV; here, its backdrop with the cast mark.
+          <div className="vp-cast">
+            {item.art ? <img src={item.art} alt="" /> : null}
+            <CastIcon size={44} />
+          </div>
+        ) : src || stream ? (
           <video
             key={src ?? stream?.sessionId}
             ref={videoRef}
@@ -834,29 +914,12 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
             preload="metadata"
             onLoadedMetadata={onLoaded}
             onTimeUpdate={onTimeUpdate}
-            onPlay={() => {
-              setPlaying(true);
-              wantPlay.current = true;
-            }}
+            onPlay={onPlay}
             onPlaying={() => setBuffering(false)}
             onCanPlay={() => setBuffering(false)}
-            // A converted stream that keeps running dry means the server converts slower than it plays.
-            onWaiting={() => {
-              setBuffering(true);
-              if (plan?.kind === "transcode" && position() > offsetRef.current + 1 && ++stalls.current >= SLOW_AFTER_STALLS) setSlow(true);
-            }}
-            onPause={() => {
-              setPlaying(false);
-              wantPlay.current = false;
-              setControls(true);
-              save();
-            }}
-            onEnded={() => {
-              setPlaying(false);
-              setControls(true);
-              save();
-              if (!mini && next && !nextDismissed.current && item.autoplayNext) goNext();
-            }}
+            onWaiting={onWaiting}
+            onPause={onPause}
+            onEnded={onEnded}
             onError={onError}
           />
         ) : null}
@@ -952,17 +1015,18 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
           </div>
           {/* Sideways or in full screen: what the tiles hold, at the bottom right of the picture. */}
           <div className="vp-tools">
-            <button type="button" className="vp-pill" aria-label={`Speed ${speedLabel(speed)}`} onClick={() => setSpeedOpen(true)}>
-              {speedLabel(speed)}
-            </button>
             <VolumeControl />
             {audioButton}
-            <button type="button" className="icon-btn" aria-label="Picture in picture" onClick={pip}>
-              <PipIcon />
-            </button>
-            <button type="button" className="icon-btn" aria-label={fullscreen ? "Exit full screen" : "Full screen"} onClick={toggleFullscreen}>
-              <FullscreenIcon exit={fullscreen} />
-            </button>
+            {casting ? null : (
+              <>
+                <button type="button" className="icon-btn" aria-label="Picture in picture" onClick={pip}>
+                  <PipIcon />
+                </button>
+                <button type="button" className="icon-btn" aria-label={fullscreen ? "Exit full screen" : "Full screen"} onClick={toggleFullscreen}>
+                  <FullscreenIcon exit={fullscreen} />
+                </button>
+              </>
+            )}
           </div>
         </div>
         {/* The next episodes scroll here, so the tiles stay at the bottom. */}
@@ -990,24 +1054,25 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         </div>
         <div className="player-tiles vp-tiles">
           {slowCard}
-          <button type="button" className="tile" onClick={() => setSpeedOpen(true)}>
-            <strong>{speedLabel(speed)}</strong>
-            <span>Speed</span>
-          </button>
           {tracks.length > 1 ? (
             <button type="button" className="tile" onClick={() => setAudioOpen(true)}>
               <AudioTrackIcon size={20} />
               <span>Audio</span>
             </button>
           ) : null}
-          <button type="button" className="tile" onClick={pip}>
-            <PipIcon size={20} />
-            <span>Pop out</span>
-          </button>
-          <button type="button" className="tile" onClick={toggleFullscreen} aria-pressed={fullscreen}>
-            <FullscreenIcon size={20} exit={fullscreen} />
-            <span>Full screen</span>
-          </button>
+          {/* The picture is on the TV while casting, so there's nothing to pop out or fill the screen with. */}
+          {casting ? null : (
+            <>
+              <button type="button" className="tile" onClick={pip}>
+                <PipIcon size={20} />
+                <span>Pop out</span>
+              </button>
+              <button type="button" className="tile" onClick={toggleFullscreen} aria-pressed={fullscreen}>
+                <FullscreenIcon size={20} exit={fullscreen} />
+                <span>Full screen</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -1016,7 +1081,14 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
           <Link className="mini-open" href={item.href} aria-label={`Open player: ${item.title}`}>
             <span className="mini-text">
               <span className="mini-title">{heading}</span>
-              <MiniSub store={times} total={total} label={item.label} />
+              {castDevice ? (
+                <span className="mini-sub mini-cast">
+                  <CastIcon size={13} />
+                  {castDevice}
+                </span>
+              ) : (
+                <MiniSub store={times} total={total} label={item.label} />
+              )}
             </span>
           </Link>
           <button type="button" className="mini-skip" onClick={() => skip(-audio.skip.back)} aria-label={`Skip back ${audio.skip.back} seconds`}>
@@ -1075,14 +1147,6 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
       </Sheet>
 
       <QualitySheet open={qualityOpen} value={qualityShown} onClose={() => setQualityOpen(false)} onPick={pickQuality} />
-
-      <Sheet open={speedOpen} onClose={() => setSpeedOpen(false)} title="Speed">
-        {VIDEO_SPEEDS.map((s) => (
-          <SheetItem key={s} active={s === speed} onClick={() => changeSpeed(s)}>
-            {speedLabel(s)}
-          </SheetItem>
-        ))}
-      </Sheet>
 
       <Sheet open={audioOpen} onClose={() => setAudioOpen(false)} title="Audio">
         {tracks.map((t) => (

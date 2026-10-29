@@ -291,9 +291,9 @@ export function Segmented<T extends string>({
 }
 
 /** Small uppercase label: a field's name, "Playlist" over a title, "Playing from…". */
-export function Caption({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
+export function Caption({ children, style, numberOfLines }: { children: React.ReactNode; style?: StyleProp<TextStyle>; numberOfLines?: number }) {
   return (
-    <Text variant="caption" style={[{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.8 }, style]}>
+    <Text variant="caption" numberOfLines={numberOfLines} style={[{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.8 }, style]}>
       {children}
     </Text>
   );

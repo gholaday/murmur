@@ -39,6 +39,8 @@ import { Sheet, SheetItem } from "../sheet";
 import { Chip, Chips } from "../ui";
 import { UpNextSheet } from "../up-next";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } from "./ad-prefs";
+import { CastButton } from "../cast/cast-button";
+import { useCast } from "../cast/cast";
 import { usePlayer, usePosition, useTint } from "./engine";
 import { VolumeControl } from "./volume-control";
 
@@ -102,6 +104,7 @@ export function usePullToClose(onClose: () => void) {
 
 export function FullPlayer() {
   const p = usePlayer();
+  const castDevice = useCast().device;
   const [sheet, setSheet] = useState<null | "sleep" | "chapters" | "more" | "ads" | "upnext">(null);
   const adPrefs = useAdPrefs();
   const [speedOpen, setSpeedOpen] = useState(false);
@@ -196,10 +199,15 @@ export function FullPlayer() {
         <button type="button" className="icon-btn" onClick={() => setExpanded(false)} aria-label="Close player">
           <DownIcon />
         </button>
-        <div className="player-from">Playing from {song ? (p.upNext.source?.title ?? "Music") : item.type === "book" ? "Books" : "Podcasts"}</div>
-        <button type="button" className="icon-btn" onClick={() => setSheet("more")} aria-label="More options">
-          <MoreIcon />
-        </button>
+        <div className="player-from">
+          {castDevice ? `Playing on ${castDevice}` : `Playing from ${song ? (p.upNext.source?.title ?? "Music") : item.type === "book" ? "Books" : "Podcasts"}`}
+        </div>
+        <div className="player-top-end">
+          <CastButton />
+          <button type="button" className="icon-btn" onClick={() => setSheet("more")} aria-label="More options">
+            <MoreIcon />
+          </button>
+        </div>
       </div>
 
       <div className="player-main">

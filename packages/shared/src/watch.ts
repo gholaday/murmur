@@ -240,9 +240,6 @@ export interface EpisodePlayDto {
 /** A video counts as watched once you're this far through. */
 export const WATCHED_AT = 0.92;
 
-/** Speeds offered in the video player. */
-export const VIDEO_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-
 export type WatchArtKind = "poster" | "backdrop" | "still";
 
 /** What a device can play, asked by the player (on the web, `MediaSource.isTypeSupported`). */
@@ -393,10 +390,8 @@ export const VIDEO_PLAYER = {
   touchedAfterSec: 3,
 } as const;
 
-/** Where the speed and the audio language are remembered, per movie and per show. */
-export const videoSpeedKey = (key: string) => `murmur.videoSpeed.${key}`;
+/** Where the audio language is remembered, per movie and per show. */
 export const videoLanguageKey = (key: string) => `murmur.videoAudio.${key}`;
-export const validSpeed = (v: unknown): number => (typeof v === "number" && VIDEO_SPEEDS.includes(v) ? v : 1);
 
 /** How far through, as a percentage, for progress bars. */
 export const percentDone = (positionSec: number, durationSec: number) => (durationSec ? Math.min(100, (positionSec / durationSec) * 100) : 0);

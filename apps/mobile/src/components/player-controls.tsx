@@ -2,10 +2,24 @@ import { useEffect } from "react";
 import { Pressable, View } from "react-native";
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import Svg, { Circle } from "react-native-svg";
+import { pickCastDevice, useCast } from "@/player/cast";
 import { fonts, useTheme } from "@/theme";
-import { NumberBadge, Text } from "./ui";
+import { CastIcon } from "./icons";
+import { IconButton, NumberBadge, Text } from "./ui";
 
 // Pieces of the full players, shared by the audio and video ones.
+
+/** The cast button in a full player's top row: only there when a Chromecast is found, accent while casting. */
+export function CastButton({ color }: { color: string }) {
+  const t = useTheme();
+  const { available, device } = useCast();
+  if (!available) return null;
+  return (
+    <IconButton label={device ? `Casting to ${device}` : "Cast"} onPress={pickCastDevice}>
+      <CastIcon size={22} connected={!!device} color={device ? t.accent : color} />
+    </IconButton>
+  );
+}
 
 /** A skip button with its seconds drawn inside the arrow. */
 export function SkipButton({

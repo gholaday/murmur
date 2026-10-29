@@ -88,4 +88,6 @@ export const apiPaths = {
   videoDownloadFile: (downloadId: string) => `/api/watch/downloads/${downloadId}`,
   /** DELETE ends a stream session. */
   streamSession: (sessionId: string) => `/api/watch/streams/${sessionId}`,
+  /** POST `{ paths }` (prefixes of streams and pictures) → CastLinkDto, links a Chromecast can open. */
+  cast: "/api/cast",
 };

@@ -35,6 +35,11 @@ export default async function PlayPage({
       showTitle: null,
       label: null,
       color: movie.color,
+      art: movie.backdropHash
+        ? apiPaths.movieArtUrl(movie.id, "backdrop", movie.backdropHash)
+        : movie.posterHash
+          ? apiPaths.movieArtUrl(movie.id, "poster", movie.posterHash)
+          : null,
       quality,
       videoId: version.id,
       src: apiPaths.videoUrl(version.id),
@@ -44,7 +49,7 @@ export default async function PlayPage({
       backHref: `/watch/movie/${movie.id}`,
       next: [],
       autoplayNext: false,
-      speedKey: movie.id,
+      memoryKey: movie.id,
     };
   } else if (kind === "episode") {
     const play = await getEpisodePlay(ctx, user.id, id);
@@ -58,6 +63,7 @@ export default async function PlayPage({
       showTitle: play.show.title,
       label: episodeLabel(e.season, e.episode),
       color: play.show.color,
+      art: e.stillHash ? apiPaths.videoStillUrl(e.id, e.stillHash) : null,
       quality,
       videoId: e.id,
       src: apiPaths.videoUrl(e.id),
@@ -67,7 +73,7 @@ export default async function PlayPage({
       backHref: `/watch/show/${play.show.id}?season=${e.season}`,
       next: play.next,
       autoplayNext: prefs.autoplayNext,
-      speedKey: play.show.id,
+      memoryKey: play.show.id,
     };
   } else notFound();
   return <OpenVideo item={item} />;

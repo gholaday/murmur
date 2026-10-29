@@ -4,6 +4,7 @@ import { useIsFocused } from "expo-router";
 import { createVideoPlayer, type VideoPlayer, type VideoSource } from "expo-video";
 import {
   apiPaths,
+  CAST_SUPPORT,
   errorText,
   type PlaybackPlan,
   playbackPlan,
@@ -24,11 +25,10 @@ import {
   markPictureUnplayable,
   pictureUnplayable,
   readVideoLanguage,
-  readVideoSpeed,
   saveVideoLanguage,
-  saveVideoSpeed,
   type WatchTarget,
 } from "@/lib/watch";
+import { CastPlayer, onCastDevice } from "./cast";
 import { artworkFile, countWatching, getPlayerState, onPlayerChange, queueProgress, stop as stopAudio } from "./engine";
 
 // The video being watched, kept outside the screens so it plays on in the mini player, like the
@@ -57,12 +57,14 @@ export interface VideoItem {
   /** The media notification's second line and picture (a server path): a movie's year and backdrop, an episode's show and still. */
   sub: string;
   art: string | null;
+  /** A wide picture (a server path) for the TV and the player while casting: a movie's backdrop (else poster), an episode's still. */
+  castArt: string | null;
   file: VideoFileInfo;
   durationSec: number;
   /** Where to resume; 0 starts from the beginning. */
   startAt: number;
-  /** Speed and the audio language are remembered per movie and per show. */
-  speedKey: string;
+  /** The audio language is remembered per movie and per show. */
+  memoryKey: string;
   /** A converted-picture quality picked for this viewing; null means your setting. */
   quality: VideoQuality | null;
 }
@@ -74,7 +76,6 @@ export interface VideoState {
   loading: boolean;
   /** Plainly what went wrong, when it won't play. */
   error: string | null;
-  speed: number;
   /** The file played to its end. */
   ended: boolean;
   /** How it's playing: the file itself, or a stream with the picture copied or converted. */
@@ -112,7 +113,6 @@ let state: VideoState = {
   playing: false,
   loading: false,
   error: null,
-  speed: 1,
   ended: false,
   plan: null,
   track: 0,
@@ -169,21 +169,11 @@ export function videoPlayer(): VideoPlayer {
   p.timeUpdateEventInterval = 0.5;
   p.staysActiveInBackground = true;
   p.showNowPlayingNotification = true;
-  p.addListener("timeUpdate", ({ currentTime }) => {
-    // Before the source opens (and goes to its start) the time reads 0; it isn't your place.
-    if (!loaded) return;
-    const before = position;
-    setPosition(offset + currentTime);
-    const it = state.item;
-    if (it && p.playing && Math.abs(position - it.startAt) > VIDEO_PLAYER.touchedAfterSec) touched = true;
-    // Watch time for the stats, counted like listening: the smaller of the clock and the picture's moves.
-    const now = Date.now();
-    if (it && p.playing && watchedAt) countWatching(it.progressId, (now - watchedAt) / 1000, position - before, state.speed);
-    watchedAt = p.playing ? now : 0;
-  });
+  // While casting the Chromecast reports instead; this player is paused and emptied.
+  p.addListener("timeUpdate", ({ currentTime }) => !casting && timeUpdate(currentTime, p.playing));
   p.addListener("sourceLoad", ({ availableVideoTracks }) => {
     const it = state.item;
-    if (!it) return;
+    if (!it || casting) return;
     // The picture this phone can't decode (10-bit HEVC on an older one, say) would sit loading
     // forever: have the server convert it instead, from the same spot.
     if (availableVideoTracks.length && availableVideoTracks.every((v) => !v.isSupported) && !forceTranscode) {
@@ -192,44 +182,111 @@ export function videoPlayer(): VideoPlayer {
       void start(pendingAt);
       return;
     }
-    p.playbackRate = state.speed;
     // The file itself goes to its place; a stream already starts there (a live playlist can open near its edge, hence 0).
     p.currentTime = Math.max(0, pendingAt - offset);
     setPosition(pendingAt);
     loaded = true;
     retries = 0;
-    p.play();
+    if (playOnLoad) p.play();
+    playOnLoad = true;
   });
-  p.addListener("playingChange", ({ isPlaying }) => {
-    set({ playing: isPlaying, ...(isPlaying ? { ended: false } : {}) });
-    if (saveTimer) clearInterval(saveTimer);
-    saveTimer = isPlaying ? setInterval(() => save(), VIDEO_PLAYER.saveEveryMs) : null;
-    if (!isPlaying) save(true);
-    keepAlive(!isPlaying);
-  });
+  p.addListener("playingChange", ({ isPlaying }) => !casting && playingChanged(isPlaying));
   p.addListener("statusChange", ({ status, error }) => {
-    if (!state.item) return;
+    if (!state.item || casting) return;
     if (status === "error") onError(error?.message);
     else if (status === "readyToPlay") set({ loading: false });
-    else if (status === "loading") {
-      set({ loading: true });
-      // A converted stream running dry after it started means the server can't keep up.
-      if (loaded && state.plan === "transcode" && position > offset + 1 && ++stalls >= VIDEO_PLAYER.slowAfterStalls) set({ slow: true });
-    }
+    else if (status === "loading") buffering();
   });
-  p.addListener("playToEnd", () => {
-    const it = state.item;
-    // A file whose picture fails to decode can report its end at the start; that's an error, not
-    // the end, and it mustn't move on to the next episode.
-    if (!it || !loaded || position < it.durationSec * WATCHED_AT) return;
-    setPosition(it.durationSec);
-    touched = true;
-    set({ playing: false, ended: true });
-    save(true);
-  });
+  p.addListener("playToEnd", () => !casting && playedToEnd());
   player = p;
   return p;
 }
+
+// ---------- What the phone's player and the Chromecast both report ----------
+
+function timeUpdate(currentTime: number, playing: boolean) {
+  // Before the source opens (and goes to its start) the time reads 0; it isn't your place.
+  if (!loaded) return;
+  const before = position;
+  setPosition(offset + currentTime);
+  const it = state.item;
+  if (it && playing && Math.abs(position - it.startAt) > VIDEO_PLAYER.touchedAfterSec) touched = true;
+  // Watch time for the stats, counted like listening: the smaller of the clock and the picture's moves.
+  const now = Date.now();
+  if (it && playing && watchedAt) countWatching(it.progressId, (now - watchedAt) / 1000, position - before, 1);
+  watchedAt = playing ? now : 0;
+}
+
+function playingChanged(isPlaying: boolean) {
+  set({ playing: isPlaying, ...(isPlaying ? { ended: false } : {}) });
+  if (saveTimer) clearInterval(saveTimer);
+  saveTimer = isPlaying ? setInterval(() => save(), VIDEO_PLAYER.saveEveryMs) : null;
+  if (!isPlaying) save(true);
+  keepAlive(!isPlaying);
+}
+
+function buffering() {
+  set({ loading: true });
+  // A converted stream running dry after it started means the server can't keep up.
+  if (loaded && state.plan === "transcode" && position > offset + 1 && ++stalls >= VIDEO_PLAYER.slowAfterStalls) set({ slow: true });
+}
+
+function playedToEnd() {
+  const it = state.item;
+  // A file whose picture fails to decode can report its end at the start; that's an error, not
+  // the end, and it mustn't move on to the next episode.
+  if (!it || !loaded || position < it.durationSec * WATCHED_AT) return;
+  setPosition(it.durationSec);
+  touched = true;
+  set({ playing: false, ended: true });
+  save(true);
+}
+
+// ---------- Casting ----------
+
+/** While casting, the Chromecast plays instead of the phone's player. */
+let casting = false;
+/** Whether the phone's player plays once its source opens; not when a cast hands the video back, paused. */
+let playOnLoad = true;
+
+const castVideo = new CastPlayer({
+  loaded: () => {
+    loaded = true;
+    retries = 0;
+    setPosition(offset + castVideo.position);
+    set({ loading: false });
+    playingChanged(castVideo.playing);
+  },
+  time: () => timeUpdate(castVideo.position, castVideo.playing),
+  playing: playingChanged,
+  buffering: (on) => (on ? buffering() : set({ loading: false })),
+  ended: playedToEnd,
+});
+
+// A connected Chromecast takes the video over from where it is, playing if it was playing, and
+// Google's notification replaces this one. When casting ends it comes back here paused, where the TV left it.
+onCastDevice((device) => {
+  const p = player;
+  if (device && !casting) {
+    const wasPlaying = state.playing;
+    casting = true;
+    if (p) {
+      p.showNowPlayingNotification = false;
+      p.pause();
+      void p.replaceAsync(null);
+    }
+    if (state.item) void start(position, false, wasPlaying);
+  } else if (!device && casting) {
+    casting = false;
+    castVideo.release();
+    if (p) p.showNowPlayingNotification = true;
+    if (state.playing) playingChanged(false);
+    if (state.item) {
+      playOnLoad = false;
+      void start(position);
+    }
+  }
+});
 
 function onError(message: string | undefined) {
   const at = loaded ? position : pendingAt;
@@ -278,35 +335,40 @@ const qualityFor = (it: VideoItem): Promise<VideoQuality> => (it.quality ? Promi
 
 /**
  * Opens the current video at `at` seconds: the file itself, or a new stream from there.
- * `forceRemux` is for a file that was tried as it is and wouldn't open.
+ * `forceRemux` is for a file that was tried as it is and wouldn't open. While casting it goes to
+ * the Chromecast instead (playing if `autoplay`), as a file or stream the TV can play.
  */
-async function start(at: number, forceRemux = false) {
+async function start(at: number, forceRemux = false, autoplay = true) {
   const it = state.item;
   const p = player;
   if (!it || !p) return;
   const gen = ++generation;
+  const toTv = casting;
   endSession();
   loaded = false;
   watchedAt = 0;
   pendingAt = at;
   stalls = 0;
   // The media notification shows a missing or empty second line as "null".
-  const metadata = { title: it.title, artist: it.sub, artwork: await artworkFile(it.art) };
+  const metadata = toTv ? undefined : { title: it.title, artist: it.sub, artwork: await artworkFile(it.art) };
   if (gen !== generation) return;
   // A download plays from the phone, even online, while it holds the audio track you're on.
-  // One that wouldn't open (forceRemux) is streamed instead.
-  const saved = forceRemux ? null : localVideo(it.videoId);
+  // One that wouldn't open (forceRemux) is streamed instead. The TV streams from the server.
+  const saved = forceRemux || toTv ? null : localVideo(it.videoId);
   if (saved && saved.track === state.track) {
     set({ plan: "direct", loading: true, error: null, slow: false });
     offset = 0;
     if (gen === generation) await p.replaceAsync({ uri: saved.uri, metadata });
     return;
   }
-  const plan = playbackPlan(it.file, phoneSupport(forceTranscode), { track: state.track, forceRemux });
+  const plan = playbackPlan(it.file, toTv ? CAST_SUPPORT : phoneSupport(forceTranscode), { track: state.track, forceRemux });
   set({ plan: plan.kind, loading: true, error: null, slow: false });
+  const toCast = (path: string) =>
+    castVideo.load(path, { title: it.title, subtitle: it.sub, image: it.castArt }, Math.max(0, pendingAt - offset), autoplay);
   let source: VideoSource;
   if (plan.kind === "direct") {
     offset = 0;
+    if (toTv) return toCast(apiPaths.videoUrl(it.videoId));
     source = { uri: absolute(apiPaths.videoUrl(it.videoId)), headers: authHeaders(), metadata };
   } else {
     let s: StreamSessionDto;
@@ -328,6 +390,7 @@ async function start(at: number, forceRemux = false) {
     playlist = s.playlistUrl;
     offset = s.start;
     pendingAt = Math.max(at, s.start);
+    if (toTv) return toCast(s.playlistUrl);
     source = { uri: absolute(s.playlistUrl), headers: authHeaders(), contentType: "hls", metadata };
   }
   if (gen === generation) await p.replaceAsync(source);
@@ -347,7 +410,7 @@ function save(refresh = false) {
   const finished = at >= dur * WATCHED_AT;
   // Through the audio engine's outbox, so a download watched offline syncs later.
   queueProgress(
-    { itemType: "video", itemId: it.progressId, positionSec: finished ? dur : at, durationSec: dur, finished, speed: state.speed, updatedAt: Date.now() },
+    { itemType: "video", itemId: it.progressId, positionSec: finished ? dur : at, durationSec: dur, finished, updatedAt: Date.now() },
     refresh || finished,
   );
 }
@@ -355,7 +418,7 @@ function save(refresh = false) {
 /** The audio track for the language remembered for the movie or show (`key`), else the default. */
 const trackFor = (file: VideoFileInfo, key: string) => trackForLanguage(file, readVideoLanguage(key));
 
-const rememberedTrack = (it: VideoItem) => trackFor(it.file, it.speedKey);
+const rememberedTrack = (it: VideoItem) => trackFor(it.file, it.memoryKey);
 
 /**
  * Where a movie version or episode (`videoId`) downloads from: the file as it is when this phone
@@ -393,7 +456,6 @@ export function openVideo(item: VideoItem) {
     item,
     playing: false,
     ended: false,
-    speed: readVideoSpeed(item.speedKey),
     track: rememberedTrack(item),
     quality: item.quality ?? "full",
   });
@@ -411,6 +473,8 @@ export function closeVideo() {
   endSession();
   player?.pause();
   void player?.replaceAsync(null);
+  // Closing while casting stops the TV too.
+  castVideo.stop();
   set({ item: null, playing: false, loading: false, error: null, ended: false, plan: null, slow: false });
 }
 
@@ -426,7 +490,7 @@ onPlayerChange((s) => {
 });
 
 export function toggleVideo() {
-  const p = player;
+  const p = casting ? castVideo : player;
   if (!p || !state.item) return;
   if (p.playing) p.pause();
   else if (state.ended) seekVideo(0);
@@ -446,6 +510,15 @@ export function seekVideo(sec: number) {
   setPosition(to);
   if (state.ended) set({ ended: false });
   const rel = to - offset;
+  if (casting) {
+    // The TV's player lets go once it reaches the end, so going back loads it again.
+    const made = castVideo.duration - VIDEO_PLAYER.edgeSec;
+    if (castVideo.live && (state.plan === "direct" || (rel >= 0 && rel <= made))) {
+      castVideo.seek(rel);
+      castVideo.play();
+    } else void start(to);
+    return;
+  }
   if (state.plan === "direct" || (loaded && rel >= 0 && rel <= p.duration - VIDEO_PLAYER.edgeSec)) {
     p.currentTime = rel;
     p.play();
@@ -454,19 +527,11 @@ export function seekVideo(sec: number) {
 
 export const skipVideo = (delta: number) => seekVideo(position + delta);
 
-export function setVideoSpeed(speed: number) {
-  const it = state.item;
-  if (!it) return;
-  saveVideoSpeed(it.speedKey, speed);
-  if (player) player.playbackRate = speed;
-  set({ speed });
-}
-
 /** Another audio track: remembered by language for the movie or show, and picks up where you are. */
 export function setVideoTrack(index: number) {
   const it = state.item;
   if (!it || index === state.track) return;
-  saveVideoLanguage(it.speedKey, it.file.audioTracks.find((t) => t.index === index)?.language ?? null);
+  saveVideoLanguage(it.memoryKey, it.file.audioTracks.find((t) => t.index === index)?.language ?? null);
   set({ track: index });
   void start(position);
 }
