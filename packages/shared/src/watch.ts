@@ -1,5 +1,6 @@
 // Watch: movies and TV shows. What the server sends for the Watch tab, movie and show pages.
 
+import { apiPaths } from "./api-paths";
 import { gigabytes } from "./format";
 import { collator, sortTitle } from "./library";
 
@@ -181,9 +182,21 @@ export interface WatchCard {
   stillHash: string | null;
   /** What the still is served under: the episode, or the movie's first version. */
   stillId: string;
-  /** Movies: the poster, for when there's no still. */
+  /** The movie's or the show's backdrop, shown before the still. */
+  backdropHash: string | null;
+  /** The movie's or the show's poster, for when there's no backdrop or still. */
   posterHash: string | null;
   progress: VideoProgress | null;
+}
+
+/** A card's picture: the movie's or show's backdrop, then the still, then the poster. */
+export function watchCardArtUrl(card: WatchCard): string | null {
+  const art = (kind: "poster" | "backdrop", hash: string) =>
+    card.kind === "movie" ? apiPaths.movieArtUrl(card.id, kind, hash, "small") : apiPaths.showArtUrl(card.showId!, kind, hash, "small");
+  if (card.backdropHash) return art("backdrop", card.backdropHash);
+  if (card.stillHash) return apiPaths.videoStillUrl(card.stillId, card.stillHash, "small");
+  if (card.posterHash) return art("poster", card.posterHash);
+  return null;
 }
 
 /** A poster in Recently added: a movie or a show. */

@@ -25,8 +25,9 @@ export function ScrollRow({ className = "shelf", children }: { className?: strin
     const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
     setEnds((e) => (e.start === start && e.end === end ? e : { start, end }));
   };
-  // Cards can arrive or change after the first paint, and the window can be resized.
-  useEffect(update);
+  // Cards can arrive or change after the first paint, and the window can be resized. Not on its
+  // own re-renders: an arrow showing can shift the measure and flip the ends back and forth.
+  useEffect(update, [children]);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;

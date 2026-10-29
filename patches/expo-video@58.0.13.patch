@@ -1,0 +1,45 @@
+diff --git a/android/src/main/java/expo/modules/video/playbackService/ExpoVideoPlaybackService.kt b/android/src/main/java/expo/modules/video/playbackService/ExpoVideoPlaybackService.kt
+index 54c0ad03443f101cb2b6370d78bad14ad4cfa9ed..7c0cdb9f17ffe5a588c5f11fcec8d70c485842f7 100644
+--- a/android/src/main/java/expo/modules/video/playbackService/ExpoVideoPlaybackService.kt
++++ b/android/src/main/java/expo/modules/video/playbackService/ExpoVideoPlaybackService.kt
+@@ -82,7 +82,6 @@ class ExpoVideoPlaybackService : MediaSessionService() {
+       val mediaSession = MediaSession.Builder(this@ExpoVideoPlaybackService, player)
+         .setId("ExpoVideoPlaybackService_${player.hashCode()}")
+         .setCallback(VideoMediaSessionCallback())
+-        .setCustomLayout(ImmutableList.of(seekBackwardButton, seekForwardButton))
+         .build()
+ 
+       // Replace the basic media session with a session connected to our playback service.
+diff --git a/android/src/main/java/expo/modules/video/playbackService/VideoMediaSessionCallback.kt b/android/src/main/java/expo/modules/video/playbackService/VideoMediaSessionCallback.kt
+index 1ca90e0c3dcfc78be3410c3a285e9aaf7987dfbf..8229dd22fadcddf8d0de77ed2f1921fa4aa32baa 100644
+--- a/android/src/main/java/expo/modules/video/playbackService/VideoMediaSessionCallback.kt
++++ b/android/src/main/java/expo/modules/video/playbackService/VideoMediaSessionCallback.kt
+@@ -16,19 +16,18 @@ class VideoMediaSessionCallback : MediaSession.Callback {
+     controller: MediaSession.ControllerInfo
+   ): MediaSession.ConnectionResult {
+     try {
+-      // TODO @behenate: For now we're only allowing seek forward and back by 10 seconds and going to the
+-      //  beginning of the video. In the future we should add more customization options for the users.
++      // Murmur: the notification only plays and pauses; no skip, previous or next buttons.
+       return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+         .setAvailablePlayerCommands(
+           MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
+-            .add(Player.COMMAND_SEEK_FORWARD)
+-            .add(Player.COMMAND_SEEK_BACK)
+-            .build()
+-        )
+-        .setAvailableSessionCommands(
+-          MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
+-            .add(SessionCommand(ExpoVideoPlaybackService.SEEK_BACKWARD_COMMAND, Bundle.EMPTY))
+-            .add(SessionCommand(ExpoVideoPlaybackService.SEEK_FORWARD_COMMAND, Bundle.EMPTY))
++            .removeAll(
++              Player.COMMAND_SEEK_TO_PREVIOUS,
++              Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
++              Player.COMMAND_SEEK_TO_NEXT,
++              Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
++              Player.COMMAND_SEEK_BACK,
++              Player.COMMAND_SEEK_FORWARD
++            )
+             .build()
+         )
+         .build()

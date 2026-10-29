@@ -29,7 +29,7 @@ import {
   saveVideoSpeed,
   type WatchTarget,
 } from "@/lib/watch";
-import { countWatching, getPlayerState, onPlayerChange, queueProgress, stop as stopAudio } from "./engine";
+import { artworkFile, countWatching, getPlayerState, onPlayerChange, queueProgress, stop as stopAudio } from "./engine";
 
 // The video being watched, kept outside the screens so it plays on in the mini player, like the
 // audio engine. One expo-video player for the whole app; screens show it with a VideoView.
@@ -54,6 +54,9 @@ export interface VideoItem {
   label: string | null;
   /** The poster's colour, tinting the player like the audio one. */
   color: string | null;
+  /** The media notification's second line and picture (a server path): a movie's year and backdrop, an episode's show and still. */
+  sub: string;
+  art: string | null;
   file: VideoFileInfo;
   durationSec: number;
   /** Where to resume; 0 starts from the beginning. */
@@ -287,10 +290,9 @@ async function start(at: number, forceRemux = false) {
   watchedAt = 0;
   pendingAt = at;
   stalls = 0;
-  const metadata = {
-    title: it.kind === "episode" ? (it.showTitle ?? it.title) : it.title,
-    artist: it.kind === "episode" ? `${it.label}, ${it.title}` : undefined,
-  };
+  // The media notification shows a missing or empty second line as "null".
+  const metadata = { title: it.title, artist: it.sub, artwork: await artworkFile(it.art) };
+  if (gen !== generation) return;
   // A download plays from the phone, even online, while it holds the audio track you're on.
   // One that wouldn't open (forceRemux) is streamed instead.
   const saved = forceRemux ? null : localVideo(it.videoId);

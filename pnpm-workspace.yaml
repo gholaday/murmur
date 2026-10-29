@@ -1,7 +1,6 @@
 packages:
   - apps/*
   - packages/*
-  # Only add-ons with a package.json (the video one); adscan is Python and is skipped.
   - addons/*
 
 onlyBuiltDependencies:
@@ -12,3 +11,4 @@ onlyBuiltDependencies:
 patchedDependencies:
   expo-audio@58.0.9: patches/expo-audio@58.0.9.patch
   expo-router@58.0.23: patches/expo-router@58.0.23.patch
+  expo-video@58.0.13: patches/expo-video@58.0.13.patch

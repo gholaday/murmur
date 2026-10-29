@@ -195,13 +195,13 @@ function Scrubber({ store, total, onScrub, onRelease }: { store: Clock; total: n
   );
 }
 
-/** Played and left, with the time left (or `note`) between them. */
-function Times({ store, total, note }: { store: Clock; total: number; note: React.ReactNode }) {
+/** Played and left, with the time left between them. */
+function Times({ store, total }: { store: Clock; total: number }) {
   const { time } = useClock(store);
   return (
     <div className="vp-times">
       <span className="vp-time">{clock(time)}</span>
-      <span className="vp-time vp-note">{note ?? timeLeft(total, time)}</span>
+      <span className="vp-time vp-note">{timeLeft(total, time)}</span>
       <span className="vp-time">-{clock(Math.max(0, total - time))}</span>
     </div>
   );
@@ -240,6 +240,8 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   const [stream, setStream] = useState<StreamSessionDto | null>(null);
   /** A converted stream keeps running dry: the server can't keep up. */
   const [slow, setSlow] = useState(false);
+  /** The quality whose "converting slower" card was waved away; another quality brings it back. */
+  const [slowShut, setSlowShut] = useState<VideoQuality | null>(null);
   const stalls = useRef(0);
   /** Waiting for the stream to start, or for the next piece. */
   const [buffering, setBuffering] = useState(false);
@@ -455,6 +457,22 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     void api(apiPaths.prefs, { method: "PUT", body: { videoQuality: "light" } }).catch(() => undefined);
     pickQuality("light");
   };
+
+  // Floats above the tiles, or over the video in full screen, until waved away.
+  const slowCard =
+    slow && slowShut !== qualityShown ? (
+      <div className="vp-slow" role="status">
+        <span>Converting slower than it plays</span>
+        {qualityShown !== "light" ? (
+          <button type="button" className="more-link" onClick={lowerQuality}>
+            Lower quality
+          </button>
+        ) : null}
+        <button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setSlowShut(qualityShown)}>
+          <CloseIcon size={20} />
+        </button>
+      </div>
+    ) : null;
 
   // The volume slider is this device's, shared with the audio player.
   useEffect(() => {
@@ -855,6 +873,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
           </div>
         </div>
 
+        {slowCard}
         {countdown !== null && next ? (
           <div className="vp-next">
             <button type="button" className="vp-next-main" onClick={goNext}>
@@ -905,22 +924,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
             }}
             onRelease={(to) => seekTo(to)}
           />
-          <Times
-            store={times}
-            total={total}
-            note={
-              slow ? (
-                <>
-                  Converting slower than it plays
-                  {qualityRef.current !== "light" ? (
-                    <button type="button" className="more-link vp-note-link" onClick={lowerQuality}>
-                      Lower quality
-                    </button>
-                  ) : null}
-                </>
-              ) : null
-            }
-          />
+          <Times store={times} total={total} />
           <div className="player-controls">
             <button type="button" className="icon-btn dim" aria-label="Start over" onClick={() => seekTo(0)}>
               <PrevChapterIcon />
@@ -985,6 +989,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
           ) : null}
         </div>
         <div className="player-tiles vp-tiles">
+          {slowCard}
           <button type="button" className="tile" onClick={() => setSpeedOpen(true)}>
             <strong>{speedLabel(speed)}</strong>
             <span>Speed</span>

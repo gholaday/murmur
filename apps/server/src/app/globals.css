@@ -1349,7 +1349,7 @@ button.setting-link { width: 100%; text-align: left; color: inherit; }
 .vp-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .vp-info { padding: 22px 20px 0; }
 /* A ring turns on the play button while the next piece is awaited. */
-.play-btn { position: relative; }
+.play-btn, .mini-play { position: relative; }
 .play-btn.buffering::after {
   content: ""; position: absolute; inset: 5px; border-radius: 50%;
   border: 3px solid color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; animation: spin 0.9s linear infinite;
@@ -1358,7 +1358,18 @@ button.setting-link { width: 100%; text-align: left; color: inherit; }
   content: ""; position: absolute; inset: 3px; border-radius: 50%;
   border: 2px solid color-mix(in srgb, currentColor 25%, transparent); border-top-color: currentColor; animation: spin 0.9s linear infinite;
 }
-.vp-note-link { margin: 0 0 0 8px; font-size: 12px; }
+/* "Converting slower than it plays": a card just above the tiles, or bottom left over the video in full screen. */
+.vp-slow {
+  position: absolute; left: 20px; right: 20px; bottom: calc(100% + 12px); z-index: 2;
+  display: flex; align-items: center; gap: 10px; padding: 4px 2px 4px 14px; border-radius: 14px;
+  background: var(--surface-2); color: var(--text); font-size: 13px; box-shadow: var(--shadow); animation: fade-in 200ms ease-out both;
+}
+.vp-slow > span { flex: 1; min-width: 0; }
+.vp-slow .more-link { margin: 0; font-size: 13px; }
+.vp-tiles { position: relative; }
+.vp-stage > .vp-slow { display: none; }
+.vp-over .vp-stage > .vp-slow { display: flex; right: auto; bottom: 150px; left: 24px; max-width: 380px; background: rgba(0, 0, 0, 0.78); color: #fff; }
+.vp-over .vp-slow .icon-btn { color: #fff; }
 /* The volume slider slides out beside the speaker on hover; phones set volume with their own buttons. */
 .vol { display: flex; align-items: center; }
 .vol .vol-slider { width: 0; opacity: 0; margin-right: 0; transition: width 160ms ease, opacity 160ms ease, margin 160ms ease; }

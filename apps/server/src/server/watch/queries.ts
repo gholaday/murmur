@@ -96,6 +96,11 @@ const LIVE = "v.missing_since IS NULL AND v.folder_id IS NOT NULL";
 const EPISODE_COLUMNS = `v.*, COALESCE(te.title, v.title) AS title, COALESCE(te.overview, v.description) AS description,
   CASE WHEN v.still_from_file = 1 THEN v.still_hash ELSE COALESCE(te.still_hash, v.still_hash) END AS still_hash`;
 const EPISODE_JOIN = "LEFT JOIN tmdb_episodes te ON te.show_id = v.show_id AND te.season = v.season AND te.episode = v.episode";
+/**
+ * A movie version's still, read rather than copied at scan time, so a backdrop that arrives after
+ * the stills were filled still shows: its own -thumb, else the movie's backdrop, else a grabbed frame.
+ */
+const MOVIE_STILL = "CASE WHEN v.still_from_file = 1 THEN v.still_hash ELSE COALESCE(m.backdrop_hash, v.still_hash) END";
 
 function progressFor(ctx: AppContext, userId: number): Map<string, VideoProgress> {
   const rows = ctx.sqlite
@@ -131,7 +136,10 @@ const toVersion = (r: VideoRow): MovieVersion => ({
 /** A movie's live versions, biggest first. */
 const movieVersions = (ctx: AppContext, movieId: string): VideoRow[] =>
   ctx.sqlite
-    .prepare(`SELECT * FROM videos v WHERE v.kind = 'movie' AND ${LIVE} AND v.movie_id = ? ORDER BY ${VERSION_ORDER}`)
+    .prepare(
+      `SELECT v.*, ${MOVIE_STILL} AS still_hash FROM videos v JOIN movies m ON m.id = v.movie_id
+       WHERE v.kind = 'movie' AND ${LIVE} AND v.movie_id = ? ORDER BY ${VERSION_ORDER}`,
+    )
     .all(movieId) as VideoRow[];
 
 /** Header tints for posters, by hash. */
@@ -142,10 +150,10 @@ const colorOf = (colors: Colors, hash: string | null) => (hash ? (colors.get(has
 /** Each movie with a live version, its first version (the one Play starts) picked by SQLite. */
 const MOVIE_SELECT = `
   WITH ranked AS (
-    SELECT v.movie_id, v.id, v.duration_sec, v.still_hash,
+    SELECT v.movie_id, v.id, v.duration_sec, ${MOVIE_STILL} AS still_hash,
            ROW_NUMBER() OVER (PARTITION BY v.movie_id ORDER BY ${VERSION_ORDER}) AS n,
            COUNT(*) OVER (PARTITION BY v.movie_id) AS version_count
-    FROM videos v WHERE v.kind = 'movie' AND ${LIVE})
+    FROM videos v JOIN movies m ON m.id = v.movie_id WHERE v.kind = 'movie' AND ${LIVE})
   SELECT m.*, r.id AS first_version, r.duration_sec, r.still_hash, r.version_count
   FROM movies m JOIN ranked r ON r.movie_id = m.id AND r.n = 1`;
 
@@ -321,11 +329,13 @@ export async function getEpisodePlay(ctx: AppContext, userId: number, id: string
   return { episode: episodes[at]!, show: { id: row.show_id, title: row.title, color }, next: episodes.slice(at + 1) };
 }
 
-function episodeCard(e: VideoEpisode, showTitle: string): WatchCard {
+type ShowArt = { title: string; backdrop_hash: string | null; poster_hash: string | null };
+
+function episodeCard(e: VideoEpisode, show: ShowArt): WatchCard {
   return {
     id: e.id,
     kind: "episode",
-    title: showTitle,
+    title: show.title,
     showId: e.showId,
     season: e.season,
     episode: e.episode,
@@ -333,7 +343,8 @@ function episodeCard(e: VideoEpisode, showTitle: string): WatchCard {
     durationSec: e.durationSec,
     stillHash: e.stillHash,
     stillId: e.id,
-    posterHash: null,
+    backdropHash: show.backdrop_hash,
+    posterHash: show.poster_hash,
     progress: e.progress,
   };
 }
@@ -352,7 +363,7 @@ export async function watchHome(ctx: AppContext, userId: number): Promise<WatchH
     .all(JSON.stringify(partway.map(([id]) => id))) as MovieRow[];
   const movieById = new Map(partwayMovies.map((m) => [m.id, m]));
   const episodeById = ctx.sqlite.prepare(
-    `SELECT ${EPISODE_COLUMNS}, s.title AS show_title FROM videos v JOIN shows s ON s.id = v.show_id ${EPISODE_JOIN} WHERE v.id = ? AND ${LIVE}`,
+    `SELECT ${EPISODE_COLUMNS}, s.title AS show_title, s.backdrop_hash AS show_backdrop, s.poster_hash AS show_poster FROM videos v JOIN shows s ON s.id = v.show_id ${EPISODE_JOIN} WHERE v.id = ? AND ${LIVE}`,
   );
   const continueWatching: WatchCard[] = [];
   const continuingShows = new Set<string>();
@@ -372,27 +383,29 @@ export async function watchHome(ctx: AppContext, userId: number): Promise<WatchH
         durationSec: m.durationSec,
         stillHash: m.stillHash,
         stillId: movie.first_version,
+        backdropHash: movie.backdrop_hash,
         posterHash: m.posterHash,
         progress: m.progress,
       });
       continue;
     }
-    const ep = episodeById.get(id) as (VideoRow & { show_title: string }) | undefined;
+    const ep = episodeById.get(id) as (VideoRow & { show_title: string; show_backdrop: string | null; show_poster: string | null }) | undefined;
     if (ep) {
       continuingShows.add(ep.show_id!);
-      continueWatching.push(episodeCard(toEpisode(ep, progress), ep.show_title));
+      const show = { title: ep.show_title, backdrop_hash: ep.show_backdrop, poster_hash: ep.show_poster };
+      continueWatching.push(episodeCard(toEpisode(ep, progress), show));
     }
   }
 
   // Shows you've watched some of and aren't partway through an episode of: their next episode.
   const startedShows = ctx.sqlite
     .prepare(
-      `SELECT v.show_id, s.title, MAX(p.updated_at) AS at FROM progress p
+      `SELECT v.show_id, s.title, s.backdrop_hash, s.poster_hash, MAX(p.updated_at) AS at FROM progress p
        JOIN videos v ON v.id = p.item_id JOIN shows s ON s.id = v.show_id
        WHERE p.user_id = ? AND p.item_type = 'video'
        GROUP BY v.show_id ORDER BY at DESC`,
     )
-    .all(userId) as Array<{ show_id: string; title: string }>;
+    .all(userId) as Array<ShowArt & { show_id: string }>;
   const waiting = startedShows.filter((s) => !continuingShows.has(s.show_id));
   const episodesOf = episodesByShow(ctx, waiting.map((s) => s.show_id), progress);
   const nextEpisodes: WatchCard[] = [];
@@ -400,7 +413,7 @@ export async function watchHome(ctx: AppContext, userId: number): Promise<WatchH
     if (nextEpisodes.length >= CONTINUE_LIMIT) break;
     const episodes = episodesOf.get(show.show_id) ?? [];
     const next = episodes.find((e) => e.id === showUpNext(episodes));
-    if (next) nextEpisodes.push(episodeCard(next, show.title));
+    if (next) nextEpisodes.push(episodeCard(next, show));
   }
 
   const shows = ctx.sqlite
@@ -437,9 +450,13 @@ export async function watchHome(ctx: AppContext, userId: number): Promise<WatchH
 
 /** A movie version's or episode's still. */
 export function videoStillHash(ctx: AppContext, id: string): string | null {
-  const row = ctx.sqlite.prepare(`SELECT ${EPISODE_COLUMNS} FROM videos v ${EPISODE_JOIN} WHERE v.id = ?`).get(id) as
-    | { still_hash: string | null }
-    | undefined;
+  const row = ctx.sqlite
+    .prepare(
+      `SELECT CASE WHEN v.kind = 'movie' THEN ${MOVIE_STILL}
+              WHEN v.still_from_file = 1 THEN v.still_hash ELSE COALESCE(te.still_hash, v.still_hash) END AS still_hash
+       FROM videos v ${EPISODE_JOIN} LEFT JOIN movies m ON m.id = v.movie_id WHERE v.id = ?`,
+    )
+    .get(id) as { still_hash: string | null } | undefined;
   return row?.still_hash || null;
 }
 

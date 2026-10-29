@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import { NavigationBar } from "expo-navigation-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { StatusBar } from "expo-status-bar";
 import { isPictureInPictureSupported, VideoView } from "expo-video";
@@ -11,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
 import Slider from "@react-native-community/slider";
 import {
+  apiPaths,
   clock,
   codecName,
   episodeLabel,
@@ -97,6 +99,12 @@ function movieItem(movie: MovieDetail, versionId: string | undefined, quality: V
     showTitle: null,
     label: null,
     color: movie.color,
+    sub: movie.year ?? "Movie",
+    art: movie.backdropHash
+      ? apiPaths.movieArtUrl(movie.id, "backdrop", movie.backdropHash, "small")
+      : movie.posterHash
+        ? apiPaths.movieArtUrl(movie.id, "poster", movie.posterHash, "small")
+        : null,
     file: version.file,
     durationSec: version.durationSec,
     startAt: movie.progress && !movie.progress.finished ? movie.progress.positionSec : 0,
@@ -115,6 +123,12 @@ function episodeItem(show: ShowDetail, e: VideoEpisode, quality: VideoQuality | 
     showTitle: show.title,
     label: episodeLabel(e.season, e.episode),
     color: show.color,
+    sub: `${show.title}, ${episodeLabel(e.season, e.episode)}`,
+    art: e.stillHash
+      ? apiPaths.videoStillUrl(e.id, e.stillHash, "small")
+      : show.posterHash
+        ? apiPaths.showArtUrl(show.id, "poster", show.posterHash, "small")
+        : null,
     file: e.file,
     durationSec: e.durationSec,
     startAt: e.progress && !e.progress.finished ? e.progress.positionSec : 0,
@@ -180,6 +194,8 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
   /** The episode whose next-episode card was waved away. */
   const [dismissedId, setDismissedId] = useState<string | null>(null);
   const [scrub, setScrub] = useState<number | null>(null);
+  /** The video and quality whose "converting slower" card was waved away; a new quality brings it back. */
+  const [slowShut, setSlowShut] = useState<string | null>(null);
   const upNext = next[0] ?? null;
   const open = v.item?.progressId === item.progressId;
   const playing = open && v.playing;
@@ -375,6 +391,48 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
       </View>
     ) : null;
 
+  // Floats just above the tiles (over a show's next episodes) until waved away.
+  const slowKey = `${item.progressId}:${v.quality}`;
+  const slowCard =
+    open && v.slow && slowShut !== slowKey ? (
+      <View
+        style={{
+          position: "absolute",
+          left: sideways ? Math.max(insets.left, 24) : 24,
+          right: sideways ? undefined : 24,
+          bottom: sideways ? 150 : insets.bottom + 16 + 64 + 12,
+          maxWidth: sideways ? 380 : undefined,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+          paddingLeft: 14,
+          paddingVertical: 6,
+          paddingRight: 2,
+          borderRadius: 14,
+          backgroundColor: sideways ? "rgba(0,0,0,0.78)" : t.surface2,
+          elevation: 8,
+          shadowColor: "#000",
+          shadowOpacity: 0.25,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 6 },
+        }}
+      >
+        <Text variant="small" numberOfLines={2} style={{ flex: 1, color: sideways ? "#fff" : t.text }}>
+          Converting slower than it plays
+        </Text>
+        {v.quality !== "light" ? (
+          <Pressable accessibilityRole="button" onPress={() => setVideoQuality("light", true)} hitSlop={8}>
+            <Text variant="small" style={{ color: t.accent, fontFamily: fonts.bold }}>
+              Lower quality
+            </Text>
+          </Pressable>
+        ) : null}
+        <IconButton label="Dismiss" onPress={() => setSlowShut(slowKey)}>
+          <CloseIcon size={20} color={sideways ? "#fff" : t.text} />
+        </IconButton>
+      </View>
+    ) : null;
+
   const scrubber = (
     <View>
       <Slider
@@ -404,20 +462,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
         <Text variant="small" style={{ fontVariant: ["tabular-nums"], color: soft }}>
           {clock(shownAt)}
         </Text>
-        {open && v.slow ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 }}>
-            <Text variant="small" numberOfLines={1} style={{ color: soft, flexShrink: 1 }}>
-              Converting slower than it plays
-            </Text>
-            {v.quality !== "light" ? (
-              <Pressable accessibilityRole="button" onPress={() => setVideoQuality("light", true)} hitSlop={8}>
-                <Text variant="small" style={{ color: t.accent, fontFamily: fonts.bold }}>
-                  Lower quality
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : total ? (
+        {total ? (
           <Text variant="small" style={{ color: soft }}>
             {timeLeft(total, shownAt)}
           </Text>
@@ -531,7 +576,9 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
   if (sideways) {
     return (
       <View style={{ flex: 1, backgroundColor: "#000" }}>
+        {/* Both system bars hide; a swipe from the edge shows them for a moment. */}
         <StatusBar hidden />
+        <NavigationBar hidden />
         {video}
         {stage}
         <FadeView shown={controls} style={StyleSheet.absoluteFill}>
@@ -592,6 +639,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
           </View>
         </FadeView>
         {nextCard}
+        {slowCard}
         {sheets}
       </View>
     );
@@ -692,6 +740,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
             </Tile>
           </View>
         </View>
+        {slowCard}
       </Animated.View>
       {sheets}
     </View>

@@ -16,6 +16,7 @@ import {
   type VideoFileInfo,
   type VideoQuality,
   type WatchCard,
+  watchCardArtUrl,
   type WatchMatchResult,
   WATCH_SORT_KEY,
   WATCH_SORTS,
@@ -174,7 +175,7 @@ export function StillCard({ card }: { card: WatchCard }) {
       style={({ pressed }) => ({ width: STILL_CARD_WIDTH, gap: 8, opacity: pressed ? 0.75 : 1 })}
     >
       <View>
-        <Still videoId={card.stillId} hash={card.stillHash} title={card.title} radius={10} />
+        <Cover path={watchCardArtUrl(card)} title={card.title} radius={10} aspectRatio={16 / 9} />
         {position > 0 ? <ArtBar pct={percentDone(position, card.durationSec)} /> : null}
       </View>
       <View>

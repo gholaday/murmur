@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { apiPaths, episodeLabel, percentDone, timeLeft, type VideoQuality, type WatchCard } from "@murmur/shared/client";
+import { apiPaths, episodeLabel, percentDone, timeLeft, type VideoQuality, type WatchCard, watchCardArtUrl } from "@murmur/shared/client";
 import { Cover } from "../cover";
 import { CheckIcon } from "../icons";
 
@@ -90,7 +90,7 @@ export function Still({ videoId, hash, title, className = "" }: { videoId: strin
 }
 
 /**
- * A card in Continue watching or Next episodes: the still with how far you are, the movie or
+ * A card in Continue watching or Next episodes: the backdrop with how far you are, the movie or
  * show, and which episode with the time left on the right. Tapping it plays.
  */
 export function StillCard({ card }: { card: WatchCard }) {
@@ -99,7 +99,7 @@ export function StillCard({ card }: { card: WatchCard }) {
   return (
     <Link className="continue-card watch-card" href={playHref(card.kind, card.id)}>
       <div className="card-cover">
-        <Still videoId={card.stillId} hash={card.stillHash} title={card.title} />
+        <Cover src={watchCardArtUrl(card)} color={null} title={card.title} className="still" />
         {position > 0 ? (
           <div className="bar still-bar">
             <div style={{ width: `${percentDone(position, card.durationSec)}%` }} />

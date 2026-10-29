@@ -45,7 +45,7 @@ import {
 } from "@murmur/shared/client";
 import { absolute, api, authHeaders } from "@/lib/api";
 import { fetchBook, fetchEpisode, invalidateListening, keys } from "@/lib/data";
-import { downloadTypeOf, getDownload, localTrackUri, localUri, savedTrack, saveDownloadAds } from "@/lib/downloads";
+import { downloadTypeOf, getDownload, localTrackUri, localUri, savedArt, savedTrack, saveDownloadAds } from "@/lib/downloads";
 import { tapHaptic } from "@/lib/haptics";
 import { isIOS } from "@/lib/platform";
 import { queryClient } from "@/lib/query";
@@ -724,13 +724,19 @@ export function cycleRepeat() {
 
 // ---------- Lock screen ----------
 
-async function artworkFor(it: Playable): Promise<string | undefined> {
-  if (!it.coverPathLarge) return undefined;
+/**
+ * A server picture as a file on the phone, for the media notification, which can't send our
+ * sign-in with its own request. Audio and video both use it.
+ */
+export async function artworkFile(path: string | null): Promise<string | undefined> {
+  if (!path) return undefined;
+  const saved = savedArt(path);
+  if (saved) return saved;
   try {
     const dir = new Directory(Paths.cache, "artwork");
     dir.create({ intermediates: true, idempotent: true });
-    const file = new File(dir, `${it.type}-${it.id}-${it.coverPathLarge.split("h=")[1] ?? "x"}.img`);
-    if (!file.exists) await File.downloadFileAsync(absolute(it.coverPathLarge), file, { headers: authHeaders() });
+    const file = new File(dir, `${path.replace(/\W+/g, "-")}.img`);
+    if (!file.exists) await File.downloadFileAsync(absolute(path), file, { headers: authHeaders() });
     return file.uri;
   } catch {
     return undefined;
@@ -749,7 +755,7 @@ async function showOnLockScreen(it: Playable) {
     title: chapter?.title ?? it.title,
     artist: chapter ? it.title : (it.subtitle ?? undefined),
     albumTitle: it.type === "book" ? it.title : (it.album?.title ?? it.subtitle ?? undefined),
-    artworkUrl: await artworkFor(it),
+    artworkUrl: await artworkFile(it.coverPathLarge),
   };
   if (state.item !== it && state.item?.id !== it.id) return;
   lockScreenMetadata = metadata;
