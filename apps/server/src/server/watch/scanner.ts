@@ -417,7 +417,8 @@ export function createWatchScanner(deps: WatchScannerDeps) {
           const { stats, problems } = await runOnce();
           state.lastStats = { ...stats, moved: 0 };
           state.lastError = problems.length ? problems.join(" ") : null;
-          log.info("watch scan finished", { ...stats, ms: Date.now() - started });
+          if (problems.length) log.warn("watch scan held back", { problems: state.lastError, ms: Date.now() - started });
+          else log.info("watch scan finished", { ...stats, ms: Date.now() - started });
         } catch (err) {
           state.lastError = errorMessage(err);
           log.error("watch scan failed", { error: state.lastError });
