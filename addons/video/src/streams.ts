@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { VideoSource, VideoStreamStarted } from "@murmur/shared";
 import { threadArgs } from "./cpu";
-import { canToneMap, encoder, type Encoder, giveUpOn, H264_CODEC, h264Args } from "./encoders";
+import { canToneMap, encoder, type Encoder, encoderFailed, H264_CODEC, h264Args } from "./encoders";
 import { env } from "./env";
 import { HttpError } from "./http";
 import { createLogger } from "./log";
@@ -307,6 +307,8 @@ export async function startStream(owner: string, src: VideoSource, at: number): 
   // driver can't take); if it stops before the first piece, the CPU takes over from the same spot.
   // One that's only slow (an HDR film tone mapped on the CPU first) keeps going.
   const onCpu = async () => {
+    // A session that ended meanwhile (a seek replaced it, the player closed) has nothing to take over.
+    if (!sessions.has(id)) return;
     // The old run is stopped and its handlers stand down before its folder is replaced.
     const old = session.proc;
     session.proc = null;
@@ -319,7 +321,9 @@ export async function startStream(owner: string, src: VideoSource, at: number): 
   if (enc !== "cpu") {
     const first = await firstPiece(session, FIRST_PIECE_MS);
     if (first === "stopped") {
-      giveUpOn(enc);
+      // Stopped by a seek or a close while waiting: not the encoder's doing, and nothing to restart.
+      if (!sessions.has(id)) return { sessionId: id, start };
+      if (session.error) encoderFailed(enc, src.file);
       await onCpu();
     } else if (first === "slow") {
       // Still nothing after a minute: the GPU has hung on this file rather than refused it, so the CPU

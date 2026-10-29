@@ -293,6 +293,8 @@ interface PlayerApi {
   setSpeed: (speed: number) => void;
   setSleep: (sleep: SleepTimer) => void;
   setSkip: (skip: SkipSettings) => void;
+  /** Points the browser's media controls back at the audio player, once a video has let go of them. */
+  claimMediaSession: () => void;
   setExpanded: (open: boolean) => void;
   /** Marks the current item finished (or not) and saves it. */
   markCurrent: (finished: boolean) => void;
@@ -1011,7 +1013,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const handlers = useRef({ toggle, skipBy, chapterStep: step, seek, skip });
   handlers.current = { toggle, skipBy, chapterStep: step, seek, skip };
 
-  useEffect(() => {
+  /**
+   * Points the browser's media controls at the audio player. The video player takes them over
+   * while it's open and hands them back through this when it closes.
+   */
+  const claimMediaSession = useCallback(() => {
     if (!("mediaSession" in navigator)) return;
     const ms = navigator.mediaSession;
     const set = (action: MediaSessionAction, fn: MediaSessionActionHandler | null) => {
@@ -1028,19 +1034,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     set("previoustrack", () => handlers.current.chapterStep(-1));
     set("nexttrack", () => handlers.current.chapterStep(1));
     set("seekto", (d) => d.seekTime !== undefined && handlers.current.seek(d.seekTime));
-  }, []);
-
-  useEffect(() => {
-    if (!("mediaSession" in navigator)) return;
-    navigator.mediaSession.metadata = item
+    const it = itemRef.current;
+    ms.metadata = it
       ? new MediaMetadata({
-          title: item.title,
-          artist: item.subtitle ?? "",
-          album: item.type === "book" ? item.title : (item.subtitle ?? ""),
-          artwork: item.coverUrlLarge ? [{ src: item.coverUrlLarge, sizes: "600x600", type: "image/webp" }] : [],
+          title: it.title,
+          artist: it.subtitle ?? "",
+          album: it.type === "book" ? it.title : (it.subtitle ?? ""),
+          artwork: it.coverUrlLarge ? [{ src: it.coverUrlLarge, sizes: "600x600", type: "image/webp" }] : [],
         })
       : null;
-  }, [item]);
+  }, []);
+
+  useEffect(() => claimMediaSession(), [claimMediaSession, item]);
 
   const lastPositionState = useRef(0);
   const updatePositionState = (pos: number, force = false) => {
@@ -1107,6 +1112,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setSpeed,
       setSleep,
       setSkip,
+      claimMediaSession,
       setExpanded,
       markCurrent,
       stop,
@@ -1149,6 +1155,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setSpeed,
       setSleep,
       setSkip,
+      claimMediaSession,
       markCurrent,
       stop,
     ],

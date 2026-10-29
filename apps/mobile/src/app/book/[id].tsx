@@ -19,6 +19,7 @@ import {
   isCurrent,
   markCurrent,
   play,
+  resumeFrom,
   toggle,
   useItemPosition,
   usePlayer,
@@ -80,7 +81,8 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
   // Starting the book opens the full player; pausing and resuming stay here.
   const onPlay = () => {
     if (current) return toggle();
-    play(bookToPlayable(book), finished ? 0 : undefined);
+    // The page may show the download's saved copy (offline); where it was last left here is newer.
+    play(resumeFrom(bookToPlayable(book)), finished ? 0 : undefined);
     router.push("/player");
   };
 

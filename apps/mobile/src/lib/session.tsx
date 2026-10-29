@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { LoginResponse, UserDto } from "@murmur/shared/client";
-import { stop as stopPlayer } from "@/player/engine";
+import { flushProgress, forgetProgress, stop as stopPlayer } from "@/player/engine";
 import { api, clearEtags, configureApi, normalizeServerUrl, probeServer } from "./api";
 import { APP_NAME } from "./platform";
-import { queryClient } from "./query";
+import { clearPersistedCache, queryClient } from "./query";
 import { getJson, removeKey, secrets, setJson } from "./storage";
 
 const SERVER_KEY = "murmur.server";
@@ -35,13 +35,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [serverUrl, setServerUrl] = useState<string | null>(() => getJson<string>(SERVER_KEY));
   const [user, setUser] = useState<UserDto | null>(() => getJson<UserDto>(USER_KEY));
 
+  // Everything of this account's goes, in memory and on disk, so the next one doesn't inherit its
+  // lists or its unsent progress. Downloads stay: they're the server's files, and whoever signs in
+  // next can play what's already here.
   const forget = useCallback(async () => {
     stopPlayer();
     await secrets.clearToken();
     removeKey(USER_KEY);
     configureApi({ serverUrl: getJson<string>(SERVER_KEY), token: null });
     clearEtags();
+    forgetProgress();
     queryClient.clear();
+    clearPersistedCache();
     setUser(null);
     setStatus("signedOut");
   }, []);
@@ -85,6 +90,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
+    // What's playing saves its place, and anything listened to offline goes up, while the token still works.
+    stopPlayer();
+    await flushProgress();
     try {
       await api("/api/auth/logout", { method: "POST" });
     } catch {

@@ -159,8 +159,17 @@ export function trackToPlayable(t: TrackDto): Playable {
  * sent to the server (listened offline) is newer than either, so it wins.
  */
 export async function loadPlayable(ref: PlayRef): Promise<Playable> {
-  const it = await loadPlayableDetails(ref);
-  const unsent = getJson<Outbox>(OUTBOX_KEY)?.[`${ref.itemType}:${ref.itemId}`];
+  return resumeFrom(await loadPlayableDetails(ref));
+}
+
+/** Progress saved on this phone that the server hasn't been told about yet, if any. */
+export const unsentProgress = (itemType: ProgressItem["itemType"], itemId: string): ProgressItem | undefined =>
+  getJson<Outbox>(OUTBOX_KEY)?.[`${itemType}:${itemId}`];
+
+/** `it` starting where it was last left on this phone, when that's newer than what its details say. */
+export function resumeFrom(it: Playable): Playable {
+  if (it.type === "track") return it; // songs start from the top
+  const unsent = unsentProgress(it.type, it.id);
   return unsent && !unsent.finished ? { ...it, startAt: unsent.positionSec } : it;
 }
 
@@ -939,6 +948,15 @@ async function flush(refreshLists = false) {
   }
 }
 
+/** Sends what's waiting in the outbox now (before signing out, say); a failure leaves it there. */
+export const flushProgress = () => flush();
+
+/** Drops unsent progress and listening minutes, on sign-out: they're this account's, not the next one's. */
+export function forgetProgress() {
+  removeKey(OUTBOX_KEY);
+  listening.clear();
+}
+
 onlineManager.subscribe((online) => {
   if (online) void flush(true);
 });
@@ -1034,7 +1052,9 @@ export function play(it: Playable, startAt?: number, fromList = false) {
   if (cur && state.playing) save();
   heardSec = 0;
   counted = false;
-  set({ item: it, speed: it.speed, sleep: { mode: "off" } });
+  set({ item: it, speed: it.speed });
+  // A timer set for what was playing doesn't carry over (and its interval stops with it).
+  if (state.sleep.mode !== "off") setSleep({ mode: "off" });
   load(it, startAt ?? it.startAt, true);
   setJson(NOW_PLAYING_KEY, { itemType: it.type, itemId: it.id } satisfies PlayRef);
   void showOnLockScreen(it);

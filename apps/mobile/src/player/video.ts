@@ -29,7 +29,7 @@ import {
   type WatchTarget,
 } from "@/lib/watch";
 import { CastPlayer, onCastDevice } from "./cast";
-import { artworkFile, countWatching, getPlayerState, onPlayerChange, queueProgress, stop as stopAudio } from "./engine";
+import { artworkFile, countWatching, getPlayerState, onPlayerChange, queueProgress, stop as stopAudio, unsentProgress } from "./engine";
 
 // The video being watched, kept outside the screens so it plays on in the mini player, like the
 // audio engine. One expo-video player for the whole app; screens show it with a VideoView.
@@ -442,10 +442,13 @@ export async function videoDownloadSource(file: VideoFileInfo, videoId: string, 
  * Starts a video, stopping whatever audio was on (its place is saved). Opening the one already
  * on (from the mini player) carries on where it is.
  */
-export function openVideo(item: VideoItem) {
+export function openVideo(opened: VideoItem) {
   const cur = state.item;
-  if (cur && cur.progressId === item.progressId && cur.videoId === item.videoId) return;
+  if (cur && cur.progressId === opened.progressId && cur.videoId === opened.videoId) return;
   if (cur) save(true);
+  // Watched on this phone since the server last heard (offline, say): that place is the newest.
+  const unsent = unsentProgress("video", opened.progressId);
+  const item = unsent ? { ...opened, startAt: unsent.finished ? 0 : unsent.positionSec } : opened;
   stopAudio();
   videoPlayer();
   touched = false;

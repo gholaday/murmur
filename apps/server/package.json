@@ -26,6 +26,7 @@
     "sharp": "0.35.5",
     "sonner": "2.0.8",
     "strtok3": "10.6.2",
+    "undici": "7.16.0",
     "zod": "4.6.7"
   },
   "devDependencies": {

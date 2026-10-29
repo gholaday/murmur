@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { apiPaths, gigabytes, type VideoDownloadDto, type VideoSource } from "@murmur/shared";
 import { threadArgs } from "./cpu";
-import { canToneMap, encoder, type Encoder, giveUpOn, h264Args } from "./encoders";
+import { canToneMap, encoder, type Encoder, encoderFailed, h264Args } from "./encoders";
 import { env } from "./env";
 import { HttpError } from "./http";
 import { createLogger, errorMessage } from "./log";
@@ -164,10 +164,10 @@ async function prepare(j: Job, src: VideoSource) {
   let enc: Encoder = j.converting ? await encoder() : "cpu";
   log.info("download preparing", { video: src.videoId, picture: src.video, audio: src.audio, encoder: enc });
   let ok = await run(j, src, enc, toneMap);
-  // A GPU encoder that fails on this file is dropped for the CPU, as for streams.
+  // A GPU encoder that fails on this file hands it to the CPU, as for streams.
   if (!ok && enc !== "cpu" && all.has(j.id)) {
     log.warn("download failed on the GPU, trying the CPU", { video: src.videoId, encoder: enc, error: j.error });
-    giveUpOn(enc);
+    encoderFailed(enc, src.file);
     enc = "cpu";
     j.error = null;
     j.progress = 0;

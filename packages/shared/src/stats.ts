@@ -286,6 +286,12 @@ export class ListeningTracker {
     this.store(this.data);
   }
 
+  /** Forgets everything, on sign-out, so one account's minutes aren't sent as another's. */
+  clear() {
+    this.data = { clientId: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`, totals: {} };
+    this.persist();
+  }
+
   /** The totals that changed since they were last sent, or null if none did. */
   pending(): ListeningReport | null {
     const items = Object.values(this.data.totals)

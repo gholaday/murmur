@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(import.meta.dirname, "../../"),
   transpilePackages: ["@murmur/shared"],
   // Native modules must be loaded from node_modules at runtime, not bundled.
-  serverExternalPackages: ["better-sqlite3", "sharp", "@node-rs/argon2", "music-metadata", "strtok3"],
+  serverExternalPackages: ["better-sqlite3", "sharp", "@node-rs/argon2", "music-metadata", "strtok3", "undici"],
   poweredByHeader: false,
   // The release version, set while building the image, replaces process.env.MURMUR_VERSION in
   // the code. A container's own environment can't then report an older one.

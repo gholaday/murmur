@@ -13,6 +13,8 @@ interface Deps {
   feedCheckMs: number;
   version: string;
   log: Logger;
+  /** Called once a feed nobody follows is deleted, so its cached audio goes too. */
+  onPodcastRemoved?: (podcastId: string) => void;
 }
 
 const FEED_TIMEOUT_MS = 15_000;
@@ -247,6 +249,7 @@ export function createPodcastService(deps: Deps) {
     const left = sqlite.prepare("SELECT COUNT(*) AS n FROM subscriptions WHERE podcast_id = ?").get(podcastId) as { n: number };
     if (left.n === 0) {
       sqlite.prepare("DELETE FROM podcasts WHERE id = ?").run(podcastId);
+      deps.onPodcastRemoved?.(podcastId);
       log.info("podcast removed, no subscribers left", { podcastId });
     }
   }

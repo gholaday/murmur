@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { albumCover, apiPaths, episodeLabel, plural } from "@murmur/shared/client";
 import { downloadingText, formatBytes, removeAllDownloads, removeDownload, useDownload, useDownloads, type Download } from "@/lib/downloads";
 import { openMovie, openTvShow, openVideoPlayer } from "@/lib/watch";
-import { bookToPlayable, episodeToPlayable, isCurrent, isPlayingFrom, play, playMusic, usePlayerSelect } from "@/player/engine";
+import { isCurrent, isPlayingFrom, playMusic, playRef, usePlayerSelect } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { CloseIcon, PlayIcon } from "./icons";
@@ -148,7 +148,8 @@ function describe(d: Download) {
         sub: d.book.author ?? "Unknown author",
         kind: null,
         open: () => router.push(`/book/${d.book.id}`),
-        play: () => play(bookToPlayable(d.book)),
+        // By reference, not the saved copy: it carries on from the newest place, not the one when it was downloaded.
+        play: () => void playRef({ itemType: "book", itemId: d.book.id }),
       };
     case "podcast":
       return {
@@ -157,7 +158,7 @@ function describe(d: Download) {
         sub: d.episode.podcastTitle,
         kind: null,
         open: () => router.push(`/show/${d.episode.podcastId}`),
-        play: () => play(episodeToPlayable(d.episode)),
+        play: () => void playRef({ itemType: "episode", itemId: d.episode.id }),
       };
     case "album":
       return {

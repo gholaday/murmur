@@ -172,10 +172,17 @@ export async function storeCover(coversDir: string, source: Buffer): Promise<str
     } catch {
       // not cached yet
     }
-    const tmp = `${out}.${process.pid}.tmp`;
-    const img = await fromBase();
-    await (size === LARGEST ? img : img.resize(size, size)).webp({ quality: 82 }).toFile(tmp);
-    await fs.rename(tmp, out);
+    // Two books with the same cover can be imported at once; each writes its own temp file, and
+    // whichever rename lands last leaves a whole file behind.
+    const tmp = `${out}.${crypto.randomBytes(6).toString("hex")}.tmp`;
+    try {
+      const img = await fromBase();
+      await (size === LARGEST ? img : img.resize(size, size)).webp({ quality: 82 }).toFile(tmp);
+      await fs.rename(tmp, out);
+    } catch (err) {
+      await fs.rm(tmp, { force: true }).catch(() => undefined);
+      throw err;
+    }
   }
   return hash;
 }

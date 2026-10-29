@@ -1,12 +1,15 @@
-import dns from "node:dns/promises";
+import dns from "node:dns";
 import net from "node:net";
+import { Agent, fetch as undiciFetch } from "undici";
 import { env } from "./env";
 import { HttpError } from "./http";
 
 // Fetching addresses people give Murmur (podcast feeds, their audio and artwork, a cover URL).
 // Left alone, fetch would happily ask the server's own network: Murmur itself, the video add-on,
 // a cloud box's metadata address. So the host is looked up first and anything inside is refused,
-// each redirect is checked the same way, and bodies are read up to a cap.
+// each redirect is checked the same way, and bodies are read up to a cap. The connection itself
+// goes through a lookup that checks again, so a name whose record changes between the check and
+// the connection (DNS rebinding) is refused where it counts.
 
 const MAX_REDIRECTS = 5;
 
@@ -43,6 +46,16 @@ function mappedV4(v6: string): string {
   return `${h >> 8}.${h & 255}.${l >> 8}.${l & 255}`;
 }
 
+/** Why a host at these addresses is refused, or null when it may be fetched. */
+function refusal(host: string, addresses: string[]): HttpError | null {
+  if (addresses.length === 0) return new HttpError(400, `Couldn't find the address ${host}.`);
+  if (addresses.some(isLocal)) return new HttpError(400, "That address points at the server itself.");
+  if (!env.fetchAllowPrivate && addresses.some(isPrivate)) {
+    return new HttpError(400, "That address is on the server's own network. Set FETCH_ALLOW_PRIVATE=true to allow it.");
+  }
+  return null;
+}
+
 /** Refuses an address that points at the server itself or (unless allowed) its LAN. */
 export async function assertPublicHost(url: URL): Promise<void> {
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new HttpError(400, "Only http and https addresses can be fetched.");
@@ -52,17 +65,28 @@ export async function assertPublicHost(url: URL): Promise<void> {
   if (net.isIP(host)) addresses = [host];
   else {
     try {
-      addresses = (await dns.lookup(host, { all: true })).map((a) => a.address);
+      addresses = (await dns.promises.lookup(host, { all: true })).map((a) => a.address);
     } catch {
       throw new HttpError(400, `Couldn't find the address ${host}.`);
     }
   }
-  if (addresses.length === 0) throw new HttpError(400, `Couldn't find the address ${host}.`);
-  if (addresses.some(isLocal)) throw new HttpError(400, "That address points at the server itself.");
-  if (!env.fetchAllowPrivate && addresses.some(isPrivate)) {
-    throw new HttpError(400, "That address is on the server's own network. Set FETCH_ALLOW_PRIVATE=true to allow it.");
-  }
+  const why = refusal(host, addresses);
+  if (why) throw why;
 }
+
+/** The lookup the connection uses: the same check, on the very addresses the socket may connect to. */
+const checkedLookup: net.LookupFunction = (hostname, options, callback) => {
+  dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
+    if (err) return callback(err, []);
+    const list = addresses as dns.LookupAddress[];
+    const why = refusal(hostname, list.map((a) => a.address));
+    if (why) return callback(why, []);
+    if (options.all) callback(null, list);
+    else callback(null, list[0]!.address, list[0]!.family);
+  });
+};
+
+const agent = new Agent({ connect: { lookup: checkedLookup } });
 
 /**
  * `fetch` for an address someone gave Murmur: the host is checked first, and so is every redirect.
@@ -73,7 +97,15 @@ export async function safeFetch(url: string, init: RequestInit = {}): Promise<Re
   let method = init.method ?? "GET";
   for (let hop = 0; ; hop++) {
     await assertPublicHost(current);
-    const res = await fetch(current, { ...init, method, redirect: "manual" });
+    let res: Response;
+    try {
+      const options = { ...init, method, redirect: "manual", dispatcher: agent } as Parameters<typeof undiciFetch>[1];
+      res = (await undiciFetch(current, options)) as unknown as Response;
+    } catch (err) {
+      // A refusal from the lookup comes wrapped in "fetch failed".
+      if (err instanceof Error && err.cause instanceof HttpError) throw err.cause;
+      throw err;
+    }
     const location = res.headers.get("location");
     if (![301, 302, 303, 307, 308].includes(res.status) || !location) return res;
     await res.body?.cancel();

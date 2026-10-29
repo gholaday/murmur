@@ -52,6 +52,9 @@ export class Download {
   done = 0;
   finished = false;
   failed: string | null = null;
+  /** Set when the show was removed while this was downloading. */
+  cancelled = false;
+  readonly controller = new AbortController();
   private waiters = new Set<() => void>();
   /** Resolves true once the download has started and its size is known, false otherwise. */
   readonly started: Promise<boolean>;
@@ -59,6 +62,7 @@ export class Download {
 
   constructor(
     readonly episodeId: string,
+    readonly podcastId: string,
     readonly file: string,
     readonly mimeType: string,
   ) {
@@ -169,14 +173,14 @@ export function createEpisodeCache(deps: Deps) {
            created_at = excluded.created_at, ready_at = NULL`,
       )
       .run(ep.id, relPath, mimeType, now);
-    const dl = new Download(ep.id, fullPath(relPath), mimeType);
+    const dl = new Download(ep.id, ep.podcast_id, fullPath(relPath), mimeType);
     active.set(ep.id, dl);
     void run(ep, dl).finally(() => active.delete(ep.id));
     return dl;
   }
 
   async function run(ep: EpisodeRow, dl: Download) {
-    const controller = new AbortController();
+    const { controller } = dl;
     let stall = setTimeout(() => controller.abort(), STALL_MS);
     const kick = () => {
       clearTimeout(stall);
@@ -217,14 +221,15 @@ export function createEpisodeCache(deps: Deps) {
       if (row) deps.onReady(row.id);
       evict();
     } catch (err) {
-      const message = controller.signal.aborted ? "The download stalled." : errorMessage(err);
+      const message = dl.cancelled ? "The show was removed." : controller.signal.aborted ? "The download stalled." : errorMessage(err);
       await handle?.close().catch(() => undefined);
       fs.rmSync(dl.file, { force: true });
-      sqlite.prepare("UPDATE episode_files SET status = 'failed', error = ? WHERE episode_id = ?").run(message, ep.id);
+      // A removed show has no rows left to update.
+      if (!dl.cancelled) sqlite.prepare("UPDATE episode_files SET status = 'failed', error = ? WHERE episode_id = ?").run(message, ep.id);
       dl.failed = message;
       dl.resolveStarted(false);
       dl.notify();
-      log.warn("episode download failed", { episodeId: ep.id, error: message });
+      if (!dl.cancelled) log.warn("episode download failed", { episodeId: ep.id, error: message });
     } finally {
       clearTimeout(stall);
     }
@@ -362,7 +367,24 @@ export function createEpisodeCache(deps: Deps) {
     return { available, error: problem, usedBytes: usedBytes(), maxBytes: deps.maxBytes, episodes: n("ready"), downloading: active.size };
   }
 
-  return { init, open, prefetch, status, available: () => available };
+  /**
+   * Drops a show's cached audio once its feed is gone (the rows go with the feed, so the files
+   * would otherwise sit outside the cache cap until the next restart). Downloads still running
+   * for it are stopped, and remove their own file.
+   */
+  function removePodcast(podcastId: string) {
+    for (const dl of active.values()) {
+      if (dl.podcastId !== podcastId) continue;
+      dl.cancelled = true;
+      dl.controller.abort();
+    }
+    // Windows keeps a file locked a moment after its handle closes.
+    fs.rm(path.join(deps.dir, podcastId), { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }, (err) => {
+      if (err) log.warn("couldn't remove a show's cached episodes", { podcastId, error: errorMessage(err) });
+    });
+  }
+
+  return { init, open, prefetch, status, removePodcast, available: () => available };
 }
 
 export type EpisodeCache = ReturnType<typeof createEpisodeCache>;

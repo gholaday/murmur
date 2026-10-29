@@ -218,6 +218,7 @@ async function boot(): Promise<AppContext> {
     feedCheckMs: env.feedCheckMs,
     version: env.version,
     log: podcastLog,
+    onPodcastRemoved: (podcastId) => episodeCache.removePodcast(podcastId),
   });
   const episodeCache = createEpisodeCache({
     sqlite,

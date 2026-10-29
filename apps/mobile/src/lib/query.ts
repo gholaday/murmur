@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import * as Network from "expo-network";
 import { dehydrate, focusManager, hydrate, onlineManager, QueryClient, type DehydratedState } from "@tanstack/react-query";
-import { getJson, setJson } from "./storage";
+import { getJson, removeKey, setJson } from "./storage";
 
 const CACHE_KEY = "murmur.queryCache";
 const SAVE_DELAY_MS = 2_000;
@@ -41,7 +41,7 @@ const PERSISTED = new Set([
   "episode",
   "newEpisodes",
   "continueEpisodes",
-  "queue",
+  "upNext",
   "prefs",
   "music",
   "album",
@@ -72,6 +72,13 @@ queryClient.getQueryCache().subscribe((event) => {
     setJson(CACHE_KEY, state);
   }, SAVE_DELAY_MS);
 });
+
+/** Forgets the saved copy, on sign-out, so the next account doesn't open on this one's lists. */
+export function clearPersistedCache() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = null;
+  removeKey(CACHE_KEY);
+}
 
 // React Query's web defaults don't know about app focus or connectivity on a phone.
 onlineManager.setEventListener((setOnline) => {

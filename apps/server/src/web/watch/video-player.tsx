@@ -266,9 +266,13 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   const next = item.next[0] ?? null;
 
   // A video takes over from whatever audio was on: it saves its place and leaves the mini player.
+  // It also takes the browser's media controls (below), and hands them back when it closes.
   const stopAudio = useRef(audio.stop);
+  const claimAudioControls = useRef(audio.claimMediaSession);
+  claimAudioControls.current = audio.claimMediaSession;
   useEffect(() => {
     stopAudio.current();
+    return () => claimAudioControls.current();
   }, []);
   // And playing audio later ends the video.
   const audioAtStart = useRef(audio.item);

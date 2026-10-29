@@ -137,11 +137,14 @@ function ffmpeg(args: string[], timeoutMs: number): Promise<string> {
   });
 }
 
+/** A hardware encoder that fails on this many different files is given up on. */
+const FAILED_FILES_LIMIT = 3;
+
 /** Probed once, on first use. */
-let probed: { encoder: Promise<Encoder>; toneMap: Promise<boolean>; broken: Set<Encoder> } | null = null;
+let probed: { encoder: Promise<Encoder>; toneMap: Promise<boolean>; broken: Set<Encoder>; failedFiles: Map<Encoder, Set<string>> } | null = null;
 
 function state() {
-  probed ??= { encoder: probe(), toneMap: probeToneMap(), broken: new Set() };
+  probed ??= { encoder: probe(), toneMap: probeToneMap(), broken: new Set(), failedFiles: new Map() };
   return probed;
 }
 
@@ -196,9 +199,21 @@ export async function encoder(): Promise<Encoder> {
 
 export const canToneMap = (): Promise<boolean> => state().toneMap;
 
-/** A hardware encoder that passed the probe but failed on a real file is not used again; the CPU takes over. */
-export function giveUpOn(e: Encoder) {
+/**
+ * A hardware encoder that passed its probe but failed on a real file: that file goes to the CPU.
+ * One file can be the odd one out (a size or codec the driver can't take, a file gone missing);
+ * an encoder that fails on several different files is broken, and the CPU takes over for good.
+ */
+export function encoderFailed(e: Encoder, file: string) {
   if (e === "cpu") return;
-  log.warn("hardware encoder failed on a file, using the CPU from now on", { encoder: e });
-  state().broken.add(e);
+  const s = state();
+  const files = s.failedFiles.get(e) ?? new Set<string>();
+  files.add(file);
+  s.failedFiles.set(e, files);
+  if (files.size < FAILED_FILES_LIMIT) {
+    log.info("hardware encoder failed on a file, the CPU takes this one", { encoder: e, file, failures: files.size });
+    return;
+  }
+  log.warn("hardware encoder failed on several files, using the CPU from now on", { encoder: e, failures: files.size });
+  s.broken.add(e);
 }
