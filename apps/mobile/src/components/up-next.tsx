@@ -136,7 +136,7 @@ function BookRow({ item }: { item: Playable }) {
           <Mixer thumb resume playing={playing} />
         </View>
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-          <MarqueeText text={item.title} variant="bodyStrong" style={{ color: t.accent }} fadeTo={t.surface} />
+          <MarqueeText text={item.title} variant="bodyStrong" style={{ color: t.accent }} />
           <View style={{ flexDirection: "row", gap: 8 }}>
             {where ? (
               <Text variant="small" numberOfLines={1} style={{ flexShrink: 1 }}>
@@ -179,7 +179,7 @@ function UpNextRow({ entry, index, state }: { entry: UpNextEntry; index: number;
           {playingNow ? <Mixer thumb resume playing={playing} /> : null}
         </View>
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-          <MarqueeText text={v.title} variant="bodyStrong" style={{ color: playingNow ? t.accent : played ? t.faint : t.text }} fadeTo={t.surface} />
+          <MarqueeText text={v.title} variant="bodyStrong" style={{ color: playingNow ? t.accent : played ? t.faint : t.text }} />
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Text variant="small" numberOfLines={1} style={{ flexShrink: 1, color: sub }}>
               {v.kind}

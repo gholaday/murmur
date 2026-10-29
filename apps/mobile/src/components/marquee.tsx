@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { AppState, type StyleProp, type TextStyle, View, type ViewStyle } from "react-native";
+import { AppState, type StyleProp, type TextStyle, View, type ViewProps, type ViewStyle } from "react-native";
 import { useIsFocused } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import MaskedViewClass from "@react-native-masked-view/masked-view";
 import Animated, {
   cancelAnimation,
   Easing,
@@ -14,6 +15,9 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { Text } from "./ui";
+
+// The package's types are written against an older React; this is the same component, typed.
+const MaskedView = MaskedViewClass as unknown as React.ComponentType<ViewProps & { maskElement: React.ReactElement }>;
 
 /** Space between the end of the line and its next lap. */
 const GAP = 48;
@@ -77,21 +81,11 @@ const TITLE_GAP = 40;
 const FADE = 16;
 
 /**
- * A title that scrolls sideways when it doesn't fit, fading at the right edge, so a long one can be
- * read in a tight row (Up Next). With reduced motion it ends in an ellipsis instead. `fadeTo` is
- * the colour behind it, as #rrggbb.
+ * A title that scrolls sideways when it doesn't fit, fading out at both edges into whatever is
+ * behind it (a tinted player, a sheet), so a long one can be read in a tight row. With reduced
+ * motion it ends in an ellipsis instead.
  */
-export function MarqueeText({
-  text,
-  variant,
-  style,
-  fadeTo,
-}: {
-  text: string;
-  variant?: "title" | "bodyStrong" | "small";
-  style?: StyleProp<TextStyle>;
-  fadeTo: string;
-}) {
+export function MarqueeText({ text, variant, style }: { text: string; variant?: "title" | "bodyStrong" | "small"; style?: StyleProp<TextStyle> }) {
   const reduced = useReducedMotion();
   const [box, setBox] = useState(0);
   const [full, setFull] = useState(0);
@@ -110,39 +104,49 @@ export function MarqueeText({
     return () => cancelAnimation(x);
   }, [moving, full, x]);
   const track = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+  const edge = box > 0 ? Math.min(0.2, FADE / box) : 0;
+  const line = (
+    <View pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={{ width: 10_000, flexDirection: "row" }}>
+      <Animated.View style={[{ flexDirection: "row" }, track]}>
+        {/* Measured at its natural width, to know whether the text fits. */}
+        <Text variant={variant} style={[style, { paddingRight: TITLE_GAP }]} onLayout={(e) => setFull(e.nativeEvent.layout.width)}>
+          {text}
+        </Text>
+        {moving ? (
+          <Text variant={variant} style={[style, { paddingRight: TITLE_GAP }]}>
+            {text}
+          </Text>
+        ) : null}
+      </Animated.View>
+    </View>
+  );
   return (
     <View style={{ overflow: "hidden" }} onLayout={(e) => setBox(e.nativeEvent.layout.width)}>
       {/* Sets the line's height, and is the text itself when it fits. */}
       <Text variant={variant} numberOfLines={1} style={[style, moving ? { opacity: 0 } : null]}>
         {text}
       </Text>
-      <View
-        pointerEvents="none"
-        importantForAccessibility="no-hide-descendants"
-        accessibilityElementsHidden
-        style={{ position: "absolute", left: 0, top: 0, width: 10_000, flexDirection: "row", opacity: moving ? 1 : 0 }}
-      >
-        <Animated.View style={[{ flexDirection: "row" }, track]}>
-          {/* Measured at its natural width, to know whether the text fits. */}
-          <Text variant={variant} style={[style, { paddingRight: TITLE_GAP }]} onLayout={(e) => setFull(e.nativeEvent.layout.width)}>
-            {text}
-          </Text>
-          {moving ? (
-            <Text variant={variant} style={[style, { paddingRight: TITLE_GAP }]}>
-              {text}
-            </Text>
-          ) : null}
-        </Animated.View>
-      </View>
       {moving ? (
-        <LinearGradient
+        // The moving line shows through a mask that is clear at both ends, so it fades into the background rather than under a block of colour.
+        <MaskedView
           pointerEvents="none"
-          colors={[`${fadeTo}00`, fadeTo]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: FADE }}
-        />
-      ) : null}
+          style={{ position: "absolute", left: 0, top: 0, bottom: 0, right: 0 }}
+          maskElement={
+            <LinearGradient
+              colors={["transparent", "#000", "#000", "transparent"]}
+              locations={[0, edge, 1 - edge, 1]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ flex: 1 }}
+            />
+          }
+        >
+          {line}
+        </MaskedView>
+      ) : (
+        // Measured unseen while it fits.
+        <View style={{ position: "absolute", left: 0, top: 0, opacity: 0 }}>{line}</View>
+      )}
     </View>
   );
 }

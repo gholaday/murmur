@@ -1,0 +1,39 @@
+diff --git a/android/src/main/java/com/reactnative/googlecast/api/RNGCDiscoveryManager.java b/android/src/main/java/com/reactnative/googlecast/api/RNGCDiscoveryManager.java
+index aa910d5bf49349a7d4ede81af8831e638224c95a..a4e85b94fe4711d05e4a6f12861a782611e50808 100644
+--- a/android/src/main/java/com/reactnative/googlecast/api/RNGCDiscoveryManager.java
++++ b/android/src/main/java/com/reactnative/googlecast/api/RNGCDiscoveryManager.java
+@@ -108,14 +108,32 @@ public class RNGCDiscoveryManager
+     promise.resolve(null);
+   }
+ 
++  // Murmur: start and stop an active scan, as the cast picker does. The framework's own passive
++  // scan can miss a Chromecast, leaving the cast state at "no devices" and the button hidden.
+   @ReactMethod
+   public void startDiscovery(final Promise promise) {
+-    promise.resolve(null);
++    setDiscovery(MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY | MediaRouter.CALLBACK_FLAG_PERFORM_ACTIVE_SCAN, promise);
+   }
+ 
+   @ReactMethod
+   public void stopDiscovery(final Promise promise) {
+-    promise.resolve(null);
++    setDiscovery(0, promise);
++  }
++
++  private void setDiscovery(final int flags, final Promise promise) {
++    final ReactApplicationContext context = getReactApplicationContext();
++    context.runOnUiQueueThread(new Runnable() {
++      @Override
++      public void run() {
++        CastContext castContext = RNGCCastContext.getSharedInstance(context);
++        if (castContext != null) {
++          // Adding the same callback again replaces its flags.
++          MediaRouter.getInstance(context).addCallback(castContext.getMergedSelector(), mediaRouterCallback, flags);
++          mListenersAttached = true;
++        }
++        promise.resolve(null);
++      }
++    });
+   }
+ 
+   @Override

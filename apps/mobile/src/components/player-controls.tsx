@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Pressable, View } from "react-native";
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import Svg, { Circle } from "react-native-svg";
-import { pickCastDevice, useCast } from "@/player/cast";
+import { pickCastDevice, useCast, useCastScan } from "@/player/cast";
 import { fonts, useTheme } from "@/theme";
 import { CastIcon } from "./icons";
 import { IconButton, NumberBadge, Text } from "./ui";
@@ -12,6 +12,7 @@ import { IconButton, NumberBadge, Text } from "./ui";
 /** The cast button in a full player's top row: only there when a Chromecast is found, accent while casting. */
 export function CastButton({ color }: { color: string }) {
   const t = useTheme();
+  useCastScan();
   const { available, device } = useCast();
   if (!available) return null;
   return (

@@ -1,4 +1,5 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+import { AppState } from "react-native";
 import {
   CastContext,
   type CastSession,
@@ -53,6 +54,36 @@ export const useCast = (): CastStatus => useSyncExternalStore(subscribe, getCast
 export function onCastDevice(listener: (device: string | null) => void): () => void {
   deviceListeners.add(listener);
   return () => void deviceListeners.delete(listener);
+}
+
+// Android only finds Chromecasts while something asks for an active scan, as a visible cast button
+// would; ours stays hidden until one is found. So the players scan while they're open and the app
+// is in front (the patched DiscoveryManager starts and stops it).
+let scanners = 0;
+let appActive = AppState.currentState === "active";
+function updateScan() {
+  try {
+    const discovery = CastContext.getDiscoveryManager();
+    void (scanners > 0 && appActive ? discovery.startDiscovery() : discovery.stopDiscovery()).catch(() => undefined);
+  } catch {
+    // No Cast support: nothing to scan with.
+  }
+}
+AppState.addEventListener("change", (s) => {
+  appActive = s === "active";
+  updateScan();
+});
+
+/** Looks for Chromecasts while the calling screen is open. */
+export function useCastScan() {
+  useEffect(() => {
+    scanners++;
+    updateScan();
+    return () => {
+      scanners--;
+      updateScan();
+    };
+  }, []);
 }
 
 /** The system device picker; with a device connected it offers Stop casting. */

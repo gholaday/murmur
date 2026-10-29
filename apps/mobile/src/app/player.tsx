@@ -266,7 +266,7 @@ export default function Player() {
             ) : null}
             {/* Fades into the page's tint where it sits, so it needs its place on the screen. */}
             <View ref={titleRef} onLayout={() => titleRef.current?.measureInWindow((_x, y) => setTitleY(y))}>
-              <MarqueeText text={item.title} variant="title" style={{ fontSize: 22 }} fadeTo={tintAt(titleY)} />
+              <MarqueeText text={item.title} variant="title" style={{ fontSize: 22 }} />
             </View>
             <Text variant="small" numberOfLines={1} style={{ fontSize: 14, color: soft }}>
               {multiChapter && chapter ? chapter.title : item.subtitle}
