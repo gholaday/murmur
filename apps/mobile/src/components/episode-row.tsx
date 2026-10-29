@@ -61,9 +61,11 @@ export const EpisodeRow = memo(function EpisodeRow({
     }
   };
 
+  // Starting the episode opens the full player; pausing and resuming stay here.
   const onPlay = () => {
     if (current) return toggle();
     play(episodeToPlayable(episode), played ? 0 : undefined);
+    router.push("/player");
   };
 
   const toggleQueue = () =>

@@ -49,6 +49,12 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
   const p = usePlayer();
   const source: MusicSource = { kind: "album", refId: album.id, title: album.title, tracks: album.tracks };
   const from = p.isPlayingFrom("album", album.id);
+  // Starting the album opens the full player; pausing and resuming leave it as it is.
+  const onPlay = () => {
+    if (from) return p.toggle();
+    p.playMusic(source, -1);
+    p.setExpanded(true);
+  };
 
   const change = async (add: boolean) => {
     setBusy(true);
@@ -90,7 +96,7 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
 
       {state === "all" ? (
         <div className="actions">
-          <button type="button" className="btn btn-primary btn-big" onClick={() => (from ? p.toggle() : p.playMusic(source, -1))}>
+          <button type="button" className="btn btn-primary btn-big" onClick={onPlay}>
             {from && p.playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
             <span>{from ? (p.playing ? "Pause" : "Resume") : "Play"}</span>
           </button>
@@ -107,7 +113,7 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
               type="button"
               className="btn-round"
               aria-label={from && p.playing ? "Pause" : "Play"}
-              onClick={() => (from ? p.toggle() : p.playMusic(source, -1))}
+              onClick={onPlay}
             >
               {from && p.playing ? <PauseIcon /> : <PlayIcon />}
             </button>

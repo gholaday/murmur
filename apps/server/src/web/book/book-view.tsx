@@ -38,9 +38,11 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
   const { play } = player;
   const playChapter = useCallback((startSec: number) => play(bookToPlayable(book), startSec), [play, book]);
 
+  // Starting the book opens the full player; pausing and resuming leave it as it is.
   const onPlay = () => {
     if (current) return player.toggle();
     player.play(playable(), finished ? 0 : undefined);
+    player.setExpanded(true);
   };
 
   const mark = async (done: boolean) => {

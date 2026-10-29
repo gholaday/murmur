@@ -59,7 +59,7 @@ export default function AlbumScreen() {
 
         {state === "all" ? (
           <View style={{ flexDirection: "row", gap: 10 }}>
-            <PlayButton from={{ kind: "album", refId: a.id }} onPress={() => playAlbum(a, -1)} />
+            <PlayButton from={{ kind: "album", refId: a.id }} opensPlayer onPress={() => playAlbum(a, -1)} />
             <ShuffleButton from={{ kind: "album", refId: a.id }} onPlay={() => playAlbum(a, -1, true)} />
             <AlbumDownloadButton album={a} />
           </View>
@@ -75,7 +75,7 @@ export default function AlbumScreen() {
                   void setInMusic({ albums: [a] }, true);
                 }}
               />
-              <PlayButton from={{ kind: "album", refId: a.id }} round onPress={() => playAlbum(a, -1)} />
+              <PlayButton from={{ kind: "album", refId: a.id }} round opensPlayer onPress={() => playAlbum(a, -1)} />
             </View>
             <Text variant="small" style={{ textAlign: "center" }}>
               {state === "some"

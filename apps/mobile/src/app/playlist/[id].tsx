@@ -74,7 +74,7 @@ export default function PlaylistScreen() {
         {p.tracks.length ? (
           <>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <PlayButton from={source} onPress={() => playMusic(source, -1)} />
+              <PlayButton from={source} opensPlayer onPress={() => playMusic(source, -1)} />
               <ShuffleButton from={source} onPlay={() => playMusic(source, -1, true)} />
               <ActionButton label="Add songs" round icon={<PlusIcon size={22} color={t.text} />} onPress={addSongs} />
             </View>

@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { albumCover, apiPaths, episodeLabel, plural } from "@murmur/shared/client";
 import { downloadingText, formatBytes, removeAllDownloads, removeDownload, useDownload, useDownloads, type Download } from "@/lib/downloads";
 import { openMovie, openTvShow, openVideoPlayer } from "@/lib/watch";
-import { bookToPlayable, episodeToPlayable, play, playMusic } from "@/player/engine";
+import { bookToPlayable, episodeToPlayable, isCurrent, isPlayingFrom, play, playMusic, usePlayerSelect } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { CloseIcon, PlayIcon } from "./icons";
@@ -206,6 +206,16 @@ function DownloadRow({ download, onRemove }: { download: Download; onRemove: () 
   const v = describe(d);
   const title = titleOf(d);
   const ratio = ("aspectRatio" in v && v.aspectRatio) || 1;
+  // Already loaded in the player, so Play only resumes it.
+  const current = usePlayerSelect((s) =>
+    d.type === "book"
+      ? isCurrent(s, "book", d.book.id)
+      : d.type === "podcast"
+        ? isCurrent(s, "episode", d.episode.id)
+        : d.type === "album"
+          ? isPlayingFrom(s, "album", d.album.id)
+          : d.type === "track" && isCurrent(s, "track", d.track.id),
+  );
   // Music says what it is too: "Album, 13 songs, 118 MB".
   const size = v.kind ? `${v.kind}, ${formatBytes(d.bytes)}` : formatBytes(d.bytes);
 
@@ -227,7 +237,14 @@ function DownloadRow({ download, onRemove }: { download: Download; onRemove: () 
         </View>
       </Pressable>
       {d.status === "done" ? (
-        <IconButton label={`Play ${title}`} onPress={v.play}>
+        <IconButton
+          label={`Play ${title}`}
+          onPress={() => {
+            v.play();
+            // Starting audio opens the full player; video opens its own.
+            if (!current && d.type !== "movie" && d.type !== "show") router.push("/player");
+          }}
+        >
           <PlayIcon size={20} color={t.text} />
         </IconButton>
       ) : null}

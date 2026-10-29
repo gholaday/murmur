@@ -466,7 +466,20 @@ export type MusicRef = { kind: UpNextSource["kind"]; refId: string | null };
  * Play for an album, list or Songs. While music from that same place is loaded, it pauses and
  * resumes instead of starting over, as the Play button on a book does.
  */
-export function PlayButton({ label = "Play", from, round, onPress }: { label?: string; from: MusicRef; round?: boolean; onPress: () => void }) {
+export function PlayButton({
+  label = "Play",
+  from,
+  round,
+  opensPlayer,
+  onPress,
+}: {
+  label?: string;
+  from: MusicRef;
+  round?: boolean;
+  /** Starting this music opens the full player, as an album's or playlist's Play does; pausing and resuming don't. */
+  opensPlayer?: boolean;
+  onPress: () => void;
+}) {
   const t = useTheme();
   const live = usePlayerSelect((s) => isPlayingFrom(s, from.kind, from.refId));
   const playing = usePlayerSelect((s) => s.playing);
@@ -482,7 +495,11 @@ export function PlayButton({ label = "Play", from, round, onPress }: { label?: s
       />
     );
   }
-  return <ActionButton label={label} primary={!round} round={round} icon={<PlayIcon size={20} color={color} />} onPress={onPress} />;
+  const start = () => {
+    onPress();
+    if (opensPlayer) router.push("/player");
+  };
+  return <ActionButton label={label} primary={!round} round={round} icon={<PlayIcon size={20} color={color} />} onPress={start} />;
 }
 
 /**

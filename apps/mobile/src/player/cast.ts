@@ -87,7 +87,11 @@ export function useCastScan() {
 }
 
 /** The system device picker; with a device connected it offers Stop casting. */
-export const pickCastDevice = () => void CastContext.showCastDialog().catch(() => undefined);
+export const pickCastDevice = () =>
+  void CastContext.showCastDialog().then(
+    (shown) => !shown && toast.error("Couldn't open the cast picker."),
+    () => toast.error("Couldn't open the cast picker."),
+  );
 
 const endSession = () => void CastContext.getSessionManager().endCurrentSession(true).catch(() => undefined);
 

@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { apiPaths, type BookDetail, chapterAt, duration, plural, timeLeft } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { BottomMiniPlayer } from "@/components/mini-player";
@@ -77,7 +77,12 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
         ? ["Continue", left]
         : ["Play", duration(book.durationSec)];
 
-  const onPlay = () => (current ? toggle() : play(bookToPlayable(book), finished ? 0 : undefined));
+  // Starting the book opens the full player; pausing and resuming stay here.
+  const onPlay = () => {
+    if (current) return toggle();
+    play(bookToPlayable(book), finished ? 0 : undefined);
+    router.push("/player");
+  };
 
   const mark = async (done: boolean) => {
     setMenu(false);

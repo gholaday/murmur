@@ -66,9 +66,11 @@ export function EpisodeRow({
     }
   };
 
+  // Starting an episode opens the full player; pausing and resuming leave it as it is.
   const onPlay = () => {
     if (current) return player.toggle();
     player.play(episodeToPlayable(episode), played ? 0 : undefined);
+    player.setExpanded(true);
   };
 
   const toggleQueue = () =>

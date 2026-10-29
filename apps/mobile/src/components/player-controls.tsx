@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Pressable, View } from "react-native";
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import Svg, { Circle } from "react-native-svg";
+import { CastButton as NativeCastButton } from "react-native-google-cast";
 import { pickCastDevice, useCast, useCastScan } from "@/player/cast";
 import { fonts, useTheme } from "@/theme";
 import { CastIcon } from "./icons";
@@ -18,6 +19,8 @@ export function CastButton({ color }: { color: string }) {
   return (
     <IconButton label={device ? `Casting to ${device}` : "Cast"} onPress={pickCastDevice}>
       <CastIcon size={22} connected={!!device} color={device ? t.accent : color} />
+      {/* Android opens the device picker by clicking the library's own cast button, so one sits unseen behind ours. */}
+      <NativeCastButton pointerEvents="none" style={{ position: "absolute", width: 1, height: 1, opacity: 0 }} />
     </IconButton>
   );
 }

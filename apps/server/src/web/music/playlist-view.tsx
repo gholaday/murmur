@@ -134,6 +134,12 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
   const { tracks } = playlist;
   const source: MusicSource = { kind: "playlist", refId: playlist.id, title: playlist.name, tracks };
   const from = player.isPlayingFrom("playlist", playlist.id);
+  // Starting the playlist opens the full player; pausing and resuming leave it as it is.
+  const onPlay = () => {
+    if (from) return player.toggle();
+    player.playMusic(source, -1);
+    player.setExpanded(true);
+  };
 
   const save = async (change: { name?: string; trackIds?: string[] }, done?: string) => {
     setBusy(true);
@@ -205,7 +211,7 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
       {tracks.length ? (
         <>
           <div className="actions">
-            <button type="button" className="btn btn-primary btn-big" onClick={() => (from ? player.toggle() : player.playMusic(source, -1))}>
+            <button type="button" className="btn btn-primary btn-big" onClick={onPlay}>
               {from && player.playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
               <span>{from ? (player.playing ? "Pause" : "Resume") : "Play"}</span>
             </button>
