@@ -21,8 +21,10 @@ RUN pnpm --filter @murmur/video test && pnpm --filter @murmur/video build
 # Keep this Alpine version in step with the one node:24-alpine is built on.
 FROM alpine:3.24
 # The VAAPI drivers let an Intel or AMD GPU convert video when /dev/dri is passed in; without one,
-# conversion runs on the CPU.
-RUN apk add --no-cache libstdc++ libgcc tini su-exec ffmpeg intel-media-driver libva-intel-driver mesa-va-gallium
+# conversion runs on the CPU. Intel's drivers only exist for x86, so arm64 gets just the AMD one.
+ARG TARGETARCH
+RUN apk add --no-cache libstdc++ libgcc tini su-exec ffmpeg mesa-va-gallium \
+ && if [ "$TARGETARCH" = "amd64" ]; then apk add --no-cache intel-media-driver libva-intel-driver; fi
 COPY --from=build /usr/local/bin/node /usr/local/bin/node
 WORKDIR /app
 ARG MURMUR_VERSION=dev
