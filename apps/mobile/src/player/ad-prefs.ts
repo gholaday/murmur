@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AD_PREFS_KEY, type AdPrefs, type HealthDto, parseAdPrefs } from "@murmur/shared/client";
 import { api } from "@/lib/api";
@@ -29,10 +29,12 @@ const DETECTION_KEY = "murmur.adDetection";
 export function useAdDetection(): boolean | undefined {
   const health = useQuery({ queryKey: ["health"], queryFn: () => api<HealthDto>("/api/health") });
   const known = health.data ? health.data.adDetection === true : undefined;
+  // The last answer is read from storage once, not on every render of the player.
+  const [stored] = useState(() => getJson<boolean>(DETECTION_KEY) ?? undefined);
   useEffect(() => {
     if (known !== undefined) setJson(DETECTION_KEY, known);
   }, [known]);
-  return known ?? getJson<boolean>(DETECTION_KEY) ?? undefined;
+  return known ?? stored;
 }
 
 export function useAdPrefs(): AdPrefs {

@@ -250,7 +250,7 @@ export function FullPlayer() {
                       {
                         left: pct(a.startSec),
                         width: `calc(${pct(a.endSec)} - ${pct(a.startSec)})`,
-                        "--heard": `${Math.min(100, Math.max(0, ((pos - a.startSec) / (a.endSec - a.startSec)) * 100))}%`,
+                        "--heard": `${Math.min(100, Math.max(0, ((pos - a.startSec) / (a.endSec - a.startSec || 1)) * 100))}%`,
                       } as React.CSSProperties
                     }
                   />

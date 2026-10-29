@@ -126,9 +126,17 @@ export class CastMedia extends EventTarget {
   private wasActive = false;
   private adopting = false;
 
+  private onChange = (e: { field: string }) => this.changed(e.field);
+
   constructor(private describe: () => CastDescription | null) {
     super();
-    remote?.controller.addEventListener(cast.framework.RemotePlayerEventType.ANY_CHANGE, (e) => this.changed(e.field));
+    remote?.controller.addEventListener(cast.framework.RemotePlayerEventType.ANY_CHANGE, this.onChange);
+  }
+
+  /** Stops listening to the TV for good, when the player that made this goes away. */
+  dispose() {
+    this.release();
+    remote?.controller.removeEventListener(cast.framework.RemotePlayerEventType.ANY_CHANGE, this.onChange);
   }
 
   get src() {

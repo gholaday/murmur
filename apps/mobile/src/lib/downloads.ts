@@ -389,6 +389,7 @@ export function downloadingText(d: Download): string {
 async function saveArt(key: string, type: "movie" | "show", id: string, paths: string[]) {
   const folder = folderFor(type, id);
   folder.create({ intermediates: true, idempotent: true });
+  const started = index[key]?.savedAt;
   const saved: Record<string, string> = {};
   await Promise.all(
     paths.map(async (path, i) => {
@@ -403,7 +404,19 @@ async function saveArt(key: string, type: "movie" | "show", id: string, paths: s
     }),
   );
   const cur = index[key];
-  if (cur?.type === "movie" || cur?.type === "show") commit({ ...index, [key]: { ...cur, art: saved } });
+  // Removed (or removed and downloaded again) while the pictures came in: these ones aren't wanted.
+  if (!cur || cur.savedAt !== started) {
+    for (const uri of Object.values(saved)) {
+      try {
+        new File(uri).delete();
+      } catch {
+        // Already gone with its folder.
+      }
+    }
+    if (!cur && folder.exists && folder.list().length === 0) folder.delete();
+    return;
+  }
+  if (cur.type === "movie" || cur.type === "show") commit({ ...index, [key]: { ...cur, art: saved } });
 }
 
 function startVideo(key: string, entry: Download & { type: "movie" | "show" }, artPaths: string[]) {

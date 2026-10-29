@@ -17,7 +17,7 @@ const handler = route<{ params: Promise<{ id: string }> }>(async (req, { params 
   const id = (await params).id;
   const ep = getEpisodeForUser(ctx.sqlite, id, user.id);
   if (!ep) throw new HttpError(404, "Episode not found.");
-  const cached = await ctx.episodeCache.open(id).catch(() => null);
+  const cached = await ctx.episodeCache.open(id, req.method !== "HEAD").catch(() => null);
   // The type comes from the feed; rows from before types were checked are checked here instead.
   if (cached?.kind === "ready") return streamFile(req, cached.file, audioMimeType(cached.mimeType) ?? "audio/mpeg");
   if (cached?.kind === "growing") return streamGrowing(req, cached.file, cached.download, audioMimeType(cached.mimeType) ?? "audio/mpeg");

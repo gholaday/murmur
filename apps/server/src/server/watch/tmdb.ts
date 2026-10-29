@@ -63,7 +63,8 @@ export function createTmdb(sqlite: Sqlite, opts: { apiKey: string; language: str
 
   async function search(kind: TmdbKind, query: string, year: string | null): Promise<TmdbSearchResult[]> {
     const q = encodeURIComponent(query.trim());
-    const yearParam = year ? (kind === "movie" ? `&year=${year}` : `&first_air_date_year=${year}`) : "";
+    const y = year && /^\d{4}$/.test(year) ? year : null;
+    const yearParam = y ? (kind === "movie" ? `&year=${y}` : `&first_air_date_year=${y}`) : "";
     const body = await get<{ results?: RawResult[] }>(`/search/${kind === "movie" ? "movie" : "tv"}?query=${q}${yearParam}&include_adult=false`);
     return (body?.results ?? []).map((r) => {
       const title = r.title ?? r.name ?? "";

@@ -1,7 +1,7 @@
 import { memo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { apiPaths, type BookDetail, chapterAt, duration, plural, timeLeft } from "@murmur/shared/client";
+import { apiPaths, type BookDetail, chapterAt, duration, pastStart, plural, timeLeft } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { HeroBackdrop } from "@/components/hero";
@@ -12,7 +12,7 @@ import { RemoveDownloadSheet, Sheet, SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { Bar, IconButton, RoundButton, Text } from "@/components/ui";
-import { setFinished, setPlayNext, useBook } from "@/lib/data";
+import { setPlayNext, useBook } from "@/lib/data";
 import { downloadBook, getDownload, removeDownload, useDownload, type Download } from "@/lib/downloads";
 import {
   bookToPlayable,
@@ -20,6 +20,7 @@ import {
   markCurrent,
   play,
   resumeFrom,
+  setFinished,
   toggle,
   useItemPosition,
   usePlayer,
@@ -61,7 +62,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
   const current = isCurrent(player, "book", book.id);
   const finished = !!book.progress?.finished && !current;
   const position = current ? live : book.progress && !book.progress.finished ? book.progress.positionSec : 0;
-  const started = position > 5;
+  const started = pastStart(position);
   const pct = book.durationSec ? Math.min(100, (position / book.durationSec) * 100) : 0;
   const currentChapter = started || current ? chapterAt(book.chapters, position) : -1;
   // Only a book not yet started can wait on Play next; it leaves the shelf once it starts.
@@ -86,15 +87,11 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
     router.push("/player");
   };
 
-  const mark = async (done: boolean) => {
+  const mark = (done: boolean) => {
     setMenu(false);
-    try {
-      if (current) markCurrent(done);
-      else await setFinished("book", book.id, book.durationSec, done);
-      toast.show(done ? "Marked as finished" : "Marked as not finished");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't save that.");
-    }
+    if (current) markCurrent(done);
+    else setFinished("book", book.id, book.durationSec, done);
+    toast.show(done ? "Marked as finished" : "Marked as not finished");
   };
 
   const toggleDownload = () => {
@@ -211,7 +208,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
             <RoundButton
               label={book.progress?.finished ? "Mark as not finished" : "Mark as finished"}
               active={!!book.progress?.finished}
-              onPress={() => void mark(!book.progress?.finished)}
+              onPress={() => mark(!book.progress?.finished)}
             >
               <CheckIcon size={22} color={book.progress?.finished ? t.accent : t.text} />
             </RoundButton>
@@ -249,8 +246,8 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
           />
         ) : null}
         <SheetItem label={downloadLabel} onPress={toggleDownload} />
-        <SheetItem label={book.progress?.finished ? "Mark as not finished" : "Mark as finished"} onPress={() => void mark(!book.progress?.finished)} />
-        {book.progress && !book.progress.finished ? <SheetItem label="Reset progress" onPress={() => void mark(false)} /> : null}
+        <SheetItem label={book.progress?.finished ? "Mark as not finished" : "Mark as finished"} onPress={() => mark(!book.progress?.finished)} />
+        {book.progress && !book.progress.finished ? <SheetItem label="Reset progress" onPress={() => mark(false)} /> : null}
       </Sheet>
       <RemoveDownloadSheet
         open={confirmRemove}

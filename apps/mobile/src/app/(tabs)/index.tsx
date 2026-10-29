@@ -421,7 +421,9 @@ function BooksTab({
   const toggle = (id: BookSectionId) => saveBookSections(sections.map((s) => (s.id === id ? { ...s, hidden: !s.hidden } : s)));
   const reorder = (keys: string[]) => saveBookSections(keys.map((k) => sections.find((s) => s.id === k)!));
 
-  const shown = sections.filter((s) => !s.hidden && cards(s.id) !== null);
+  // Which sections have anything, without building their cards just to find out.
+  const hasCards = (id: BookSectionId) => (id === "all" ? sorted.length : id === "continue" ? continuing.length : shelves[id].length) > 0;
+  const shown = sections.filter((s) => !s.hidden && hasCards(s.id));
 
   // Shown sections are the same rows in both modes, so their covers stay mounted (and on
   // screen) when customize opens and closes.

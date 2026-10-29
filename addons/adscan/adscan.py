@@ -662,8 +662,13 @@ def main() -> None:
         set_status("error", "GEMINI_API_KEY isn't set.")
     # Before asking for work, so an interrupted scan comes straight back to this run.
     heartbeat(force=True)
+    pruned = time.time()
     while True:
         heartbeat()
+        # Once a day as well, so a container that runs for months doesn't keep a week's leftovers forever.
+        if time.time() - pruned > 86400:
+            prune_state()
+            pruned = time.time()
         if not GEMINI_KEY:
             time.sleep(IDLE_SEC)
             continue

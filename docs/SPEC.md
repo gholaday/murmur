@@ -276,7 +276,7 @@ The same book always gets the same answer, and a weak answer is shown as weak in
 
 1. **IDs first.** If a file's tags or the folder name carry an Audible ASIN or an ISBN (Libation and OpenAudible downloads usually do), look it up directly.
 2. **Clean the query.** Strip series numbers, "Unabridged", years, bracketed tags and narrator names from the title; normalize accents, punctuation and author name forms ("J.R.R. Tolkien" equals "J. R. R. Tolkien").
-3. **Gather candidates** from Audible (region set by `AUDIBLE_REGION`, default US), then Google Books only when Audible has nothing scoring 70 or more. Provider responses are cached for 30 days, and a stale cached answer is used if a provider is down.
+3. **Gather candidates** from Audible (region set by `AUDIBLE_REGION`, default US), then Google Books only when Audible has nothing scoring 70 or more. Provider responses are cached for 30 days, and a stale cached answer is used if a provider is down; answers over 90 days old are dropped nightly.
 4. **Score every candidate** on the same weighted checks:
 
 | Signal | Weight | Why it matters |
@@ -315,7 +315,7 @@ Music is optional. It comes from one or more music folders, managed by the admin
 
 **Scanning**
 
-- Music is read file by file, not folder by folder, and a file is probed again only when its size or modified time changes. It has its own watcher and the same missing-file grace period as books.
+- Music is read file by file, not folder by folder, and a file is probed again only when its size or modified time changes. One that can't be read isn't tried again for a day unless it changes (videos too, except when the add-on was down). It has its own watcher and the same missing-file grace period as books.
 - Albums are grouped by album artist plus album title. The album artist falls back to the song's artist. A song by someone other than the album artist (a compilation or a feature) is filed under the album and listed on its own artist's page under Appears on.
 - **Untagged files:** the folder is the album, its parent folder the artist, and the file name the title. A leading `01 - ` is the track number, and `CD 1` or `Disc 2` folders belong to the album above them.
 - **Covers:** `cover.jpg`, `folder.jpg` or `front.jpg` in the album folder, else the first song's embedded picture.

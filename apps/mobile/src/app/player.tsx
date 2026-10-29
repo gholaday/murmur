@@ -47,7 +47,7 @@ import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
 import { Caption, Chips, IconButton, Text } from "@/components/ui";
 import { UpNextSheet } from "@/components/up-next";
-import { cachedAlbumColor } from "@/lib/data";
+import { useAlbumColor } from "@/lib/data";
 import { dragEndHaptic, selectHaptic, tapHaptic } from "@/lib/haptics";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdDetection, useAdPrefs, type AdMode } from "@/player/ad-prefs";
 import { useCast } from "@/player/cast";
@@ -101,6 +101,7 @@ export default function Player() {
   const { item } = p;
   // A song plays at 1x with no chapters: previous and next step through the songs.
   const song = item?.type === "track";
+  const albumColor = useAlbumColor(item?.album?.id);
 
   // Pulling down anywhere from the top bar to the bottom of the cover minimises the player: it
   // follows the finger, uncovering the screen below, and closes past a distance or on a flick.
@@ -150,7 +151,7 @@ export default function Player() {
   const spanLen = Math.max(1, span.end - span.start);
   const within = Math.min(spanLen, Math.max(0, pos - span.start));
   const speed = speedDraft ?? p.speed;
-  const tint = item.color ?? (item.album ? cachedAlbumColor(item.album.id) : null) ?? "#3b4a6e";
+  const tint = item.color ?? albumColor ?? "#3b4a6e";
   // The page's tint, strongest at the top; the blurred cover fades into it a little lower down.
   const tintTop = mixColor(tint, t.bg, t.isDark ? 0.42 : 0.36);
   const tintBottom = mixColor(tint, t.bg, t.isDark ? 0.1 : 0.12);
@@ -200,7 +201,7 @@ export default function Player() {
             </IconButton>
           </View>
           <Caption numberOfLines={1} style={{ flex: 1, textAlign: "center", letterSpacing: 0.6, color: soft }}>
-            {cast.device ? `Playing on ${cast.device}` : `Playing from ${song ? (p.upNext.source?.title ?? "Music") : item.type === "book" ? "Library" : "Podcasts"}`}
+            {cast.device ? `Playing on ${cast.device}` : `Playing from ${song ? (p.upNext.source?.title ?? "Music") : item.type === "book" ? "Books" : "Podcasts"}`}
           </Caption>
           <View style={{ flexDirection: "row" }}>
             <CastButton color={t.text} />

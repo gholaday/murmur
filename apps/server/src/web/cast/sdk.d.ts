@@ -97,6 +97,7 @@ declare namespace cast.framework {
   class RemotePlayerController {
     constructor(player: RemotePlayer);
     addEventListener(type: RemotePlayerEventType, handler: (e: { field: string; value: unknown }) => void): void;
+    removeEventListener(type: RemotePlayerEventType, handler: (e: { field: string; value: unknown }) => void): void;
     playOrPause(): void;
     seek(): void;
     setVolumeLevel(): void;

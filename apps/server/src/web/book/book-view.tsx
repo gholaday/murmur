@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useState } from "react";
 import { toast } from "sonner";
-import { apiPaths, type BookDetail, bookStarted, type ChapterDto, chapterAt, duration, errorText, plural, timeLeft } from "@murmur/shared/client";
+import { apiPaths, type BookDetail, bookStarted, type ChapterDto, chapterAt, duration, errorText, pastStart, plural, timeLeft } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { BookmarkAddIcon, CheckIcon, MoreIcon, PauseIcon, PlayIcon } from "../icons";
@@ -28,7 +28,7 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
   const livePosition = usePosition(current);
   const finished = !!book.progress?.finished && !current;
   const position = current ? livePosition : book.progress && !book.progress.finished ? book.progress.positionSec : 0;
-  const started = position > 5;
+  const started = pastStart(position);
   const pct = book.durationSec ? Math.min(100, (position / book.durationSec) * 100) : 0;
   const currentChapter = started || current ? chapterAt(book.chapters, position) : -1;
   const onPlayNext = book.playNext !== null;
@@ -47,9 +47,9 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
 
   const mark = async (done: boolean) => {
     setMenu(false);
-    if (current) player.markCurrent(done);
-    // Saved here too (not only by the player) so the refresh below already sees it.
-    await setFinished("book", book.id, book.durationSec, done);
+    // The player saves the one it has loaded; the refresh below waits for either save.
+    if (current) await player.markCurrent(done);
+    else await setFinished("book", book.id, book.durationSec, done);
     toast(done ? "Marked as finished" : "Marked as not finished");
     router.refresh();
   };

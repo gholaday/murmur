@@ -3,52 +3,39 @@
 import { useEffect, useState } from "react";
 import {
   apiPaths,
-  dailyAverage,
   duration,
   localDay,
   plural,
+  STATS_KIND_LABEL,
+  STATS_PERIOD_CHOICES,
+  STATS_TOP_LABEL,
+  statsChange,
+  statsCurrentKey,
   type StatsDto,
   type StatsKind,
   type StatsPeriod,
   type StatsTop,
+  statsSum,
+  statsTiles,
   statsTopKind,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { Chip, Chips, StatTile } from "../ui";
 
-const PERIODS: Array<{ id: StatsPeriod; label: string; last: string; this: string }> = [
-  { id: "week", label: "Week", last: "last week", this: "This week" },
-  { id: "month", label: "Month", last: "last month", this: "This month" },
-  { id: "year", label: "Year", last: "last year", this: "This year" },
-  { id: "all", label: "All time", last: "", this: "All time" },
-];
-
+// The wording and rules are shared with the app; only the colours are the web's.
+const PERIODS = STATS_PERIOD_CHOICES;
 const KINDS: Record<StatsKind, { label: string; color: string }> = {
-  book: { label: "Books", color: "var(--accent)" },
-  episode: { label: "Podcasts", color: "var(--stat-2)" },
-  music: { label: "Music", color: "var(--stat-3)" },
-  watch: { label: "Watch", color: "var(--stat-4)" },
+  book: { label: STATS_KIND_LABEL.book, color: "var(--accent)" },
+  episode: { label: STATS_KIND_LABEL.episode, color: "var(--stat-2)" },
+  music: { label: STATS_KIND_LABEL.music, color: "var(--stat-3)" },
+  watch: { label: STATS_KIND_LABEL.watch, color: "var(--stat-4)" },
 };
-
-const TOP_LABEL: Record<StatsTop["kind"], string> = { book: "Book", podcast: "Podcast", album: "Album", song: "Song", movie: "Movie", tvshow: "Show" };
-
-/** The total compared with the same stretch of the period before. */
-function change(now: number, before: number | null, last: string): string | null {
-  if (before === null || now + before === 0) return null;
-  const diff = now - before;
-  if (Math.abs(diff) < 60) return `About the same as ${last}`;
-  return `${duration(Math.abs(diff))} ${diff > 0 ? "more" : "less"} than ${last}`;
-}
-
-/** The bar for today, or the month or year it's in. */
-function currentKey(period: StatsPeriod, today: string): string {
-  if (period === "year") return today.slice(0, 7);
-  if (period === "all") return today.slice(0, 4);
-  return today;
-}
-
-const sumOf = (split: Record<StatsKind, number>, kinds: StatsKind[]) => kinds.reduce((s, k) => s + split[k], 0);
+const TOP_LABEL = STATS_TOP_LABEL;
+const change = statsChange;
+const currentKey = statsCurrentKey;
+const sumOf = statsSum;
+const tiles = statsTiles;
 
 /**
  * Stats on the You page: the time for a period with a chart stacked by kind, a legend that picks
@@ -186,43 +173,6 @@ function Bars({ stats, kinds, now }: { stats: StatsDto; kinds: StatsKind[]; now:
       })}
     </div>
   );
-}
-
-interface Tile {
-  key: string;
-  value: string;
-  label: string;
-  kind?: StatsKind;
-}
-
-/** All kinds: streak, daily average and a count for each kind. One kind: its counts and its daily average. */
-function tiles(s: StatsDto, picked: StatsKind | null, kinds: StatsKind[], today: string): Tile[] {
-  const watched = [s.showEpisodesWatched ? plural(s.showEpisodesWatched, "episode") : null, s.moviesWatched ? plural(s.moviesWatched, "movie") : null]
-    .filter(Boolean)
-    .join(", ");
-  const counts: Record<StatsKind, Tile[]> = {
-    book: [{ key: "books", value: plural(s.finishedBooks, "book"), label: "Finished" }],
-    episode: [{ key: "podcasts", value: plural(s.episodesPlayed, "podcast"), label: "Played" }],
-    music: [
-      { key: "songs", value: plural(s.songsPlayed, "song"), label: "Played" },
-      ...(picked === "music" ? [{ key: "albums", value: plural(s.albumsPlayed, "album"), label: "Played from" }] : []),
-    ],
-    watch:
-      picked === "watch"
-        ? [
-            { key: "episodes", value: plural(s.showEpisodesWatched, "episode"), label: "Watched" },
-            { key: "movies", value: plural(s.moviesWatched, "movie"), label: "Watched" },
-          ]
-        : [{ key: "watched", value: watched || "0 episodes", label: "Watched" }],
-  };
-  if (picked) {
-    return [...counts[picked], { key: "avg", value: duration(dailyAverage(s.split[picked], s, today)) || "0m", label: "Daily average" }];
-  }
-  return [
-    { key: "streak", value: plural(s.streakDays, "day"), label: "Streak" },
-    { key: "avg", value: duration(dailyAverage(sumOf(s.split, kinds), s, today)) || "0m", label: "Daily average" },
-    ...(kinds.length > 1 ? kinds.flatMap((k) => counts[k].map((t) => ({ ...t, kind: k }))) : counts[kinds[0]!]),
-  ];
 }
 
 /** All kinds: the top item of each. One kind: its top items. */

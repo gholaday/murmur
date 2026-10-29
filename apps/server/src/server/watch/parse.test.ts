@@ -55,6 +55,12 @@ describe("isExtra", () => {
     expect(isExtra("Alien (1979)/sample.mkv")).toBe(true);
     expect(isExtra("Alien (1979)/Alien (1979).mkv")).toBe(false);
   });
+
+  it("keeps a show or movie whose own folder has an extras name", () => {
+    expect(isExtra("Shorts/Season 01/Shorts - S01E01.mkv")).toBe(false);
+    expect(isExtra("Other (2020)/Other (2020).mkv")).toBe(false);
+    expect(isExtra("Shorts/Season 01/Featurettes/Behind.mkv")).toBe(true);
+  });
 });
 
 describe("episodeInfo", () => {

@@ -12,8 +12,12 @@ const QUERIES: Record<Exclude<ChangeKind, "watch">, string[]> = {
   music: ["music", "albums", "album", "artists", "artist", "tracks"],
 };
 
+// A request that hangs gives up, so the next poll still runs.
+const TIMEOUT_MS = 15_000;
+
 const poller = createChangesPoller({
-  fetchToken: async () => (await fetch(absolute("/api/changes"), { headers: authHeaders() })).headers.get(CHANGES_HEADER),
+  fetchToken: async () =>
+    (await fetch(absolute("/api/changes"), { headers: authHeaders(), signal: AbortSignal.timeout(TIMEOUT_MS) })).headers.get(CHANGES_HEADER),
   onChange: (kinds) => {
     for (const kind of kinds) {
       if (kind === "watch") invalidateWatch();

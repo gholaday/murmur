@@ -199,8 +199,10 @@ function artistSelect(mine: boolean): string {
   SELECT ar.id, ar.name,
     (SELECT COUNT(DISTINCT t.album_id) FROM tracks t JOIN albums a ON a.id = t.album_id
      WHERE a.artist_id = ar.id AND t.missing_since IS NULL ${minePart}) AS album_count,
-    (SELECT COUNT(*) FROM tracks t JOIN albums a ON a.id = t.album_id
-     WHERE (t.artist_id = ar.id OR a.artist_id = ar.id) AND t.missing_since IS NULL ${minePart}) AS track_count,
+    -- Their own songs, plus others' songs on their albums; two halves so each uses an index.
+    (SELECT COUNT(*) FROM tracks t WHERE t.artist_id = ar.id AND t.missing_since IS NULL ${minePart})
+    + (SELECT COUNT(*) FROM tracks t JOIN albums a ON a.id = t.album_id
+       WHERE a.artist_id = ar.id AND t.artist_id != ar.id AND t.missing_since IS NULL ${minePart}) AS track_count,
     p.photo_hash, c.id AS cover_album_id, c.cover_hash
   FROM artists ar
   LEFT JOIN artist_photos p ON p.name_key = ar.name_key

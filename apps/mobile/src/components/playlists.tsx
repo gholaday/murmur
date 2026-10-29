@@ -1,5 +1,5 @@
 import { memo, useState } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { Image } from "expo-image";
 import { albumCover, duration, plural, type PlaylistDetail, playlistCoverTiles, type PlaylistSummary } from "@murmur/shared/client";
@@ -10,6 +10,7 @@ import { useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { Mixer, useNowPlaying } from "./mixer";
 import { Sheet, SheetItem } from "./sheet";
+import { Bone, Skeleton } from "./skeleton";
 import { toast } from "./toast";
 import { Button, Field, Text } from "./ui";
 
@@ -203,7 +204,15 @@ export function AddToPlaylistSheet({ open, onClose, title, trackIds }: { open: b
               {lists.error.message}
             </Text>
           ) : (
-            <ActivityIndicator color={t.accent} style={{ paddingVertical: 16 }} />
+            // Placeholders shaped like the playlist rows: a name with a song count under it.
+            <Skeleton>
+              {[0, 1, 2].map((i) => (
+                <View key={i} style={{ minHeight: 52, paddingHorizontal: 12, paddingVertical: 8, justifyContent: "center", gap: 6 }}>
+                  <Bone width="50%" height={15} />
+                  <Bone width="20%" height={11} />
+                </View>
+              ))}
+            </Skeleton>
           )}
         </>
       )}

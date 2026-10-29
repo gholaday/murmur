@@ -57,8 +57,14 @@ const persisted = (key: readonly unknown[]) =>
   PERSISTED.has(key[0] as string) || (SCOPED.has(key[0] as string) && key[1] === "mine");
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+// The data last seen per query. A refetch that brings back the same thing keeps the same object
+// (React Query shares unchanged data), so most refetches don't write the whole cache again.
+const lastData = new Map<string, unknown>();
 queryClient.getQueryCache().subscribe((event) => {
   if (event.type !== "updated" || event.action.type !== "success" || !persisted(event.query.queryKey)) return;
+  const data = event.query.state.data;
+  if (lastData.get(event.query.queryHash) === data) return;
+  lastData.set(event.query.queryHash, data);
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     const state = dehydrate(queryClient, { shouldDehydrateQuery: (q) => q.state.status === "success" && persisted(q.queryKey) });
@@ -77,6 +83,7 @@ queryClient.getQueryCache().subscribe((event) => {
 export function clearPersistedCache() {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;
+  lastData.clear();
   removeKey(CACHE_KEY);
 }
 

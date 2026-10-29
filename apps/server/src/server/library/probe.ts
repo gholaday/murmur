@@ -229,3 +229,26 @@ export function createLimiter(limit: number) {
     });
   };
 }
+
+const UNREADABLE_RETRY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Files that couldn't be read, so each scan doesn't wait on the same broken file again (a probe
+ * can take a minute to time out). One is tried again once it changes, or after a day.
+ */
+export function createUnreadable() {
+  const failed = new Map<string, { sig: string; at: number }>();
+  const sig = (f: { size: number; mtimeMs: number }) => `${f.size}:${f.mtimeMs}`;
+  return {
+    skip(key: string, file: { size: number; mtimeMs: number }): boolean {
+      const seen = failed.get(key);
+      return !!seen && seen.sig === sig(file) && Date.now() - seen.at < UNREADABLE_RETRY_MS;
+    },
+    failed(key: string, file: { size: number; mtimeMs: number }) {
+      failed.set(key, { sig: sig(file), at: Date.now() });
+    },
+    read(key: string) {
+      failed.delete(key);
+    },
+  };
+}

@@ -19,10 +19,14 @@ export const SHELF_TITLES: Record<ShelfId, string> = {
 export const SHELF_SIZE = 12;
 
 const present = (b: BookSummary) => b.missingSince === null;
+/** Past the first few seconds: anything less is opening it, not starting it. Books, episodes and videos alike. */
+export const pastStart = (positionSec: number) => positionSec > 5;
 /** Finished, or played past the first few seconds; a started book can't go on Play next. */
-export const bookStarted = (b: BookSummary) => !!b.progress && (b.progress.finished || b.progress.positionSec > 5);
+export const bookStarted = (b: BookSummary) => !!b.progress && (b.progress.finished || pastStart(b.progress.positionSec));
 const started = bookStarted;
-const listening = (b: BookSummary) => !!b.progress && !b.progress.finished && b.progress.positionSec > 5;
+/** Part way through: started and not finished. */
+export const bookListening = (b: BookSummary) => !!b.progress && !b.progress.finished && pastStart(b.progress.positionSec);
+const listening = bookListening;
 
 /** Books you're part way through, most recently played first. */
 export function continueListening(books: BookSummary[]): BookSummary[] {

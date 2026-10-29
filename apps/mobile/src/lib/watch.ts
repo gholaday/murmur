@@ -18,6 +18,7 @@ import { api } from "./api";
 import { savedMovie, savedShow } from "./downloads";
 import { queryClient } from "./query";
 import { getJson, removeKey, setJson } from "./storage";
+import { queueProgress } from "@/player/engine";
 
 // Watch: movies and TV shows. The lists and pages, marking things watched, and where screens go.
 
@@ -53,22 +54,12 @@ export const useShow = (id: string | undefined) =>
 export const invalidateWatch = () => void queryClient.invalidateQueries({ queryKey: watchKeys.all });
 
 /** Marks movies (by the movie's id) or episodes watched, or back to the start. */
-export async function markWatched(items: { id: string; durationSec: number }[], finished: boolean) {
+export function markWatched(items: { id: string; durationSec: number }[], finished: boolean) {
+  // Through the outbox like the player's own saves, so it works offline and syncs later.
   const updatedAt = Date.now();
-  await api("/api/progress", {
-    method: "PUT",
-    body: {
-      items: items.map((i) => ({
-        itemType: "video",
-        itemId: i.id,
-        positionSec: finished ? i.durationSec : 0,
-        durationSec: i.durationSec,
-        finished,
-        updatedAt,
-      })),
-    },
-  });
-  invalidateWatch();
+  for (const i of items) {
+    queueProgress({ itemType: "video", itemId: i.id, positionSec: finished ? i.durationSec : 0, durationSec: i.durationSec, finished, updatedAt }, true);
+  }
 }
 
 /** A show's episodes in watching order: seasons in order, Specials last, as the server lists them. */
@@ -79,8 +70,6 @@ export function episodeSub(e: VideoEpisode): string {
   const position = e.progress && !e.progress.finished ? e.progress.positionSec : 0;
   return `${episodeLabel(e.season, e.episode)}, ${position > 0 ? timeLeft(e.durationSec, position) : duration(e.durationSec)}`;
 }
-
-export const seasonName =(season: number) => (season === 0 ? "Specials" : `Season ${season}`);
 
 export const openMovie = (id: string) => router.push({ pathname: "/movie/[id]", params: { id } });
 export const openTvShow = (id: string) => router.push({ pathname: "/tv/[id]", params: { id } });
@@ -118,9 +107,14 @@ const UNPLAYABLE_KEY = "murmur.videoUnplayable";
 /** The codec and its profile ("hvc1.2.4" for 10-bit HEVC), without the level and flags that vary by file. */
 const codecKind = (codec: string) => codec.replace(/^hev1/, "hvc1").split(".").slice(0, 3).join(".");
 
-export const pictureUnplayable = (codec: string | null) => !!codec && (getJson<string[]>(UNPLAYABLE_KEY) ?? []).includes(codecKind(codec));
+// Read from storage once; screens ask on every render (the quality button, say).
+let unplayable: string[] | null = null;
+const unplayableKinds = () => (unplayable ??= getJson<string[]>(UNPLAYABLE_KEY) ?? []);
+
+export const pictureUnplayable = (codec: string | null) => !!codec && unplayableKinds().includes(codecKind(codec));
 
 export function markPictureUnplayable(codec: string | null) {
   if (!codec || pictureUnplayable(codec)) return;
-  setJson(UNPLAYABLE_KEY, [...(getJson<string[]>(UNPLAYABLE_KEY) ?? []), codecKind(codec)]);
+  unplayable = [...unplayableKinds(), codecKind(codec)];
+  setJson(UNPLAYABLE_KEY, unplayable);
 }

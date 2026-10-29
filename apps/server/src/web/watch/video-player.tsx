@@ -215,6 +215,8 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   const castDevice = useCast().device;
   const casting = !!castDevice;
   const castRef = useRef<CastMedia | null>(null);
+  /** Where the video last was, for the save when the player closes. */
+  const lastSeen = useRef<{ at: number; duration: number } | null>(null);
   const castingRef = useRef(casting);
   /** What plays: the <video>, or the Chromecast. */
   const media = useCallback(() => (castingRef.current ? castRef.current : videoRef.current), []);
@@ -274,12 +276,13 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     stopAudio.current();
     return () => claimAudioControls.current();
   }, []);
-  // And playing audio later ends the video.
+  // And playing audio later ends the video. Only playing counts: after a reload the audio player
+  // brings back its last item paused, which mustn't close the video.
   const audioAtStart = useRef(audio.item);
   const { close: closeVideo } = video;
   useEffect(() => {
-    if (audio.item && audio.item !== audioAtStart.current) closeVideo();
-  }, [audio.item, closeVideo]);
+    if (audio.item && audio.playing && audio.item !== audioAtStart.current) closeVideo();
+  }, [audio.item, audio.playing, closeVideo]);
 
   // Casting starting or ending picks the video up from the same moment on the other side; when it
   // ends the video comes back paused. (Before the plan below, which starts again from resumeAt.)
@@ -423,6 +426,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         cm.removeAttribute("src");
         cm.load();
       }
+      cm?.dispose();
     },
     [],
   );
@@ -534,13 +538,15 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   /** Saves your place; nothing is saved until you've actually watched or moved, so opening and closing changes nothing. */
   const save = useCallback(
     (keepalive = false) => {
+      // On unmount the <video> is already gone, so the last place it reported stands in.
       const v = media();
-      if (!v || !touched.current) return;
+      const seen = v ? { at: position(), duration: v.duration } : lastSeen.current;
+      if (!seen || !touched.current) return;
       void sendListening(keepalive).catch(() => undefined);
       // A stream's <video> only knows the part made so far; the file's length comes from the server.
-      const length = streamingRef.current ? item.durationSec : v.duration;
+      const length = streamingRef.current ? item.durationSec : seen.duration;
       if (!Number.isFinite(length) || !length) return;
-      const at = position();
+      const at = seen.at;
       const finished = at >= length * WATCHED_AT;
       void api("/api/progress", {
         method: "PUT",
@@ -731,6 +737,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     const v = media();
     if (!v) return;
     const at = position();
+    lastSeen.current = { at, duration: v.duration };
     times.set({ time: at, buffered: v.buffered.length ? offsetRef.current + v.buffered.end(v.buffered.length - 1) : times.get().buffered });
     if (Math.abs(at - item.startAt) > TOUCHED_AFTER_SEC) touched.current = true;
     if (v.paused) lastTick.current = null;

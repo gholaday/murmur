@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
-import { apiPaths, duration, type EpisodeWithShow, errorText, shortDate, timeLeft } from "@murmur/shared/client";
+import { apiPaths, duration, type EpisodeWithShow, errorText, pastStart, shortDate, timeLeft } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { AdsCheckedIcon, PauseIcon, PlayedIcon, PlayIcon, QueueAddIcon } from "../icons";
@@ -51,7 +51,7 @@ export function EpisodeRow({
   const pausing = current && player.playing;
   const showHref = `/podcasts/${episode.podcastId}`;
 
-  const time = played ? "Played" : position > 5 && dur ? timeLeft(dur, position) : duration(dur);
+  const time = played ? "Played" : pastStart(position) && dur ? timeLeft(dur, position) : duration(dur);
 
   const run = async (fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
@@ -81,9 +81,9 @@ export function EpisodeRow({
   const togglePlayed = () =>
     run(async () => {
       const finished = current ? !played : !episode.progress?.finished;
-      if (current) player.markCurrent(finished);
-      // Saved here too (not only by the player) so the refresh after this already sees it.
-      await setFinished("episode", episode.id, dur, finished);
+      // The player saves the one it has loaded; the refresh after this waits for either save.
+      if (current) await player.markCurrent(finished);
+      else await setFinished("episode", episode.id, dur, finished);
     }, episode.progress?.finished ? "Marked as unplayed" : "Marked as played");
 
   return (
@@ -135,7 +135,7 @@ export function EpisodeRow({
             {pausing ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
             <span>{time}</span>
           </button>
-          {position > 5 && !played ? (
+          {pastStart(position) && !played ? (
             <span className="episode-bar" aria-hidden="true">
               <span style={{ width: `${pct}%` }} />
             </span>

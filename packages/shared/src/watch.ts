@@ -366,6 +366,9 @@ export interface VideoDownloadDto {
   fileUrl: string;
 }
 
+/** "Season 2", or "Specials" for season 0. */
+export const seasonName = (season: number): string => (season === 0 ? "Specials" : `Season ${season}`);
+
 /** "S2 E4", or "Special 3" for season 0. */
 export function episodeLabel(season: number, episode: number): string {
   return season === 0 ? `Special ${episode}` : `S${season} E${episode}`;

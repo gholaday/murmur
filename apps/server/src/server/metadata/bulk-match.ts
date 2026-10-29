@@ -106,8 +106,10 @@ export async function applyBulkMatches(ctx: AppContext, bookIds: string[]): Prom
   if (!job) throw new HttpError(404, "There's no bulk match to apply.");
   const wanted = new Set(bookIds);
   const failures: string[] = [];
+  let tried = 0;
   for (const item of job.dto.items) {
     if (!wanted.has(item.bookId) || item.status !== "review" || !item.candidate) continue;
+    tried++;
     try {
       await applyItem(ctx, job, item, item.candidate);
     } catch (err) {
@@ -115,7 +117,7 @@ export async function applyBulkMatches(ctx: AppContext, bookIds: string[]): Prom
       failures.push(item.title);
     }
   }
-  if (failures.length === wanted.size) throw new HttpError(502, `Couldn't apply ${failures.length === 1 ? "that match" : "those matches"}.`);
+  if (tried > 0 && failures.length === tried) throw new HttpError(502, `Couldn't apply ${failures.length === 1 ? "that match" : "those matches"}.`);
   return job.dto;
 }
 

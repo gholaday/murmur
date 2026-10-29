@@ -43,7 +43,7 @@ import {
   type UpNextSource,
   type UserPrefs,
 } from "@murmur/shared/client";
-import { absolute, api, authHeaders } from "@/lib/api";
+import { absolute, api, authHeaders, HttpError } from "@/lib/api";
 import { fetchBook, fetchEpisode, invalidateListening, keys } from "@/lib/data";
 import { downloadTypeOf, getDownload, localTrackUri, localUri, savedArt, savedTrack, saveDownloadAds } from "@/lib/downloads";
 import { tapHaptic } from "@/lib/haptics";
@@ -818,6 +818,18 @@ export async function artworkFile(path: string | null): Promise<string | undefin
   if (!path) return undefined;
   const saved = savedArt(path);
   if (saved) return saved;
+  // Two asks for the same picture at once share one download; a second would find the file half-made.
+  let pending = artworkLoads.get(path);
+  if (!pending) {
+    pending = fetchArtwork(path).finally(() => artworkLoads.delete(path));
+    artworkLoads.set(path, pending);
+  }
+  return pending;
+}
+
+const artworkLoads = new Map<string, Promise<string | undefined>>();
+
+async function fetchArtwork(path: string): Promise<string | undefined> {
   try {
     const dir = new Directory(Paths.cache, "artwork");
     dir.create({ intermediates: true, idempotent: true });
@@ -1101,7 +1113,8 @@ export function seek(sec: number) {
     load(it, t, media.playing);
   }
   // While playing, progress saves every few seconds anyway; paused, nothing else would keep it.
-  if (!state.playing) save();
+  // A scrub doesn't change any list enough to reload them all.
+  if (!state.playing) save(false, false);
 }
 
 /**
@@ -1170,6 +1183,14 @@ export function setSkip(s: SkipSettings) {
 }
 
 /** Marks the current item finished (or not) and saves it. */
+/**
+ * Marks a book or episode finished, or back to the start, from a list or page. It goes through
+ * the outbox like the player's own saves, so it works offline and syncs later.
+ */
+export function setFinished(itemType: "book" | "episode", itemId: string, durationSec: number, finished: boolean) {
+  queueProgress({ itemType, itemId, positionSec: finished ? durationSec : 0, durationSec, finished, updatedAt: Date.now() }, true);
+}
+
 export function markCurrent(finished: boolean) {
   if (finished) {
     // Finishing clears it from the player, like the web player.
@@ -1214,6 +1235,14 @@ export async function restorePlayer() {
       setMusicPrefs({ shuffle: p.shuffle ?? false, repeat: p.repeat ?? "off" }, false);
     })
     .catch(() => undefined);
+  await restoreNowPlaying();
+}
+
+/**
+ * Puts back what was playing when the app closed, paused. It's only forgotten once the server
+ * says it's gone; offline, or with the server down, it tries again when the phone is back online.
+ */
+async function restoreNowPlaying() {
   const saved = getJson<PlayRef>(NOW_PLAYING_KEY);
   if (!saved || state.item) return;
   try {
@@ -1222,7 +1251,15 @@ export async function restorePlayer() {
     set({ item: it, speed: it.speed });
     load(it, it.startAt, false);
     void showOnLockScreen(it);
-  } catch {
-    removeKey(NOW_PLAYING_KEY);
+  } catch (err) {
+    if (err instanceof HttpError && (err.status === 404 || err.status === 410)) {
+      removeKey(NOW_PLAYING_KEY);
+      return;
+    }
+    const unsubscribe = onlineManager.subscribe((online) => {
+      if (!online) return;
+      unsubscribe();
+      void restoreNowPlaying();
+    });
   }
 }

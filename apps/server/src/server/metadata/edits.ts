@@ -206,5 +206,9 @@ export function resetCover(ctx: AppContext, bookId: string) {
 export function rescanBook(ctx: AppContext, bookId: string) {
   const info = ctx.sqlite.prepare("UPDATE books SET scan_signature = '' WHERE id = ?").run(bookId);
   if (info.changes === 0) throw new HttpError(404, "Book not found.");
-  void ctx.scanner.scan();
+  // Just the book's own folder, not the whole library.
+  const where = ctx.sqlite
+    .prepare("SELECT lf.path AS root, b.folder_path AS dir FROM books b JOIN library_folders lf ON lf.id = b.library_folder_id WHERE b.id = ?")
+    .get(bookId) as { root: string; dir: string } | undefined;
+  void (where?.dir ? ctx.scanner.scanChanged([path.join(where.root, where.dir)]) : ctx.scanner.scan());
 }

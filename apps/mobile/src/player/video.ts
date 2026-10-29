@@ -444,7 +444,8 @@ export async function videoDownloadSource(file: VideoFileInfo, videoId: string, 
  */
 export function openVideo(opened: VideoItem) {
   const cur = state.item;
-  if (cur && cur.progressId === opened.progressId && cur.videoId === opened.videoId) return;
+  // The same video carries on, unless it was asked for at another quality.
+  if (cur && cur.progressId === opened.progressId && cur.videoId === opened.videoId && (opened.quality == null || opened.quality === state.quality)) return;
   if (cur) save(true);
   // Watched on this phone since the server last heard (offline, say): that place is the newest.
   const unsent = unsentProgress("video", opened.progressId);

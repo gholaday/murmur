@@ -14,6 +14,7 @@ import { env } from "../env";
 import { HttpError } from "../http";
 import { coverMeta, storeCover } from "../library/covers";
 import { errorMessage } from "../log";
+import { readCapped, safeFetch } from "../safe-fetch";
 import { createProviders, type CandidateDetail, type ChapterList, type Providers } from "./providers";
 import { cleanTitle, scoreCandidate, type LocalBook } from "./score";
 
@@ -121,11 +122,14 @@ function stripDetail(c: MatchCandidate & { description?: string | null }): Match
   return rest;
 }
 
+/** Covers from providers go through the same guard and size cap as any other remote image. */
+const MAX_COVER_BYTES = 20 * 1024 * 1024;
+
 async function imageWidth(url: string): Promise<number | null> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    const res = await safeFetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) return null;
-    return (await sharp(Buffer.from(await res.arrayBuffer()), { failOn: "none" }).metadata()).width ?? null;
+    return (await sharp(await readCapped(res, MAX_COVER_BYTES, "That cover"), { failOn: "none" }).metadata()).width ?? null;
   } catch {
     return null;
   }
@@ -279,9 +283,9 @@ export async function applyMatch(ctx: AppContext, bookId: string, input: MatchAp
   }
   if (fields.has("cover") && detail.coverUrl) {
     try {
-      const res = await fetch(detail.coverUrl, { signal: AbortSignal.timeout(20_000) });
+      const res = await safeFetch(detail.coverUrl, { signal: AbortSignal.timeout(20_000) });
       if (!res.ok) throw new Error(`answered ${res.status}`);
-      next.cover_hash = await storeCover(env.coversDir, Buffer.from(await res.arrayBuffer()));
+      next.cover_hash = await storeCover(env.coversDir, await readCapped(res, MAX_COVER_BYTES, "That cover"));
     } catch (err) {
       throw new HttpError(502, `Couldn't download the cover: ${errorMessage(err)}`);
     }

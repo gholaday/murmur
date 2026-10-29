@@ -77,11 +77,11 @@ export default function AlbumScreen() {
               />
               <PlayButton from={{ kind: "album", refId: a.id }} round opensPlayer onPress={() => playAlbum(a, -1)} />
             </View>
-            <Text variant="small" style={{ textAlign: "center" }}>
-              {state === "some"
-                ? `${a.songsInMusic} of ${plural(a.trackCount, "song")} in your music. Tap + on any song to add just that one.`
-                : "Tap + on any song to add just that one."}
-            </Text>
+            {state === "some" ? (
+              <Text variant="small" style={{ textAlign: "center" }}>
+                {`${a.songsInMusic} of ${plural(a.trackCount, "song")} in your music`}
+              </Text>
+            ) : null}
           </View>
         )}
 

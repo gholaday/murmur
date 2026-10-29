@@ -29,7 +29,7 @@ import { Cover } from "../cover";
 import { Mixer } from "../mixer";
 import { ChevronIcon, CloseIcon, FilterIcon, FolderIcon, MusicIcon, PauseIcon, PlayIcon, SearchIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
-import { type MusicSource, usePlayer } from "../player/engine";
+import { type MusicSource, useNowPlaying, usePlayer } from "../player/engine";
 import { GroupGrid } from "../library/library";
 import { Sheet, SheetItem } from "../sheet";
 import { SongRowsSkeleton } from "../skeletons";
@@ -128,12 +128,12 @@ export function SongRow({
   /** More items for the song's ⋯ menu, such as removing it from a playlist. */
   menuExtra?: (close: () => void) => React.ReactNode;
 }) {
-  const { isCurrent, playing } = usePlayer();
+  const { current, playing } = useNowPlaying((n) => n.type === "track" && n.id === track.id);
   const body = (
     <>
       <span className="thumb-wrap">
         <Cover src={albumCover(track.albumId, track.coverHash)} color={null} title={track.album} className="thumb" />
-        {isCurrent("track", track.id) ? <Mixer playing={playing} thumb /> : null}
+        {current ? <Mixer playing={playing} thumb /> : null}
       </span>
       <span className="list-row-main">
         <span className="list-row-title">{track.title}</span>
@@ -142,7 +142,7 @@ export function SongRow({
     </>
   );
   return (
-    <div className={`list-row${isCurrent("track", track.id) ? " playing" : ""}`}>
+    <div className={`list-row${current ? " playing" : ""}`}>
       {onPlay ? (
         <button type="button" className="list-row-play" onClick={onPlay}>
           {body}
@@ -241,18 +241,37 @@ function EmptyMusic({ total }: { total: number }) {
   );
 }
 
+// Every album, for search: kept a minute, so opening search again doesn't fetch them all again.
+let albumsCache: { at: number; list: Promise<AlbumSummary[]> } | null = null;
+function allAlbums(): Promise<AlbumSummary[]> {
+  if (!albumsCache || Date.now() - albumsCache.at > 60_000) {
+    const list = api<AlbumSummary[]>(apiPaths.albums("all"));
+    albumsCache = { at: Date.now(), list };
+    list.catch(() => (albumsCache = null));
+  }
+  return albumsCache.list;
+}
+
 /** Search on the Music tab also looks through everything not in your music yet. */
 function MoreToAdd({ q }: { q: string }) {
   const [albums, setAlbums] = useState<AlbumSummary[] | null>(null);
   const [songs, setSongs] = useState<TrackDto[]>([]);
   useEffect(() => {
-    api<AlbumSummary[]>(apiPaths.albums("all")).then(setAlbums, () => setAlbums([]));
+    allAlbums().then(setAlbums, () => setAlbums([]));
   }, []);
   useEffect(() => {
+    // An older search that answers late mustn't replace this one's songs.
+    let stale = false;
     const timer = setTimeout(() => {
-      api<TrackDto[]>(apiPaths.tracks("all", q)).then(setSongs, () => setSongs([]));
+      api<TrackDto[]>(apiPaths.tracks("all", q)).then(
+        (s) => !stale && setSongs(s),
+        () => !stale && setSongs([]),
+      );
     }, 250);
-    return () => clearTimeout(timer);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
   }, [q]);
   const moreAlbums = (albums ?? []).filter((a) => albumInMusic(a) !== "all" && albumMatches(a, q)).slice(0, 6);
   // Songs by title only: their album and artist already show above.

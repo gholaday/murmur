@@ -124,7 +124,11 @@ export function Library(props: LibraryProps) {
   );
 }
 
-function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSections }: LibraryProps) {
+function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections: savedSections }: LibraryProps) {
+  // The shelves' daily shuffle follows this device's day, like the app; the server's only fills
+  // the first render.
+  const [today, setToday] = useState(serverToday);
+  useEffect(() => setToday(new Date().toLocaleDateString("en-CA")), []);
   const pathname = usePathname();
   const params = useSearchParams();
   const tab = (params.get("tab") as Tab | null) ?? "books";
@@ -180,6 +184,12 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
       unstarted: shelfBooks("unstarted", books, today),
     }),
     [books, today],
+  );
+  // The Authors and Series tabs, grouped once per book list rather than on every render.
+  const byAuthor = useMemo(() => groupBy(books, (b) => b.author).map(([name, items]) => ({ name, items: sortBooks(items, "author") })), [books]);
+  const bySeries = useMemo(
+    () => groupBy(books, (b) => b.series).map(([name, items]) => ({ name, items, ordered: [...items].sort(bySeriesOrder) })),
+    [books],
   );
   const counts: Record<BookSectionId, number> = {
     continue: continuing.length,
@@ -462,9 +472,9 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
           ) : null}
 
           {tab === "authors"
-            ? groupBy(books, (b) => b.author).map(([name, items]) => (
+            ? byAuthor.map(({ name, items }) => (
                 <GroupGrid key={name} title={name} count={items.length} onOpen={() => go({ author: name })}>
-                  {sortBooks(items, "author").map((b) => (
+                  {items.map((b) => (
                     <BookCard key={b.id} book={b} sub={seriesLabel(b.series, b.seriesPosition)} />
                   ))}
                 </GroupGrid>
@@ -473,8 +483,7 @@ function LibraryView({ books, emptyReason, isAdmin, today, sections: savedSectio
 
           {tab === "series" ? (
             books.some((b) => b.series) ? (
-              groupBy(books, (b) => b.series).map(([name, items]) => {
-                const ordered = [...items].sort(bySeriesOrder);
+              bySeries.map(({ name, items, ordered }) => {
                 const done = items.filter((b) => b.progress?.finished).length;
                 return (
                   <GroupGrid

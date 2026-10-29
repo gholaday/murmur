@@ -37,9 +37,9 @@ function owned(ctx: AppContext, userId: number, id: string): PlaylistRow {
   return row;
 }
 
-function detail(ctx: AppContext, userId: number, row: PlaylistRow): PlaylistDetail {
-  const tracks = tracksByIds(ctx, userId, songIds(ctx, row.id));
-  const covers: PlaylistDetail["covers"] = [];
+/** The count, length and first album covers, from songs in order (whole songs or just these columns). */
+function summarize(row: PlaylistRow, tracks: Array<{ albumId: string; coverHash: string | null; durationSec: number }>): PlaylistSummary {
+  const covers: PlaylistSummary["covers"] = [];
   for (const t of tracks) {
     if (covers.length === COVERS) break;
     if (t.coverHash && !covers.some((c) => c.albumId === t.albumId)) covers.push({ albumId: t.albumId, coverHash: t.coverHash });
@@ -51,17 +51,25 @@ function detail(ctx: AppContext, userId: number, row: PlaylistRow): PlaylistDeta
     durationSec: tracks.reduce((sum, t) => sum + t.durationSec, 0),
     covers,
     updatedAt: row.updated_at,
-    tracks,
   };
+}
+
+function detail(ctx: AppContext, userId: number, row: PlaylistRow): PlaylistDetail {
+  const tracks = tracksByIds(ctx, userId, songIds(ctx, row.id));
+  return { ...summarize(row, tracks), tracks };
 }
 
 /** Your playlists, the most recently changed first. */
 export function listPlaylists(ctx: AppContext, userId: number): PlaylistSummary[] {
   const rows = ctx.sqlite.prepare("SELECT id, name, updated_at FROM playlists WHERE user_id = ? ORDER BY updated_at DESC").all(userId) as PlaylistRow[];
-  return rows.map((r) => {
-    const { tracks: _tracks, ...summary } = detail(ctx, userId, r);
-    return summary;
-  });
+  // Only what the summary needs, not every song's full details.
+  const songs = ctx.sqlite.prepare(
+    `SELECT t.album_id AS albumId, COALESCE(o.cover_hash, al.cover_hash) AS coverHash, t.duration_sec AS durationSec
+     FROM playlist_tracks pt JOIN tracks t ON t.id = pt.track_id JOIN albums al ON al.id = t.album_id
+     LEFT JOIN album_overrides o ON o.album_id = al.id
+     WHERE pt.playlist_id = ? AND t.missing_since IS NULL ORDER BY pt.position`,
+  );
+  return rows.map((r) => summarize(r, songs.all(r.id) as Array<{ albumId: string; coverHash: string | null; durationSec: number }>));
 }
 
 export function getPlaylist(ctx: AppContext, userId: number, id: string): PlaylistDetail {

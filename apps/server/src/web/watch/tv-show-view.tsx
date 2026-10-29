@@ -11,6 +11,7 @@ import {
   errorText,
   percentDone,
   plural,
+  seasonName,
   type ShowDetail,
   timeLeft,
   type VideoEpisode,
@@ -23,8 +24,6 @@ import { BackButton, Chip, Chips } from "../ui";
 import { playHref, Poster, Still } from "./cards";
 import { WatchMatchDialog } from "./match-sheet";
 import { QualityPick } from "./quality-pick";
-
-const seasonName = (season: number) => (season === 0 ? "Specials" : `Season ${season}`);
 
 /** An episode row: still with how far you are, title, "S1 E2" with the time, and a watched toggle. */
 function EpisodeRow({ e, onMark }: { e: VideoEpisode; onMark: (e: VideoEpisode, done: boolean) => void }) {

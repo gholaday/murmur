@@ -296,8 +296,8 @@ interface PlayerApi {
   /** Points the browser's media controls back at the audio player, once a video has let go of them. */
   claimMediaSession: () => void;
   setExpanded: (open: boolean) => void;
-  /** Marks the current item finished (or not) and saves it. */
-  markCurrent: (finished: boolean) => void;
+  /** Marks the current item finished (or not) and saves it; resolves once saved. */
+  markCurrent: (finished: boolean) => Promise<void>;
   stop: () => void;
 }
 
@@ -325,6 +325,41 @@ const positionStore = (() => {
 })();
 const zero = () => 0;
 const ignore = () => () => {};
+
+/** What's loaded and whether it's playing, for rows that only need to know if it's theirs. */
+type NowPlaying = { type: PlayType; id: string; podcastId: string | null; playing: boolean } | null;
+const nowStore = (() => {
+  let now: NowPlaying = null;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => now,
+    set(next: NowPlaying) {
+      now = next;
+      for (const l of listeners) l();
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+  };
+})();
+
+/**
+ * Whether what's loaded is this row's (`mine`), and playing. Unlike usePlayer, a row re-renders
+ * only when its own answer changes, not on every play, pause or Up Next change, so long grids stay
+ * cheap.
+ */
+export function useNowPlaying(mine: (now: NonNullable<NowPlaying>) => boolean): { current: boolean; playing: boolean } {
+  const state = useSyncExternalStore(
+    nowStore.subscribe,
+    () => {
+      const now = nowStore.get();
+      return now && mine(now) ? (now.playing ? 2 : 1) : 0;
+    },
+    zero,
+  );
+  return { current: state > 0, playing: state === 2 };
+}
 
 export function usePlayer(): PlayerApi {
   const ctx = useContext(PlayerContext);
@@ -402,6 +437,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => nowStore.set(item && { type: item.type, id: item.id, podcastId: item.podcastId, playing }), [item, playing]);
   const [speed, setSpeedState] = useState(1);
   const [sleep, setSleepState] = useState<SleepTimer>({ mode: "off" });
   const [skip, setSkipState] = useState<SkipSettings>(DEFAULT_SKIP);
@@ -417,7 +453,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     listRef.current = l;
     setUpNextState(l);
     if (save === "index") void api(apiPaths.upNext, { method: "PATCH", body: { index: l.index } }).catch(() => undefined);
-    if (save === "list") void api(apiPaths.upNext, { method: "PUT", body: toRefs(l) }).catch(() => undefined);
+    // A change you made (not just moving along the list) says so when it didn't save.
+    if (save === "list") void api(apiPaths.upNext, { method: "PUT", body: toRefs(l) }).catch(() => toast.error("Couldn't save Up Next."));
   }, []);
 
   const [shuffle, setShuffleState] = useState(false);
@@ -562,6 +599,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (!el) return;
       const current = itemRef.current;
       if (current && current.type === it.type && current.id === it.id) {
+        // After an error the element is stuck, so pressing play loads the item again.
+        if (el.error) return load(current, startAt ?? positionRef.current, true);
         if (startAt !== undefined) seek(startAt);
         void el.play().catch(() => setPlaying(false));
         return;
@@ -724,10 +763,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const toggle = useCallback(() => {
     const el = audio.current;
-    if (!el || !itemRef.current) return;
-    if (el.paused) void el.play().catch(() => setPlaying(false));
+    const it = itemRef.current;
+    if (!el || !it) return;
+    if (el.error) load(it, positionRef.current, true);
+    else if (el.paused) void el.play().catch(() => setPlaying(false));
     else el.pause();
-  }, []);
+  }, [load]);
 
   const pause = useCallback(() => audio.current?.pause(), []);
 
@@ -846,7 +887,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   );
 
   const markCurrent = useCallback(
-    (finished: boolean) => {
+    async (finished: boolean) => {
       let saved: Promise<void> | undefined;
       if (finished) {
         // A finished item leaves the player, like reaching its end.
@@ -858,7 +899,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         saved = save(false);
       }
       // Pages showing played state (book, podcast, library) catch up once the save lands.
-      void saved?.then(() => router.refresh());
+      await saved;
+      router.refresh();
     },
     [save, seek, unload, router],
   );

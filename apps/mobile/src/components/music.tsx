@@ -289,18 +289,20 @@ export const SongRow = memo(function SongRow({
 }: {
   track: TrackDto;
   toggle?: boolean;
-  onPlay?: () => void;
+  /** Called with the row's song, so a long list can pass one function to every row and keep the memo. */
+  onPlay?: (track: TrackDto) => void;
   /** The ⋯ button and a long press: the song's menu. */
-  onMore?: () => void;
+  onMore?: (track: TrackDto) => void;
 }) {
   const t = useTheme();
   const playing = usePlayingSong(track.id);
+  const more = onMore ? () => onMore(track) : undefined;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityHint={onPlay ? "Plays this song" : "Opens its album"}
-      onPress={onPlay ?? (() => openAlbum(track.albumId))}
-      onLongPress={withLongPressHaptic(onMore)}
+      onPress={onPlay ? () => onPlay(track) : () => openAlbum(track.albumId)}
+      onLongPress={withLongPressHaptic(more)}
       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, borderBottomWidth: 1, borderBottomColor: t.line, opacity: pressed ? 0.7 : 1 })}
     >
       <View>
@@ -317,7 +319,7 @@ export const SongRow = memo(function SongRow({
       </View>
       <Length track={track} />
       {toggle ? <InMusicToggle track={track} /> : null}
-      {onMore ? <SongMoreButton track={track} onPress={onMore} last /> : null}
+      {more ? <SongMoreButton track={track} onPress={more} last /> : null}
     </Pressable>
   );
 });

@@ -2,6 +2,7 @@
 
 import { apiPaths } from "./api-paths";
 import { clock, duration, plural } from "./format";
+import { collator } from "./library";
 
 export type AlbumSort = "added" | "name" | "artist" | "year";
 export const ALBUM_SORTS: Array<{ id: AlbumSort; label: string }> = [
@@ -320,7 +321,8 @@ export const albumMatches = (a: AlbumSummary, q: string) => !q || has(q, a.title
 export const artistMatches = (a: ArtistSummary, q: string) => !q || has(q, a.name);
 export const songMatches = (t: TrackDto, q: string) => !q || has(q, t.title, t.artist, t.album);
 
-const byText = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+const byText = collator.compare;
+// Only "The", like the server's sort_name for artists (sortTitle, for titles, also drops A and An).
 const artistKey = (s: string) => s.replace(/^the\s+/i, "");
 
 /** The same orders the server sorts by, so changing the sort needs no round trip. */

@@ -5,7 +5,8 @@ import type { Sqlite } from "../db";
 import { errorMessage, type Logger } from "../log";
 import type { LibraryFolder } from "../library/folders";
 import { IMAGE_EXTENSIONS, extname, isIgnoredName } from "../library/parse";
-import { createLimiter } from "../library/probe";
+import { HttpError } from "../http";
+import { createLimiter, createUnreadable } from "../library/probe";
 import type { ScanState } from "../library/scanner";
 import { storeArt } from "./art";
 import { grabStill, probeVideo, videoProblem } from "./video-addon";
@@ -104,6 +105,7 @@ async function walk(root: string, log: Logger): Promise<Walked> {
 export function createWatchScanner(deps: WatchScannerDeps) {
   const { sqlite, log, state } = deps;
   const probeLimit = createLimiter(Math.max(1, deps.probeConcurrency));
+  const unreadable = createUnreadable();
 
   const upsertVideo = sqlite.prepare(`
     INSERT INTO videos (id, kind, folder_id, rel_path, movie_id, edition, show_id, season, episode, title, sort_title,
@@ -213,11 +215,16 @@ export function createWatchScanner(deps: WatchScannerDeps) {
       const showId = await parentId("shows", folder, ep.showPath, file, extras, now);
       base = { title: ep.title, movieId: null, edition: null, showId, season: ep.season, episode: ep.episode };
     }
+    const key = `${folder.id}:${file.relPath}`;
+    if (unreadable.skip(key, file)) return "failed";
     let probe;
     try {
       probe = await probeLimit(() => probeVideo(path.join(folder.path, file.relPath)));
+      unreadable.read(key);
     } catch (err) {
       log.warn("video could not be read", { file: file.relPath, error: errorMessage(err) });
+      // The add-on being down or busy (a 503) isn't the file's fault, so that's tried next scan.
+      if (!(err instanceof HttpError && err.status === 503)) unreadable.failed(key, file);
       return "failed";
     }
     // An episode's own nfo; a movie's details live on the movie.

@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { type ChildProcess, execFile, spawn } from "node:child_process";
 import type { ProbedVideo } from "@murmur/shared";
 import { probedVideo, type FfprobeOutput } from "./codecs";
 import { env } from "./env";
@@ -28,6 +28,19 @@ function run(cmd: string, args: string[], opts: { timeoutMs: number; input?: Buf
     );
     if (opts.input) child.stdin?.end(opts.input);
   });
+}
+
+/**
+ * Starts a long ffmpeg run (a stream or a download), keeping the end of what it writes to
+ * stderr. `failure(code)` is its last line, which usually says what went wrong, or the exit code.
+ */
+export function spawnFfmpeg(args: string[], stdout: "ignore" | "pipe"): { proc: ChildProcess; failure: (code: number | null) => string } {
+  const proc = spawn(env.ffmpegPath, args, { windowsHide: true, stdio: ["ignore", stdout, "pipe"] });
+  let errors = "";
+  proc.stderr?.on("data", (chunk: Buffer) => {
+    errors = (errors + chunk.toString()).slice(-2000);
+  });
+  return { proc, failure: (code) => errors.trim().split("\n").at(-1) || `ffmpeg stopped (${code})` };
 }
 
 let available: Promise<boolean> | null = null;

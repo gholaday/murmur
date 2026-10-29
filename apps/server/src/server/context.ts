@@ -7,6 +7,7 @@ import { createWatchScanner, type WatchScanner } from "./watch/scanner";
 import { createWatchMatcher, type WatchMatcher } from "./watch/match";
 import { createTmdb } from "./watch/tmdb";
 import { setBusy } from "./changes";
+import { pruneProviderCache } from "./metadata/providers";
 import { fillArtistPhotos } from "./music/match";
 import { createMusicScanner, type MusicScanner } from "./music/scanner";
 import { createScanState, createScanner, type ScanState, type Scanner } from "./library/scanner";
@@ -273,6 +274,7 @@ function scheduleNightlyBackup(sqlite: Sqlite) {
   if (next.getTime() <= Date.now()) next.setDate(next.getDate() + 1);
   const timer = setTimeout(async () => {
     try {
+      pruneProviderCache(sqlite);
       await backupDatabase(sqlite, env.backupsDir, env.backupKeep, backupLog);
     } catch (err) {
       backupLog.error("nightly backup failed", { error: errorMessage(err) });

@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
+import { memo, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Pressable, TextInput, View } from "react-native";
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import {
   apiPaths,
@@ -36,6 +36,7 @@ import { PAD } from "./library";
 import { Pills } from "./music";
 import { BackRow, SectionTitle, useTopInset } from "./page";
 import { RemoveDownloadSheet, Sheet, SheetItem } from "./sheet";
+import { Bone, Skeleton } from "./skeleton";
 import { toast } from "./toast";
 import { Button, IconButton, RoundButton, Text } from "./ui";
 
@@ -428,6 +429,14 @@ export function RescanButton() {
     }
   }, [scanning, spin]);
   const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value}deg` }] }));
+  // Leaving the screen stops the polling; the scan itself carries on.
+  const mounted = useRef(true);
+  useEffect(
+    () => () => {
+      mounted.current = false;
+    },
+    [],
+  );
 
   const rescan = async () => {
     setScanning(true);
@@ -436,14 +445,15 @@ export function RescanButton() {
       // The scan runs in the background; health says when it's finished.
       for (;;) {
         await new Promise((r) => setTimeout(r, SCAN_POLL_MS));
+        if (!mounted.current) return;
         const health = await api<HealthDto>("/api/health");
         if (!health.watch?.scan.running) break;
       }
       invalidateWatch();
     } catch (err) {
-      toast.error(errorText(err));
+      if (mounted.current) toast.error(errorText(err));
     } finally {
-      setScanning(false);
+      if (mounted.current) setScanning(false);
     }
   };
   return (
@@ -567,9 +577,19 @@ function MatchBody({ onClose, kind, id, title, year, tmdbId }: Parameters<typeof
         </View>
         <Button label="Search" busy={busy && results !== null} disabled={!query.trim()} onPress={() => void search(query.trim(), yearText.trim())} />
         {results === null ? (
-          <View style={{ paddingVertical: 24 }}>
-            <ActivityIndicator color={t.muted} />
-          </View>
+          // Placeholders shaped like the result rows: a poster with a title, year and overview.
+          <Skeleton style={{ gap: 8 }}>
+            {[0, 1, 2].map((i) => (
+              <View key={i} style={{ flexDirection: "row", gap: 12, padding: 8 }}>
+                <Bone width={56} height={84} radius={6} />
+                <View style={{ flex: 1, gap: 8, paddingTop: 2 }}>
+                  <Bone width="70%" height={15} />
+                  <Bone width="20%" height={11} />
+                  <Bone width="90%" height={11} />
+                </View>
+              </View>
+            ))}
+          </Skeleton>
         ) : results.length === 0 ? (
           <Text variant="small" style={{ textAlign: "center", paddingVertical: 16 }}>
             No results.

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   type AlbumDetail,
@@ -120,8 +121,13 @@ export const useAlbum = (id: string) => useQuery({ queryKey: keys.album(id), que
 export const useArtists = (scope: MusicScope, enabled = true) =>
   useQuery({ queryKey: keys.artists(scope), queryFn: () => api<ArtistSummary[]>(apiPaths.artists(scope)), enabled });
 
+/** An album's colour from the cache, looked up once per album rather than on every render. */
+export function useAlbumColor(id: string | undefined): string | null {
+  return useMemo(() => (id ? cachedAlbumColor(id) : null), [id]);
+}
+
 /** An album's cover colour from what's already loaded (its page or an album list); songs carry none of their own. */
-export function cachedAlbumColor(id: string): string | null {
+function cachedAlbumColor(id: string): string | null {
   const detail = queryClient.getQueryData<AlbumDetail>(keys.album(id));
   if (detail) return detail.coverColor;
   for (const [, list] of queryClient.getQueriesData<AlbumSummary[]>({ queryKey: ["albums"] })) {
@@ -286,17 +292,6 @@ export function useEpisodeNotes(episode: EpisodeDto, open: boolean): string | nu
     staleTime: 60_000,
   });
   return (episode.descriptionCut ? full.data?.description : null) ?? episode.description;
-}
-
-/** Marks a book or episode finished, or resets it to the start. */
-export async function setFinished(itemType: "book" | "episode", itemId: string, durationSec: number, finished: boolean) {
-  await api("/api/progress", {
-    method: "PUT",
-    body: {
-      items: [{ itemType, itemId, positionSec: finished ? durationSec : 0, durationSec, finished, updatedAt: Date.now() }],
-    },
-  });
-  invalidateListening();
 }
 
 // ---------- Play next: books lined up to start, in your order ----------

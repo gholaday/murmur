@@ -1,3 +1,4 @@
+import { duration, plural } from "./format";
 import type { StatsType } from "./index";
 
 // Listening stats: how long you listened, by day. Days are the listener's own calendar days
@@ -217,6 +218,75 @@ export interface StatsDto {
    * TV show and movie, each kind longest first.
    */
   top: StatsTop[];
+}
+
+// ---------- What the stats say, the same on the web and in the app ----------
+
+export const STATS_PERIOD_CHOICES: Array<{ id: StatsPeriod; label: string; last: string; this: string }> = [
+  { id: "week", label: "Week", last: "last week", this: "This week" },
+  { id: "month", label: "Month", last: "last month", this: "This month" },
+  { id: "year", label: "Year", last: "last year", this: "This year" },
+  { id: "all", label: "All time", last: "", this: "All time" },
+];
+
+export const STATS_KIND_LABEL: Record<StatsKind, string> = { book: "Books", episode: "Podcasts", music: "Music", watch: "Watch" };
+
+export const STATS_TOP_LABEL: Record<StatsTop["kind"], string> = { book: "Book", podcast: "Podcast", album: "Album", song: "Song", movie: "Movie", tvshow: "Show" };
+
+/** The time of these kinds; a kind the server leaves out counts as nothing, not NaN. */
+export const statsSum = (split: Partial<StatsSplit> | null | undefined, kinds: StatsKind[]): number => kinds.reduce((s, k) => s + (split?.[k] ?? 0), 0);
+
+/** The total compared with the same stretch of the period before. */
+export function statsChange(now: number, before: number | null, last: string): string | null {
+  if (before === null || now + before === 0) return null;
+  const diff = now - before;
+  if (Math.abs(diff) < 60) return `About the same as ${last}`;
+  return `${duration(Math.abs(diff))} ${diff > 0 ? "more" : "less"} than ${last}`;
+}
+
+/** The bar for today, or the month or year it's in. */
+export function statsCurrentKey(period: StatsPeriod, today: string): string {
+  if (period === "year") return today.slice(0, 7);
+  if (period === "all") return today.slice(0, 4);
+  return today;
+}
+
+export interface StatsTile {
+  key: string;
+  value: string;
+  label: string;
+  /** Set on a count tile when every kind shows, for its colour dot. */
+  kind?: StatsKind;
+}
+
+/** All kinds: streak, daily average and a count for each kind. One kind: its counts and its daily average. */
+export function statsTiles(s: StatsDto, picked: StatsKind | null, kinds: StatsKind[], today: string): StatsTile[] {
+  const watched = [s.showEpisodesWatched ? plural(s.showEpisodesWatched, "episode") : null, s.moviesWatched ? plural(s.moviesWatched, "movie") : null]
+    .filter(Boolean)
+    .join(", ");
+  const counts: Record<StatsKind, StatsTile[]> = {
+    book: [{ key: "books", value: plural(s.finishedBooks, "book"), label: "Finished" }],
+    episode: [{ key: "podcasts", value: plural(s.episodesPlayed, "podcast"), label: "Played" }],
+    music: [
+      { key: "songs", value: plural(s.songsPlayed, "song"), label: "Played" },
+      ...(picked === "music" ? [{ key: "albums", value: plural(s.albumsPlayed, "album"), label: "Played from" }] : []),
+    ],
+    watch:
+      picked === "watch"
+        ? [
+            { key: "episodes", value: plural(s.showEpisodesWatched, "episode"), label: "Watched" },
+            { key: "movies", value: plural(s.moviesWatched, "movie"), label: "Watched" },
+          ]
+        : [{ key: "watched", value: watched || "0 episodes", label: "Watched" }],
+  };
+  if (picked) {
+    return [...counts[picked], { key: "avg", value: duration(dailyAverage(statsSum(s.split, [picked]), s, today)) || "0m", label: "Daily average" }];
+  }
+  return [
+    { key: "streak", value: plural(s.streakDays, "day"), label: "Streak" },
+    { key: "avg", value: duration(dailyAverage(statsSum(s.split, kinds), s, today)) || "0m", label: "Daily average" },
+    ...(kinds.length > 1 ? kinds.flatMap((k) => counts[k].map((t) => ({ ...t, kind: k }))) : (counts[kinds[0]!] ?? [])),
+  ];
 }
 
 // ---------- Recording on the device ----------

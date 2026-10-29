@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createContext, memo, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { apiPaths, bookStarted, type BookSummary, errorText, progressPct } from "@murmur/shared/client";
+import { apiPaths, bookListening, bookStarted, type BookSummary, errorText, progressPct } from "@murmur/shared/client";
 import { api } from "../api";
 import type { EditTab } from "../book/edit-dialog";
 import { setMarkedMatched } from "../book/match-mark";
@@ -13,7 +13,7 @@ import { setPlayNext } from "../book/play-next";
 import { Cover } from "../cover";
 import { CheckIcon, MoreIcon } from "../icons";
 import { Mixer } from "../mixer";
-import { usePlayer } from "../player/engine";
+import { useNowPlaying, usePlayer } from "../player/engine";
 import { setFinished } from "../progress";
 
 /** Lets cards offer the options menu; the library provides it, with one shared edit dialog. */
@@ -24,8 +24,7 @@ export const BookCard = memo(function BookCard({ book, sub }: { book: BookSummar
   const actions = useContext(BookActionsContext);
   const pct = progressPct(book);
   const started = !!book.progress && !book.progress.finished && pct > 0;
-  const player = usePlayer();
-  const current = player.isCurrent("book", book.id);
+  const { current, playing } = useNowPlaying((n) => n.type === "book" && n.id === book.id);
   return (
     <div className={`card${current ? " playing" : ""}`}>
       <Link href={`/book/${book.id}`} className="card-link">
@@ -36,7 +35,7 @@ export const BookCard = memo(function BookCard({ book, sub }: { book: BookSummar
             title={book.title}
             subtitle={book.author}
           />
-          {current ? <Mixer playing={player.playing} /> : null}
+          {current ? <Mixer playing={playing} /> : null}
           {/* Admins see which books haven't been matched yet. */}
           {actions?.isAdmin && !book.matched ? <span className="card-unmatched">Not matched</span> : null}
         </div>
@@ -163,8 +162,8 @@ function CardMenuItems({
         type="button"
         role="menuitem"
         onClick={choose(async () => {
-          if (current) player.markCurrent(!finished);
-          await setFinished("book", book.id, book.durationSec, !finished);
+          if (current) await player.markCurrent(!finished);
+          else await setFinished("book", book.id, book.durationSec, !finished);
           toast(finished ? "Marked as not finished" : "Marked as finished");
           router.refresh();
         })}
@@ -208,4 +207,4 @@ function CardMenuItems({
 
 const MENU_WIDTH = 220;
 
-const started = (b: BookSummary) => !!b.progress && !b.progress.finished && b.progress.positionSec > 5;
+const started = bookListening;

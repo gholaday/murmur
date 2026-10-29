@@ -48,7 +48,8 @@ export function stem(name: string): string {
 export function isExtra(relPath: string): boolean {
   const parts = relPath.split("/");
   const file = stem(parts.pop()!);
-  if (parts.some((p) => EXTRA_FOLDERS.has(p.toLowerCase()))) return true;
+  // The top folder is the movie or show itself, so one named "Shorts" or "Other" still counts.
+  if (parts.slice(1).some((p) => EXTRA_FOLDERS.has(p.toLowerCase()))) return true;
   return EXTRA_SUFFIX.test(file) || file.toLowerCase() === "sample";
 }
 
@@ -256,6 +257,6 @@ export function parseNfo(text: string): NfoInfo | null {
   const root = (doc.movie ?? doc.tvshow ?? doc.episodedetails) as Record<string, unknown> | undefined;
   if (!root || typeof root !== "object") return null;
   const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : typeof v === "number" ? String(v) : null);
-  const year = str(root.year) ?? str(root.premiered)?.match(/^(\d{4})/)?.[1] ?? str(root.aired)?.match(/^(\d{4})/)?.[1] ?? null;
+  const year = [str(root.year), str(root.premiered), str(root.aired)].map((v) => v?.match(/^(\d{4})/)?.[1]).find(Boolean) ?? null;
   return { title: str(root.title), year, plot: str(root.plot) ?? str(root.outline) };
 }

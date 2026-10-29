@@ -29,11 +29,6 @@ export class HttpError extends Error {
   }
 }
 
-/** True for failures that mean "can't reach the server", as opposed to the server saying no. */
-export function isOffline(err: unknown): boolean {
-  return !(err instanceof HttpError) || err.status >= 502;
-}
-
 /** Absolute URL for a server path, e.g. a cover or stream. */
 export function absolute(path: string): string {
   if (!serverUrl) throw new Error("Not signed in.");
@@ -49,7 +44,9 @@ const TIMEOUT_MS = 15_000;
 
 // The last ETag and body per GET path, so refetching an unchanged list (library, podcasts,
 // Up Next) comes back as an empty 304. React Native's fetch has no HTTP cache of its own.
+// Only the most recently used paths are kept, so the bodies don't pile up over a session.
 const etags = new Map<string, { etag: string; data: unknown }>();
+const MAX_ETAGS = 100;
 
 export async function api<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
   const method = init?.method ?? "GET";
@@ -75,12 +72,20 @@ export async function api<T>(path: string, init?: { method?: string; body?: unkn
     onUnauthorized?.();
     throw new HttpError(401, "Signed out. Sign in again.");
   }
-  if (res.status === 304 && cached) return cached.data as T;
+  if (res.status === 304 && cached) {
+    etags.delete(path);
+    etags.set(path, cached);
+    return cached.data as T;
+  }
   const data = (await res.json().catch(() => null)) as T | ApiError | null;
   if (!res.ok) throw new HttpError(res.status, (data as ApiError | null)?.error ?? `Request failed (${res.status}).`);
   const etag = method === "GET" ? res.headers.get("etag") : null;
-  if (etag) etags.set(path, { etag, data });
-  else if (method === "GET") etags.delete(path);
+  if (method === "GET") etags.delete(path);
+  if (etag) {
+    etags.set(path, { etag, data });
+    // A Map keeps insertion order, so the first key is the one used longest ago.
+    if (etags.size > MAX_ETAGS) etags.delete(etags.keys().next().value!);
+  }
   return data as T;
 }
 

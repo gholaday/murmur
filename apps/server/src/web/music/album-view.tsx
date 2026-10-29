@@ -118,10 +118,11 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
               {from && p.playing ? <PauseIcon /> : <PlayIcon />}
             </button>
           </div>
-          <p className="muted small" style={{ margin: "10px 0 0" }}>
-            {state === "some" ? `${album.songsInMusic} of ${plural(album.trackCount, "song")} in your music. ` : ""}
-            Tap + on any song to add just that one.
-          </p>
+          {state === "some" ? (
+            <p className="muted small" style={{ margin: "10px 0 0" }}>
+              {`${album.songsInMusic} of ${plural(album.trackCount, "song")} in your music`}
+            </p>
+          ) : null}
         </>
       )}
 

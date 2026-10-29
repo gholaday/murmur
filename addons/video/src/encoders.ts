@@ -54,11 +54,18 @@ function decodeArgs(encoder: Encoder, hdr: boolean): string[] {
   }
 }
 
-/** The output size under the cap, both sides even, or null when the picture already fits (or its size isn't known). */
+/**
+ * The output size within the cap (1080 tall and 1920 wide for 1080p, so a wide film isn't wider
+ * than the H.264 level allows), both sides even, or null when the picture already fits (or its
+ * size isn't known).
+ */
 function fit(p: Picture, maxHeight: number): { w: number; h: number } | null {
-  if (!p.width || !p.height || p.height <= maxHeight) return null;
-  const w = Math.round((p.width * maxHeight) / p.height / 2) * 2;
-  return { w, h: maxHeight };
+  if (!p.width || !p.height) return null;
+  const maxWidth = Math.round((maxHeight * 16) / 9);
+  const scale = Math.min(maxHeight / p.height, maxWidth / p.width);
+  if (scale >= 1) return null;
+  const even = (n: number) => Math.max(2, Math.round((n * scale) / 2) * 2);
+  return { w: even(p.width), h: even(p.height) };
 }
 
 /**

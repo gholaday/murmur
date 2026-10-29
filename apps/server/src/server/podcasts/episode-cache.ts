@@ -238,8 +238,9 @@ export function createEpisodeCache(deps: Deps) {
   /**
    * The server's copy of an episode for playing, starting the download if needed. Null means
    * relay from the publisher: no cache, or the download couldn't start with a known size.
+   * `download: false` (a HEAD) only answers with a finished copy and never starts one.
    */
-  async function open(episodeId: string): Promise<CachedAudio | null> {
+  async function open(episodeId: string, download = true): Promise<CachedAudio | null> {
     if (!available) return null;
     const row = fileRow(episodeId);
     if (row?.status === "ready") {
@@ -252,6 +253,7 @@ export function createEpisodeCache(deps: Deps) {
       }
       sqlite.prepare("DELETE FROM episode_files WHERE id = ?").run(row.id);
     }
+    if (!download) return null;
     const dl = start(episodeId);
     if (!dl) return null;
     const ok = await Promise.race([dl.started, new Promise<boolean>((r) => setTimeout(() => r(false), START_WAIT_MS))]);

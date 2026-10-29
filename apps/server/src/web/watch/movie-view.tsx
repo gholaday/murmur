@@ -10,6 +10,7 @@ import {
   errorText,
   fileDetailParts,
   type MovieDetail,
+  pastStart,
   resolutionLabel,
   timeLeft,
   type VideoFileInfo,
@@ -57,7 +58,7 @@ export function MovieView({ movie, canMatch }: { movie: MovieDetail; canMatch: b
   const version = movie.versionList.find((v) => v.id === versionId) ?? movie.versionList[0]!;
   const finished = !!movie.progress?.finished;
   const position = movie.progress && !finished ? movie.progress.positionSec : 0;
-  const started = position > 5;
+  const started = pastStart(position);
   const posterSrc = movie.posterHash ? apiPaths.movieArtUrl(movie.id, "poster", movie.posterHash) : null;
   const backdropSrc = movie.backdropHash ? apiPaths.movieArtUrl(movie.id, "backdrop", movie.backdropHash) : null;
   // The blurred colour behind the header: the backdrop, else the poster, else a frame from the film.

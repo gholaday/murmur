@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -7,6 +7,7 @@ import { apiPaths, gigabytes, type VideoDownloadDto, type VideoSource } from "@m
 import { threadArgs } from "./cpu";
 import { canToneMap, encoder, type Encoder, encoderFailed, h264Args } from "./encoders";
 import { env } from "./env";
+import { spawnFfmpeg } from "./ffmpeg";
 import { HttpError } from "./http";
 import { createLogger, errorMessage } from "./log";
 
@@ -119,7 +120,7 @@ function args(src: VideoSource, enc: Encoder, toneMap: boolean, out: string): st
 function run(j: Job, src: VideoSource, enc: Encoder, toneMap: boolean): Promise<boolean> {
   const part = `${j.file}.part.mp4`;
   return new Promise((resolve) => {
-    const proc = spawn(env.ffmpegPath, args(src, enc, toneMap, part), { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    const { proc, failure } = spawnFfmpeg(args(src, enc, toneMap, part), "pipe");
     j.proc = proc;
     // Streams come first: a season being prepared for a phone mustn't stall someone watching.
     if (proc.pid) {
@@ -129,10 +130,6 @@ function run(j: Job, src: VideoSource, enc: Encoder, toneMap: boolean): Promise<
         // Not allowed here; it runs at the usual priority.
       }
     }
-    let errors = "";
-    proc.stderr!.on("data", (chunk: Buffer) => {
-      errors = (errors + chunk.toString()).slice(-2000);
-    });
     // -progress writes key=value lines; out_time_us is how far into the video it has got.
     proc.stdout!.on("data", (chunk: Buffer) => {
       const m = /out_time_us=(\d+)\s*$/m.exec(chunk.toString());
@@ -153,7 +150,7 @@ function run(j: Job, src: VideoSource, enc: Encoder, toneMap: boolean): Promise<
           return resolve(false);
         }
       }
-      if (!signal) j.error = errors.trim().split("\n").at(-1) || `ffmpeg stopped (${code})`;
+      if (!signal) j.error = failure(code);
       resolve(false);
     });
   });

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { FlatList, Pressable, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import {
@@ -85,6 +85,14 @@ export default function Music() {
   // Everything else: for "Add all" when you have nothing yet, and "More to add" while searching.
   const allAlbums = useAlbums("all", nothingYet || !!q);
   const allTracks = useTracks("all", !!q);
+
+  // Your own songs play the whole list from that one. One function for every row keeps the rows' memo.
+  const playOwn = useCallback(
+    (track: TrackDto) => {
+      if (tracks.data) playSongs(tracks.data, tracks.data.indexOf(track));
+    },
+    [tracks.data],
+  );
 
   const current = view === "albums" ? albums : view === "artists" ? artists : view === "songs" ? tracks : playlists;
   const refresh = usePullRefresh(() => Promise.all([summary.refetch(), current.refetch()]));
@@ -267,12 +275,7 @@ export default function Music() {
             <AlbumAddRow album={item.album} />
           ) : (
             // Your own songs play the whole list from that one; songs you could add open their album.
-            <SongRow
-              track={item.track}
-              toggle={item.toggle}
-              onPlay={item.toggle || !tracks.data ? undefined : () => playSongs(tracks.data, tracks.data.indexOf(item.track))}
-              onMore={() => setSong(item.track)}
-            />
+            <SongRow track={item.track} toggle={item.toggle} onPlay={item.toggle ? undefined : playOwn} onMore={setSong} />
           )
         }
       />

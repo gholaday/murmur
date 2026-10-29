@@ -1,7 +1,7 @@
-import { memo, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { apiPaths, episodeLabel, percentDone, plural, type ShowDetail, type VideoEpisode, type VideoQuality } from "@murmur/shared/client";
+import { apiPaths, episodeLabel, percentDone, plural, seasonName, type ShowDetail, type VideoEpisode, type VideoQuality } from "@murmur/shared/client";
 import { CheckIcon, MoreIcon, PlayedIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
@@ -14,7 +14,7 @@ import { ArtBar, QualityButton, startEpisodeDownload, Still, VideoDownloadButton
 import { useDownloads } from "@/lib/downloads";
 import { useOnline } from "@/lib/query";
 import { useSession } from "@/lib/session";
-import { episodeSub, markWatched, openVideoPlayer, seasonName, showEpisodes, useShow } from "@/lib/watch";
+import { episodeSub, markWatched, openVideoPlayer, showEpisodes, useShow } from "@/lib/watch";
 import { fonts, useTheme } from "@/theme";
 
 export default function TvShowScreen() {
@@ -30,6 +30,16 @@ export default function TvShowScreen() {
     </FadeIn>
   );
 }
+
+function mark(list: VideoEpisode[], done: boolean, what: string) {
+  markWatched(
+    list.map((e) => ({ id: e.id, durationSec: e.durationSec })),
+    done,
+  );
+  toast.show(done ? `Marked ${what} as watched` : `Marked ${what} as not watched`);
+}
+
+const markEpisode = (e: VideoEpisode, done: boolean) => mark([e], done, episodeLabel(e.season, e.episode));
 
 /** A show: poster, Resume on the next episode, a chip per season and its episodes. */
 function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number | null }) {
@@ -76,17 +86,8 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
   const pills = [show.year, plural(show.seasons, "season"), plural(show.episodes, "episode")].filter((p): p is string => !!p);
   const upNextPosition = upNext?.progress && !upNext.progress.finished ? upNext.progress.positionSec : 0;
 
-  const mark = async (list: VideoEpisode[], done: boolean, what: string) => {
-    try {
-      await markWatched(
-        list.map((e) => ({ id: e.id, durationSec: e.durationSec })),
-        done,
-      );
-      toast.show(done ? `Marked ${what} as watched` : `Marked ${what} as not watched`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't save that.");
-    }
-  };
+  // The same function between renders, so the memoised rows don't all redraw.
+  const downloadEpisode = useCallback((ep: VideoEpisode) => void startEpisodeDownload(show, ep, quality), [show, quality]);
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -120,7 +121,7 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
           <RoundButton
             label={seasonDone ? `Mark ${seasonName(season)} as not watched` : `Mark ${seasonName(season)} as watched`}
             active={seasonDone}
-            onPress={() => void mark(episodes, !seasonDone, seasonName(season))}
+            onPress={() => mark(episodes, !seasonDone, seasonName(season))}
           >
             <CheckIcon size={22} color={seasonDone ? t.accent : t.text} />
           </RoundButton>
@@ -145,12 +146,7 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
           <SectionTitle title={seasonName(season)} />
         )}
         {episodes.map((e) => (
-          <EpisodeRow
-            key={e.id}
-            e={e}
-            onMark={(ep, done) => void mark([ep], done, episodeLabel(ep.season, ep.episode))}
-            onDownload={(ep) => void startEpisodeDownload(show, ep, quality)}
-          />
+          <EpisodeRow key={e.id} e={e} quality={quality} onMark={markEpisode} onDownload={downloadEpisode} />
         ))}
       </ScrollView>
 
@@ -167,10 +163,13 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
 /** An episode: still with how far you are, number and title, time, and a watched toggle. */
 const EpisodeRow = memo(function EpisodeRow({
   e,
+  quality,
   onMark,
   onDownload,
 }: {
   e: VideoEpisode;
+  /** The quality picked on the page, which Play passes on too. */
+  quality: VideoQuality | null;
   onMark: (e: VideoEpisode, done: boolean) => void;
   onDownload: (e: VideoEpisode) => void;
 }) {
@@ -182,7 +181,7 @@ const EpisodeRow = memo(function EpisodeRow({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Play ${e.title}`}
-        onPress={() => openVideoPlayer({ kind: "episode", id: e.id, showId: e.showId })}
+        onPress={() => openVideoPlayer({ kind: "episode", id: e.id, showId: e.showId, quality: quality ?? undefined })}
         style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}
       >
         <View style={{ width: 128, opacity: finished ? 0.6 : 1 }}>

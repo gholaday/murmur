@@ -85,7 +85,12 @@ function cookieValue(header: string | null, name: string): string | null {
   if (!header) return null;
   for (const part of header.split(";")) {
     const [k, ...v] = part.trim().split("=");
-    if (k === name) return decodeURIComponent(v.join("="));
+    if (k !== name) continue;
+    try {
+      return decodeURIComponent(v.join("="));
+    } catch {
+      return null; // a mangled cookie is no session, not an error
+    }
   }
   return null;
 }
@@ -106,7 +111,8 @@ function assertSameOrigin(req: Request) {
   const origin = req.headers.get("origin");
   if (!origin) return;
   const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
-  if (!host || new URL(origin).host !== host) throw new HttpError(403, "Cross-site request blocked.");
+  // `URL.canParse` fails on "null" (a sandboxed or file page), which is cross-site too.
+  if (!host || !URL.canParse(origin) || new URL(origin).host !== host) throw new HttpError(403, "Cross-site request blocked.");
 }
 
 /** A Chromecast's read of a stream or picture its cast link covers (see cast.ts). */

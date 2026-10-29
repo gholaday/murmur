@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { apiPaths, duration, type MovieDetail, resolutionLabel, timeLeft, versionLabel, type VideoQuality } from "@murmur/shared/client";
+import { apiPaths, duration, type MovieDetail, pastStart, resolutionLabel, timeLeft, versionLabel, type VideoQuality } from "@murmur/shared/client";
 import { CheckIcon, ChevronIcon, MoreIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
@@ -43,7 +43,7 @@ function MovieView({ movie }: { movie: MovieDetail }) {
   const version = movie.versionList.find((v) => v.id === versionId) ?? movie.versionList[0]!;
   const finished = !!movie.progress?.finished;
   const position = movie.progress && !finished ? movie.progress.positionSec : 0;
-  const started = position > 5;
+  const started = pastStart(position);
   const posterPath = movie.posterHash ? apiPaths.movieArtUrl(movie.id, "poster", movie.posterHash) : null;
   const backdropPath = movie.backdropHash ? apiPaths.movieArtUrl(movie.id, "backdrop", movie.backdropHash) : null;
   // The blurred colour behind the header: the backdrop, else the poster, else a frame from the film.
@@ -51,13 +51,9 @@ function MovieView({ movie }: { movie: MovieDetail }) {
   const pills = [movie.year, duration(version.durationSec), resolutionLabel(version.file.width, version.file.height)].filter((p): p is string => !!p);
   const playSub = started ? timeLeft(version.durationSec, position) : duration(version.durationSec);
 
-  const mark = async (done: boolean) => {
-    try {
-      await markWatched([{ id: movie.id, durationSec: version.durationSec }], done);
-      toast.show(done ? "Marked as watched" : "Marked as not watched");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't save that.");
-    }
+  const mark = (done: boolean) => {
+    markWatched([{ id: movie.id, durationSec: version.durationSec }], done);
+    toast.show(done ? "Marked as watched" : "Marked as not watched");
   };
 
   return (
@@ -95,7 +91,7 @@ function MovieView({ movie }: { movie: MovieDetail }) {
           />
           <QualityButton file={version.file} value={quality} onChange={setQuality} />
           <VideoDownloadButton type="movie" id={movie.id} title={movie.title} round onDownload={() => void startMovieDownload(movie, versionId, quality)} />
-          <RoundButton label={finished ? "Mark as not watched" : "Mark as watched"} active={finished} onPress={() => void mark(!finished)}>
+          <RoundButton label={finished ? "Mark as not watched" : "Mark as watched"} active={finished} onPress={() => mark(!finished)}>
             <CheckIcon size={22} color={finished ? t.accent : t.text} />
           </RoundButton>
         </View>

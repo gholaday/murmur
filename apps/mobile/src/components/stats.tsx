@@ -4,13 +4,19 @@ import { router } from "expo-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   apiPaths,
-  dailyAverage,
   duration,
   localDay,
   plural,
+  STATS_KIND_LABEL,
+  STATS_PERIOD_CHOICES,
+  STATS_TOP_LABEL,
+  statsChange,
+  statsCurrentKey,
   type StatsDto,
   type StatsKind,
   type StatsPeriod,
+  statsSum,
+  statsTiles,
   type StatsTop,
   statsTopKind,
 } from "@murmur/shared/client";
@@ -23,15 +29,7 @@ import { SectionTitle } from "./page";
 import { Bone, Skeleton } from "./skeleton";
 import { Caption, Chips, Text } from "./ui";
 
-const PERIODS: { id: StatsPeriod; label: string; last: string; this: string }[] = [
-  { id: "week", label: "Week", last: "last week", this: "This week" },
-  { id: "month", label: "Month", last: "last month", this: "This month" },
-  { id: "year", label: "Year", last: "last year", this: "This year" },
-  { id: "all", label: "All time", last: "", this: "All time" },
-];
-
-const KIND_LABEL: Record<StatsKind, string> = { book: "Books", episode: "Podcasts", music: "Music", watch: "Watch" };
-const TOP_LABEL: Record<StatsTop["kind"], string> = { book: "Book", podcast: "Podcast", album: "Album", song: "Song", movie: "Movie", tvshow: "Show" };
+// What the stats say (periods, labels, totals, tiles) comes from packages/shared, like the web's.
 
 /** Books use the accent; the other kinds' colours match the web's --stat-2 to --stat-4. */
 const STAT_COLORS = {
@@ -43,8 +41,7 @@ const kindColor = (t: Theme, k: StatsKind) => (k === "book" ? t.accent : STAT_CO
 const BARS_HEIGHT = 112;
 
 // A kind the server leaves out counts as nothing, not NaN.
-const secOf = (split: Partial<Record<StatsKind, number>> | undefined, k: StatsKind) => split?.[k] ?? 0;
-const sumOf = (split: Partial<Record<StatsKind, number>> | undefined, kinds: StatsKind[]) => kinds.reduce((s, k) => s + secOf(split, k), 0);
+const secOf = (split: Partial<Record<StatsKind, number>> | undefined, k: StatsKind) => statsSum(split, [k]);
 
 /** Something in the stats failing to draw leaves a line saying so, not a crashed You tab. */
 export class StatsBoundary extends Component<{ children: React.ReactNode }, { failed: boolean }> {
@@ -83,21 +80,6 @@ function useStatsKinds(): StatsKind[] {
   ];
 }
 
-/** The total compared with the same stretch of the period before. */
-function change(now: number, before: number | null, last: string): string | null {
-  if (before === null || now + before === 0) return null;
-  const diff = now - before;
-  if (Math.abs(diff) < 60) return `About the same as ${last}`;
-  return `${duration(Math.abs(diff))} ${diff > 0 ? "more" : "less"} than ${last}`;
-}
-
-/** The bar for today, or the month or year it's in. */
-function currentKey(period: StatsPeriod, today: string): string {
-  if (period === "year") return today.slice(0, 7);
-  if (period === "all") return today.slice(0, 4);
-  return today;
-}
-
 /**
  * The You tab's stats: the time for a period with a chart stacked by kind, a legend that picks one
  * kind, tiles and the top items. A hidden kind leaves all of it, the total included.
@@ -110,23 +92,23 @@ export function ListeningStats() {
   const stats = useStats(period);
   const s = stats.data;
   const today = localDay();
-  const p = PERIODS.find((x) => x.id === period)!;
+  const p = STATS_PERIOD_CHOICES.find((x) => x.id === period)!;
   // A kind picked and then hidden falls back to all of them.
   const picked = focus && kinds.includes(focus) ? focus : null;
   const shown = picked ? [picked] : kinds;
-  const total = s ? sumOf(s.split, shown) : 0;
-  const compared = s ? change(total, s.previousSplit ? sumOf(s.previousSplit, shown) : null, p.last) : null;
+  const total = s ? statsSum(s.split, shown) : 0;
+  const compared = s ? statsChange(total, s.previousSplit ? statsSum(s.previousSplit, shown) : null, p.last) : null;
 
   return (
     <View style={{ gap: 14 }}>
-      <Chips wrap options={PERIODS} value={period} onPick={setPeriod} />
+      <Chips wrap options={STATS_PERIOD_CHOICES} value={period} onPick={setPeriod} />
 
       <View style={{ padding: 18, borderRadius: 16, backgroundColor: t.surface, gap: 16 }}>
         {s ? (
           <>
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
               <View style={{ flex: 1, gap: 2 }}>
-                <Caption>{picked ? `${KIND_LABEL[picked]} ${p.this.toLowerCase()}` : p.this}</Caption>
+                <Caption>{picked ? `${STATS_KIND_LABEL[picked]} ${p.this.toLowerCase()}` : p.this}</Caption>
                 <Text style={{ fontFamily: fonts.extrabold, fontSize: 34, lineHeight: 44, letterSpacing: -0.8, color: t.text }}>{duration(total) || "0m"}</Text>
                 {compared ? <Text variant="small">{compared}</Text> : null}
               </View>
@@ -141,7 +123,7 @@ export function ListeningStats() {
                 </Pressable>
               ) : null}
             </View>
-            <Bars stats={s} kinds={shown} now={currentKey(period, today)} />
+            <Bars stats={s} kinds={shown} now={statsCurrentKey(period, today)} />
             {kinds.length > 1 ? <Legend split={s.split} kinds={kinds} picked={picked} onPick={(k) => setFocus(picked === k ? null : k)} /> : null}
           </>
         ) : stats.isError ? (
@@ -157,7 +139,7 @@ export function ListeningStats() {
 
       {s ? (
         <Grid columns={2} gap={10}>
-          {tiles(s, picked, kinds, today).map((x) => (
+          {statsTiles(s, picked, kinds, today).map((x) => (
             <StatTile key={x.key} value={x.value} label={x.label} color={x.kind ? kindColor(t, x.kind) : undefined} />
           ))}
         </Grid>
@@ -171,7 +153,7 @@ export function ListeningStats() {
 /** One bar per day (per month for a year, per year for all time), stacked by kind, books at the bottom. */
 function Bars({ stats, kinds, now }: { stats: StatsDto; kinds: StatsKind[]; now: string }) {
   const t = useTheme();
-  const max = Math.max(1, ...stats.bars.map((b) => sumOf(b.split, kinds)));
+  const max = Math.max(1, ...stats.bars.map((b) => statsSum(b.split, kinds)));
   const dense = stats.bars.length > 12;
   const months = stats.bars.length > 7 && !dense;
   return (
@@ -182,7 +164,7 @@ function Bars({ stats, kinds, now }: { stats: StatsDto; kinds: StatsKind[]; now:
       style={{ flexDirection: "row", alignItems: "flex-end", gap: dense ? 2 : months ? 4 : 8, height: BARS_HEIGHT + 22 }}
     >
       {stats.bars.map((b, i) => {
-        const total = sumOf(b.split, kinds);
+        const total = statsSum(b.split, kinds);
         return (
           <View key={b.key} style={{ flex: 1, alignItems: "center", gap: 6 }}>
             {/* A lone bar (all time, in the first year) stays bar-shaped rather than filling the card. */}
@@ -242,53 +224,13 @@ function Legend({ split, kinds, picked, onPick }: { split: StatsDto["split"]; ki
         >
           <Dot color={kindColor(t, k)} />
           <Text variant="bodyStrong" numberOfLines={1} style={{ flex: 1, fontSize: 14 }}>
-            {KIND_LABEL[k]}
+            {STATS_KIND_LABEL[k]}
           </Text>
           <Text style={{ fontFamily: fonts.semibold, fontSize: 13, color: t.text2 }}>{duration(secOf(split, k)) || "0m"}</Text>
         </Pressable>
       ))}
     </Grid>
   );
-}
-
-interface Tile {
-  key: string;
-  value: string;
-  label: string;
-  kind?: StatsKind;
-}
-
-/** All kinds: streak, daily average and a count for each kind. One kind: its counts and its daily average. */
-function tiles(s: StatsDto, picked: StatsKind | null, kinds: StatsKind[], today: string): Tile[] {
-  const watched = [s.showEpisodesWatched ? plural(s.showEpisodesWatched, "episode") : null, s.moviesWatched ? plural(s.moviesWatched, "movie") : null]
-    .filter(Boolean)
-    .join(", ");
-  const counts: Record<StatsKind, Tile[]> = {
-    book: [{ key: "books", value: plural(s.finishedBooks, "book"), label: "Finished" }],
-    episode: [{ key: "podcasts", value: plural(s.episodesPlayed, "podcast"), label: "Played" }],
-    music:
-      picked === "music"
-        ? [
-            { key: "songs", value: plural(s.songsPlayed, "song"), label: "Songs played" },
-            { key: "albums", value: plural(s.albumsPlayed, "album"), label: "Played from" },
-          ]
-        : [{ key: "songs", value: plural(s.songsPlayed, "song"), label: "Played" }],
-    watch:
-      picked === "watch"
-        ? [
-            { key: "episodes", value: plural(s.showEpisodesWatched, "episode"), label: "Watched" },
-            { key: "movies", value: plural(s.moviesWatched, "movie"), label: "Watched" },
-          ]
-        : [{ key: "watched", value: watched || "0 episodes", label: "Watched" }],
-  };
-  if (picked) {
-    return [...counts[picked], { key: "avg", value: duration(dailyAverage(secOf(s.split, picked), s, today)) || "0m", label: "Daily average" }];
-  }
-  return [
-    { key: "streak", value: plural(s.streakDays, "day"), label: "Streak" },
-    { key: "avg", value: duration(dailyAverage(sumOf(s.split, kinds), s, today)) || "0m", label: "Daily average" },
-    ...(kinds.length > 1 ? kinds.flatMap((k) => counts[k].map((x) => ({ ...x, kind: k }))) : counts[kinds[0]!]),
-  ];
 }
 
 /** All kinds: the top item of each. One kind: its top items. */
@@ -316,7 +258,7 @@ function TopItems({ stats, picked, kinds, period }: { stats: StatsDto; picked: S
             <Cover path={topCover(x)} title={x.title} radius={8} style={{ marginBottom: 6 }} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Dot color={kindColor(t, statsTopKind(x))} size={8} />
-              <Text style={{ fontFamily: fonts.bold, fontSize: 11, lineHeight: 16, letterSpacing: 0.6, textTransform: "uppercase", color: t.muted }}>{TOP_LABEL[x.kind]}</Text>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 11, lineHeight: 16, letterSpacing: 0.6, textTransform: "uppercase", color: t.muted }}>{STATS_TOP_LABEL[x.kind]}</Text>
             </View>
             <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14, lineHeight: 19 }}>
               {x.title}

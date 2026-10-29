@@ -5,7 +5,7 @@ import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { chapterAt, timeLeft } from "@murmur/shared/client";
 import { absolute, authHeaders } from "@/lib/api";
-import { cachedAlbumColor } from "@/lib/data";
+import { useAlbumColor } from "@/lib/data";
 import { VideoView } from "expo-video";
 import { openVideoPlayer } from "@/lib/watch";
 import { useCast } from "@/player/cast";
@@ -25,7 +25,8 @@ export function MiniPlayer() {
   const position = usePosition();
   // Tinted with what's playing, like the web's Now playing card; eases over when the item changes.
   // A song takes its album's colour.
-  const color = item?.color ?? (item?.album ? cachedAlbumColor(item.album.id) : null);
+  const albumColor = useAlbumColor(item?.album?.id);
+  const color = item?.color ?? albumColor;
   const surface = color ? mixColor(color, t.surface2, t.isDark ? 0.3 : 0.2) : t.surface2;
   // The grey sub line fades into a tinted light card; the darker text keeps it readable.
   const sub = t.isDark ? undefined : { color: t.text2 };

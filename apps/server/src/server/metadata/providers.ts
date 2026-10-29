@@ -10,6 +10,11 @@ const TIMEOUT_MS = 10_000;
 
 export class ProviderError extends Error {}
 
+/** Stale answers stand in while a provider is down, but not forever: past three months they go. */
+export function pruneProviderCache(sqlite: Sqlite): number {
+  return sqlite.prepare("DELETE FROM provider_cache WHERE fetched_at < ?").run(Date.now() - 3 * CACHE_TTL_MS).changes;
+}
+
 /**
  * GET JSON through the 30-day provider cache. When a provider is down, a stale cached
  * answer is better than none, so it is used instead of failing. `fetchUrl` is what's

@@ -1,10 +1,10 @@
 import { memo, useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { apiPaths, duration, type EpisodeWithShow, shortDate, timeLeft } from "@murmur/shared/client";
-import { setFinished, useEpisodeNotes } from "@/lib/data";
+import { apiPaths, duration, type EpisodeWithShow, pastStart, shortDate, timeLeft } from "@murmur/shared/client";
+import { useEpisodeNotes } from "@/lib/data";
 import { downloadEpisode, removeDownload, useDownload } from "@/lib/downloads";
-import { addToUpNext, episodeToPlayable, isCurrent, isWaiting, markCurrent, play, removeWaiting, toggle, useItemPosition, usePlayer } from "@/player/engine";
+import { addToUpNext, episodeToPlayable, isCurrent, isWaiting, markCurrent, play, removeWaiting, setFinished, toggle, useItemPosition, usePlayerSelect } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { AdsCheckedIcon, DownloadIcon, PauseIcon, PlayedIcon, PlayIcon, QueueAddIcon } from "./icons";
@@ -28,7 +28,12 @@ export const EpisodeRow = memo(function EpisodeRow({
   newCount?: number;
 }) {
   const t = useTheme();
-  const player = usePlayer();
+  // Only what this row shows, so play and pause elsewhere don't re-render every row.
+  const current = usePlayerSelect((s) => isCurrent(s, "episode", episode.id));
+  const playing = usePlayerSelect((s) => current && s.playing);
+  const loading = usePlayerSelect((s) => current && s.loading);
+  const liveDur = usePlayerSelect((s) => (current ? s.item?.durationSec : null));
+  const queued = usePlayerSelect((s) => isWaiting(s.upNext, { itemType: "episode", itemId: episode.id }));
   const live = useItemPosition("episode", episode.id) ?? 0;
   const dl = useDownload("podcast", episode.id);
   const [open, setOpen] = useState(false);
@@ -36,16 +41,13 @@ export const EpisodeRow = memo(function EpisodeRow({
   const [busy, setBusy] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
-  const current = isCurrent(player, "episode", episode.id);
   const played = !!episode.progress?.finished && !current;
   const finished = !!episode.progress?.finished;
-  const dur = (current ? player.item?.durationSec : null) || episode.durationSec || 0;
+  const dur = liveDur || episode.durationSec || 0;
   const position = current ? live : episode.progress && !episode.progress.finished ? episode.progress.positionSec : 0;
   const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
   const ref = { itemType: "episode" as const, itemId: episode.id };
-  const queued = isWaiting(player.upNext, ref);
-  const pausing = current && player.playing;
-  const time = played ? "Played" : position > 5 && dur ? timeLeft(dur, position) : duration(dur);
+  const time = played ? "Played" : pastStart(position) && dur ? timeLeft(dur, position) : duration(dur);
 
   const openShow = () => router.push(`/show/${episode.podcastId}`);
 
@@ -77,7 +79,7 @@ export const EpisodeRow = memo(function EpisodeRow({
     run(
       async () => {
         if (current) markCurrent(!played);
-        else await setFinished("episode", episode.id, dur, !finished);
+        else setFinished("episode", episode.id, dur, !finished);
       },
       finished ? "Marked as unplayed" : "Marked as played",
     );
@@ -150,7 +152,7 @@ export const EpisodeRow = memo(function EpisodeRow({
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 }}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${pausing ? "Pause" : played ? "Play again" : "Play"}, ${time}`}
+            accessibilityLabel={`${playing ? "Pause" : played ? "Play again" : "Play"}, ${time}`}
             onPress={onPlay}
             style={({ pressed }) => ({
               height: 32,
@@ -165,9 +167,9 @@ export const EpisodeRow = memo(function EpisodeRow({
               opacity: pressed ? 0.85 : 1,
             })}
           >
-            {current && player.loading ? (
+            {loading ? (
               <ActivityIndicator size="small" color={t.onAccent} style={{ width: 16, height: 16 }} />
-            ) : pausing ? (
+            ) : playing ? (
               <PauseIcon size={16} color={t.onAccent} />
             ) : (
               <PlayIcon size={16} color={t.onAccent} />

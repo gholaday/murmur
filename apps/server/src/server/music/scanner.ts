@@ -6,7 +6,7 @@ import { errorMessage, type Logger } from "../log";
 import { pickCoverImage, storeCover } from "../library/covers";
 import type { LibraryFolder } from "../library/folders";
 import { AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, extname, isIgnoredName, mimeTypeFor } from "../library/parse";
-import { createLimiter, extractEmbeddedCover, probeFile } from "../library/probe";
+import { createLimiter, createUnreadable, extractEmbeddedCover, probeFile } from "../library/probe";
 import type { ScanState } from "../library/scanner";
 import { nameKey, sortName, trackInfo } from "./parse";
 import { bumpChanges } from "../changes";
@@ -86,6 +86,7 @@ async function walk(root: string, log: Logger): Promise<Walked> {
 export function createMusicScanner(deps: MusicScannerDeps) {
   const { sqlite, log, state } = deps;
   const probeLimit = createLimiter(Math.max(1, deps.probeConcurrency));
+  const unreadable = createUnreadable();
 
   const findArtist = sqlite.prepare("SELECT id FROM artists WHERE name_key = ?");
   const insertArtist = sqlite.prepare("INSERT INTO artists (id, name, name_key, sort_name, created_at) VALUES (?, ?, ?, ?, ?)");
@@ -129,11 +130,15 @@ export function createMusicScanner(deps: MusicScannerDeps) {
   }
 
   async function importTrack(folder: LibraryFolder, file: FoundFile, now: number): Promise<boolean> {
+    const key = `${folder.id}:${file.relPath}`;
+    if (unreadable.skip(key, file)) return false;
     let probe;
     try {
       probe = await probeLimit(() => probeFile(path.join(folder.path, file.relPath)));
+      unreadable.read(key);
     } catch (err) {
       log.warn("song could not be read", { file: file.relPath, error: errorMessage(err) });
+      unreadable.failed(key, file);
       return false;
     }
     const info = trackInfo(file.relPath, probe.tags);

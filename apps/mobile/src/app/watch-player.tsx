@@ -154,7 +154,7 @@ export default function WatchPlayerScreen() {
   const movie = useMovie(params.kind === "movie" ? params.id : undefined);
   const show = useShow(params.kind === "episode" ? params.show : undefined);
   const query = params.kind === "movie" ? movie : show;
-  const current = useVideo().item;
+  const { item: current, quality: currentQuality } = useVideo();
   const quality = isQuality(params.q) ? params.q : null;
   const online = useOnline();
   useDownloads(); // The next episodes offline follow what's downloaded.
@@ -162,12 +162,18 @@ export default function WatchPlayerScreen() {
   // The video already on (opened from the mini player) shows at once, before anything loads.
   const target: WatchTarget | null =
     params.kind === "movie" ? { kind: "movie", id: params.id, version: params.v } : params.show ? { kind: "episode", id: params.id, showId: params.show } : null;
-  const isCurrent = !!current && !!target && current.target.kind === target.kind && current.target.id === target.id;
   const fresh = useMemo(() => {
     if (params.kind === "movie") return movie.data ? movieItem(movie.data, params.v, quality) : null;
     const e = show.data && showEpisodes(show.data).find((x) => x.id === params.id);
     return show.data && e ? episodeItem(show.data, e, quality) : null;
   }, [params.kind, params.id, params.v, movie.data, show.data, quality]);
+  // Another version of the movie, or another quality, starts it again rather than carrying on.
+  const isCurrent =
+    !!current &&
+    !!target &&
+    current.target.kind === target.kind &&
+    current.target.id === target.id &&
+    (!fresh || (fresh.videoId === current.videoId && (quality === null || quality === currentQuality)));
   const item = isCurrent ? current : fresh;
 
   if (!item) {
@@ -309,16 +315,12 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
     if (item.target.kind === "movie") openMovie(item.target.id);
     else openTvShow(item.target.showId);
   };
-  const markDone = async () => {
+  const markDone = () => {
     setSheet(null);
-    try {
-      await markWatched([{ id: item.progressId, durationSec: item.durationSec }], true);
-      toast.show("Marked as watched");
-      finishVideo();
-      back();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't save that.");
-    }
+    markWatched([{ id: item.progressId, durationSec: item.durationSec }], true);
+    toast.show("Marked as watched");
+    finishVideo();
+    back();
   };
 
   // Pulling the top row down minimises the player, as with the audio one.

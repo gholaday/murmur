@@ -1,4 +1,4 @@
-import { execFile, spawn, type ChildProcess } from "node:child_process";
+import { execFile, type ChildProcess } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -6,6 +6,7 @@ import type { VideoSource, VideoStreamStarted } from "@murmur/shared";
 import { threadArgs } from "./cpu";
 import { canToneMap, encoder, type Encoder, encoderFailed, H264_CODEC, h264Args } from "./encoders";
 import { env } from "./env";
+import { spawnFfmpeg } from "./ffmpeg";
 import { HttpError } from "./http";
 import { createLogger } from "./log";
 
@@ -275,15 +276,11 @@ export async function startStream(owner: string, src: VideoSource, at: number): 
   };
   sessions.set(id, session);
   const run = (args: string[]) => {
-    const proc = spawn(env.ffmpegPath, args, { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+    const { proc, failure } = spawnFfmpeg(args, "ignore");
     session.proc = proc;
     session.done = false;
     session.error = null;
     session.paused = false;
-    let errors = "";
-    proc.stderr?.on("data", (chunk: Buffer) => {
-      errors = (errors + chunk.toString()).slice(-2000);
-    });
     // A run that was replaced (the CPU took over) no longer speaks for the session.
     proc.on("error", (err) => {
       if (session.proc !== proc) return;
@@ -294,7 +291,7 @@ export async function startStream(owner: string, src: VideoSource, at: number): 
       if (session.proc !== proc) return;
       session.done = true;
       if (code !== 0 && !signal && sessions.has(id)) {
-        session.error = errors.trim().split("\n").at(-1) || `ffmpeg stopped (${code})`;
+        session.error = failure(code);
         log.warn("stream failed", { video: src.videoId, error: session.error });
       }
     });
