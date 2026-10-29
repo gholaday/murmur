@@ -393,11 +393,12 @@ export async function watchHome(ctx: AppContext, userId: number): Promise<WatchH
   }
 
   // Shows you've watched some of and aren't partway through an episode of: their next episode.
+  // Only real watching counts: marking episodes unwatched leaves rows at 0, which clear the show.
   const startedShows = ctx.sqlite
     .prepare(
       `SELECT v.show_id, s.title, s.backdrop_hash, s.poster_hash, MAX(p.updated_at) AS at FROM progress p
        JOIN videos v ON v.id = p.item_id JOIN shows s ON s.id = v.show_id
-       WHERE p.user_id = ? AND p.item_type = 'video'
+       WHERE p.user_id = ? AND p.item_type = 'video' AND (p.finished = 1 OR p.position_sec > 0)
        GROUP BY v.show_id ORDER BY at DESC`,
     )
     .all(userId) as Array<ShowArt & { show_id: string }>;
