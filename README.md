@@ -19,6 +19,7 @@ Murmur is inspired by [Audiobookshelf](https://www.audiobookshelf.org/), and rea
 - **Listening stats:** time listened by week, month, year or all time, your streak, and what you played most.
 - **Players:** a web player and an Android app with background playback, offline downloads, speed control and a sleep timer. On an iPhone, the web player can be added to the home screen to open like an app.
 - **Multiple users,** each with their own progress, subscriptions, queue and music. Podcasts and Music can each be hidden by anyone who doesn't use them.
+- **Optional movies and shows:** a Watch tab with Continue watching and Next episodes, played as they are where the device can and otherwise converted on the server, on its GPU where it has one. A separate add-on, `murmur-video`, does the video work; see [Getting started](docs/GETTING_STARTED.md).
 - **Optional podcast ad skipping:** a separate add-on finds the ads in episodes. Each device then chooses to play them as usual, mark them on the seek bar with a Skip ad button, or skip them automatically with Undo. Set up in [addons/adscan](addons/adscan/README.md).
 
 ## Get started
@@ -72,13 +73,22 @@ All optional.
 | `MOVIES_DIR` / `SHOWS_DIR` | `/movies` / `/shows` | First movie and show folders, added once something is mounted there; more under You > Library. Without them, Watch doesn't show |
 | `TMDB_API_KEY` | | Optional, free from [themoviedb.org](https://www.themoviedb.org/settings/api) (the v3 key). Fills in posters, descriptions and episode names for movies and shows |
 | `TMDB_LANGUAGE` | `en-US` | Language for those details |
+| `VIDEO_URL` | `http://murmur-video:3001` | Where the video add-on is |
+| `UPDATE_CHECK` | `true` | Ask GitHub every 6 hours for the newest release, so Settings tells admins when an update is out. `false` turns it off |
+| `ADDON_SECRET` | | Turns on the add-ons; the same value goes on `murmur-adscan` ([addons/adscan](addons/adscan/README.md)) and `murmur-video` |
+
+The video add-on (`murmur-video`) takes `ADDON_SECRET` and these:
+
+| Variable | Default | |
+| --- | --- | --- |
 | `WATCH_HW` | `auto` | Video conversion on the GPU: `auto` tries NVENC, Quick Sync, VAAPI and the rest in turn and falls back to the CPU; `off` keeps it on the CPU; or name one (`nvenc`, `qsv`, `vaapi`, `amf`, `videotoolbox`). In Docker, pass the GPU in with `devices: - /dev/dri:/dev/dri` |
 | `VAAPI_DEVICE` | `/dev/dri/renderD128` | The render node VAAPI uses |
+| `PUID` / `PGID` | `1000` | User and group that own the files in its `/cache` |
 | `FFMPEG_PATH` / `FFPROBE_PATH` | `ffmpeg` / `ffprobe` | Where to find them when not on the path |
-| `UPDATE_CHECK` | `true` | Ask GitHub every 6 hours for the newest release, so Settings tells admins when an update is out. `false` turns it off |
-| `ADDON_SECRET` | | Turns on ad detection; the same value goes on the `murmur-adscan` add-on ([addons/adscan](addons/adscan/README.md)) |
 
-Health check: `GET /api/health`.
+The movie and show folders go into both containers at the same paths.
+
+Health check: `GET /api/health` (and `GET /health` on the video add-on).
 
 ## Development
 
@@ -89,7 +99,7 @@ pnpm install
 pnpm dev
 ```
 
-Then open http://localhost:3000. In development the database lives in the repo's git-ignored `data/` folder and the library is `data/audiobooks` (see `apps/server/.env.development`).
+Then open http://localhost:3000. `pnpm dev` also starts the video add-on on port 3001, which needs ffmpeg installed (on Windows, `winget install Gyan.FFmpeg`) and `ADDON_SECRET` in `apps/server/.env.local`. In development the database lives in the repo's git-ignored `data/` folder and the library is `data/audiobooks` (see `apps/server/.env.development`).
 
 ```bash
 pnpm typecheck
@@ -102,6 +112,7 @@ pnpm test
 | `apps/mobile` | Expo Android app |
 | `packages/shared` | Types and schemas shared by server and app |
 | `addons/adscan` | Optional ad detection add-on (Python) |
+| `addons/video` | Optional video add-on: ffmpeg, streams and downloads for movies and shows |
 | `docs/SPEC.md` | How Murmur works and why |
 | `docs/DESIGN.md` | Colours, type, components and wording |
 
@@ -112,3 +123,7 @@ pnpm test
 Copyright (C) 2026 Garrett Holaday
 
 Murmur is free software under the [GNU General Public License v3.0](LICENSE): you can use, change and share it, and copies you distribute, changed or not, must stay under the same license with their source available.
+
+## Credits
+
+Movie and show details and images come from [TMDB](https://www.themoviedb.org). This product uses the TMDB API but is not endorsed or certified by TMDB.

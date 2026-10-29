@@ -8,7 +8,7 @@ import { IMAGE_EXTENSIONS, extname, isIgnoredName } from "../library/parse";
 import { createLimiter } from "../library/probe";
 import type { ScanState } from "../library/scanner";
 import { storeArt } from "./art";
-import { ffmpegAvailable, grabStill, probeVideo } from "./ffmpeg";
+import { grabStill, probeVideo, videoProblem } from "./video-addon";
 import {
   ART_NAMES,
   editionOf,
@@ -318,7 +318,8 @@ export function createWatchScanner(deps: WatchScannerDeps) {
               still = frame.length ? await storeArt(deps.coversDir, frame, "wide", { trimBars: true }) : "";
             } catch (err) {
               log.warn("frame could not be grabbed", { file: v.rel_path, error: errorMessage(err) });
-              still = ""; // tried; the cards fall back to the poster
+              // Tried, and the cards fall back to the poster; unless the add-on was away, then the next scan tries again.
+              still = (err as { status?: number }).status === 503 ? null : "";
             }
           }
           if (still !== null) setStill.run(still, thumb && still ? 1 : 0, v.id);
@@ -333,9 +334,10 @@ export function createWatchScanner(deps: WatchScannerDeps) {
     const problems: string[] = [];
     const folders = deps.folders();
     if (folders.movies.length + folders.shows.length === 0) return { stats, problems };
-    if (!(await ffmpegAvailable())) {
-      // Nothing is marked missing: the files are fine, the server just can't read them.
-      problems.push("ffmpeg isn't installed on the server, so movies and shows can't be read.");
+    const problem = await videoProblem();
+    if (problem) {
+      // Nothing is marked missing: the files are fine, they just can't be read right now.
+      problems.push(problem);
       return { stats, problems };
     }
 

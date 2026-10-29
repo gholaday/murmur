@@ -17,26 +17,26 @@ services:
       - EPISODE_CACHE_MAX_GB=20
       # Movies and shows (optional): a TMDB API key fills in posters and details.
       # - TMDB_API_KEY=
-      # Video conversion on the GPU: auto finds one (uncomment devices below), off keeps it on the CPU.
-      # - WATCH_HW=auto
       # Match searches Google Books too. Optional free key so it isn't held to Google's shared quota.
       # - GOOGLE_BOOKS_API_KEY=
-      # Ad detection (optional): uncomment, set any long random value, and add the same value to
-      # murmur-adscan below. Leaving it out turns ad detection off.
+      # The add-ons below (ad detection, movies and shows): uncomment, set any long random value, and
+      # give the add-ons the same value. Leaving it out turns them off.
       # - ADDON_SECRET=change-me-to-a-long-random-string
     volumes:
       - /path/to/audiobooks:/audiobooks:ro
       # Music (optional): uncomment to turn on the Music tab.
       # - /path/to/music:/music:ro
-      # Movies and shows (optional): uncomment to turn on the Watch tab.
+      # Movies and shows (optional): uncomment to turn on the Watch tab, with murmur-video below.
       # - /path/to/movies:/movies:ro
       # - /path/to/shows:/shows:ro
       - /path/to/murmur/data:/data
       # Cached podcast episodes.
       - /path/to/murmur/cache:/cache
-    # An Intel or AMD GPU for video conversion (Quick Sync on most Asustor, Synology and QNAP x86 boxes).
-    # devices:
-    #   - /dev/dri:/dev/dri
+    # `default` is how players (and a proxy or tunnel) reach Murmur; `addons` is the private
+    # network only Murmur and murmur-video are on.
+    networks:
+      - default
+      - addons
     stop_grace_period: 30s
     logging:
       driver: json-file
@@ -45,7 +45,8 @@ services:
         max-file: '5'
 
   # Optional ad detection add-on. Uncomment to use; needs ADDON_SECRET above and a Gemini API key
-  # from aistudio.google.com. Without it Murmur works the same, just without ad marks.
+  # from aistudio.google.com. Without it Murmur works the same, just without ad marks. It opens no
+  # ports: it only calls Murmur inside the stack, and Gemini and Groq.
   # murmur-adscan:
   #   image: ghcr.io/gholaday/murmur-adscan:0.5.3
   #   container_name: murmur-adscan
@@ -70,3 +71,41 @@ services:
   #     options:
   #       max-size: "10m"
   #       max-file: "3"
+
+  # Optional movies and shows add-on: it reads the video files and streams them. Uncomment with the
+  # movie and show folders above; needs ADDON_SECRET above. Without it the Watch tab stays empty.
+  # murmur-video:
+  #   image: ghcr.io/gholaday/murmur-video:0.5.3
+  #   container_name: murmur-video
+  #   restart: unless-stopped
+  #   environment:
+  #     - PUID=1000
+  #     - PGID=1000
+  #     - ADDON_SECRET=change-me-to-a-long-random-string
+  #     # Video conversion on the GPU: auto finds one (uncomment devices below), off keeps it on the CPU.
+  #     - WATCH_HW=auto
+  #   volumes:
+  #     # The same folders, at the same paths, as Murmur's.
+  #     - /path/to/movies:/movies:ro
+  #     - /path/to/shows:/shows:ro
+  #     # Stream pieces and downloads being made; only a few minutes of each stream is kept.
+  #     - /path/to/murmur/video-cache:/cache
+  #   # An Intel or AMD GPU for video conversion (Quick Sync on most Asustor, Synology and QNAP x86 boxes).
+  #   # devices:
+  #   #   - /dev/dri:/dev/dri
+  #   # Only on the private network, with no ports: nothing outside the stack (a tunnel included) can
+  #   # reach it, and it can't reach the internet, which it doesn't need. Never add `ports:` here.
+  #   networks:
+  #     - addons
+  #   # Keeps video conversion from crowding out Murmur on a small server.
+  #   cpus: "4"
+  #   logging:
+  #     driver: json-file
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+
+networks:
+  # Murmur and murmur-video only. `internal` means no way in or out except between them.
+  addons:
+    internal: true

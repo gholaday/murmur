@@ -9,6 +9,7 @@ import { cacheStatus } from "./podcasts/cache-status";
 import { getPrefs } from "./prefs";
 import { updateStatus } from "./updates";
 import { watchSummary } from "./watch/queries";
+import { videoHealth, videoStatus } from "./watch/video-addon";
 
 /** Everything the You page and its settings pages show; admin-only parts are empty for others. */
 export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<React.ComponentProps<typeof ProfileView>, "section">> {
@@ -22,11 +23,15 @@ export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<Rea
   const bookCount = (ctx.sqlite.prepare("SELECT COUNT(*) AS n FROM books WHERE missing_since IS NULL").get() as { n: number }).n;
   const shows = (ctx.sqlite.prepare("SELECT COUNT(*) AS n FROM subscriptions WHERE user_id = ?").get(user.id) as { n: number }).n;
   const prefs = getPrefs(ctx, user.id);
+  const movieFolders = user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "movies") : [];
+  const showFolders = user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "shows") : [];
   return {
     music: musicSummary(ctx, user.id),
     musicFolders: user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "music") : [],
-    movieFolders: user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "movies") : [],
-    showFolders: user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "shows") : [],
+    movieFolders,
+    showFolders,
+    // Only asked once there's something to watch, so a server without videos never waits on the add-on.
+    video: movieFolders.length + showFolders.length > 0 ? videoStatus(await videoHealth()) : null,
     watch: watchSummary(ctx),
     shows,
     tabs: prefs.tabs,

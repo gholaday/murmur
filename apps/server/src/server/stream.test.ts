@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { parseRange } from "./stream";
+import { parseRange } from "@murmur/shared";
 
 it("parses the byte ranges audio players send", () => {
   expect(parseRange(null, 1000)).toBeNull();

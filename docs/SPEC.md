@@ -11,7 +11,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 **Principles**
 
 - **Phone first.** The Android app is the main way to listen; the web player covers the desktop and admin work.
-- **One container, one volume of state.** No separate database, cache or worker containers. Optional add-ons (ad detection) run beside it, and Murmur works the same without them.
+- **One container, one volume of state.** No separate database, cache or worker containers. Optional add-ons (ad detection, and video for movies and shows) run beside it, and Murmur works the same without them.
 - **Files are the source of truth.** Folder names and embedded tags decide metadata. Online lookups happen only when an admin asks for them and confirms the result. The one exception is artist photos, which are looked up by name after a music scan (see Music).
 - **Boring to run.** Pinned versions, updates are a redeploy, backups are copying one folder.
 - **One language.** TypeScript across server, web and app.
@@ -50,7 +50,8 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 
 **Watch** (optional; see Watch)
 
-- Movie and show folders managed by the admin under You > Library; with none, Watch doesn't show
+- Movie and show folders managed by the admin under You > Library; with none, Watch doesn't show. A Video row there says whether the video add-on works and what converts video (`watch.status` in `/api/health`, worded by the server for the web and the app)
+- TMDB's logo and notice under You > Server while Watch is on, as TMDB's terms ask
 - Posters, descriptions and episode names from TMDB when a key is set, matched on their own like Plex, with Match to fix a wrong one
 - Plays the file as it is when the device can, else streams it through ffmpeg with the sound or the picture converted, on the GPU where there is one
 - Quality (1080p or 720p) for converted video, picked per video or as a setting; audio track choice; the next episode with a countdown (Play next episode turns it off)
@@ -91,7 +92,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 | Database | SQLite via `better-sqlite3` + Drizzle ORM | A single file in `/data`; typed queries and migrations |
 | Background jobs | Started from `instrumentation.ts` with `node-cron` and `chokidar` | Feed checks and library watching inside the same process |
 | Audio metadata | `music-metadata` (pure JavaScript, no ffmpeg) | Reads tags, duration, chapters and embedded covers from m4b, mp3, flac and ogg/opus |
-| Video | `ffmpeg` and `ffprobe` (with the VAAPI drivers in the image) | Reads video files, grabs stills, and makes HLS streams and downloads; only Watch needs them |
+| Video | `ffmpeg` and `ffprobe`, with the VAAPI drivers, in the video add-on's image (`addons/video`) | Reads video files, grabs stills, and makes HLS streams and downloads; only Watch needs them, and Murmur's own image has no ffmpeg |
 | RSS | `rss-parser` | Parses podcast feeds and iTunes tags |
 | Auth | Session cookie for web, bearer token for the app; passwords hashed with argon2 | Simple, no external provider |
 | Web styling | Plain CSS with custom properties (`apps/server/src/app/globals.css`) | Light and dark themes without a build step |
@@ -100,7 +101,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 | App downloads | `expo-file-system` | Offline books, episodes, music, movies and TV episodes |
 | App data | TanStack Query persisted to `expo-sqlite` key-value storage | Cached lists that open offline, offline progress queue |
 | Shared code | `packages/shared`: API types and Zod schemas | One definition used by server, web and app |
-| Repo | pnpm workspace monorepo | `apps/server`, `apps/mobile`, `packages/shared`, `addons/adscan` |
+| Repo | pnpm workspace monorepo | `apps/server`, `apps/mobile`, `packages/shared`, `addons/adscan`, `addons/video` |
 
 All dependency versions are pinned; upgrades happen deliberately, not on every rebuild.
 
@@ -123,9 +124,12 @@ flowchart LR
   jobs -- fetch feeds --> pub[Podcast publishers]
   adscan[Optional ad detection add-on] -- read only --> cache
   adscan -- API --> next
+  next -- API, bytes passed through --> video[Optional video add-on<br/>ffmpeg, streams, downloads]
+  video -- read only --> vids[(/movies, /shows)]
+  container -- read only --> vids
 ```
 
-Podcast episodes are served from the server's episode cache, falling back to relaying the publisher's audio with range requests. The optional ad detection add-on runs as a second container (see Podcast episode cache and ad detection).
+Podcast episodes are served from the server's episode cache, falling back to relaying the publisher's audio with range requests. The optional ad detection add-on runs as a second container (see Podcast episode cache and ad detection), and so does the video add-on (see Watch).
 
 **Data model** (SQLite)
 
@@ -376,7 +380,8 @@ The books pattern, for albums: "Match metadata…" in an album's menu, and Match
 
 Movies and TV shows, built on the `watch` branch. [WATCH.md](WATCH.md) has the full design: folder layout, scanning, matching, streaming and the players. In short:
 
-- **Folders.** Movies go in "Title (Year)" folders and shows in Show/Season folders, each kind under its own library folders. ffprobe reads each file once, and again only when its size or modified time changes. Without ffmpeg, Watch stays empty and nothing else is affected.
+- **The video add-on.** ffmpeg lives in its own container, `murmur-video` (`addons/video`, TypeScript on plain `node:http`), the way ad detection lives in `murmur-adscan`. Murmur keeps the library walk, the database, TMDB matching, art and the routes, and calls the add-on over HTTP with the add-on secret to probe files, grab stills, and make streams and downloads, whose bytes it passes through to the player. Both mount the movie and show folders at the same paths. Without the add-on, Watch stays empty, the scan says why, and nothing else is affected.
+- **Folders.** Movies go in "Title (Year)" folders and shows in Show/Season folders, each kind under its own library folders. ffprobe reads each file once, and again only when its size or modified time changes.
 - **Details.** Local art and .nfo files come first. With `TMDB_API_KEY` set, everything not yet tried is matched after each scan, one request at a time, and Match fixes a wrong one. A still is grabbed for each file without one: a tenth of the way in, or the brightest of a few later frames when that one is dark.
 - **Playing.** `playbackPlan` (shared) decides per device. A file the device plays as it is plays directly, with range requests. Otherwise an ffmpeg HLS session copies the picture, or converts it to H.264, from wherever playback starts, and converts the sound to AAC when needed. A far seek starts a new session. A session keeps only about three minutes behind the player on disk, and nothing once it ends.
 - **Converting.** The first working encoder is used: NVENC, Quick Sync, VAAPI, AMF, VideoToolbox, then the CPU. A GPU that fails on a file is dropped for the CPU. Quality is 1080p or 720p, picked per video or as a setting under You > Playback.
@@ -521,16 +526,19 @@ One Docker Compose stack; see `docker-compose.yml` in the repo root and [Getting
 | `/music` | Optional music folder (`MUSIC_DIR`, the first music folder, added once it's mounted) | Read-only, like the audiobooks. Leave it out and music doesn't show |
 | `/data` | SQLite database, cover cache and backups | The only thing to back up |
 | `/cache` | Cached podcast episodes | Without it episodes are relayed. Not worth backing up. The ad add-on mounts it read-only |
+| `/movies`, `/shows` | Optional movie and show folders (`MOVIES_DIR`, `SHOWS_DIR`) | Read-only, mounted at the same paths in Murmur and the video add-on. The add-on has its own `/cache` for stream pieces and downloads being made |
 
-**Image:** a GitHub Actions workflow builds multi-arch images (amd64 and arm64) for Murmur and the add-on and pushes them to GitHub Container Registry on each `v*` tag.
+**Images:** a GitHub Actions workflow builds multi-arch images (amd64 and arm64) for Murmur and both add-ons and pushes them to GitHub Container Registry on each `v*` tag.
 
 **Remote access:** any reverse proxy or tunnel works; streaming uses normal HTTP range requests. If an auth gateway (such as Cloudflare Access) sits in front of the web UI, the app needs a bypass rule for `/api/*` because it can't complete a browser login.
+
+**Add-ons stay inside:** the proxy or tunnel points at Murmur only. murmur-video has no ports and is only on the `addons` network (`internal: true`), shared with Murmur and nothing else, so neither the tunnel nor the internet can reach it, and it can't reach out. The ad add-on opens no ports and only calls Murmur inside the stack. As an extra layer, both sides answer 404 to anything that came through a proxy, whichever proxy it is (`cameThroughProxy` in `packages/shared`): `x-forwarded-proto: https` (calls inside the stack are plain HTTP, so a proxy took the TLS), or any of `forwarded`, `via`, `x-real-ip`, `true-client-ip`, `x-forwarded-server`, `cdn-loop` and Cloudflare's `cf-*`. Murmur can't go by `x-forwarded-for`, `-host` or `-port`, because Next fills those in itself when they're missing; the video add-on has no Next in front, so it refuses any `x-forwarded-*` too. A proxy that adds none of these over plain HTTP gets past this check, which is why it's only an extra: the secret is what lets an add-on in. The secret only ever goes to `VIDEO_URL` and `MURMUR_URL`, which are set in the compose file, never taken from a request. Docker's health check asks the video add-on's `/health` from inside its own container without the secret; every other request needs it.
 
 **Updates:** change the image tag and redeploy. Database migrations run automatically on startup, and a copy of the database is saved to `/data/backups` before each migration.
 
 ## Local development
 
-Run `pnpm install` once, then `pnpm dev` and open http://localhost:3000. `apps/server/.env.development` points the database and covers at the repo's git-ignored `data/` folder and the library at `data/audiobooks`. Docker is only used for the production image: on Windows a bind-mounted source folder delivers no file-change events, so hot reload inside a container is unreliable.
+Run `pnpm install` once, then `pnpm dev` and open http://localhost:3000. `pnpm dev` also runs the video add-on on port 3001 (with `tsx watch`), which needs ffmpeg on the path and `ADDON_SECRET` in `apps/server/.env.local`. `apps/server/.env.development` points the database and covers at the repo's git-ignored `data/` folder and the library at `data/audiobooks`. Docker is only used for the production image: on Windows a bind-mounted source folder delivers no file-change events, so hot reload inside a container is unreliable.
 
 ## Non-goals and later ideas
 

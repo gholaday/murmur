@@ -130,10 +130,10 @@ These follow the mockup and reuse what's already there.
 
 ## Image and dependencies
 
-- `ffmpeg` and `ffprobe` in the runtime image (`apk add ffmpeg`, roughly 80 MB more), with the VAAPI drivers (`intel-media-driver`, `libva-intel-driver`, `mesa-va-gallium`) so an Intel or AMD GPU can convert video once `/dev/dri` is passed in (`devices:` in `docker-compose.yml`); the entrypoint joins the device's group. `FFMPEG_PATH` and `FFPROBE_PATH` point elsewhere when needed.
-- **Development on Windows:** install ffmpeg (for example `winget install Gyan.FFmpeg`) or set the two paths. Without them, Watch reports that ffmpeg is missing under You > Library and stays empty. Nothing else is affected.
+- **The video add-on** (`addons/video`, image `murmur-video`) holds `ffmpeg` and `ffprobe`, with the VAAPI drivers (`intel-media-driver`, `libva-intel-driver`, `mesa-va-gallium`) so an Intel or AMD GPU can convert video once `/dev/dri` is passed in (`devices:` under `murmur-video` in `docker-compose.yml`); its entrypoint joins the device's group. Murmur's own image has no ffmpeg. See step 8.
+- **Development:** `pnpm dev` runs the add-on beside Murmur on port 3001. On Windows, install ffmpeg (for example `winget install Gyan.FFmpeg`) or set `FFMPEG_PATH` and `FFPROBE_PATH`. Without it, or without the add-on, Watch says so under You > Library and stays empty. Nothing else is affected.
 - App: `expo-video` and `expo-screen-orientation`, pinned to the SDK's versions.
-- `/api/health` reports whether ffmpeg is there and the video scan status.
+- `/api/health` reports whether the add-on answers, its ffmpeg and encoder, and the video scan status.
 
 ## Steps
 
@@ -152,7 +152,7 @@ Each step ships on its own and leaves the app working.
    - **Docs.** Finished steps move into SPEC and DESIGN; README and Getting started cover Watch folders, `TMDB_API_KEY`, `WATCH_HW` and passing `/dev/dri`.
 7. **Downloads** (done on the `watch` branch; app only, as with books):
    - **What's saved.** A file the phone plays as it is downloads as it is, from `/api/stream/video/:id`, byte for byte. Anything else (an MKV with DTS, a picture the phone can't show) is first made into an MP4 on the server, with the stream's encoder and CPU fallback, and then downloaded.
-   - **Making it.** `POST /api/watch/videos/:id/download` with `{ track, audio, video, quality }` starts the job, or reports on the one already running for those choices (`VideoDownloadDto`: preparing with progress, ready with its size, or failed). The phone asks every few seconds and shows Preparing. ffmpeg writes to `cache/watch/downloads` with the index at the front (`+faststart`).
+   - **Making it.** `POST /api/watch/videos/:id/download` with `{ track, audio, video, quality }` starts the job, or reports on the one already running for those choices (`VideoDownloadDto`: preparing with progress, ready with its size, or failed). The phone asks every few seconds and shows Preparing. ffmpeg writes to the add-on's `/cache/downloads` with the index at the front (`+faststart`).
    - **Fetching it.** Once ready, `GET /api/watch/downloads/:id` serves it like any file, with a length and range requests, so the phone shows real progress and resumes a cut-off download. `DELETE` cancels a job or removes the file; the phone calls it once it has the file. A finished file is otherwise kept 6 hours after it was last asked for, a job nobody has asked about for 10 minutes is dropped, and the folder is cleared on start.
    - **Why not a pipe.** A first version piped a fragmented MP4 straight into the response with nothing kept. Android's player can't seek in an MP4 written that way (it needs a `sidx` index, which can't be written to a pipe), so downloads played but couldn't skip or resume.
    - **Limits.** One converting job per person at a time; another gets a 429, so the app downloads videos one after another. Copying the picture runs far faster than real time; converting runs at the encoder's speed, so a film on a NAS takes a while.
@@ -162,6 +162,11 @@ Each step ships on its own and leaves the app working.
    - **Downloads screen.** Movies, then a section per show, beside books, episodes and music, with their size.
    - **Offline.** The player plays the saved file when there is one, even online. Video progress and watch time go through the audio engine's outbox, so offline watching syncs later. Offline, the Watch tab, the show page, Resume and the player's next list show only what's downloaded, with the saved details and pictures; the "watch" queries are persisted.
    - **Storage.** The `downloads.ts` index gains `movie` and `show` (a TV episode, keyed `show:<id>`), with a saved copy of their details, poster, backdrop and still; a podcast episode's type is now `podcast`. An interrupted download starts again, as for books. While the server makes a file the row reads "Preparing N%", then "Downloading N%"; a fetch that fails (an expired file) prepares it once more.
+8. **Video add-on** (done on the `watch` branch; design in [WATCH-ADDON.md](WATCH-ADDON.md)): ffmpeg moves out of Murmur into `murmur-video`.
+   - **Moved as they were:** `ffmpeg.ts`, `codecs.ts` (with its tests), `encoders.ts`, `streams.ts` and `downloads.ts`, with the user id as an opaque `owner` string. Brightness for stills is measured with ffmpeg itself, so the add-on has no native packages and bundles into one file with esbuild.
+   - **Its API** (bearer `ADDON_SECRET`; request schemas in `packages/shared/src/video-addon.ts`): `GET /health` (open, for Docker), `POST /probe`, `POST /still`, `POST /streams`, `GET /streams/:id/:file` and `DELETE /streams/:id`, `POST /downloads`, `GET` and `DELETE /downloads/:id`. Stream and download files name their owner in `x-murmur-owner`.
+   - **Murmur's side** is `server/watch/video-addon.ts`. The routes keep their auth and the video lookup (`videoSource` in `queries.ts`) and pass the bytes, ranges and errors (503 with `Retry-After`, 404) through as they are. The add-on unreachable is a 503 to the player, a scan problem under You > Library, and `watch.addon: false` in `/api/health`; a still that failed for that reason is tried again on the next scan.
+   - **Running it:** `VIDEO_URL` (default `http://murmur-video:3001` in the image, `http://localhost:3001` in development), `VIDEO_PORT` and `CACHE_DIR` on the add-on, and `WATCH_HW`, `VAAPI_DEVICE`, `FFMPEG_PATH` and `FFPROBE_PATH` move to it. The release workflow builds `ghcr.io/<owner>/murmur-video` from the repo root.
 
 ## Match
 

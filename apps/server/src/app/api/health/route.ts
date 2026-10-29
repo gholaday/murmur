@@ -3,9 +3,8 @@ import type { HealthDto } from "@murmur/shared";
 import { adsEnabled } from "@/server/ads";
 import { getContext } from "@/server/context";
 import { env } from "@/server/env";
-import { encoder } from "@/server/watch/encoders";
-import { ffmpegAvailable } from "@/server/watch/ffmpeg";
 import { watchEnabled } from "@/server/watch/queries";
+import { videoHealth, videoStatus } from "@/server/watch/video-addon";
 
 async function watchHealth(ctx: Awaited<ReturnType<typeof getContext>>): Promise<NonNullable<HealthDto["watch"]>> {
   const counts = ctx.sqlite
@@ -15,11 +14,14 @@ async function watchHealth(ctx: Awaited<ReturnType<typeof getContext>>): Promise
     )
     .get() as { movies: number; shows: number };
   const s = ctx.watch.state;
-  const ffmpeg = await ffmpegAvailable();
+  // Reading and streaming video is the add-on's job; it reports its own ffmpeg and encoder.
+  const video = await videoHealth();
   return {
     ...counts,
-    ffmpeg,
-    encoder: ffmpeg ? await encoder() : "cpu",
+    addon: video !== null,
+    ffmpeg: video?.ffmpeg ?? false,
+    encoder: video?.encoder ?? "cpu",
+    status: videoStatus(video),
     scan: { running: s.running, lastFinishedAt: s.lastFinishedAt, lastError: s.lastError },
   };
 }

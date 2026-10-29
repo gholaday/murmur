@@ -2,11 +2,11 @@ import { execFile, spawn, type ChildProcess } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { RemuxAudio, StreamVideo, VideoFileInfo, VideoQuality } from "@murmur/shared";
-import { env } from "../env";
-import { HttpError } from "../http";
-import { createLogger } from "../log";
+import type { VideoSource, VideoStreamStarted } from "@murmur/shared";
 import { canToneMap, encoder, type Encoder, giveUpOn, H264_CODEC, h264Args } from "./encoders";
+import { env } from "./env";
+import { HttpError } from "./http";
+import { createLogger } from "./log";
 
 // Streaming, like Plex's Direct Stream and Transcode: ffmpeg makes HLS pieces from wherever playback
 // starts, with the picture copied or converted to H.264 and the sound copied or converted to AAC. A
@@ -21,7 +21,7 @@ const READ_RATE = 3;
 const INITIAL_BURST_SEC = 30;
 /** A session nobody has asked anything of for this long is stopped and deleted. */
 const IDLE_MS = 5 * 60_000;
-const MAX_PER_USER = 2;
+const MAX_PER_OWNER = 2;
 /** How long a request waits for a piece ffmpeg hasn't written yet before telling the player to ask again. */
 const WAIT_MS = 20_000;
 /** Pieces kept behind the newest one asked for (three minutes), so a short seek back is still instant. */
@@ -33,22 +33,6 @@ const CAN_PAUSE = process.platform !== "win32";
 const FILE_NAME = /^(index\.m3u8|init\.mp4|seg\d{5}\.m4s)$/;
 const SEGMENT = /^seg(\d{5})\.m4s$/;
 
-export interface StreamSource {
-  videoId: string;
-  file: string;
-  /** RFC 6381, as the file has it. */
-  videoCodec: string | null;
-  width: number | null;
-  height: number | null;
-  hdr: VideoFileInfo["hdr"];
-  /** The chosen track's RFC 6381 codec, or null when the file has no audio. */
-  audioCodec: string | null;
-  track: number;
-  audio: RemuxAudio;
-  video: StreamVideo;
-  quality: VideoQuality;
-}
-
 /** How long a GPU run has to write its first piece or stop; a run that stops in that time is a refusal. */
 const FIRST_PIECE_MS = 15_000;
 /** A GPU run that has written nothing after this long has hung, and the CPU takes over. */
@@ -56,7 +40,7 @@ const HUNG_MS = 60_000;
 
 interface Session {
   id: string;
-  userId: number;
+  owner: string;
   dir: string;
   /** The CODECS the pieces carry, for the master playlist; browsers guess wrong without it. */
   codecs: string;
@@ -72,49 +56,31 @@ interface Session {
   paused: boolean;
 }
 
-interface Holder {
-  sessions: Map<string, Session>;
-}
+const root = () => path.join(env.cacheDir, "streams");
+const sessions = new Map<string, Session>();
 
-// Started by one request and read by others, which Next may give separate copies of this module.
-declare global {
-  var __murmurStreams: Holder | undefined;
-}
-
-const root = () => path.join(env.watchCacheDir, "streams");
-
-function holder(): Holder {
-  if (!globalThis.__murmurStreams) {
-    const h: Holder = { sessions: new Map() };
-    globalThis.__murmurStreams = h;
-    // Folders from before a restart belong to no one now. A folder that won't go (a file still
-    // open in it) is left; nothing else depends on it.
-    try {
-      fs.rmSync(root(), { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
-    } catch (err) {
-      log.warn("old stream folders not removed", { error: err instanceof Error ? err.message : String(err) });
-    }
-    setInterval(() => {
-      for (const s of h.sessions.values()) if (Date.now() - s.lastSeen > IDLE_MS) stop(s);
-    }, 60_000).unref();
-    setInterval(() => {
-      for (const s of h.sessions.values()) tidy(s);
-    }, 3_000).unref();
-    // ffmpeg would outlive the server otherwise, on Windows above all.
-    const stopAll = () => {
-      for (const s of h.sessions.values()) if (!s.done) kill(s);
-    };
-    process.once("exit", stopAll);
-    for (const signal of ["SIGINT", "SIGTERM"] as const) {
-      process.once(signal, () => {
-        stopAll();
-        // Next shuts itself down on these; only when nothing else listens would the process stay up.
-        if (process.listenerCount(signal) === 0) process.exit(0);
-      });
-    }
+/** Clears folders left from before a restart, and starts the idle and tidy timers. Run once at start. */
+export function initStreams() {
+  // A folder that won't go (a file still open in it) is left; nothing else depends on it.
+  try {
+    fs.rmSync(root(), { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+  } catch (err) {
+    log.warn("old stream folders not removed", { error: err instanceof Error ? err.message : String(err) });
   }
-  return globalThis.__murmurStreams;
+  setInterval(() => {
+    for (const s of sessions.values()) if (Date.now() - s.lastSeen > IDLE_MS) stop(s);
+  }, 60_000).unref();
+  setInterval(() => {
+    for (const s of sessions.values()) tidy(s);
+  }, 3_000).unref();
 }
+
+/** Stops every ffmpeg, which would outlive the add-on otherwise (on Windows above all). */
+export function stopAllStreams() {
+  for (const s of sessions.values()) if (!s.done) kill(s);
+}
+
+export const streamCount = () => sessions.size;
 
 /** Stops ffmpeg, waking it first if it was paused, since a stopped process doesn't act on SIGTERM. */
 function kill(s: Session) {
@@ -128,7 +94,7 @@ function kill(s: Session) {
 }
 
 function stop(s: Session) {
-  holder().sessions.delete(s.id);
+  sessions.delete(s.id);
   if (!s.done) kill(s);
   // Windows keeps the files locked a moment after ffmpeg is told to stop.
   fs.rm(s.dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }, () => undefined);
@@ -199,8 +165,7 @@ function keyframeAt(file: string, at: number): Promise<number> {
 }
 
 /** Starts streaming a video from `at` (snapped to a keyframe) and returns where it really starts. */
-export async function startStream(userId: number, src: StreamSource, at: number): Promise<{ sessionId: string; start: number }> {
-  const h = holder();
+export async function startStream(owner: string, src: VideoSource, at: number): Promise<VideoStreamStarted> {
   // A copied picture can only start on a keyframe; a converted one starts exactly where asked.
   const converting = src.video === "h264";
   const start = converting ? at : await keyframeAt(src.file, at);
@@ -208,8 +173,8 @@ export async function startStream(userId: number, src: StreamSource, at: number)
   const dir = path.join(root(), id);
   fs.mkdirSync(dir, { recursive: true });
   // Only once this one can start do the person's oldest sessions make room for it.
-  const mine = [...h.sessions.values()].filter((s) => s.userId === userId).sort((a, b) => a.lastSeen - b.lastSeen);
-  for (const s of mine.slice(0, Math.max(0, mine.length - MAX_PER_USER + 1))) stop(s);
+  const mine = [...sessions.values()].filter((s) => s.owner === owner).sort((a, b) => a.lastSeen - b.lastSeen);
+  for (const s of mine.slice(0, Math.max(0, mine.length - MAX_PER_OWNER + 1))) stop(s);
   const hevc = /^(hvc1|hev1)/.test(src.videoCodec ?? "");
   const codecs = [
     // The picture is tagged hvc1 below, so its codec string says the same.
@@ -244,7 +209,7 @@ export async function startStream(userId: number, src: StreamSource, at: number)
 
   const session: Session = {
     id,
-    userId,
+    owner,
     dir,
     codecs,
     proc: null,
@@ -255,7 +220,7 @@ export async function startStream(userId: number, src: StreamSource, at: number)
     deletedBelow: 0,
     paused: false,
   };
-  h.sessions.set(id, session);
+  sessions.set(id, session);
   const run = (args: string[]) => {
     const proc = spawn(env.ffmpegPath, args, { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
     session.proc = proc;
@@ -275,7 +240,7 @@ export async function startStream(userId: number, src: StreamSource, at: number)
     proc.on("close", (code, signal) => {
       if (session.proc !== proc) return;
       session.done = true;
-      if (code !== 0 && !signal && h.sessions.has(id)) {
+      if (code !== 0 && !signal && sessions.has(id)) {
         session.error = errors.trim().split("\n").at(-1) || `ffmpeg stopped (${code})`;
         log.warn("stream failed", { video: src.videoId, error: session.error });
       }
@@ -308,7 +273,7 @@ export async function startStream(userId: number, src: StreamSource, at: number)
       // takes over for this stream only.
       const gpuRun = session.proc;
       void firstPiece(session, HUNG_MS - FIRST_PIECE_MS).then(async (later) => {
-        if (later !== "ok" && h.sessions.has(id) && session.proc === gpuRun) await onCpu().catch(() => undefined);
+        if (later !== "ok" && sessions.has(id) && session.proc === gpuRun) await onCpu().catch(() => undefined);
       });
     }
   }
@@ -326,22 +291,22 @@ async function firstPiece(s: Session, ms: number): Promise<"ok" | "stopped" | "s
   return "slow";
 }
 
-function sessionFor(userId: number, id: string): Session {
-  const s = holder().sessions.get(id);
+function sessionFor(owner: string, id: string): Session {
+  const s = sessions.get(id);
   // Someone else's session looks the same as an ended one.
-  if (!s || s.userId !== userId) throw new HttpError(404, "This stream has ended.");
+  if (!s || s.owner !== owner) throw new HttpError(404, "This stream has ended.");
   s.lastSeen = Date.now();
   return s;
 }
 
-export function endStream(userId: number, id: string) {
-  const s = holder().sessions.get(id);
-  if (s && s.userId === userId) stop(s);
+export function endStream(owner: string, id: string) {
+  const s = sessions.get(id);
+  if (s && s.owner === owner) stop(s);
 }
 
 /** The playlist the player opens: one variant, naming the codecs so the browser knows what it's getting. */
-export function masterPlaylist(userId: number, id: string): string {
-  const s = sessionFor(userId, id);
+export function masterPlaylist(owner: string, id: string): string {
+  const s = sessionFor(owner, id);
   // The bandwidth is a rough stand-in; there's only one variant to choose from.
   return `#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-STREAM-INF:BANDWIDTH=20000000,CODECS="${s.codecs}"\nindex.m3u8\n`;
 }
@@ -352,9 +317,9 @@ export function masterPlaylist(userId: number, id: string): string {
  * that's gone (deleted behind the player, or never coming) gets a 404, and the player starts a new
  * session there.
  */
-export async function streamFilePath(userId: number, id: string, name: string): Promise<string> {
+export async function streamFilePath(owner: string, id: string, name: string): Promise<string> {
   if (!FILE_NAME.test(name)) throw new HttpError(404, "Not found.");
-  const s = sessionFor(userId, id);
+  const s = sessionFor(owner, id);
   const piece = SEGMENT.exec(name);
   const n = piece ? Number(piece[1]) : -1;
   if (piece) {

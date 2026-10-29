@@ -2,7 +2,7 @@
  * Turns ffprobe's JSON into what a player needs: RFC 6381 codec strings (the form
  * `MediaSource.isTypeSupported` takes), resolution, HDR and the tracks. Pure, tested in codecs.test.ts.
  */
-import type { VideoAudioTrack, VideoSubtitleTrack } from "@murmur/shared";
+import type { ProbedVideo } from "@murmur/shared";
 
 export interface FfprobeStream {
   index: number;
@@ -25,17 +25,6 @@ export interface FfprobeStream {
 export interface FfprobeOutput {
   streams?: FfprobeStream[];
   format?: { format_name?: string; duration?: string; tags?: Record<string, string> };
-}
-
-export interface ProbedVideo {
-  container: string;
-  durationSec: number;
-  videoCodec: string | null;
-  width: number | null;
-  height: number | null;
-  hdr: "hdr10" | "hlg" | "dolby-vision" | null;
-  audioTracks: VideoAudioTrack[];
-  subtitleTracks: VideoSubtitleTrack[];
 }
 
 const hex2 = (n: number) => n.toString(16).toUpperCase().padStart(2, "0");

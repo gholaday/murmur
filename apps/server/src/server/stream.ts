@@ -1,32 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
+import { parseRange } from "@murmur/shared";
 import { HttpError } from "./http";
-
-export type ByteRange = { start: number; end: number } | "unsatisfiable" | null;
-
-/** Parses a single `bytes=` range. Multi-range requests are served as the whole file. */
-export function parseRange(header: string | null, size: number): ByteRange {
-  if (!header) return null;
-  const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
-  if (!m) return null;
-  const [, startRaw = "", endRaw = ""] = m;
-  if (startRaw === "" && endRaw === "") return "unsatisfiable";
-  let start: number;
-  let end: number;
-  if (startRaw === "") {
-    // suffix range: last N bytes
-    const suffix = Number(endRaw);
-    if (suffix === 0) return "unsatisfiable";
-    start = Math.max(0, size - suffix);
-    end = size - 1;
-  } else {
-    start = Number(startRaw);
-    end = endRaw === "" ? size - 1 : Math.min(Number(endRaw), size - 1);
-  }
-  if (start >= size || start > end) return "unsatisfiable";
-  return { start, end };
-}
 
 /** Joins a stored relative path onto the library root, refusing anything that escapes it. */
 export function resolveInside(root: string, relPath: string): string {

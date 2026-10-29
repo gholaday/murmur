@@ -1,14 +1,14 @@
 import { execFile } from "node:child_process";
-import sharp from "sharp";
-import { env } from "../env";
-import { probedVideo, type FfprobeOutput, type ProbedVideo } from "./codecs";
+import type { ProbedVideo } from "@murmur/shared";
+import { probedVideo, type FfprobeOutput } from "./codecs";
+import { env } from "./env";
 
-// ffprobe and ffmpeg, run as child processes. Watch is the only part of Murmur that needs them,
-// so when they're missing only Watch stops: the scan reports it and everything else carries on.
+// ffprobe and ffmpeg, run as child processes: reading files for Murmur's scan, and the still each
+// card shows.
 
-function run(cmd: string, args: string[], opts: { timeoutMs: number; binary?: boolean }): Promise<Buffer> {
+function run(cmd: string, args: string[], opts: { timeoutMs: number; input?: Buffer }): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    execFile(
+    const child = execFile(
       cmd,
       args,
       { timeout: opts.timeoutMs, maxBuffer: 32 * 1024 * 1024, encoding: "buffer", windowsHide: true },
@@ -19,6 +19,7 @@ function run(cmd: string, args: string[], opts: { timeoutMs: number; binary?: bo
         } else resolve(stdout);
       },
     );
+    if (opts.input) child.stdin?.end(opts.input);
   });
 }
 
@@ -93,8 +94,15 @@ export async function grabStill(file: string, durationSec: number, hdr: boolean)
   return best?.frame ?? Buffer.alloc(0);
 }
 
-/** The frame's average brightness, from its greyscale mean. */
+/** The frame's average brightness (0 to 255): shrunk to a small grey picture by ffmpeg and averaged. */
 async function brightness(jpeg: Buffer): Promise<number> {
-  const stats = await sharp(jpeg).greyscale().stats();
-  return stats.channels[0]?.mean ?? 0;
+  const grey = await run(
+    env.ffmpegPath,
+    ["-v", "error", "-f", "image2pipe", "-c:v", "mjpeg", "-i", "pipe:0", "-vf", "scale=64:-2,format=gray", "-f", "rawvideo", "pipe:1"],
+    { timeoutMs: 15_000, input: jpeg },
+  );
+  if (!grey.length) return 0;
+  let sum = 0;
+  for (const v of grey) sum += v;
+  return sum / grey.length;
 }

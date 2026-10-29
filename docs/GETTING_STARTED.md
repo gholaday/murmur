@@ -71,6 +71,8 @@ To listen away from home, put Murmur behind a reverse proxy (Caddy, Nginx, Traef
 
 If you use a login gateway such as Cloudflare Access, add a bypass for `/api/*`. The Android app signs in with its own token and can't complete a browser login.
 
+Point the proxy or tunnel at Murmur only, never at an add-on. The add-ons have no ports: murmur-video sits on a private Docker network that only Murmur shares, and the ad add-on only calls out. Murmur also refuses add-on requests that come through any proxy or tunnel, so the add-on secret never has to cross it.
+
 ## 4. Put Murmur on your phone
 
 The app isn't on the Play Store. Each [release on GitHub](https://github.com/gholaday/murmur/releases) has the signed Android app attached as `murmur-<version>.apk`.
@@ -122,9 +124,15 @@ The `murmur-adscan` add-on finds the ads in podcast episodes, so the players can
 
 Each device then chooses Off, Show or Auto-skip in its player's Ads button or in Settings. Details, costs and privacy notes are in the [add-on's README](../addons/adscan/README.md).
 
-## 7. Optional: video on the GPU
+## 7. Optional: movies and shows
 
-Most files play as they are. A file whose picture the device can't play (HEVC in some browsers, for example) is converted while you watch, and a small server's CPU may not keep up. With an Intel or AMD GPU, uncomment the `devices:` lines in `docker-compose.yml` to pass `/dev/dri` in. Murmur finds the GPU on its own, and `/api/health` shows the encoder it picked under `watch.encoder`. If it still can't keep up, pick 720p in **You > Playback** or before pressing Play.
+The `murmur-video` add-on reads your video files and streams them; Murmur keeps the library and the players. Without it, the Watch tab stays empty and everything else works the same.
+
+1. Set `ADDON_SECRET` on Murmur, as in step 6 (one secret serves both add-ons).
+2. Uncomment the movie and show folders on Murmur, and the `murmur-video` service in `docker-compose.yml`. Give it the same secret, and the movie and show folders at the **same** paths as Murmur's.
+3. `docker compose up -d`. Movies and shows appear once the scan has read them; You > Library shows each folder's status.
+
+Most files play as they are. A file whose picture the device can't play (HEVC in some browsers, for example) is converted while you watch, and a small server's CPU may not keep up. With an Intel or AMD GPU, uncomment the `devices:` lines under `murmur-video` to pass `/dev/dri` in. The add-on finds the GPU on its own, and `/api/health` shows the encoder it picked under `watch.encoder`. If it still can't keep up, pick 720p in **You > Playback** or before pressing Play. The add-on can also run on another machine with a better GPU: mount the folders there at the same paths and point Murmur's `VIDEO_URL` at it.
 
 ## Updating
 
@@ -140,9 +148,9 @@ In Portainer, use **Update the stack** as described in step 2. Database changes 
 ## When something's wrong
 
 - **Books are missing:** check that the library folder is mounted and readable inside the container, and look at **You > Library**, which shows each folder's status. Network shares that don't report file changes need `WATCH_POLLING=true`.
-- **Watch is empty:** You > Library says when ffmpeg is missing, and shows each movie and show folder's status.
+- **Watch is empty:** You > Library says when the video add-on can't be reached, or can't see a folder (it needs the same paths as Murmur), and shows each movie and show folder's status.
 - **The app can't connect:** open the same address in the phone's browser. If that works, check for a login gateway that needs the `/api/*` bypass.
 - **Health check:** `http://<server>:3333/api/health` reports the database, library, scans and version.
-- **Logs:** `docker logs murmur` (and `docker logs murmur-adscan` for the add-on).
+- **Logs:** `docker logs murmur` (and `docker logs murmur-adscan` or `docker logs murmur-video` for the add-ons).
 
 All settings are listed in the [README](../README.md#settings). How Murmur works inside is in [SPEC.md](SPEC.md).

@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
-import type { VideoQuality } from "@murmur/shared";
-import { env } from "../env";
-import { createLogger } from "../log";
+import type { VideoAddonHealth, VideoQuality } from "@murmur/shared";
+import { env } from "./env";
 import { TONEMAP } from "./ffmpeg";
+import { createLogger } from "./log";
 
 // How a stream's picture gets converted to H.264: on a GPU where the server has one that works,
 // else on the CPU. Each encoder is tried once with a tiny test encode, in order of preference, and
@@ -10,8 +10,8 @@ import { TONEMAP } from "./ffmpeg";
 
 const log = createLogger("watch-encoders");
 
-export const ENCODERS = ["nvenc", "qsv", "vaapi", "amf", "videotoolbox", "cpu"] as const;
-export type Encoder = (typeof ENCODERS)[number];
+export type Encoder = VideoAddonHealth["encoder"];
+export const ENCODERS: readonly Encoder[] = ["nvenc", "qsv", "vaapi", "amf", "videotoolbox", "cpu"];
 
 /** Converted pictures are H.264 High 4.2: 1080p at up to 60 frames, which everything plays. */
 export const H264_CODEC = "avc1.64002A";
@@ -129,14 +129,12 @@ function ffmpeg(args: string[], timeoutMs: number): Promise<string> {
   });
 }
 
-// One probe per server, shared across Next's module copies.
-declare global {
-  var __murmurEncoders: { encoder: Promise<Encoder>; toneMap: Promise<boolean>; broken: Set<Encoder> } | undefined;
-}
+/** Probed once, on first use. */
+let probed: { encoder: Promise<Encoder>; toneMap: Promise<boolean>; broken: Set<Encoder> } | null = null;
 
 function state() {
-  globalThis.__murmurEncoders ??= { encoder: probe(), toneMap: probeToneMap(), broken: new Set() };
-  return globalThis.__murmurEncoders;
+  probed ??= { encoder: probe(), toneMap: probeToneMap(), broken: new Set() };
+  return probed;
 }
 
 /** Whether this ffmpeg has the zimg filters the HDR tone map needs. */

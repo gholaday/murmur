@@ -7,7 +7,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "pnpm --filter @murmur/server dev",
+    "dev": "pnpm --parallel --filter @murmur/server --filter @murmur/video dev",
     "build": "pnpm --filter @murmur/server build",
     "start": "pnpm --filter @murmur/server start",
     "test": "pnpm -r test",

@@ -10,6 +10,7 @@ import type {
   VideoEpisode,
   VideoFileInfo,
   VideoProgress,
+  VideoSource,
   VideoSubtitleTrack,
   WatchCard,
   WatchHomeDto,
@@ -18,6 +19,7 @@ import type {
 } from "@murmur/shared";
 import type { AppContext } from "../context";
 import { env } from "../env";
+import { HttpError } from "../http";
 import { coverColors } from "../library/covers";
 import { resolveInside } from "../stream";
 
@@ -449,21 +451,13 @@ export function showArtHash(ctx: AppContext, id: string, kind: "poster" | "backd
   return row?.h ?? null;
 }
 
-/** What streaming or downloading a converted video needs to know about it; null when it's gone or its folder was removed. */
-export function getStreamSource(
+/** A video and the choices for streaming or downloading it, as the video add-on takes them. */
+export function videoSource(
   ctx: AppContext,
   id: string,
-): {
-  file: string;
-  durationSec: number;
-  videoCodec: string | null;
-  width: number | null;
-  height: number | null;
-  hdr: VideoFileInfo["hdr"];
-  audioCodecs: string[];
-} | null {
+  choices: Pick<VideoSource, "track" | "audio" | "video" | "quality">,
+): VideoSource {
   const file = getVideoFile(ctx, id);
-  if (!file?.root) return null;
   const row = ctx.sqlite.prepare("SELECT duration_sec, video_codec, width, height, hdr, audio_tracks FROM videos WHERE id = ?").get(id) as
     | {
         duration_sec: number;
@@ -474,16 +468,19 @@ export function getStreamSource(
         audio_tracks: string;
       }
     | undefined;
-  if (!row) return null;
+  if (!file?.root || !row) throw new HttpError(404, "Video not found.");
+  const tracks = JSON.parse(row.audio_tracks) as VideoAudioTrack[];
+  if (tracks.length > 0 && choices.track >= tracks.length) throw new HttpError(400, "That audio track isn't in the file.");
   return {
+    ...choices,
+    videoId: id,
     file: resolveInside(file.root, file.relPath),
     durationSec: row.duration_sec,
     videoCodec: row.video_codec,
     width: row.width,
     height: row.height,
     hdr: row.hdr,
-    /** Each audio track's RFC 6381 codec, in file order. */
-    audioCodecs: (JSON.parse(row.audio_tracks) as VideoAudioTrack[]).map((t) => t.codec),
+    audioCodec: tracks[choices.track]?.codec ?? null,
   };
 }
 

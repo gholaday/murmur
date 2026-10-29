@@ -37,13 +37,8 @@ export const env = {
   /** Added as the first movies and shows folders once something is mounted there, like music. */
   moviesDir: path.resolve(/*turbopackIgnore: true*/ process.env.MOVIES_DIR ?? "/movies"),
   showsDir: path.resolve(/*turbopackIgnore: true*/ process.env.SHOWS_DIR ?? "/shows"),
-  /** ffprobe reads movies and shows, ffmpeg grabs stills. Without them Watch stays empty. */
-  ffprobePath: process.env.FFPROBE_PATH ?? "ffprobe",
-  ffmpegPath: process.env.FFMPEG_PATH ?? "ffmpeg",
-  /** GPU video conversion: auto tries nvenc, qsv, vaapi, amf and videotoolbox in turn; off is the CPU only; or name one. */
-  watchHardware: (process.env.WATCH_HW?.trim().toLowerCase() || "auto") as "auto" | "off" | "nvenc" | "qsv" | "vaapi" | "amf" | "videotoolbox",
-  /** The render node VAAPI uses (Intel and AMD on Linux); passed into Docker with `devices: - /dev/dri:/dev/dri`. */
-  vaapiDevice: process.env.VAAPI_DEVICE?.trim() || "/dev/dri/renderD128",
+  /** The video add-on (murmur-video), which reads movies and shows and streams them. Without it Watch stays empty. */
+  videoUrl: (process.env.VIDEO_URL?.trim() || "http://localhost:3001").replace(/\/+$/, ""),
   migrationsDir:path.resolve(/*turbopackIgnore: true*/ process.env.MIGRATIONS_DIR ?? "./drizzle"),
   /** Use polling instead of filesystem events (for network mounts that don't emit events). */
   watchPolling: process.env.WATCH_POLLING === "true",
@@ -60,8 +55,6 @@ export const env = {
   /** Where podcast episodes are kept; without a writable folder, episodes are relayed instead. */
   episodeCacheDir: path.resolve(/*turbopackIgnore: true*/ process.env.EPISODE_CACHE_DIR ?? "/cache"),
   episodeCacheMaxBytes: intEnv("EPISODE_CACHE_MAX_GB", 20) * 1024 ** 3,
-  /** Remuxed video streams' pieces while they're watched, beside the episode cache. Nothing stays. */
-  watchCacheDir: path.join(path.resolve(/*turbopackIgnore: true*/ process.env.EPISODE_CACHE_DIR ?? "/cache"), "watch"),
-  /** Shared with the ad detection add-on; its endpoints are off unless this is set. */
+  /** Shared with the add-ons: ad detection's endpoints are off unless this is set, and the video add-on needs it. */
   addonSecret: process.env.ADDON_SECRET ?? "",
 };

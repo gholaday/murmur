@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { AddonJob, AddonReport, AddonStatus, AdSpan, EpisodeAdsDto } from "@murmur/shared";
+import { type AddonJob, type AddonReport, type AddonStatus, type AdSpan, cameThroughProxy, type EpisodeAdsDto } from "@murmur/shared";
 import type { Sqlite } from "./db";
 import { env } from "./env";
 import { HttpError } from "./http";
@@ -15,9 +15,13 @@ const WANTED_MS = 10 * 60_000;
 
 export const adsEnabled = () => env.addonSecret.length > 0;
 
-/** Checks the add-on's shared secret. Without ADDON_SECRET the endpoints don't exist. */
+/**
+ * Checks the add-on's shared secret. Without ADDON_SECRET the endpoints don't exist, and they never
+ * answer anything that came through a proxy or tunnel, whatever the secret. Next fills in the
+ * `x-forwarded-*` headers itself when they're missing, so only those it leaves alone are checked.
+ */
 export function requireAddon(req: Request) {
-  if (!adsEnabled()) throw new HttpError(404, "Not found.");
+  if (!adsEnabled() || cameThroughProxy((name) => req.headers.get(name))) throw new HttpError(404, "Not found.");
   const header = req.headers.get("authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
   const a = Buffer.from(token);

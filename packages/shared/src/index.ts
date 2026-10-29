@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { clampSpeed } from "./player";
 import type { TrackDto } from "./music";
+import type { VideoStatus } from "./video-addon";
 import { BOOK_SECTION_IDS } from "./shelves";
 
 // ---------- Request schemas (validated on the server, reused by clients) ----------
@@ -687,10 +688,14 @@ export interface HealthDto {
   watch: {
     movies: number;
     shows: number;
-    /** ffprobe and ffmpeg run; without them Watch stays empty. */
+    /** The video add-on (murmur-video) answers; without it Watch stays empty. */
+    addon: boolean;
+    /** ffprobe and ffmpeg run in the add-on. */
     ffmpeg: boolean;
     /** What converts video: a GPU encoder (nvenc, qsv, vaapi, amf, videotoolbox) or the CPU. */
     encoder: string;
+    /** Settings' Video row, worded by the server so the web and the app say the same. */
+    status: VideoStatus;
     scan: { running: boolean; lastFinishedAt: number | null; lastError: string | null };
   } | null;
 }
@@ -747,8 +752,10 @@ export * from "./library";
 export * from "./music";
 export * from "./player";
 export * from "./podcasts";
+export * from "./proxied";
 export * from "./settings";
 export * from "./shelves";
 export * from "./stats";
 export * from "./up-next";
+export * from "./video-addon";
 export * from "./watch";

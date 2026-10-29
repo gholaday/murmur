@@ -23,6 +23,7 @@ import {
   versionStatus,
   type UserDto,
   type UserPrefs,
+  type VideoStatus,
   type MusicSummaryDto,
   type WatchSummaryDto,
   type StatsKind,
@@ -67,6 +68,7 @@ export function ProfileView({
   showFolders,
   music,
   watch,
+  video,
 }: {
   /** One settings group on its own page; none is You itself. */
   section?: SettingsSection;
@@ -74,6 +76,8 @@ export function ProfileView({
   movieFolders: LibraryFolderDto[];
   showFolders: LibraryFolderDto[];
   watch: WatchSummaryDto;
+  /** The video add-on, for admins once there are movie or show folders. */
+  video: VideoStatus | null;
   music: MusicSummaryDto;
   shows: number;
   tabs: UserPrefs["tabs"];
@@ -124,7 +128,10 @@ export function ProfileView({
           ) : section === "playback" ? (
             <PlaybackCard adsEnabled={adsEnabled} watch={watch.enabled} videoQuality={videoQuality} autoplayNext={autoplayNext} />
           ) : section === "server" ? (
-            <VersionCard version={server.version} devBuild={server.devBuild} updates={server.updates} />
+            <>
+              <VersionCard version={server.version} devBuild={server.devBuild} updates={server.updates} />
+              {watch.enabled ? <TmdbCredit /> : null}
+            </>
           ) : section === "library" ? (
             <>
               <LibraryCard server={server} onScanned={refresh} />
@@ -138,6 +145,15 @@ export function ProfileView({
               ) : null}
               <FoldersCard kind="music" folders={musicFolders} otherPaths={pathsBesides(folders, movieFolders, showFolders)} onSaved={refresh} />
               <h2 className="section-title">Movie folders</h2>
+              {video ? (
+                <SettingsCard>
+                  <Setting
+                    title="Video"
+                    dot={video.problem ? "warn" : "ok"}
+                    sub={<SettingSub error={!!video.problem}>{video.problem ?? video.working}</SettingSub>}
+                  />
+                </SettingsCard>
+              ) : null}
               {movieFolders.length + showFolders.length === 0 ? (
                 <p className="muted small" style={{ margin: 0 }}>
                   Add a folder of movies or shows to turn on the Watch tab. Movies go in &quot;Title (Year)&quot; folders, and shows in Show/Season folders.
@@ -459,6 +475,23 @@ function VersionCard({ version, devBuild, updates }: ServerVersionDto) {
           </a>
         ) : null}
       </Setting>
+    </SettingsCard>
+  );
+}
+
+/** TMDB's terms ask for their logo and this notice wherever their data shows. */
+function TmdbCredit() {
+  return (
+    <SettingsCard>
+      <Setting
+        title={
+          <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer" aria-label="TMDB">
+            {/* eslint-disable-next-line @next/next/no-img-element -- a small local SVG */}
+            <img src="/tmdb.svg" alt="TMDB" height={12} style={{ display: "block", marginBottom: 4 }} />
+          </a>
+        }
+        sub={<SettingSub>This product uses the TMDB API but is not endorsed or certified by TMDB.</SettingSub>}
+      />
     </SettingsCard>
   );
 }
