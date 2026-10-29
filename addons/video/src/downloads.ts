@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { apiPaths, type VideoDownloadDto, type VideoSource } from "@murmur/shared";
+import { apiPaths, gigabytes, type VideoDownloadDto, type VideoSource } from "@murmur/shared";
 import { canToneMap, encoder, type Encoder, giveUpOn, h264Args } from "./encoders";
 import { env } from "./env";
 import { HttpError } from "./http";
@@ -23,6 +23,13 @@ const MAX_CONVERTING_PER_OWNER = 1;
 const KEEP_READY_MS = 6 * 3600_000;
 /** A download nobody has asked about for this long was given up on; it's stopped and removed. */
 const ABANDONED_MS = 10 * 60_000;
+/**
+ * Converted pictures are quality-based, so their size isn't known ahead: this is about the most a
+ * film takes at each quality, in bits a second. A copied picture is about the size of the file.
+ */
+const MAX_BITRATE = { full: 10_000_000, light: 4_000_000 };
+/** Left free beyond the download, for stream pieces and anything else on that disk. */
+const SPARE_BYTES = 2 * 1024 ** 3;
 
 interface Job {
   id: string;
@@ -34,6 +41,8 @@ interface Job {
   progress: number;
   error: string | null;
   converting: boolean;
+  /** About how big the finished file will be, so other downloads leave room for it. */
+  expectedBytes: number;
   proc: ChildProcess | null;
   lastSeen: number;
 }
@@ -156,6 +165,25 @@ async function prepare(j: Job, src: VideoSource) {
   else log.warn("download failed", { video: src.videoId, error: j.error });
 }
 
+/** About how big the download of this video will be. */
+function expectedSize(src: VideoSource): number {
+  if (src.video === "h264") return (src.durationSec * MAX_BITRATE[src.quality]) / 8;
+  return fs.statSync(src.file, { throwIfNoEntry: false })?.size ?? 0;
+}
+
+/** Refuses a download the cache disk has no room for, counting what the ones being made still need. */
+function checkSpace(expectedBytes: number) {
+  const stat = fs.statfsSync(root());
+  const free = stat.bavail * stat.bsize;
+  const reserved = [...all.values()].filter((j) => j.status === "preparing").reduce((sum, j) => sum + j.expectedBytes * (1 - j.progress), 0);
+  if (free - reserved < expectedBytes + SPARE_BYTES) {
+    throw new HttpError(
+      507,
+      `Not enough space on the server for this download. It needs about ${gigabytes(expectedBytes)}, and ${gigabytes(Math.max(0, free - reserved))} is free.`,
+    );
+  }
+}
+
 /** Starts making the download, or reports on the one already being made for these choices. */
 export function startDownload(owner: string, src: VideoSource): VideoDownloadDto {
   const key = [owner, src.videoId, src.track, src.audio, src.video, src.video === "h264" ? src.quality : ""].join("|");
@@ -169,8 +197,10 @@ export function startDownload(owner: string, src: VideoSource): VideoDownloadDto
   if (converting && busy >= MAX_CONVERTING_PER_OWNER) {
     throw new HttpError(429, "Another download is being converted. Try again once it's done.");
   }
-  const id = crypto.randomBytes(12).toString("base64url");
   fs.mkdirSync(root(), { recursive: true });
+  const expectedBytes = expectedSize(src);
+  checkSpace(expectedBytes);
+  const id = crypto.randomBytes(12).toString("base64url");
   const job: Job = {
     id,
     owner,
@@ -180,6 +210,7 @@ export function startDownload(owner: string, src: VideoSource): VideoDownloadDto
     progress: 0,
     error: null,
     converting,
+    expectedBytes,
     proc: null,
     lastSeen: Date.now(),
   };

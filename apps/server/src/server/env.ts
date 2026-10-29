@@ -31,6 +31,8 @@ export const env = {
   backupsDir: path.join(dataDir, "backups"),
   /** How often each feed is checked when healthy; failing feeds back off up to 24 hours. */
   feedCheckMs: intEnv("FEED_CHECK_MINUTES", 30) * 60_000,
+  // The first folder of each kind is wherever the compose file mounts it. These four aren't settings:
+  // only `pnpm dev` points them elsewhere, at the repo's data/ folder.
   libraryDir: path.resolve(/*turbopackIgnore: true*/ process.env.LIBRARY_DIR ?? "/audiobooks"),
   /** Added as the first music folder once something is mounted there; until then music stays off. */
   musicDir: path.resolve(/*turbopackIgnore: true*/ process.env.MUSIC_DIR ?? "/music"),

@@ -132,7 +132,7 @@ The `murmur-video` add-on reads your video files and streams them; Murmur keeps 
 2. Uncomment the movie and show folders on Murmur, and the `murmur-video` service in `docker-compose.yml`. Give it the same secret, and the movie and show folders at the **same** paths as Murmur's.
 3. `docker compose up -d`. Movies and shows appear once the scan has read them; You > Library shows each folder's status.
 
-Most files play as they are. A file whose picture the device can't play (HEVC in some browsers, for example) is converted while you watch, and a small server's CPU may not keep up. With an Intel or AMD GPU, uncomment the `devices:` lines under `murmur-video` to pass `/dev/dri` in. The add-on finds the GPU on its own, and `/api/health` shows the encoder it picked under `watch.encoder`. If it still can't keep up, pick 720p in **You > Playback** or before pressing Play. The add-on can also run on another machine with a better GPU: mount the folders there at the same paths and point Murmur's `VIDEO_URL` at it.
+Most files play as they are. A file whose picture the device can't play (HEVC in some browsers, for example) is converted while you watch, and a small server's CPU may not keep up. With an Intel or AMD GPU, uncomment the `devices:` lines under `murmur-video` to pass `/dev/dri` in. The add-on finds the GPU on its own, and `/api/health` shows the encoder it picked under `watch.encoder`. If it still can't keep up, pick 720p in **You > Playback** or before pressing Play. The add-on can also run on another machine with a better GPU: mount the folders there at the same paths and point Murmur's `VIDEO_URL` at it. Settings and fixes are in the [add-on's README](../addons/video/README.md).
 
 ## Updating
 

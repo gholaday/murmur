@@ -26,7 +26,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 - Book page: cover, author, narrator, series and position, description, duration, chapter list
 - Single-file `.m4b` and multi-file books, played as one continuous timeline
 - Automatic rescan when files are added, moved or removed
-- One or more library folders, managed by the admin under You > Library (seeded from `LIBRARY_DIR` on first start), each checked before it's saved
+- One or more library folders, managed by the admin under You > Library (seeded on first start with whatever is mounted at `/audiobooks`), each checked before it's saved
 - Mark finished, reset progress
 - Metadata Match and editing for admins (see Metadata)
 
@@ -307,7 +307,7 @@ Edits are stored in the same override row as a match, so a rescan keeps them and
 
 ## Music
 
-Music is optional. It comes from one or more music folders, managed by the admin under You > Library, next to the book folders. The first, `MUSIC_DIR` (`/music` by default), is added once something is mounted there, and only once, so a folder the admin removes stays removed. No folder may sit inside another of either kind, so nothing is scanned twice. With no music folder, nothing about music shows anywhere.
+Music is optional. It comes from one or more music folders, managed by the admin under You > Library, next to the book folders. The first is whatever is mounted at `/music`, added once something is there, and only once, so a folder the admin removes stays removed. No folder may sit inside another of either kind, so nothing is scanned twice. With no music folder, nothing about music shows anywhere.
 
 **Scanning**
 
@@ -378,15 +378,67 @@ The books pattern, for albums: "Match metadata…" in an album's menu, and Match
 
 ## Watch
 
-Movies and TV shows, built on the `watch` branch. [WATCH.md](WATCH.md) has the full design: folder layout, scanning, matching, streaming and the players. In short:
+Movies and TV shows are optional, and fail on their own. They come from movie and show folders, managed by the admin under You > Library beside books and music. The first of each is whatever is mounted at `/movies` and `/shows`, added once something is there, and only once. Keeping the two kinds apart, as Plex does, means the scanner never guesses whether a file is a movie or an episode. With no video folder, Watch doesn't show anywhere; without the video add-on it stays empty and Settings says why. Books, podcasts and music carry on either way.
 
-- **The video add-on.** ffmpeg lives in its own container, `murmur-video` (`addons/video`, TypeScript on plain `node:http`), the way ad detection lives in `murmur-adscan`. Murmur keeps the library walk, the database, TMDB matching, art and the routes, and calls the add-on over HTTP with the add-on secret to probe files, grab stills, and make streams and downloads, whose bytes it passes through to the player. Both mount the movie and show folders at the same paths. Without the add-on, Watch stays empty, the scan says why, and nothing else is affected.
-- **Folders.** Movies go in "Title (Year)" folders and shows in Show/Season folders, each kind under its own library folders. ffprobe reads each file once, and again only when its size or modified time changes.
-- **Details.** Local art and .nfo files come first. With `TMDB_API_KEY` set, everything not yet tried is matched after each scan, one request at a time, and Match fixes a wrong one. A still is grabbed for each file without one: a tenth of the way in, or the brightest of a few later frames when that one is dark.
-- **Playing.** `playbackPlan` (shared) decides per device. A file the device plays as it is plays directly, with range requests. Otherwise an ffmpeg HLS session copies the picture, or converts it to H.264, from wherever playback starts, and converts the sound to AAC when needed. A far seek starts a new session. A session keeps only about three minutes behind the player on disk, and nothing once it ends.
-- **Converting.** The first working encoder is used: NVENC, Quick Sync, VAAPI, AMF, VideoToolbox, then the CPU. A GPU that fails on a file is dropped for the CPU. Quality is 1080p or 720p, picked per video or as a setting under You > Playback.
-- **Progress and stats.** Progress is saved like a book's, with `itemType: "video"`. Watching adds to the same listening totals as audio, so it shows on You and counts towards the streak.
-- **Downloads.** The phone keeps the file as it is when it can play it. Otherwise the server makes an MP4 into its cache as a job the phone checks on, then the phone downloads it like any file and the server deletes its copy. One conversion per person runs at a time.
+**The video add-on**
+
+ffmpeg lives in its own container, `murmur-video` (`addons/video`, TypeScript on plain `node:http`, bundled into one file), the way ad detection lives in `murmur-adscan`. One rule decides where code goes: anything that needs ffmpeg or the GPU is in the add-on, anything that needs the database or the covers folder is in Murmur, and a still (grabbed there, stored here) is one call across. So Murmur keeps the library walk, the database, TMDB matching, art and the routes.
+
+- Converting video is the one thing that can eat a whole server, so in its own container it gets its own `cpus` limit and GPU device, and can crash or restart without touching anything else. It can also run on another machine with a better GPU.
+- Unlike adscan, which pulls work from a queue, the add-on is a small HTTP server and Murmur its client, since a player can't wait on a queue. Its API (bearer `ADDON_SECRET`, request schemas in `packages/shared/src/video-addon.ts`): `GET /health`, `POST /probe`, `POST /still`, `POST /streams`, `GET /streams/:id/:file`, `DELETE /streams/:id`, `POST /downloads`, and `GET` and `DELETE /downloads/:id`. Stream and download files name their owner (Murmur's user id) in `x-murmur-owner`, and only that owner gets them.
+- Murmur's side is `server/watch/video-addon.ts`. The routes keep their auth and the video lookup (`videoSource` in `queries.ts`), and pass the bytes, ranges and errors (503 with `Retry-After`, 404) through to the player as they are. Murmur names files by their path, so both containers mount the folders at the same paths; a file the add-on can't see is a 404 saying so.
+- The add-on unreachable is a 503 to the player, a scan problem, and a warning Video row under You > Library, which otherwise says what converts video ("Working, converts video with an NVIDIA GPU"). The wording comes from the server, in `watch.status` of `/api/health`, so the web and the app say the same. A still that failed because the add-on was down is tried again on the next scan.
+- It's reachable only from Murmur; see Deployment.
+
+**Scanning**
+
+- **Layout** (Plex naming): a movie is a folder named `Title (Year)`; a loose `Title (Year).ext` also counts, at the top or in a folder of loose movies. A show is a top-level folder in a shows folder, with `Season 02` folders inside. Video files are `.mkv`, `.mp4`, `.m4v`, `.mov`, `.webm`, `.avi` and `.ts`.
+- **Versions:** every video in a movie's folder is a version of it (a director's cut, a 4K copy). The edition comes from Plex's `{edition-Director's Cut}`, else a known name ("Extended Cut", "IMAX"). Versions are listed biggest picture first, and progress belongs to the movie, so switching keeps your place. Trailers, samples and `Extras` or `Featurettes` folders are skipped.
+- **Episodes:** season and number come from `S02E04`, else `2x04`, else the season folder and a leading `04`. A double episode is one row. `Specials` and `Season 00` are season 0, listed last. The title is what follows `SxxEyy`, else "Episode 4".
+- The rules are in `watch/parse.ts`, with unit tests.
+- **Probing:** the add-on reads each file with ffprobe: length, container, video codec as an RFC 6381 string (`hvc1.2.4.L150`), resolution, HDR, and each audio and subtitle track. Like music, a file is probed again only when its size or modified time changes, with the same watcher, safety-net rescan and missing-file grace period.
+- **Local details first:** a Kodi `.nfo` (`movie.nfo`, `tvshow.nfo`, `<episode>.nfo`) gives the title, year and description. Posters are `poster.jpg`, `folder.jpg` or `cover.jpg`, backdrops `fanart.jpg` or `backdrop.jpg`, and episode stills `<file>-thumb.jpg`, all through the cover pipeline.
+- **Stills:** a file with no still gets a frame grabbed at a tenth of the way in, else a quarter or two fifths, keeping the first bright enough one (black bars trimmed, HDR tone mapped). It stays until the file changes. Posters without art take their tint from it.
+
+**Matching**
+
+Unlike books and music, Watch matches on its own, the way Plex does, since rips rarely carry good details.
+
+- **Source:** TMDB, with a free v3 key in `TMDB_API_KEY` (`TMDB_LANGUAGE`, default `en-US`). Without one, Watch uses local files only. Answers go through the 30-day provider cache, with the key kept out of it. TMDB's logo and notice show under You > Server while Watch is on, as their terms ask.
+- **When:** after each scan, for each movie and show not tried yet, one request at a time. A failed request is tried on the next scan; no good result marks it tried.
+- **Finding it:** a TMDB id in the name (`{tmdb-603}`, `[tmdbid-603]`) is used as it is. Otherwise the title and year are searched, and the top result counts only when its title matches closely and its year is within one (exact title without a year).
+- **What it fills:** title, year and description unless an .nfo gave them; a poster and backdrop only where there's no local picture; and each episode's title, description and still (`tmdb_episodes`, keyed by show, season and episode, so a changed file keeps them). A TMDB still replaces a grabbed frame but not a `-thumb`.
+- **Match (admins):** Match… in the movie and show pages' More menu searches by title and year and applies a pick at once, replacing what came from TMDB and keeping your own files' details.
+
+**Playback**
+
+- **How to play** (`playbackPlan` in `packages/shared/src/watch.ts`, with tests): the player checks the codecs and container (`MediaSource.isTypeSupported` and `canPlayType` on the web; on Android, Media3 plays nearly everything). A file the device plays, with its default audio track, plays directly with range requests. Otherwise it streams, the way Plex's Direct Stream and Transcode do: the picture copied, or converted to H.264 when the device can't show it, and the sound copied, or converted to AAC stereo when it won't play (Dolby Digital in Chrome, DTS, TrueHD) or another track was picked. A direct file that turns out not to open is streamed instead, without asking.
+- **Streams:** ffmpeg writes HLS with fMP4 pieces of about 6 seconds from wherever playback starts, at about three times real time after a 30-second burst. The player opens a master playlist that names the codecs, since browsers guess wrong otherwise; Safari plays HLS itself, and other browsers use hls.js, loaded only on the player. A copied picture starts on the keyframe at or before the start point (a short ffprobe); a converted one starts exactly there, and the player adds the start to the stream's clock.
+- **Seeking** inside what's been made is instant. Past it, or back before the start, a new session starts there, which takes a second or two (about 1.2 s copying, 2.5 s converting on a CPU), as in Plex. Most of that is ffmpeg starting; reading every keyframe at scan time (as Jellyfin does) would save only the 0.2 s lookup, and took 26 s for a 12 GB film, so it isn't done.
+- **Small on disk:** a piece not made yet is waited for briefly, then gets a 503 with `Retry-After` and the player asks again. Pieces more than three minutes behind the player are deleted (asking for one gets a 404, and the player starts a new session there), and ffmpeg is paused while it's more than ten minutes ahead (not on Windows, which can't pause a process). A session nobody has asked anything of for five minutes is stopped (a paused player keeps its own alive), each person keeps at most two, and everything is cleared at start.
+- **Converting the picture:** H.264 High at 1080p (full) or 720p (light, about a third of the work); bigger pictures are scaled down. The first conversion tries the GPU encoders with a short test, in order NVENC, Quick Sync, VAAPI, AMF and VideoToolbox, else `libx264` on the CPU; `WATCH_HW` names one or turns them off. The GPU decodes and scales too where it can. One that stops on a file before its first piece is dropped and the CPU takes over from the same spot; one still silent after a minute hands that stream to the CPU. HDR is tone mapped on the CPU first.
+- **Quality:** your setting (You > Playback > Converted video) is the starting point; a quality button beside Play and Quality in the player's More sheet pick for one video. When a converted stream runs dry three times, the player says "Converting slower than it plays", with a Lower quality link that saves 720p.
+- **Audio tracks:** with more than one, an Audio tile lists each track's language, codec and channels. The pick is remembered per movie or show, by language, on each device, as is the speed (0.5× to 2×).
+- **Progress and stats:** saved like a book's, with `itemType: "video"`; past 92% counts as watched, and a season's or show's watched state is worked out from its episodes. Watch time goes in `listening_days` as its own kind, with its own total and colour on You, and counts towards the streak.
+- **Next episode:** 30 seconds before an episode ends, a card counts down to the next one. Play next episode (`autoplayNext`) off, it just reads "Next episode".
+- Starting a video stops any audio, saving its place, and playing audio ends the video the same way. Video doesn't go in Up Next.
+
+**The player** (web and app, the audio player's layout)
+
+- **Upright:** tinted by the poster, the video at 16:9 where the cover goes, then the title, scrubber, the audio player's buttons with next episode, the next episodes, and tiles for speed, audio, picture in picture and full screen. Pulling the top row down (or Escape) shrinks it to the mini player, where it keeps playing between pages.
+- **Sideways or full screen:** the video fills the screen, with the title along the top and the controls along the bottom, fading after three seconds. Double-tap either side skips back or forward.
+- **Web:** one `<video>` kept in the shell beside the audio engine, so it plays on between pages; `/watch/play/[kind]/[id]` opens it. Full screen on a phone locks to landscape where allowed. **App:** `expo-video` on a full-screen route that unlocks rotation (the rest of the app stays upright), with picture in picture.
+
+**Screens:** the Watch tab (fifth, after Music) has chips for Home, Movies, Shows and Watched; Home has Continue watching and Next episodes (16:9 stills) and Recently added movies and shows (2:3 posters). Movie and show pages use the book header with pills, Play or Resume, Mark watched, a Version row, an Audio row, a season chip per season and episode rows. A file no device here can play says so in one sentence, and the movie page's File section lists its codecs.
+
+**Downloads (app)**
+
+- A file the phone plays as it is downloads byte for byte. Anything else is first made into an MP4 on the server (`POST /api/watch/videos/:id/download` with the track, audio, picture and quality), with its index at the front so the phone can seek in it. The phone asks how far it's got every few seconds ("Preparing N%"), then fetches it like any file, with ranges, so it resumes if cut off, and deletes the server's copy. A pipe can't be used: Android's player can't seek in an MP4 written front to back.
+- One converted download per person at a time (another gets a 429, so the app downloads videos one after another). A finished file is kept 6 hours after it was last asked for, a job nobody asks about for 10 minutes is dropped, and the folder is cleared at start.
+- **Space:** before starting one, the add-on checks its `/cache` disk has room: the file's size for a copied picture, or the most a converted one could take (10 Mbps at full quality, 4 at light), plus what downloads being made still need and 2 GB spare. Without room it answers 507 with how much is needed and free, and the app shows that as the download's error.
+- Download beside Play on a movie, on each episode row, and Download season in the show's More menu. Downloaded has Movies and a section per show. Offline, Watch shows only what's downloaded, and progress and watch time sync later through the outbox.
+
+**Rejected:** other free sources for details. TVmaze has no movies, OMDb allows 1,000 requests a day with posters for patrons only, TheTVDB needs a paid subscription for each person, Wikidata has little artwork, and Trakt points at TMDB for images. TVmaze is the one candidate for a no-key path for shows.
 
 ## Android app
 
@@ -522,11 +574,11 @@ One Docker Compose stack; see `docker-compose.yml` in the repo root and [Getting
 
 | Mount | Purpose | Notes |
 | --- | --- | --- |
-| `/audiobooks` | The audiobook library (`LIBRARY_DIR`, the first library folder) | Read-only: Murmur never writes to or renames your files. Mount more folders and add them under You > Library |
-| `/music` | Optional music folder (`MUSIC_DIR`, the first music folder, added once it's mounted) | Read-only, like the audiobooks. Leave it out and music doesn't show |
+| `/audiobooks` | The audiobook library, the first library folder | Read-only: Murmur never writes to or renames your files. Mount more folders and add them under You > Library |
+| `/music` | Optional music folder, the first one, added once it's mounted | Read-only, like the audiobooks. Leave it out and music doesn't show |
 | `/data` | SQLite database, cover cache and backups | The only thing to back up |
 | `/cache` | Cached podcast episodes | Without it episodes are relayed. Not worth backing up. The ad add-on mounts it read-only |
-| `/movies`, `/shows` | Optional movie and show folders (`MOVIES_DIR`, `SHOWS_DIR`) | Read-only, mounted at the same paths in Murmur and the video add-on. The add-on has its own `/cache` for stream pieces and downloads being made |
+| `/movies`, `/shows` | Optional movie and show folders, the first of each, added once they're mounted | Read-only, mounted at the same paths in Murmur and the video add-on. The add-on has its own `/cache` for stream pieces and downloads being made |
 
 **Images:** a GitHub Actions workflow builds multi-arch images (amd64 and arm64) for Murmur and both add-ons and pushes them to GitHub Container Registry on each `v*` tag.
 
@@ -538,7 +590,7 @@ One Docker Compose stack; see `docker-compose.yml` in the repo root and [Getting
 
 ## Local development
 
-Run `pnpm install` once, then `pnpm dev` and open http://localhost:3000. `pnpm dev` also runs the video add-on on port 3001 (with `tsx watch`), which needs ffmpeg on the path and `ADDON_SECRET` in `apps/server/.env.local`. `apps/server/.env.development` points the database and covers at the repo's git-ignored `data/` folder and the library at `data/audiobooks`. Docker is only used for the production image: on Windows a bind-mounted source folder delivers no file-change events, so hot reload inside a container is unreliable.
+Run `pnpm install` once, then `pnpm dev` and open http://localhost:3000. `pnpm dev` also runs the video add-on on port 3001 (with `tsx watch`), which needs ffmpeg on the path and `ADDON_SECRET` in `apps/server/.env.local`. `apps/server/.env.development` points the database and covers at the repo's git-ignored `data/` folder, and the first book, movie and show folders at `data/audiobooks`, `data/videos/movies` and `data/videos/shows` with `LIBRARY_DIR`, `MOVIES_DIR` and `SHOWS_DIR` (`MUSIC_DIR` works the same way). These are for development only; in Docker the mount points are the folders. Docker is only used for the production image: on Windows a bind-mounted source folder delivers no file-change events, so hot reload inside a container is unreliable.
 
 ## Non-goals and later ideas
 
@@ -548,7 +600,7 @@ These are left out on purpose; each can be added later if it earns its place.
 
 - Automatic online metadata matching for books (Match and Match all are started by an admin and confirmed)
 - Reading `.m3u` playlists from the music folders
-- Transcoding or format conversion; files are served as they are
+- Transcoding books, podcasts or music; they're served as they are (only video is converted, and only for a device that can't play it)
 - Editing tags or moving files
 - Ebooks and comics
 - iOS app (the web player works in Safari)
@@ -558,6 +610,9 @@ These are left out on purpose; each can be added later if it earns its place.
 
 - Bookmarks and clips with notes
 - A yearly listening recap
+- Subtitles for movies and shows: `.srt` and `.vtt` beside the file and text tracks inside it as WebVTT, picked in the player and remembered per show. Image subtitles (PGS, VobSub) would need burning into a converted picture
+- Casting video to a Chromecast from the web and the app
+- Faster far seeks in a stream, starting with a shorter first piece
 - Smart music mixes, and trimming silence between songs
 - Smart shelves and collections
 - Home screen widget and Chromecast
