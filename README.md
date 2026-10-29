@@ -28,7 +28,7 @@ Murmur is inspired by [Audiobookshelf](https://www.audiobookshelf.org/) and [Ple
 ```yaml
 services:
   murmur:
-    image: ghcr.io/gholaday/murmur:0.6.3
+    image: ghcr.io/gholaday/murmur:0.6.4
     container_name: murmur
     restart: unless-stopped
     ports:

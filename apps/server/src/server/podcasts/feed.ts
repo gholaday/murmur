@@ -23,6 +23,11 @@ export interface ParsedFeed {
   episodes: ParsedEpisode[];
 }
 
+// A feed can declare its own entities; a few small ones only, so references can't balloon into
+// gigabytes. The limits count only those: ordinary &amp; and &#39; in a long feed's descriptions
+// run into the thousands. (`appliesTo` is missing from the parser's types.)
+const entityLimits = { maxEntityCount: 16, maxEntitySize: 1024, maxTotalExpansions: 1000, maxExpandedLength: 100_000, appliesTo: "external" };
+
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
@@ -30,8 +35,7 @@ const parser = new XMLParser({
   parseTagValue: false,
   parseAttributeValue: false,
   trimValues: true,
-  // A feed can declare its own entities; a few small ones only, so references can't balloon into gigabytes.
-  processEntities: { maxEntityCount: 16, maxEntitySize: 1024, maxTotalExpansions: 1000, maxExpandedLength: 100_000 },
+  processEntities: entityLimits,
   htmlEntities: true,
   isArray: (name) => name === "item" || name === "outline",
 });

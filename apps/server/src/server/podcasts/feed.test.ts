@@ -75,3 +75,10 @@ it("refuses a feed whose own entities are big enough to balloon", () => {
   const small = `<!DOCTYPE rss [<!ENTITY e "ok">]><rss><channel><title>&e;</title></channel></rss>`;
   expect(parseFeed(small).title).toBe("ok");
 });
+
+it("counts only a feed's own entities against the limit, not ordinary ones", () => {
+  const items = Array.from({ length: 600 }, (_, i) => `<item><title>Q&amp;A ${i} &#8217;</title><enclosure url="https://x.test/${i}.mp3"/></item>`);
+  expect(parseFeed(`<rss><channel><title>T</title>${items.join("")}</channel></rss>`).episodes).toHaveLength(600);
+  const many = `<!DOCTYPE rss [<!ENTITY e "ok">]><rss><channel><title>${"&e;".repeat(1001)}</title></channel></rss>`;
+  expect(() => parseFeed(many)).toThrow();
+});
