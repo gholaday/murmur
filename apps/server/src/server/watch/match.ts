@@ -32,6 +32,7 @@ const tableOf = (kind: TmdbKind): Table => (kind === "movie" ? "movies" : "shows
 export function createWatchMatcher(deps: { sqlite: Sqlite; coversDir: string; log: Logger; tmdb: Tmdb }) {
   const { sqlite, log, tmdb } = deps;
   let running: Promise<void> | null = null;
+  let again = false;
 
   const getRow = (table: Table, id: string) =>
     sqlite
@@ -61,9 +62,13 @@ export function createWatchMatcher(deps: { sqlite: Sqlite; coversDir: string; lo
        ON CONFLICT (show_id, season, episode) DO UPDATE SET title = excluded.title, overview = excluded.overview,
          air_date = excluded.air_date, still_hash = COALESCE(excluded.still_hash, tmdb_episodes.still_hash)`,
     );
+    const exists = sqlite.prepare("SELECT 1 FROM shows WHERE id = ?");
     for (const season of seasons) {
       for (const e of await tmdb.season(tmdbId, season)) {
-        upsert.run(showId, e.season, e.episode, e.title, e.overview, e.airDate, await picture(e.stillPath, "wide"));
+        const still = await picture(e.stillPath, "wide");
+        // Matching runs beside the scan, which removes a show none of whose files could be read.
+        if (!exists.get(showId)) return;
+        upsert.run(showId, e.season, e.episode, e.title, e.overview, e.airDate, still);
       }
     }
   }
@@ -134,10 +139,20 @@ export function createWatchMatcher(deps: { sqlite: Sqlite; coversDir: string; lo
 
   /**
    * Everything not tried yet, one request at a time. When TMDB can't be reached it stops and the
-   * rest waits for the next scan; a title with no confident result is marked tried.
+   * rest waits for the next scan; a title with no confident result is marked tried. A scan asks as
+   * it finds each movie and show, so asking while a pass runs makes another pass follow it.
    */
   async function matchPending(): Promise<void> {
-    running ??= matchAll()
+    if (running) {
+      again = true;
+      return running;
+    }
+    running = (async () => {
+      do {
+        again = false;
+        await matchAll();
+      } while (again);
+    })()
       .catch((err) => {
         if (!(err instanceof ProviderError)) throw err;
         log.warn("TMDB unreachable, matching waits for the next scan", { error: err.message });

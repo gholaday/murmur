@@ -50,7 +50,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 
 **Watch** (optional; see Watch)
 
-- Movie and show folders managed by the admin under You > Library; with none, Watch doesn't show. A Video row there says whether the video add-on works and what converts video (`watch.status` in `/api/health`, worded by the server for the web and the app)
+- Movie and show folders managed by the admin under You > Library; with none, or while the video add-on is down, Watch doesn't show. A Video row there says whether the video add-on works and what converts video (`watch.status` in `/api/health`, worded by the server for the web and the app)
 - TMDB's logo and notice under You > Server while Watch is on, as TMDB's terms ask
 - Posters, descriptions and episode names from TMDB when a key is set, matched on their own like Plex, with Match to fix a wrong one
 - Plays the file as it is when the device can, else streams it through ffmpeg with the sound or the picture converted, on the GPU where there is one
@@ -388,6 +388,7 @@ ffmpeg lives in its own container, `murmur-video` (`addons/video`, TypeScript on
 - Converting video is the one thing that can eat a whole server, so in its own container it gets its own `cpus` limit and GPU device, and can crash or restart without touching anything else. It can also run on another machine with a better GPU.
 - Unlike adscan, which pulls work from a queue, the add-on is a small HTTP server and Murmur its client, since a player can't wait on a queue. Its API (bearer `ADDON_SECRET`, request schemas in `packages/shared/src/video-addon.ts`): `GET /health`, `POST /probe`, `POST /still`, `POST /streams`, `GET /streams/:id/:file`, `DELETE /streams/:id`, `POST /downloads`, and `GET` and `DELETE /downloads/:id`. Stream and download files name their owner (Murmur's user id) in `x-murmur-owner`, and only that owner gets them.
 - Murmur's side is `server/watch/video-addon.ts`. The routes keep their auth and the video lookup (`videoSource` in `queries.ts`), and pass the bytes, ranges and errors (503 with `Retry-After`, 404) through to the player as they are. Murmur names files by their path, so both containers mount the folders at the same paths; a file the add-on can't see is a 404 saying so.
+- Murmur asks the add-on's `/health` at start and every 10 minutes while there are movie or show folders (the app asks Murmur every 10 minutes and when it comes to the front). While it doesn't answer, `enabled` is false in `/api/watch` and the You summary, so the web and the app hide Watch (its tab, stats and settings) rather than fail on it; `/api/health` still has `watch`, for the Video row. When it answers again, Watch comes back and a scan starts, since scans wait while it's away.
 - The add-on unreachable is a 503 to the player, a scan problem, and a warning Video row under You > Library, which otherwise says what converts video ("Working, converts video with an NVIDIA GPU"). The wording comes from the server, in `watch.status` of `/api/health`, so the web and the app say the same. A still that failed because the add-on was down is tried again on the next scan.
 - It's reachable only from Murmur; see Deployment.
 
@@ -406,9 +407,9 @@ ffmpeg lives in its own container, `murmur-video` (`addons/video`, TypeScript on
 Unlike books and music, Watch matches on its own, the way Plex does, since rips rarely carry good details.
 
 - **Source:** TMDB, with a free v3 key in `TMDB_API_KEY` (`TMDB_LANGUAGE`, default `en-US`). Without one, Watch uses local files only. Answers go through the 30-day provider cache, with the key kept out of it. TMDB's logo and notice show under You > Server while Watch is on, as their terms ask.
-- **When:** after each scan, for each movie and show not tried yet, one request at a time. A failed request is tried on the next scan; no good result marks it tried.
+- **When:** as a scan finds each new movie and show, beside the reading of files (it needs only the title and year), and again at the end for seasons found since. One request at a time, for each movie and show not tried yet. A failed request is tried on the next scan; no good result marks it tried.
 - **Finding it:** a TMDB id in the name (`{tmdb-603}`, `[tmdbid-603]`) is used as it is. Otherwise the title and year are searched, and the top result counts only when its title matches closely and its year is within one (exact title without a year).
-- **What it fills:** title, year and description unless an .nfo gave them; a poster and backdrop only where there's no local picture; and each episode's title, description and still (`tmdb_episodes`, keyed by show, season and episode, so a changed file keeps them). A TMDB still replaces a grabbed frame but not a `-thumb`.
+- **What it fills:** title, year and description unless an .nfo gave them; a poster and backdrop only where there's no local picture (one found later replaces TMDB's); and each episode's title, description and still (`tmdb_episodes`, keyed by show, season and episode, so a changed file keeps them). A TMDB still replaces a grabbed frame but not a `-thumb`.
 - **Match (admins):** Match… in the movie and show pages' More menu searches by title and year and applies a pick at once, replacing what came from TMDB and keeping your own files' details.
 
 **Playback**

@@ -6,6 +6,7 @@ import { ensureDefaultFolder, ensureMountedFolder, listFolders, saveFolders, typ
 import { createWatchScanner, type WatchScanner } from "./watch/scanner";
 import { createWatchMatcher, type WatchMatcher } from "./watch/match";
 import { createTmdb } from "./watch/tmdb";
+import { videoHealth, videoStatus } from "./watch/video-addon";
 import { fillArtistPhotos } from "./music/match";
 import { createMusicScanner, type MusicScanner } from "./music/scanner";
 import { createScanState, createScanner, type ScanState, type Scanner } from "./library/scanner";
@@ -40,6 +41,8 @@ export interface AppContext {
     folders: () => { movies: LibraryFolder[]; shows: LibraryFolder[] };
     /** Replaces the movies or shows folder list, restarts their watcher and starts a rescan. */
     saveFolders: (kind: "movies" | "shows", paths: string[]) => Promise<void>;
+    /** Whether the video add-on answered its last check (every 10 minutes while there are folders). */
+    addonUp: () => boolean;
     /** TMDB matching; null without a TMDB key. */
     matcher: WatchMatcher | null;
   };
@@ -196,16 +199,27 @@ async function boot(): Promise<AppContext> {
     });
   };
   let videoWatcher = startVideoWatch();
+  // Watch is shown only while the video add-on answers, so clients hide it rather than fail on it.
+  // Scans wait while it's away, so its coming back starts one.
+  let addonUp = false;
+  const checkAddon = async () => {
+    const { movies, shows } = watchFolders();
+    const up = movies.length + shows.length > 0 && videoStatus(await videoHealth()).problem === null;
+    if (up && !addonUp) void watchScanner.scan();
+    addonUp = up;
+  };
+  setInterval(() => void checkAddon(), 10 * 60_000).unref();
   const watch: AppContext["watch"] = {
     scanner: watchScanner,
     state: watchState,
     folders: watchFolders,
+    addonUp: () => addonUp,
     matcher,
     saveFolders: async (kind, paths) => {
       saveFolders(db, paths, kind);
       await videoWatcher.close();
       videoWatcher = startVideoWatch();
-      void watchScanner.scan();
+      void (addonUp ? watchScanner.scan() : checkAddon());
     },
   };
 
@@ -237,7 +251,7 @@ async function boot(): Promise<AppContext> {
 
   void scanner.scan(); // initial scans run in the background; the server is usable meanwhile
   void musicScanner.scan();
-  void watchScanner.scan();
+  void checkAddon(); // scans movies and shows once the add-on answers
   log.info("murmur started", {
     version: env.version,
     ms: Date.now() - started,

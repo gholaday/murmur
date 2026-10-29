@@ -17,6 +17,7 @@ import {
   type WatchHomeDto,
 } from "@murmur/shared/client";
 import { api } from "./api";
+import { useTabPrefs } from "./data";
 import { savedMovie, savedShow } from "./downloads";
 import { queryClient } from "./query";
 import { getJson, removeKey, setJson } from "./storage";
@@ -32,7 +33,12 @@ export const watchKeys = {
   show: (id: string) => ["watch", "show", id] as const,
 };
 
-export const useWatchHome = () => useQuery({ queryKey: watchKeys.home, queryFn: () => api<WatchHomeDto>(apiPaths.watchHome) });
+// Watch hides while the server's video add-on is down and comes back with it, so the tab bar asks again now and
+// then; not when you've turned Watch off on You > Tabs.
+export function useWatchHome() {
+  const shown = useTabPrefs().watch;
+  return useQuery({ queryKey: watchKeys.home, queryFn: () => api<WatchHomeDto>(apiPaths.watchHome), refetchInterval: shown ? 10 * 60_000 : false });
+}
 export const useMovies = (enabled = true) => useQuery({ queryKey: watchKeys.movies, queryFn: () => api<MovieSummary[]>(apiPaths.movies), enabled });
 export const useShows = (enabled = true) => useQuery({ queryKey: watchKeys.shows, queryFn: () => api<ShowSummary[]>(apiPaths.shows), enabled });
 // A downloaded movie or show opens from its saved details until (or unless) the server answers.

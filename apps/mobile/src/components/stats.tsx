@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Component, useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -42,7 +42,23 @@ const kindColor = (t: Theme, k: StatsKind) => (k === "book" ? t.accent : STAT_CO
 
 const BARS_HEIGHT = 112;
 
-const sumOf = (split: Record<StatsKind, number>, kinds: StatsKind[]) => kinds.reduce((s, k) => s + split[k], 0);
+// A kind the server leaves out counts as nothing, not NaN.
+const secOf = (split: Partial<Record<StatsKind, number>> | undefined, k: StatsKind) => split?.[k] ?? 0;
+const sumOf = (split: Partial<Record<StatsKind, number>> | undefined, kinds: StatsKind[]) => kinds.reduce((s, k) => s + secOf(split, k), 0);
+
+/** Something in the stats failing to draw leaves a line saying so, not a crashed You tab. */
+export class StatsBoundary extends Component<{ children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(err: unknown) {
+    console.error("Stats failed to draw", err);
+  }
+  render() {
+    return this.state.failed ? <Text variant="small">{"Couldn't load your stats."}</Text> : this.props.children;
+  }
+}
 
 function useStats(period: StatsPeriod) {
   // The device's own day and time zone, so "today" and "this week" are yours wherever the server is.
@@ -175,8 +191,8 @@ function Bars({ stats, kinds, now }: { stats: StatsDto; kinds: StatsKind[]; now:
             <View style={{ width: "100%", maxWidth: 56, flexDirection: "column-reverse", gap: 2, borderRadius: dense ? 2 : 6, overflow: "hidden" }}>
               {total > 0 ? (
                 kinds
-                  .filter((k) => b.split[k] > 0)
-                  .map((k) => <View key={k} style={{ height: Math.max(3, (b.split[k] / max) * BARS_HEIGHT), backgroundColor: kindColor(t, k) }} />)
+                  .filter((k) => secOf(b.split, k) > 0)
+                  .map((k) => <View key={k} style={{ height: Math.max(3, (secOf(b.split, k) / max) * BARS_HEIGHT), backgroundColor: kindColor(t, k) }} />)
               ) : (
                 <View style={{ height: 3, backgroundColor: t.track }} />
               )}
@@ -230,7 +246,7 @@ function Legend({ split, kinds, picked, onPick }: { split: StatsDto["split"]; ki
           <Text variant="bodyStrong" numberOfLines={1} style={{ flex: 1, fontSize: 14 }}>
             {KIND_LABEL[k]}
           </Text>
-          <Text style={{ fontFamily: fonts.semibold, fontSize: 13, color: t.text2 }}>{duration(split[k]) || "0m"}</Text>
+          <Text style={{ fontFamily: fonts.semibold, fontSize: 13, color: t.text2 }}>{duration(secOf(split, k)) || "0m"}</Text>
         </Pressable>
       ))}
     </Grid>
@@ -268,7 +284,7 @@ function tiles(s: StatsDto, picked: StatsKind | null, kinds: StatsKind[], today:
         : [{ key: "watched", value: watched || "0 episodes", label: "Watched" }],
   };
   if (picked) {
-    return [...counts[picked], { key: "avg", value: duration(dailyAverage(s.split[picked], s, today)) || "0m", label: "Daily average" }];
+    return [...counts[picked], { key: "avg", value: duration(dailyAverage(secOf(s.split, picked), s, today)) || "0m", label: "Daily average" }];
   }
   return [
     { key: "streak", value: plural(s.streakDays, "day"), label: "Streak" },

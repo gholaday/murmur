@@ -14,8 +14,15 @@ function run(cmd: string, args: string[], opts: { timeoutMs: number; input?: Buf
       { timeout: opts.timeoutMs, maxBuffer: 32 * 1024 * 1024, encoding: "buffer", windowsHide: true },
       (err, stdout, stderr) => {
         if (err) {
+          // Its last line usually says what's wrong; with none, say how it ended rather than repeat the command.
           const detail = stderr.toString().trim().split("\n").at(-1);
-          reject(new Error(detail || err.message));
+          const name = cmd.split(/[\\/]/).at(-1);
+          const ended = err.killed
+            ? `${name} took over ${opts.timeoutMs / 1000} s and was stopped`
+            : err.signal
+              ? `${name} was stopped by ${err.signal}`
+              : `${name} exited with code ${err.code}`;
+          reject(new Error(detail || ended));
         } else resolve(stdout);
       },
     );

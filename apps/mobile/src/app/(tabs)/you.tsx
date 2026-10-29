@@ -7,7 +7,7 @@ import { PAD } from "@/components/library";
 import { PageTitle, useTopInset } from "@/components/page";
 import { Card, useEpisodeCache, useHealth, useServerVersion, useUsers } from "@/components/settings";
 import { NavRow } from "@/components/settings-page";
-import { LibraryTiles, ListeningStats } from "@/components/stats";
+import { LibraryTiles, ListeningStats, StatsBoundary } from "@/components/stats";
 import { CardLink, Segmented } from "@/components/ui";
 import { formatBytes, useDownloads } from "@/lib/downloads";
 import { useSession } from "@/lib/session";
@@ -41,8 +41,10 @@ export default function You() {
 
         {view === "stats" ? (
           <View style={{ marginTop: 24 }}>
-            <ListeningStats />
-            <LibraryTiles />
+            <StatsBoundary>
+              <ListeningStats />
+              <LibraryTiles />
+            </StatsBoundary>
           </View>
         ) : (
           <View style={{ marginTop: 16 }}>

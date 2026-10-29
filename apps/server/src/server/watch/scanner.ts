@@ -174,6 +174,8 @@ export function createWatchScanner(deps: WatchScannerDeps) {
         const title = nfo?.title ?? named.title;
         const detailsLocal = nfo?.title ? 1 : 0;
         insertParent[table].run(id, folder.id, relPath, title, sortTitle(title), nfo?.year ?? named.year, nfo?.plot ?? null, detailsLocal, now, now);
+        // Matching needs only the title and year, so it starts now rather than after every file is read.
+        deps.matchPending?.().catch((err) => log.warn("matching failed", { error: errorMessage(err) }));
         return id;
       })();
       pendingParents.set(key, pending);
@@ -269,14 +271,29 @@ export function createWatchScanner(deps: WatchScannerDeps) {
     const images = (folderId: number, dir: string) =>
       (extrasByFolder.get(folderId)?.get(dir) ?? []).filter((n) => IMAGE_EXTENSIONS.has(extname(n)));
 
-    const setParentArt = {
-      shows: sqlite.prepare("UPDATE shows SET poster_hash = COALESCE(?, poster_hash), backdrop_hash = COALESCE(?, backdrop_hash) WHERE id = ?"),
-      movies: sqlite.prepare("UPDATE movies SET poster_hash = COALESCE(?, poster_hash), backdrop_hash = COALESCE(?, backdrop_hash) WHERE id = ?"),
-    };
+    // Local art wins over TMDB's, which matching may have put there first.
+    const setParentArt = (table: "shows" | "movies") =>
+      sqlite.prepare(
+        `UPDATE ${table} SET poster_hash = COALESCE(?1, poster_hash), poster_tmdb = CASE WHEN ?1 IS NOT NULL THEN 0 ELSE poster_tmdb END,
+           backdrop_hash = COALESCE(?2, backdrop_hash), backdrop_tmdb = CASE WHEN ?2 IS NOT NULL THEN 0 ELSE backdrop_tmdb END
+         WHERE id = ?3`,
+      );
     for (const table of ["shows", "movies"] as const) {
       const parents = sqlite
-        .prepare(`SELECT id, folder_id, rel_path, poster_hash, backdrop_hash FROM ${table} WHERE folder_id IS NOT NULL AND (poster_hash IS NULL OR backdrop_hash IS NULL)`)
-        .all() as Array<{ id: string; folder_id: number; rel_path: string; poster_hash: string | null; backdrop_hash: string | null }>;
+        .prepare(
+          `SELECT id, folder_id, rel_path, poster_hash, backdrop_hash, poster_tmdb, backdrop_tmdb FROM ${table}
+           WHERE folder_id IS NOT NULL AND (poster_hash IS NULL OR backdrop_hash IS NULL OR poster_tmdb = 1 OR backdrop_tmdb = 1)`,
+        )
+        .all() as Array<{
+        id: string;
+        folder_id: number;
+        rel_path: string;
+        poster_hash: string | null;
+        backdrop_hash: string | null;
+        poster_tmdb: number;
+        backdrop_tmdb: number;
+      }>;
+      const setArt = setParentArt(table);
       for (const p of parents) {
         const root = roots.get(p.folder_id);
         if (!root) continue;
@@ -285,11 +302,11 @@ export function createWatchScanner(deps: WatchScannerDeps) {
         const dir = loose ? dirOf(p.rel_path) : p.rel_path;
         const fileStem = loose ? stem(path.posix.basename(p.rel_path)) : null;
         const names = images(p.folder_id, dir);
-        const posterName = p.poster_hash ? null : pickArt(names, loose ? [`${fileStem}-poster`] : ART_NAMES.poster(null));
-        const backdropName = p.backdrop_hash ? null : pickArt(names, loose ? [`${fileStem}-fanart`] : ART_NAMES.backdrop(null));
+        const posterName = p.poster_hash && !p.poster_tmdb ? null : pickArt(names, loose ? [`${fileStem}-poster`] : ART_NAMES.poster(null));
+        const backdropName = p.backdrop_hash && !p.backdrop_tmdb ? null : pickArt(names, loose ? [`${fileStem}-fanart`] : ART_NAMES.backdrop(null));
         const poster = posterName ? await storeImage(root, dir, posterName, "poster") : null;
         const backdrop = backdropName ? await storeImage(root, dir, backdropName, "wide") : null;
-        if (poster || backdrop) setParentArt[table].run(poster, backdrop, p.id);
+        if (poster || backdrop) setArt.run(poster, backdrop, p.id);
       }
     }
 
