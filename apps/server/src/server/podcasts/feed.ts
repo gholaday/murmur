@@ -30,10 +30,46 @@ const parser = new XMLParser({
   parseTagValue: false,
   parseAttributeValue: false,
   trimValues: true,
-  processEntities: true,
+  // A feed can declare its own entities; a few small ones only, so references can't balloon into gigabytes.
+  processEntities: { maxEntityCount: 16, maxEntitySize: 1024, maxTotalExpansions: 1000, maxExpandedLength: 100_000 },
   htmlEntities: true,
   isArray: (name) => name === "item" || name === "outline",
 });
+
+/** Types an episode's audio may be served as. Anything else a feed claims is served as MP3 instead of trusted. */
+const AUDIO_TYPES = new Set([
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/mp4",
+  "audio/x-m4a",
+  "audio/m4a",
+  "audio/aac",
+  "audio/aacp",
+  "audio/ogg",
+  "audio/opus",
+  "audio/flac",
+  "audio/x-flac",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/webm",
+]);
+
+/** The feed's enclosure type if it's an audio type Murmur knows, else null. Also applied when serving older rows. */
+export function audioMimeType(type: string | null | undefined): string | null {
+  const clean = type?.split(";")[0]?.trim().toLowerCase() ?? "";
+  return AUDIO_TYPES.has(clean) ? clean : null;
+}
+
+/** An http(s) address from a feed, or null for anything else (javascript:, data:, a bare path). */
+function httpUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:" ? value : null;
+  } catch {
+    return null;
+  }
+}
 
 export function parseXml(xml: string): unknown {
   return parser.parse(xml);
@@ -107,7 +143,7 @@ export function parseFeed(xml: string): ParsedFeed {
   const items = (channel.item as Node[] | undefined) ?? [];
   const episodes: ParsedEpisode[] = [];
   for (const item of items) {
-    const audioUrl = attr(item.enclosure, "url");
+    const audioUrl = httpUrl(attr(item.enclosure, "url"));
     if (!audioUrl) continue; // not an audio episode
     const published = Date.parse(text(item.pubDate) ?? "");
     const itemTitle = text(item.title) ?? text(item["itunes:title"]) ?? "Untitled episode";
@@ -118,9 +154,9 @@ export function parseFeed(xml: string): ParsedFeed {
       publishedAt: Number.isFinite(published) ? published : 0,
       durationSec: parseDuration(text(item["itunes:duration"])),
       audioUrl,
-      mimeType: attr(item.enclosure, "type"),
+      mimeType: audioMimeType(attr(item.enclosure, "type")),
       sizeBytes: int(attr(item.enclosure, "length")) || null,
-      imageUrl: attr(item["itunes:image"], "href"),
+      imageUrl: httpUrl(attr(item["itunes:image"], "href")),
       season: int(text(item["itunes:season"])),
       episodeNumber: int(text(item["itunes:episode"])),
     });
@@ -130,8 +166,8 @@ export function parseFeed(xml: string): ParsedFeed {
     title,
     author: text(channel["itunes:author"]) ?? text(channel.author) ?? text(channel.managingEditor),
     description: htmlToText(text(channel.description) ?? text(channel["itunes:summary"])),
-    link: text(channel.link),
-    imageUrl: attr(channel["itunes:image"], "href") ?? text((channel.image as Node | undefined)?.url),
+    link: httpUrl(text(channel.link)),
+    imageUrl: httpUrl(attr(channel["itunes:image"], "href") ?? text((channel.image as Node | undefined)?.url)),
     episodes,
   };
 }

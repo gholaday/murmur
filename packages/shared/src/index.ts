@@ -669,9 +669,14 @@ export interface ServerVersionDto {
   updates: { checked: boolean; update: { latest: string; url: string } | null } | null;
 }
 
-export interface HealthDto {
+/** What `GET /api/health` tells anyone: enough for Docker's check and to recognise a Murmur server. */
+export interface HealthProbeDto {
   ok: boolean;
   version: string;
+}
+
+/** `GET /api/health` for someone signed in. */
+export interface HealthDto extends HealthProbeDto {
   uptimeSec: number;
   database: boolean;
   library: { reachable: boolean; books: number };

@@ -39,8 +39,9 @@ Groq key, transcription stays on your server and only text leaves it.
 | `GROQ_AUDIO_PER_HOUR` / `GROQ_AUDIO_PER_DAY` | 7200 / 28800 | Seconds of audio, Groq's free-tier limits. Raise them on a paid plan |
 | `CHUNK_MINUTES` | 30 | Transcript piece length |
 
-Mount Murmur's cache folder read-only at `/cache`, and a folder for the add-on's own state at
-`/state` (transcripts in progress, so a restart doesn't redo work).
+Mount Murmur's cache folder read-only at `/cache`, and a folder of its own for the add-on's state at
+`/state` (transcripts in progress, so a restart doesn't redo work). It runs as `PUID`:`PGID` (1000
+by default), like Murmur, so set the same values.
 
 ## When things go wrong
 

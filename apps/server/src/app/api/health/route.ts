@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
-import type { HealthDto } from "@murmur/shared";
+import type { HealthDto, HealthProbeDto } from "@murmur/shared";
 import { adsEnabled } from "@/server/ads";
+import { tokenFromRequest, userFromToken } from "@/server/auth";
 import { getContext } from "@/server/context";
 import { env } from "@/server/env";
 import { watchEnabled } from "@/server/watch/queries";
@@ -26,7 +27,7 @@ async function watchHealth(ctx: Awaited<ReturnType<typeof getContext>>): Promise
   };
 }
 
-export async function GET(): Promise<Response> {
+export async function GET(req: Request): Promise<Response> {
   let ctx;
   try {
     ctx = await getContext();
@@ -41,6 +42,16 @@ export async function GET(): Promise<Response> {
   } catch {
     database = false;
   }
+  const headers = { "Cache-Control": "no-store" };
+  // Docker's check and the app's "is this a Murmur server?" send no token and need only this. The
+  // rest (counts, paths in scan errors, what's set up) is for people signed in. A token that no
+  // longer works is a 401, as everywhere else, so a signed-out client never reads the short answer
+  // as the full one.
+  const found = tokenFromRequest(req);
+  if (!found) {
+    return Response.json({ ok: database, version: env.version } satisfies HealthProbeDto, { status: database ? 200 : 503, headers });
+  }
+  if (!userFromToken(ctx, found.token)) return Response.json({ error: "Sign in to continue." }, { status: 401, headers });
   // Reachable only when every library folder can be opened.
   const folders = ctx.library.folders();
   const access = await Promise.all(folders.map((f) => fs.access(f.path).then(() => true, () => false)));
@@ -64,5 +75,5 @@ export async function GET(): Promise<Response> {
   };
   // Only a broken database makes the container unhealthy; an unreachable library is
   // reported but restarting the container would not fix a share that isn't mounted.
-  return Response.json(body, { status: database ? 200 : 503, headers: { "Cache-Control": "no-store" } });
+  return Response.json(body, { status: database ? 200 : 503, headers });
 }

@@ -4,7 +4,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { env } from "../env";
 import { HttpError } from "../http";
-import { coverColor, saveCoverMeta } from "../library/covers";
+import { coverColor, MAX_INPUT_PIXELS, saveCoverMeta } from "../library/covers";
 
 // Posters (2:3) and wide pictures (16:9: backdrops and stills), stored beside the square covers
 // in the covers folder and served the same way. Only the shape and sizes differ.
@@ -34,7 +34,7 @@ export async function storeArt(coversDir: string, source: Buffer, shape: ArtShap
     .digest("hex")
     .slice(0, 16);
   await fs.mkdir(coversDir, { recursive: true });
-  let image = sharp(source, { failOn: "none" }).rotate();
+  let image = sharp(source, { failOn: "none", limitInputPixels: MAX_INPUT_PIXELS }).rotate();
   if (opts.trimBars) {
     // Re-decoded from the trimmed pixels, since sharp can't trim and then resize in one pipeline.
     const trimmed = await image.clone().trim({ background: "#000000", threshold: 24 }).toBuffer().catch(() => null);

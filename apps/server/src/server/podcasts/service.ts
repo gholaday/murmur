@@ -4,6 +4,7 @@ import { HttpError } from "../http";
 import { storeCover } from "../library/covers";
 import { createLimiter } from "../library/probe";
 import { errorMessage, type Logger } from "../log";
+import { readCapped, safeFetch } from "../safe-fetch";
 import { FeedParseError, parseFeed, type ParsedFeed } from "./feed";
 
 interface Deps {
@@ -16,10 +17,18 @@ interface Deps {
 
 const FEED_TIMEOUT_MS = 15_000;
 const MAX_FEED_BYTES = 25 * 1024 * 1024;
+const MAX_ARTWORK_BYTES = 20 * 1024 * 1024;
 const MAX_BACKOFF_MS = 24 * 60 * 60 * 1000;
 const PREVIEW_CACHE_MS = 10 * 60_000;
 
 const newId = () => crypto.randomBytes(9).toString("base64url");
+const feedHost = (url: string) => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "?";
+  }
+};
 
 type FetchResult = { kind: "not-modified" } | { kind: "ok"; feed: ParsedFeed; etag: string | null; lastModified: string | null };
 
@@ -47,22 +56,25 @@ export function createPodcastService(deps: Deps) {
     };
     if (etag) headers["If-None-Match"] = etag;
     if (lastModified) headers["If-Modified-Since"] = lastModified;
-    const res = await fetch(url, { headers, redirect: "follow", signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
+    const res = await safeFetch(url, { headers, signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
     if (res.status === 304) return { kind: "not-modified" };
-    if (!res.ok) throw new Error(`Feed server answered ${res.status} ${res.statusText}`);
-    const length = Number(res.headers.get("content-length") ?? 0);
-    if (length > MAX_FEED_BYTES) throw new Error("Feed is too large.");
-    const xml = await res.text();
-    if (xml.length > MAX_FEED_BYTES) throw new Error("Feed is too large.");
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => undefined);
+      throw new Error(`Feed server answered ${res.status}`);
+    }
+    const xml = (await readCapped(res, MAX_FEED_BYTES, "The feed")).toString("utf8");
     return { kind: "ok", feed: parseFeed(xml), etag: res.headers.get("etag"), lastModified: res.headers.get("last-modified") };
   }
 
   async function cacheArtwork(podcastId: string, imageUrl: string | null, currentHash: string | null) {
     if (!imageUrl) return;
     try {
-      const res = await fetch(imageUrl, { signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
-      if (!res.ok) throw new Error(`image request answered ${res.status}`);
-      const hash = await storeCover(deps.coversDir, Buffer.from(await res.arrayBuffer()));
+      const res = await safeFetch(imageUrl, { signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
+      if (!res.ok) {
+        await res.body?.cancel().catch(() => undefined);
+        throw new Error(`image request answered ${res.status}`);
+      }
+      const hash = await storeCover(deps.coversDir, await readCapped(res, MAX_ARTWORK_BYTES, "The artwork"));
       if (hash !== currentHash) sqlite.prepare("UPDATE podcasts SET cover_hash = ? WHERE id = ?").run(hash, podcastId);
     } catch (err) {
       log.warn("podcast artwork not cached", { podcastId, error: errorMessage(err) });
@@ -141,7 +153,8 @@ export function createPodcastService(deps: Deps) {
       sqlite
         .prepare("UPDATE podcasts SET last_checked_at = ?, last_error = ?, failure_count = failure_count + 1 WHERE id = ?")
         .run(Date.now(), message, podcastId);
-      log.warn("feed check failed", { podcastId, feed: row.feed_url, error: message, failures: row.failure_count + 1 });
+      // The host only: private feeds carry the subscriber's token in the URL, which doesn't belong in a log.
+      log.warn("feed check failed", { podcastId, host: feedHost(row.feed_url), error: message, failures: row.failure_count + 1 });
     }
   }
 

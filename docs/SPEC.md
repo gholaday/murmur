@@ -163,7 +163,7 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | Admin | `GET/POST/DELETE /users`, `GET/PUT /library/folders`, `POST /library/folders/check`, `GET /library/browse?path=` |
 | Episode cache and ads | `GET /episodes/:id/ads`; admin: `GET/PUT /server/cache`, `POST /server/ads/retry` |
 | Add-on (shared secret) | `POST /addon/ads/next`, `POST /addon/ads/:fileId`, `POST /addon/status` |
-| Health | `GET /health` (no auth): database, library, scan and watcher status, version, and whether ad detection is on |
+| Health | `GET /health`: `ok` and the version with no token (Docker's check, the app recognising a server); signed in, also database, library, scan and watcher status, the add-ons and the video status. A token that no longer works gets a 401, so a client never reads the short answer as the full one |
 
 Conflicts in progress sync resolve to the most recent update by timestamp, so listening offline on the phone and then online in the browser keeps the newer position.
 
@@ -204,7 +204,8 @@ The bar is high: every screen opens instantly, playback starts in about a second
 - **Survive a storage hiccup.** If a library folder is empty or unreachable, the scanner leaves its books alone and reports the problem in Settings; the other folders still scan. Missing books are marked missing and only hidden after 7 days. Removing a folder in Settings removes its books on the next scan, unless they turn up in another folder, which keeps their progress.
 - **Safe updates.** Migrations run in a transaction after copying the database to `/data/backups`; a failed migration rolls back and the old image still works.
 - **Nightly backup** of the database to `/data/backups`, keeping the last 7.
-- **Health check.** `/api/health` reports database, library mount and job status for Docker's health check. A fatal error exits the process so the restart policy brings it back.
+- **Health check.** `/api/health` answers `ok` and the version to anyone, for Docker's health check; the library, scan and add-on details are only for someone signed in, since scan errors name folders. A fatal error exits the process so the restart policy brings it back.
+- **Addresses people give Murmur** (feeds, their audio and artwork, a cover URL) go through `safeFetch` (`server/safe-fetch.ts`): the host is looked up and refused when it points at the server itself (loopback, link-local) or, unless `FETCH_ALLOW_PRIVATE` is set, its LAN; every redirect is checked the same way; bodies are read up to a cap. Feed enclosure types are kept only from a list of audio types, so nothing a feed says is ever served as a page, and every response carries `nosniff`. Sign-in failures are limited per name and per address, and a session unused for over a year ends on the server too.
 - **Clean shutdown.** On stop, pending writes are flushed and the database closed, so a redeploy can't corrupt it.
 - **Podcast feeds are isolated.** Each check has a 15 s timeout, retries with backoff, and uses conditional requests; one broken feed never blocks the rest.
 - **Bounded logs**: one JSON line per event to stdout, rotated by Docker's log settings.

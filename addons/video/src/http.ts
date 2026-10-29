@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import path from "node:path";
 import { cameThroughProxy, parseRange } from "@murmur/shared";
 import { ZodError, type ZodType } from "zod";
 import { env } from "./env";
@@ -62,9 +63,29 @@ export function requireSecret(req: IncomingMessage) {
   if (!env.addonSecret || a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new HttpError(401, "Wrong add-on secret.");
 }
 
+/**
+ * A file Murmur named: an absolute path on this machine, and only that. ffmpeg would also take
+ * `http://`, `concat:` and friends, which nothing here should ever be asked to open. A single
+ * letter before the colon is a Windows drive, not a scheme.
+ */
+export function libraryFile(file: string): string {
+  if (!path.isAbsolute(file) || /^[a-z][a-z0-9+.-]+:/i.test(file) || file.includes("\0")) {
+    throw new HttpError(400, "The file must be an absolute path on this machine.");
+  }
+  return path.normalize(file);
+}
+
+/** Murmur's requests are small; anything bigger isn't one of them. */
+const MAX_BODY_BYTES = 1024 * 1024;
+
 export async function readJson<T>(req: IncomingMessage, schema: ZodType<T>): Promise<T> {
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > MAX_BODY_BYTES) throw new HttpError(413, "Request body is too large.");
+    chunks.push(chunk as Buffer);
+  }
   let raw: unknown;
   try {
     raw = JSON.parse(Buffer.concat(chunks).toString("utf8"));

@@ -5,6 +5,7 @@ import type { AppContext } from "../context";
 import { env } from "../env";
 import { HttpError } from "../http";
 import { storeCover } from "../library/covers";
+import { readCapped, safeFetch } from "../safe-fetch";
 
 // Hand edits share book_overrides with Match: a null column means "use the files", an empty
 // string clears the field. Editing never touches the provider columns, so a match stays a match.
@@ -186,14 +187,13 @@ export async function setCover(ctx: AppContext, bookId: string, image: Buffer) {
 export async function setCoverFromUrl(ctx: AppContext, bookId: string, url: string) {
   let res: Response;
   try {
-    res = await fetch(url, { signal: AbortSignal.timeout(20_000), headers: { "User-Agent": `Murmur/${env.version}` } });
-  } catch {
+    res = await safeFetch(url, { signal: AbortSignal.timeout(20_000), headers: { "User-Agent": `Murmur/${env.version}` } });
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
     throw new HttpError(400, "Couldn't download that image.");
   }
   if (!res.ok) throw new HttpError(400, `Couldn't download that image (the site answered ${res.status}).`);
-  const length = Number(res.headers.get("content-length") ?? 0);
-  if (length > MAX_COVER_BYTES) throw new HttpError(400, "That image is over 20 MB.");
-  await setCover(ctx, bookId, Buffer.from(await res.arrayBuffer()));
+  await setCover(ctx, bookId, await readCapped(res, MAX_COVER_BYTES, "That image"));
 }
 
 /** Goes back to the cover found in the files. */

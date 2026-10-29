@@ -1,4 +1,4 @@
-import type { OpmlImportResult } from "@murmur/shared";
+import { type OpmlImportResult, subscribeSchema } from "@murmur/shared";
 import { requireUser } from "@/server/auth";
 import { getContext } from "@/server/context";
 import { HttpError, json, route } from "@/server/http";
@@ -18,12 +18,15 @@ export const GET = route(async (req) => {
   });
 });
 
+const MAX_OPML_BYTES = 5 * 1024 * 1024;
+
 /** Import an OPML file (send the file's text as the request body). */
 export const POST = route(async (req) => {
   const ctx = await getContext();
   const user = requireUser(ctx, req);
+  if (Number(req.headers.get("content-length") ?? 0) > MAX_OPML_BYTES) throw new HttpError(413, "OPML file is too large.");
   const body = await req.text();
-  if (body.length > 5 * 1024 * 1024) throw new HttpError(413, "OPML file is too large.");
+  if (body.length > MAX_OPML_BYTES) throw new HttpError(413, "OPML file is too large.");
   let feeds;
   try {
     feeds = parseOpml(body);
@@ -34,8 +37,14 @@ export const POST = route(async (req) => {
 
   const result: OpmlImportResult = { added: 0, alreadySubscribed: 0, failed: [] };
   for (const f of feeds) {
+    // The same rules as subscribing by hand: http or https, and not absurdly long.
+    const checked = subscribeSchema.safeParse({ feedUrl: f.feedUrl });
+    if (!checked.success) {
+      result.failed.push({ feedUrl: f.feedUrl.slice(0, 200), error: "Not an http or https address." });
+      continue;
+    }
     try {
-      const { created } = await ctx.podcasts.subscribe(user.id, f.feedUrl);
+      const { created } = await ctx.podcasts.subscribe(user.id, checked.data.feedUrl);
       if (created) result.added++;
       else result.alreadySubscribed++;
     } catch (err) {

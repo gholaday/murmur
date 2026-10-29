@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { parseDuration, parseFeed, parseOpml } from "./feed";
+import { audioMimeType, parseDuration, parseFeed, parseOpml } from "./feed";
 
 it("parses itunes:duration in every format feeds use", () => {
   expect(parseDuration("1:02:03")).toBe(3723);
@@ -50,4 +50,28 @@ it("finds feeds nested in OPML folders", () => {
     <outline text="B" xmlUrl="https://b.example/feed"/>
   </body></opml>`);
   expect(feeds.map((f) => f.feedUrl)).toEqual(["https://a.example/feed", "https://b.example/feed"]);
+});
+
+it("keeps only audio types from an enclosure, so a feed can't choose how its file is served", () => {
+  expect(audioMimeType("audio/mpeg")).toBe("audio/mpeg");
+  expect(audioMimeType("Audio/MP4; codecs=mp4a")).toBe("audio/mp4");
+  expect(audioMimeType("text/html")).toBeNull();
+  expect(audioMimeType(null)).toBeNull();
+});
+
+it("drops enclosure and image addresses that aren't http(s)", () => {
+  const feed = parseFeed(`<rss><channel><title>T</title>
+    <item><title>a</title><enclosure url="javascript:alert(1)" type="audio/mpeg"/></item>
+    <item><title>b</title><enclosure url="https://x.test/b.mp3" type="text/html"/><itunes:image href="data:image/png;base64,AA"/></item>
+  </channel></rss>`);
+  expect(feed.episodes).toHaveLength(1);
+  expect(feed.episodes[0]).toMatchObject({ audioUrl: "https://x.test/b.mp3", mimeType: null, imageUrl: null });
+});
+
+it("refuses a feed whose own entities are big enough to balloon", () => {
+  const big = "A".repeat(5000);
+  const xml = `<!DOCTYPE rss [<!ENTITY e "${big}">]><rss><channel><title>&e;&e;</title></channel></rss>`;
+  expect(() => parseFeed(xml)).toThrow();
+  const small = `<!DOCTYPE rss [<!ENTITY e "ok">]><rss><channel><title>&e;</title></channel></rss>`;
+  expect(parseFeed(small).title).toBe("ok");
 });

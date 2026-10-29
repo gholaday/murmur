@@ -3,6 +3,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { parseRange } from "@murmur/shared";
 import { HttpError } from "./http";
+import { safeFetch } from "./safe-fetch";
 
 /** Joins a stored relative path onto the library root, refusing anything that escapes it. */
 export function resolveInside(root: string, relPath: string): string {
@@ -131,8 +132,9 @@ export async function proxyStream(req: Request, url: string, mimeType: string, u
   if (range) headers.Range = range;
   let upstream: Response;
   try {
-    upstream = await fetch(url, { method: req.method === "HEAD" ? "HEAD" : "GET", headers, signal: req.signal, redirect: "follow" });
-  } catch {
+    upstream = await safeFetch(url, { method: req.method === "HEAD" ? "HEAD" : "GET", headers, signal: req.signal });
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
     throw new HttpError(502, "Couldn't reach the podcast's audio host.");
   }
   if (!upstream.ok && upstream.status !== 416) {
@@ -144,8 +146,10 @@ export async function proxyStream(req: Request, url: string, mimeType: string, u
     const value = upstream.headers.get(name);
     if (value) out.set(name, value);
   }
-  // Hosts sometimes label audio as octet-stream, which some players refuse.
+  // Hosts sometimes label audio as octet-stream, which some players refuse. Only an audio type
+  // of theirs is kept, so nothing relayed is ever served as a page.
   const type = out.get("content-type");
   if (!type || !/^audio\//.test(type)) out.set("content-type", mimeType);
+  out.set("X-Content-Type-Options", "nosniff");
   return new Response(req.method === "HEAD" ? null : upstream.body, { status: upstream.status, headers: out });
 }

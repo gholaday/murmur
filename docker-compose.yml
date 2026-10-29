@@ -55,6 +55,8 @@ services:
   #     murmur:
   #       condition: service_healthy
   #   environment:
+  #     - PUID=1000
+  #     - PGID=1000
   #     - MURMUR_URL=http://murmur:3000
   #     - ADDON_SECRET=change-me-to-a-long-random-string
   #     - GEMINI_API_KEY=your-gemini-key

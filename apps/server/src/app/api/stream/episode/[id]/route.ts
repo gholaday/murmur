@@ -2,6 +2,7 @@ import { requireUser } from "@/server/auth";
 import { getContext } from "@/server/context";
 import { env } from "@/server/env";
 import { HttpError, route } from "@/server/http";
+import { audioMimeType } from "@/server/podcasts/feed";
 import { getEpisodeForUser } from "@/server/podcasts/queries";
 import { proxyStream, streamFile, streamGrowing } from "@/server/stream";
 
@@ -17,9 +18,10 @@ const handler = route<{ params: Promise<{ id: string }> }>(async (req, { params 
   const ep = getEpisodeForUser(ctx.sqlite, id, user.id);
   if (!ep) throw new HttpError(404, "Episode not found.");
   const cached = await ctx.episodeCache.open(id).catch(() => null);
-  if (cached?.kind === "ready") return streamFile(req, cached.file, cached.mimeType);
-  if (cached?.kind === "growing") return streamGrowing(req, cached.file, cached.download, cached.mimeType);
-  return proxyStream(req, ep.audioUrl, ep.mimeType ?? "audio/mpeg", `Murmur/${env.version}`);
+  // The type comes from the feed; rows from before types were checked are checked here instead.
+  if (cached?.kind === "ready") return streamFile(req, cached.file, audioMimeType(cached.mimeType) ?? "audio/mpeg");
+  if (cached?.kind === "growing") return streamGrowing(req, cached.file, cached.download, audioMimeType(cached.mimeType) ?? "audio/mpeg");
+  return proxyStream(req, ep.audioUrl, audioMimeType(ep.mimeType) ?? "audio/mpeg", `Murmur/${env.version}`);
 });
 
 export const GET = handler;

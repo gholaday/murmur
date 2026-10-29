@@ -59,4 +59,6 @@ export const env = {
   episodeCacheMaxBytes: intEnv("EPISODE_CACHE_MAX_GB", 20) * 1024 ** 3,
   /** Shared with the add-ons: ad detection's endpoints are off unless this is set, and the video add-on needs it. */
   addonSecret: process.env.ADDON_SECRET ?? "",
+  /** Lets feeds, episodes and cover URLs point at private LAN addresses (a home server). The server's own addresses are always refused. */
+  fetchAllowPrivate: process.env.FETCH_ALLOW_PRIVATE === "true",
 };

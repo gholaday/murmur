@@ -9,6 +9,8 @@ import { HttpError } from "./http";
 export const SESSION_COOKIE = "murmur_session";
 export const SESSION_MAX_AGE_SEC = 400 * 24 * 60 * 60; // browsers cap cookies at 400 days
 const TOUCH_INTERVAL_MS = 60 * 60 * 1000;
+/** A session unused for this long (the cookie's own life) is over on the server too, so a leaked token doesn't last forever. */
+const SESSION_IDLE_MS = SESSION_MAX_AGE_SEC * 1000;
 
 const sha256 = (s: string) => crypto.createHash("sha256").update(s).digest("hex");
 
@@ -40,6 +42,8 @@ export function toUserDto(u: { id: number; username: string; isAdmin: boolean })
 export function createSession(ctx: AppContext, userId: number, kind: "web" | "app", deviceName?: string): string {
   const token = crypto.randomBytes(32).toString("base64url");
   const now = Date.now();
+  // Sessions nobody has used in over a year go, so the table doesn't keep every device ever signed in.
+  ctx.sqlite.prepare("DELETE FROM sessions WHERE last_used_at < ?").run(now - SESSION_IDLE_MS);
   ctx.db
     .insert(sessions)
     .values({ id: sha256(token), userId, kind, deviceName: deviceName ?? null, createdAt: now, lastUsedAt: now })
@@ -66,6 +70,10 @@ export function userFromToken(ctx: AppContext, token: string): UserDto | null {
     .get();
   if (!row) return null;
   const now = Date.now();
+  if (now - row.lastUsedAt > SESSION_IDLE_MS) {
+    ctx.db.delete(sessions).where(eq(sessions.id, id)).run();
+    return null;
+  }
   if (now - row.lastUsedAt > TOUCH_INTERVAL_MS) {
     ctx.db.update(sessions).set({ lastUsedAt: now }).where(eq(sessions.id, id)).run();
   }

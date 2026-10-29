@@ -67,6 +67,7 @@ All optional.
 | `AUDIBLE_REGION` | `us` | Store used by Match: `us`, `uk`, `ca`, `au`, `de`, `fr`, `it`, `es`, `in`, `jp` |
 | `GOOGLE_BOOKS_API_KEY` | | Optional, free from the [Google Cloud console](https://console.cloud.google.com/apis/library/books.googleapis.com) (enable the Books API, then create an API key). Without one, Match shares Google's small per-address quota and may be told to wait |
 | `FEED_CHECK_MINUTES` | `30` | How often each podcast feed is checked; new episodes are downloaded right after |
+| `FETCH_ALLOW_PRIVATE` | `false` | Set `true` when podcast feeds or cover URLs live on your own LAN (a home server). The server's own addresses are always refused |
 | `WATCH_POLLING` | `false` | Set `true` for network mounts that don't report file changes |
 | `WATCH_DEBOUNCE_SECONDS` | `30` | Wait after the last file change before rescanning |
 | `PERIODIC_SCAN_MINUTES` | `360` | Safety-net rescan interval |

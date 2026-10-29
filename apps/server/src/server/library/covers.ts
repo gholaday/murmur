@@ -135,6 +135,9 @@ export async function coverColors(coversDir: string, hashes: Iterable<string | n
  * Resizes a source image once into every served size and returns its content hash.
  * Identical source images share files, and existing outputs are not rewritten.
  */
+/** A small file can still be a huge picture (a 20,000-pixel square decodes to over a gigabyte); past this, sharp refuses. */
+export const MAX_INPUT_PIXELS = 40_000_000;
+
 export async function storeCover(coversDir: string, source: Buffer): Promise<string> {
   const hash = crypto.createHash("sha1").update(source).digest("hex").slice(0, 16);
   await fs.mkdir(coversDir, { recursive: true });
@@ -143,7 +146,7 @@ export async function storeCover(coversDir: string, source: Buffer): Promise<str
   // often 3000px, and decoding that for every step costs far more memory than the outputs.
   let base: { data: Buffer; info: OutputInfo } | null = null;
   const fromBase = async () => {
-    base ??= await sharp(source, { failOn: "none" })
+    base ??= await sharp(source, { failOn: "none", limitInputPixels: MAX_INPUT_PIXELS })
       .rotate()
       .resize(LARGEST, LARGEST, { fit: "cover", withoutEnlargement: false })
       .raw()
@@ -155,7 +158,7 @@ export async function storeCover(coversDir: string, source: Buffer): Promise<str
   const known = await coverMeta(coversDir, hash);
   if (!known?.sourceWidth || known.v !== COLOR_VERSION) {
     // Reads only the header.
-    const { width } = await sharp(source, { failOn: "none" }).metadata();
+    const { width } = await sharp(source, { failOn: "none", limitInputPixels: MAX_INPUT_PIXELS }).metadata();
     const color = await coverColor(await fromBase());
     const meta: CoverMeta = { color, sourceWidth: width ?? null, v: COLOR_VERSION };
     await fs.writeFile(metaFile(coversDir, hash), JSON.stringify(meta));

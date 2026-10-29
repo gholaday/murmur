@@ -575,8 +575,11 @@ def save(path: Path, data) -> None:
 
 
 def process(job: dict) -> None:
-    file_id = job["fileId"]
-    audio = CACHE / job["path"]
+    file_id = int(job["fileId"])
+    audio = (CACHE / job["path"]).resolve()
+    # Murmur only ever names files under its cache; anything else is not a job to run.
+    if not audio.is_relative_to(CACHE.resolve()):
+        raise ValueError("episode path is outside the cache folder")
     if not audio.exists():
         # Almost always the cache folder isn't mounted here, or not the same folder as Murmur's.
         log("episode file not found; is Murmur's cache folder mounted at /cache?", episode=job["title"], path=str(audio))
@@ -642,7 +645,9 @@ def prune_state() -> None:
     """Drops leftovers from scans that never finished, after a week."""
     cutoff = time.time() - 7 * 86400
     for d in STATE.iterdir():
-        if d.is_dir() and d.stat().st_mtime < cutoff:
+        # Only the add-on's own work folders, named by file id: /state mounted at the wrong
+        # folder must never cost someone anything else that happens to be old.
+        if d.is_dir() and d.name.isdigit() and d.stat().st_mtime < cutoff:
             shutil.rmtree(d, ignore_errors=True)
 
 

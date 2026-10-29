@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Sqlite } from "../db";
 import { errorMessage, type Logger } from "../log";
+import { safeFetch } from "../safe-fetch";
 import { getServerSettings } from "../settings";
 import { WAITING_EPISODES_SQL } from "../waiting-episodes";
 import { audioExtension, evictionOrder } from "./cache-rules";
@@ -18,6 +19,8 @@ interface Deps {
 
 /** A download stops if no bytes arrive for this long. */
 const STALL_MS = 60_000;
+/** No episode is this big; a host that keeps sending past it is stopped before it fills the cache. */
+const MAX_EPISODE_BYTES = 2 * 1024 ** 3;
 /** On-demand playback waits this long for the download to start before relaying instead. */
 const START_WAIT_MS = 15_000;
 const MAX_ATTEMPTS = 3;
@@ -181,13 +184,13 @@ export function createEpisodeCache(deps: Deps) {
     };
     let handle: fs.promises.FileHandle | null = null;
     try {
-      const res = await fetch(ep.audio_url, {
+      const res = await safeFetch(ep.audio_url, {
         headers: { "User-Agent": `Murmur/${deps.version}`, "Accept-Encoding": "identity" },
-        redirect: "follow",
         signal: controller.signal,
       });
       if (!res.ok || !res.body) throw new Error(`The audio host answered ${res.status}.`);
       const length = Number(res.headers.get("content-length"));
+      if (length > MAX_EPISODE_BYTES) throw new Error("The episode is too large to cache.");
       dl.size = Number.isFinite(length) && length > 0 && !res.headers.get("content-encoding") ? length : null;
       if (dl.size) sqlite.prepare("UPDATE episode_files SET size = ? WHERE episode_id = ?").run(dl.size, ep.id);
       fs.mkdirSync(path.dirname(dl.file), { recursive: true });
@@ -197,6 +200,7 @@ export function createEpisodeCache(deps: Deps) {
         kick();
         await handle.write(chunk);
         dl.done += chunk.length;
+        if (dl.done > MAX_EPISODE_BYTES) throw new Error("The episode is too large to cache.");
         dl.notify();
       }
       await handle.close();

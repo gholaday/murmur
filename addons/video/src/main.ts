@@ -11,7 +11,7 @@ import { cancelDownload, downloadCount, downloadFile, initDownloads, startDownlo
 import { canToneMap, encoder } from "./encoders";
 import { env } from "./env";
 import { ffmpegAvailable, grabStill, probeVideo } from "./ffmpeg";
-import { fromInside, HttpError, readJson, refuseProxied, requireSecret, sendError, sendFile, sendJson } from "./http";
+import { fromInside, HttpError, libraryFile, readJson, refuseProxied, requireSecret, sendError, sendFile, sendJson } from "./http";
 import { createLogger, errorMessage } from "./log";
 import { endStream, initStreams, masterPlaylist, startStream, stopAllStreams, streamCount, streamFilePath, streamMimeType } from "./streams";
 
@@ -60,11 +60,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
 
   if (method === "POST" && url.pathname === "/probe") {
     const { file } = await readJson(req, videoFileSchema);
-    return sendJson(res, 200, await probeVideo(file).catch(notMounted));
+    return sendJson(res, 200, await probeVideo(libraryFile(file)).catch(notMounted));
   }
   if (method === "POST" && url.pathname === "/still") {
     const { file, durationSec, hdr } = await readJson(req, videoStillSchema);
-    const jpeg = await grabStill(file, durationSec, hdr).catch(notMounted);
+    const jpeg = await grabStill(libraryFile(file), durationSec, hdr).catch(notMounted);
     res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": jpeg.length });
     return void res.end(jpeg);
   }
@@ -72,7 +72,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (parts[0] === "streams") {
     if (method === "POST" && parts.length === 1) {
       const body = await readJson(req, videoStreamStartSchema);
-      return sendJson(res, 200, await startStream(body.owner, body.src, body.start));
+      return sendJson(res, 200, await startStream(body.owner, { ...body.src, file: libraryFile(body.src.file) }, body.start));
     }
     const [, id, file] = parts;
     if (method === "DELETE" && id && !file) {
@@ -94,7 +94,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (parts[0] === "downloads") {
     if (method === "POST" && parts.length === 1) {
       const body = await readJson(req, videoDownloadStartSchema);
-      return sendJson(res, 200, startDownload(body.owner, body.src));
+      return sendJson(res, 200, startDownload(body.owner, { ...body.src, file: libraryFile(body.src.file) }));
     }
     const [, id] = parts;
     if ((method === "GET" || method === "HEAD") && id) {

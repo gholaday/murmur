@@ -13,6 +13,17 @@ const nextConfig: NextConfig = {
   // the code. A container's own environment can't then report an older one.
   ...(process.env.MURMUR_VERSION ? { env: { MURMUR_VERSION: process.env.MURMUR_VERSION } } : {}),
   images: { unoptimized: true },
+  // Nothing Murmur serves is a page to sniff into or a thing to frame.
+  headers: async () => [
+    {
+      source: "/(.*)",
+      headers: [
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "X-Frame-Options", value: "DENY" },
+        { key: "Referrer-Policy", value: "same-origin" },
+      ],
+    },
+  ],
   // Renamed pages; keep old bookmarks working.
   redirects: async () => [
     { source: "/profile", destination: "/you", permanent: true },
