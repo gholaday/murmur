@@ -1,13 +1,13 @@
 import { useMemo, useState } from "react";
 import { FlatList, TextInput, View } from "react-native";
-import { type MovieSummary, percentDone, type ShowSummary, type WatchCard } from "@murmur/shared/client";
-import { CloseIcon, SearchIcon } from "@/components/icons";
+import { type MovieSummary, percentDone, type ShowSummary, sortWatch, type WatchCard, WATCH_SORTS } from "@murmur/shared/client";
+import { CloseIcon, FilterIcon, SearchIcon } from "@/components/icons";
 import { GAP, gridRows, PAD, Shelf, useGridWidth, useShelfWidth } from "@/components/library";
 import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, Skeleton } from "@/components/skeleton";
 import { Chips, IconButton } from "@/components/ui";
-import { type PosterItem, PosterCard, RescanButton, StillCard } from "@/components/watch";
+import { type PosterItem, PosterCard, RescanButton, StillCard, useWatchSort, WatchSortSheet } from "@/components/watch";
 import { useDownloads } from "@/lib/downloads";
 import { useOnline } from "@/lib/query";
 import { useSession } from "@/lib/session";
@@ -37,6 +37,7 @@ const movieItem = (m: MovieSummary): PosterItem => ({
   color: m.color,
   watched: !!m.progress?.finished,
   percent: m.progress && !m.progress.finished ? percentDone(m.progress.positionSec, m.durationSec) : 0,
+  addedAt: m.addedAt,
 });
 
 const showItem = (s: ShowSummary): PosterItem => ({
@@ -47,6 +48,7 @@ const showItem = (s: ShowSummary): PosterItem => ({
   posterHash: s.posterHash,
   color: s.color,
   watched: s.episodes > 0 && s.watched === s.episodes,
+  addedAt: s.addedAt,
 });
 
 const open = (i: PosterItem) => (i.kind === "movie" ? openMovie(i.id) : openTvShow(i.id));
@@ -63,6 +65,8 @@ export default function Watch() {
   const [tab, setTab] = useState<Tab>("home");
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
+  const [sortOpen, setSortOpen] = useState(false);
+  const sort = useWatchSort();
   const home = useWatchHome();
   const movies = useMovies();
   const shows = useShows();
@@ -75,10 +79,9 @@ export default function Watch() {
     const saved = new Set(
       Object.values(downloads).flatMap((d) => (d.status !== "done" ? [] : d.type === "movie" ? [`movie-${d.id}`] : d.type === "show" ? [`show-${d.show.id}`] : [])),
     );
-    return [...(movies.data ?? []).map(movieItem), ...(shows.data ?? []).map(showItem)]
-      .filter((i) => online || saved.has(`${i.kind}-${i.id}`))
-      .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
-  }, [movies.data, shows.data, online, downloads]);
+    const list = [...(movies.data ?? []).map(movieItem), ...(shows.data ?? []).map(showItem)].filter((i) => online || saved.has(`${i.kind}-${i.id}`));
+    return sortWatch(list, sort, (i) => i);
+  }, [movies.data, shows.data, online, downloads, sort]);
   const q = query.trim().toLowerCase();
 
   const rows = useMemo((): Row[] => {
@@ -120,6 +123,12 @@ export default function Watch() {
             >
               {searching ? <CloseIcon color={t.text} /> : <SearchIcon color={t.text} />}
             </IconButton>
+            {/* Home's shelves are in the server's order; the other views have a sort. */}
+            {tab !== "home" ? (
+              <IconButton label={`Sort, ${WATCH_SORTS.find((s) => s.id === sort)?.label}`} onPress={() => setSortOpen(true)}>
+                <FilterIcon color={t.text} />
+              </IconButton>
+            ) : null}
           </>
         }
       />
@@ -194,6 +203,7 @@ export default function Watch() {
           )
         }
       />
+      <WatchSortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
     </View>
   );
 }

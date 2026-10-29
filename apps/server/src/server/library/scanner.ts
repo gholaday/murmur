@@ -17,6 +17,7 @@ import {
   type ScannedAudioFile,
 } from "./parse";
 import { createLimiter, extractEmbeddedCover, probeFile } from "./probe";
+import { bumpChanges } from "../changes";
 
 export interface ScannerDeps {
   db: Db;
@@ -381,8 +382,10 @@ export function createScanner(deps: ScannerDeps) {
           stats.unchanged++;
           return;
         }
-        if (await importBook(found, current.id, now)) stats.updated++;
-        else stats.failed++;
+        if (await importBook(found, current.id, now)) {
+          stats.updated++;
+          bumpChanges("books");
+        } else stats.failed++;
         return;
       }
       // A new folder whose files match a book whose old folder is gone: the folder was moved or renamed.
@@ -398,12 +401,15 @@ export function createScanner(deps: ScannerDeps) {
         seen.add(movedFrom.id);
         if (await importBook(found, movedFrom.id, now)) {
           stats.moved++;
+          bumpChanges("books");
           log.info("book folder moved", { from: movedFrom.folderPath, to: found.relDir });
         } else stats.failed++;
         return;
       }
-      if (await importBook(found, null, now)) stats.added++;
-      else stats.failed++;
+      if (await importBook(found, null, now)) {
+        stats.added++;
+        bumpChanges("books");
+      } else stats.failed++;
     });
     await Promise.all(tasks);
 
@@ -428,6 +434,7 @@ export function createScanner(deps: ScannerDeps) {
       .returning({ id: books.id })
       .all();
     stats.removed += removed.length;
+    if (stats.removed || stats.missing) bumpChanges("books");
     return { stats, problems };
   }
 

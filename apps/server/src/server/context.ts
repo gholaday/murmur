@@ -7,6 +7,7 @@ import { createWatchScanner, type WatchScanner } from "./watch/scanner";
 import { createWatchMatcher, type WatchMatcher } from "./watch/match";
 import { createTmdb } from "./watch/tmdb";
 import { videoHealth, videoStatus } from "./watch/video-addon";
+import { bumpChanges, setBusy } from "./changes";
 import { fillArtistPhotos } from "./music/match";
 import { createMusicScanner, type MusicScanner } from "./music/scanner";
 import { createScanState, createScanner, type ScanState, type Scanner } from "./library/scanner";
@@ -206,6 +207,8 @@ async function boot(): Promise<AppContext> {
     const { movies, shows } = watchFolders();
     const up = movies.length + shows.length > 0 && videoStatus(await videoHealth()).problem === null;
     if (up && !addonUp) void watchScanner.scan();
+    // Open pages and apps hide or show Watch now, not when they next come to the front.
+    if (up !== addonUp) bumpChanges("watch");
     addonUp = up;
   };
   setInterval(() => void checkAddon(), 10 * 60_000).unref();
@@ -249,6 +252,7 @@ async function boot(): Promise<AppContext> {
   registerShutdown(sqlite, watcher);
   startUpdateChecks();
 
+  setBusy(() => scanState.running || musicState.running || watchState.running || !!matcher?.busy());
   void scanner.scan(); // initial scans run in the background; the server is usable meanwhile
   void musicScanner.scan();
   void checkAddon(); // scans movies and shows once the add-on answers

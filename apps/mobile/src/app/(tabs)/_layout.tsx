@@ -5,6 +5,7 @@ import { Tabs, type BottomTabBarProps } from "expo-router/js-tabs";
 import { LibraryIcon, MusicIcon, PodcastIcon, ProfileIcon, WatchIcon } from "@/components/icons";
 import { MiniPlayer } from "@/components/mini-player";
 import { Text } from "@/components/ui";
+import "@/lib/changes";
 import { useMusicSummary, useTabPrefs } from "@/lib/data";
 import { useWatchHome } from "@/lib/watch";
 import { restorePlayer } from "@/player/engine";

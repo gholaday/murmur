@@ -1,6 +1,25 @@
 // Watch: movies and TV shows. What the server sends for the Watch tab, movie and show pages.
 
 import { gigabytes } from "./format";
+import { collator, sortTitle } from "./library";
+
+export type WatchSort = "added" | "title" | "year";
+export const WATCH_SORTS: Array<{ id: WatchSort; label: string }> = [
+  { id: "added", label: "Recently added" },
+  { id: "title", label: "Title" },
+  { id: "year", label: "Year" },
+];
+/** Where the device keeps the Movies, Shows and Watched sort. */
+export const WATCH_SORT_KEY = "murmur.watchSort";
+
+/** Movies and shows in the picked order: newest added, A to Z (ignoring "The"), or newest year. */
+export function sortWatch<T>(items: T[], sort: WatchSort, of: (item: T) => { title: string; year: string | null; addedAt: number }): T[] {
+  const byTitle = (a: T, b: T) => collator.compare(sortTitle(of(a).title), sortTitle(of(b).title));
+  const list = [...items];
+  if (sort === "added") return list.sort((a, b) => of(b).addedAt - of(a).addedAt || byTitle(a, b));
+  if (sort === "year") return list.sort((a, b) => (of(b).year ?? "").localeCompare(of(a).year ?? "") || byTitle(a, b));
+  return list.sort(byTitle);
+}
 
 /** An audio track in a video file, in the file's own order. */
 export interface VideoAudioTrack {

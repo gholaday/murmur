@@ -6,6 +6,8 @@ import { ProviderError } from "../metadata/providers";
 import { storeArt } from "./art";
 import { pickMatch, tmdbIdFromName } from "./match-score";
 import { sortTitle } from "./parse";
+import { bumpChanges } from "../changes";
+import { createLimiter } from "../library/probe";
 import type { Tmdb, TmdbDetails, TmdbKind, TmdbSearchResult } from "./tmdb";
 
 type Table = "movies" | "shows";
@@ -33,6 +35,7 @@ export function createWatchMatcher(deps: { sqlite: Sqlite; coversDir: string; lo
   const { sqlite, log, tmdb } = deps;
   let running: Promise<void> | null = null;
   let again = false;
+  const stillLimit = createLimiter(4);
 
   const getRow = (table: Table, id: string) =>
     sqlite
@@ -64,16 +67,20 @@ export function createWatchMatcher(deps: { sqlite: Sqlite; coversDir: string; lo
     );
     const exists = sqlite.prepare("SELECT 1 FROM shows WHERE id = ?");
     for (const season of seasons) {
-      for (const e of await tmdb.season(tmdbId, season)) {
-        const still = await picture(e.stillPath, "wide");
-        // Matching runs beside the scan, which removes a show none of whose files could be read.
-        if (!exists.get(showId)) return;
-        upsert.run(showId, e.season, e.episode, e.title, e.overview, e.airDate, still);
-      }
+      // A long season is dozens of stills: a few at a time rather than one after another.
+      await Promise.all(
+        (await tmdb.season(tmdbId, season)).map((e) =>
+          stillLimit(async () => {
+            const still = await picture(e.stillPath, "wide");
+            // Matching runs beside the scan, which removes a show none of whose files could be read.
+            if (exists.get(showId)) upsert.run(showId, e.season, e.episode, e.title, e.overview, e.airDate, still);
+          }),
+        ),
+      );
     }
   }
 
-  /** Puts a TMDB title's details and pictures on a movie or show. */
+  /** Puts a TMDB title's details and pictures on a movie or show, then a show's episode details. */
   async function apply(table: Table, row: ParentRow, d: TmdbDetails) {
     const title = row.details_local ? row.title : d.title || row.title;
     const year = row.details_local ? row.year : (d.year ?? row.year);
@@ -92,9 +99,15 @@ export function createWatchMatcher(deps: { sqlite: Sqlite; coversDir: string; lo
          WHERE id = ?`,
       )
       .run(d.id, Date.now(), title, sortTitle(title), year, d.overview, poster, poster, poster, backdrop, backdrop, backdrop, Date.now(), row.id);
+    // Said now, so the poster shows and the log moves while a long show's episodes come in.
+    bumpChanges("watch");
+    log.info("matched", { kind: table === "shows" ? "show" : "movie", title: row.title, tmdb: d.title });
     if (table === "shows") {
+      const started = Date.now();
       sqlite.prepare("DELETE FROM tmdb_episodes WHERE show_id = ?").run(row.id);
       await fillSeasons(row.id, d.id);
+      bumpChanges("watch");
+      log.info("episode details filled", { title: title, ms: Date.now() - started });
     }
   }
 
@@ -119,7 +132,6 @@ export function createWatchMatcher(deps: { sqlite: Sqlite; coversDir: string; lo
         const d = tmdbId ? await tmdb.details(kind, tmdbId) : null;
         if (d) {
           await apply(table, row, d);
-          log.info("matched", { kind, title: row.title, tmdb: d.title });
         } else {
           sqlite.prepare(`UPDATE ${table} SET matched_at = ? WHERE id = ?`).run(Date.now(), id);
           log.info("no confident match", { kind, title: row.title });
@@ -159,6 +171,8 @@ export function createWatchMatcher(deps: { sqlite: Sqlite; coversDir: string; lo
       })
       .finally(() => {
         running = null;
+        // Asked for just as the last pass ended.
+        if (again) void matchPending().catch((err: unknown) => log.warn("matching failed", { error: errorMessage(err) }));
       });
     return running;
   }
@@ -187,7 +201,7 @@ export function createWatchMatcher(deps: { sqlite: Sqlite; coversDir: string; lo
     }
   }
 
-  return { matchPending, search, matchTo };
+  return { matchPending, search, matchTo, busy: () => running !== null };
 }
 
 export type WatchMatcher = ReturnType<typeof createWatchMatcher>;

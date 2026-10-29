@@ -1,11 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { errorText, type HealthDto, type MovieSummary, percentDone, type ShowSummary, type WatchHomeDto } from "@murmur/shared/client";
+import {
+  errorText,
+  type HealthDto,
+  type MovieSummary,
+  percentDone,
+  type ShowSummary,
+  sortWatch,
+  WATCH_SORT_KEY,
+  WATCH_SORTS,
+  type WatchHomeDto,
+  type WatchSort,
+} from "@murmur/shared/client";
 import { api } from "../api";
-import { CloseIcon, RefreshIcon, SearchIcon } from "../icons";
+import { CloseIcon, FilterIcon, RefreshIcon, SearchIcon } from "../icons";
+import { Sheet, SheetItem } from "../sheet";
 import { Chip, Chips, EmptyState, ScrollRow, SearchBox, SectionTitle } from "../ui";
 import { PosterCard, StillCard } from "./cards";
 
@@ -20,6 +32,29 @@ const TABS: Array<{ id: WatchTab; label: string }> = [
 type Item = { kind: "movie"; m: MovieSummary } | { kind: "show"; s: ShowSummary };
 
 const titleOf = (i: Item) => (i.kind === "movie" ? i.m.title : i.s.title);
+const summaryOf = (i: Item) => (i.kind === "movie" ? i.m : i.s);
+
+/** The Movies, Shows and Watched sort, kept in this browser. */
+function useWatchSort(): [WatchSort, (s: WatchSort) => void] {
+  const [sort, setSort] = useState<WatchSort>("added");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(WATCH_SORT_KEY) as WatchSort | null;
+      if (saved && WATCH_SORTS.some((s) => s.id === saved)) setSort(saved);
+    } catch {
+      // private mode
+    }
+  }, []);
+  const save = (next: WatchSort) => {
+    setSort(next);
+    try {
+      localStorage.setItem(WATCH_SORT_KEY, next);
+    } catch {
+      // private mode
+    }
+  };
+  return [sort, save];
+}
 const watchedOf = (i: Item) => (i.kind === "movie" ? !!i.m.progress?.finished : i.s.episodes > 0 && i.s.watched === i.s.episodes);
 
 function ItemCard({ item }: { item: Item }) {
@@ -107,12 +142,12 @@ export function WatchView({
   const tab = TABS.find((t) => t.id === params.get("tab"))?.id ?? "home";
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useWatchSort();
+  const [sortOpen, setSortOpen] = useState(false);
   // Same as the library tabs: no server round trip, and Next keeps useSearchParams in step.
   const show = (next: WatchTab) => window.history.pushState(null, "", next === "home" ? "/watch" : `/watch?tab=${next}`);
 
-  const all: Item[] = [...movies.map((m) => ({ kind: "movie" as const, m })), ...shows.map((s) => ({ kind: "show" as const, s }))].sort((a, b) =>
-    titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: "base" }),
-  );
+  const all = sortWatch<Item>([...movies.map((m) => ({ kind: "movie" as const, m })), ...shows.map((s) => ({ kind: "show" as const, s }))], sort, summaryOf);
   const q = query.trim().toLowerCase();
   const byTab: Record<Exclude<WatchTab, "home">, Item[]> = {
     movies: all.filter((i) => i.kind === "movie"),
@@ -148,8 +183,27 @@ export function WatchView({
           >
             {searching ? <CloseIcon /> : <SearchIcon />}
           </button>
+          {tab !== "home" ? (
+            <button type="button" className="icon-btn" aria-label="Sort" onClick={() => setSortOpen(true)}>
+              <FilterIcon />
+            </button>
+          ) : null}
         </div>
       </div>
+      <Sheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort">
+        {WATCH_SORTS.map((s) => (
+          <SheetItem
+            key={s.id}
+            active={sort === s.id}
+            onClick={() => {
+              setSort(s.id);
+              setSortOpen(false);
+            }}
+          >
+            {s.label}
+          </SheetItem>
+        ))}
+      </Sheet>
       {searching ? <SearchBox value={query} onChange={setQuery} placeholder="Search movies and shows" label="Search movies and shows" /> : null}
       <Chips kind="tabs" label="Watch">
         {TABS.map((t) => (

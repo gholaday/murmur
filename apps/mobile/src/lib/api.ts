@@ -1,4 +1,4 @@
-import type { ApiError, HealthProbeDto } from "@murmur/shared/client";
+import { type ApiError, CHANGES_HEADER, type HealthProbeDto } from "@murmur/shared/client";
 
 // The signed-in server and token live here so non-React code (player, downloads, sync)
 // can call the API too. session.tsx keeps them in step with what's stored.
@@ -11,6 +11,13 @@ export function configureApi(opts: { serverUrl: string | null; token: string | n
   serverUrl = opts.serverUrl;
   token = opts.token;
   if (opts.onUnauthorized) onUnauthorized = opts.onUnauthorized;
+}
+
+let noteChanges: ((token: string | null) => void) | null = null;
+
+/** Hands the change counts on every answer to the live-changes poller (lib/changes.ts). */
+export function onChangesHeader(fn: (token: string | null) => void) {
+  noteChanges = fn;
 }
 
 export class HttpError extends Error {
@@ -63,6 +70,7 @@ export async function api<T>(path: string, init?: { method?: string; body?: unkn
   } catch {
     throw new Error("Can't reach your Murmur server.");
   }
+  noteChanges?.(res.headers.get(CHANGES_HEADER));
   if (res.status === 401) {
     onUnauthorized?.();
     throw new HttpError(401, "Signed out. Sign in again.");

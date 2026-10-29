@@ -9,6 +9,7 @@ import { AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, extname, isIgnoredName, mimeTypeFor
 import { createLimiter, extractEmbeddedCover, probeFile } from "../library/probe";
 import type { ScanState } from "../library/scanner";
 import { nameKey, sortName, trackInfo } from "./parse";
+import { bumpChanges } from "../changes";
 
 // The music scanner. Unlike books, music is read file by file: a song is probed only when
 // its size or modified time changed, and albums come from the tags, not from folders.
@@ -224,8 +225,10 @@ export function createMusicScanner(deps: MusicScannerDeps) {
             if (row.missing_since !== null) clearMissing.run(row.id);
             return;
           }
-          if (await importTrack(folder, file, now)) stats[row ? "updated" : "added"]++;
-          else stats.failed++;
+          if (await importTrack(folder, file, now)) {
+            stats[row ? "updated" : "added"]++;
+            bumpChanges("music");
+          } else stats.failed++;
         }),
       );
       for (const gone of existing.values()) {
@@ -244,6 +247,8 @@ export function createMusicScanner(deps: MusicScannerDeps) {
       .run();
 
     await fillCovers(images);
+    // Covers too, so one more reload after the files.
+    if (stats.added || stats.updated || stats.missing || stats.removed) bumpChanges("music");
     return { stats, problems };
   }
 

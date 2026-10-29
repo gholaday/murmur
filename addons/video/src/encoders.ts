@@ -28,10 +28,18 @@ export interface Picture {
   hdr: boolean;
 }
 
-/** Device options that go before `-i` for hardware decoding, so the GPU reads the file too. */
+/**
+ * Options that go before `-i`: the GPU device the filters upload frames to, and hardware decoding
+ * so the GPU reads the file too.
+ */
 function decodeArgs(encoder: Encoder, hdr: boolean): string[] {
-  // HDR is tone mapped on the CPU (the GPU filters for it are patchy), so those frames are decoded there as well.
-  if (hdr) return [];
+  // HDR is tone mapped on the CPU (the GPU filters for it are patchy), so those frames are decoded
+  // there as well, and VAAPI and Quick Sync still need their device named to upload them.
+  if (hdr) {
+    if (encoder === "vaapi") return ["-vaapi_device", env.vaapiDevice];
+    if (encoder === "qsv") return ["-init_hw_device", "qsv=hw", "-filter_hw_device", "hw"];
+    return [];
+  }
   switch (encoder) {
     case "vaapi":
       return ["-vaapi_device", env.vaapiDevice, "-hwaccel", "vaapi", "-hwaccel_output_format", "vaapi"];
@@ -151,12 +159,13 @@ async function probeToneMap(): Promise<boolean> {
 async function works(encoder: Encoder): Promise<boolean> {
   // A generated picture isn't decoded on the GPU, so this goes the way an HDR file does: CPU frames uploaded to the encoder.
   const p: Picture = { width: 1920, height: 1080, hdr: true };
-  const { after } = h264Args(encoder, p, "light", false, 2);
+  const { before, after } = h264Args(encoder, p, "light", false, 2);
   try {
-    await ffmpeg(["-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30", "-frames:v", "10", ...after, "-f", "null", "-"], 30_000);
+    await ffmpeg([...before, "-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30", "-frames:v", "10", ...after, "-f", "null", "-"], 30_000);
     return true;
   } catch (err) {
-    log.debug("encoder not available", { encoder, error: err instanceof Error ? err.message : String(err) });
+    // At info, so "using the CPU" in the log comes with each GPU's reason.
+    log.info("encoder not available", { encoder, error: err instanceof Error ? err.message : String(err) });
     return false;
   }
 }

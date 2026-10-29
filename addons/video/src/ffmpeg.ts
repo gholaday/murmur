@@ -59,18 +59,23 @@ export async function probeVideo(file: string): Promise<ProbedVideo> {
 export const TONEMAP = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p";
 
 /**
- * One frame as a JPEG, 960 pixels wide. Seeking before the input keeps it fast on big files.
- * HDR frames are tone mapped, or grabbed as they are if this ffmpeg can't.
+ * One frame as a JPEG, 960 pixels wide: the keyframe nearest `atSec`. Seeking before the input
+ * keeps it fast on big files, and taking the keyframe itself means decoding one frame rather than
+ * everything from the keyframe up to the exact second (a whole 4K group of pictures, otherwise).
+ * HDR frames are shrunk first and then tone mapped, or grabbed as they are if this ffmpeg can't.
  */
 export async function grabFrame(file: string, atSec: number, hdr = false): Promise<Buffer> {
   const grab = (filter: string) =>
     run(
       env.ffmpegPath,
-      ["-v", "error", "-ss", atSec.toFixed(1), "-i", file, "-frames:v", "1", "-vf", filter, "-f", "image2", "-c:v", "mjpeg", "pipe:1"],
+      [
+        ...["-v", "error", "-noaccurate_seek", "-skip_frame", "nokey", "-ss", atSec.toFixed(1), "-i", file],
+        ...["-frames:v", "1", "-vf", filter, "-f", "image2", "-c:v", "mjpeg", "pipe:1"],
+      ],
       { timeoutMs: 60_000 },
     );
   if (hdr) {
-    const mapped = await grab(`${TONEMAP},scale=960:-2`).catch(() => null);
+    const mapped = await grab(`scale=960:-2,${TONEMAP}`).catch(() => null);
     if (mapped?.length) return mapped;
   }
   return grab("scale=960:-2");

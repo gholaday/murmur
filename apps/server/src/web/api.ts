@@ -1,4 +1,5 @@
 import type { ApiError } from "@murmur/shared/client";
+import { noteChanges } from "./live-changes";
 
 /** Same-origin JSON call that throws the server's error message on failure. */
 export async function api<T>(path: string, init?: { method?: string; body?: unknown; keepalive?: boolean }): Promise<T> {
@@ -8,6 +9,7 @@ export async function api<T>(path: string, init?: { method?: string; body?: unkn
     body: init?.body === undefined ? undefined : JSON.stringify(init.body),
     keepalive: init?.keepalive,
   });
+  noteChanges(res);
   if (res.status === 401 && typeof window !== "undefined") {
     window.location.href = "/login";
     throw new Error("Signed out.");

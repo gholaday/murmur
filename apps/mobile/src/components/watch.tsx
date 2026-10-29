@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import {
@@ -17,10 +17,14 @@ import {
   type VideoQuality,
   type WatchCard,
   type WatchMatchResult,
+  WATCH_SORT_KEY,
+  WATCH_SORTS,
+  type WatchSort,
 } from "@murmur/shared/client";
 import { api } from "@/lib/api";
 import { useVideoQuality } from "@/lib/data";
 import { downloadingText, downloadMovie, downloadTvEpisode, removeDownload, useDownload } from "@/lib/downloads";
+import { getJson, setJson } from "@/lib/storage";
 import { invalidateWatch, openVideoPlayer } from "@/lib/watch";
 import { convertsPicture, videoDownloadSource } from "@/player/video";
 import { fonts, useTheme } from "@/theme";
@@ -83,6 +87,43 @@ export interface PosterItem {
   watched: boolean;
   /** How far through a movie you are, for its bar. */
   percent?: number;
+  addedAt: number;
+}
+
+// ---------- Sort for Movies, Shows and Watched, kept on this phone ----------
+
+let sortValue: WatchSort = getJson<WatchSort>(WATCH_SORT_KEY) ?? "added";
+const sortListeners = new Set<() => void>();
+
+export function useWatchSort(): WatchSort {
+  return useSyncExternalStore(
+    (l) => {
+      sortListeners.add(l);
+      return () => sortListeners.delete(l);
+    },
+    () => sortValue,
+  );
+}
+
+export function WatchSortSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const sort = useWatchSort();
+  return (
+    <Sheet open={open} onClose={onClose} title="Sort">
+      {WATCH_SORTS.map((s) => (
+        <SheetItem
+          key={s.id}
+          label={s.label}
+          active={sort === s.id}
+          onPress={() => {
+            sortValue = s.id;
+            setJson(WATCH_SORT_KEY, s.id);
+            sortListeners.forEach((l) => l());
+            onClose();
+          }}
+        />
+      ))}
+    </Sheet>
+  );
 }
 
 /** A poster in a grid or shelf: the poster, the title and the year, with the accent check once watched. */

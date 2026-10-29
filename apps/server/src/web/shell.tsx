@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDragToScroll } from "./drag-scroll";
+import { useLiveChanges } from "./live-changes";
 import type { UserPrefs } from "@murmur/shared/client";
 import { AppIcon, LibraryIcon, MusicIcon, PodcastIcon, ProfileIcon, WatchIcon } from "./icons";
 import { FullPlayer } from "./player/full-player";
@@ -34,6 +35,7 @@ export function Shell({
   const pathname = usePathname();
   const { item } = usePlayer();
   useDragToScroll();
+  useLiveChanges();
   // Podcasts, Music and Watch can be switched off in You; Music and Watch also need something on the server.
   const shown = TABS.filter(
     (t) =>

@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { VideoSource, VideoStreamStarted } from "@murmur/shared";
+import { threadArgs } from "./cpu";
 import { canToneMap, encoder, type Encoder, giveUpOn, H264_CODEC, h264Args } from "./encoders";
 import { env } from "./env";
 import { HttpError } from "./http";
@@ -22,12 +23,23 @@ const INITIAL_BURST_SEC = 30;
 /** A session nobody has asked anything of for this long is stopped and deleted. */
 const IDLE_MS = 5 * 60_000;
 const MAX_PER_OWNER = 2;
+/**
+ * Converted pictures running at once, everyone together. Converting is the one thing that can eat
+ * the whole server: past this, another viewer would stall every stream already playing, so they're
+ * asked to wait instead. Copied pictures are nearly free and don't count.
+ */
+const MAX_CONVERTING = 2;
 /** How long a request waits for a piece ffmpeg hasn't written yet before telling the player to ask again. */
 const WAIT_MS = 20_000;
 /** Pieces kept behind the newest one asked for (three minutes), so a short seek back is still instant. */
 const KEEP_BEHIND = 30;
-/** ffmpeg is paused once it's this many pieces (ten minutes) ahead of the player, and carries on below half. */
+/** A copied picture is paused once it's this many pieces (ten minutes) ahead of the player, and carries on below half. */
 const MAX_AHEAD = 100;
+/**
+ * A converted one stops two minutes ahead: it would otherwise take all the CPU it can for ten
+ * minutes while other viewers wait for their next piece. Two minutes still rides out a stall.
+ */
+const MAX_AHEAD_CONVERTING = 20;
 /** Pausing a process needs SIGSTOP, which Windows doesn't have; there it simply runs on. */
 const CAN_PAUSE = process.platform !== "win32";
 const FILE_NAME = /^(index\.m3u8|init\.mp4|seg\d{5}\.m4s)$/;
@@ -44,6 +56,8 @@ interface Session {
   dir: string;
   /** The CODECS the pieces carry, for the master playlist; browsers guess wrong without it. */
   codecs: string;
+  /** The picture is being converted to H.264, which is what costs CPU. */
+  converting: boolean;
   /** Null only for the moment between making the session and starting ffmpeg. */
   proc: ChildProcess | null;
   done: boolean;
@@ -123,9 +137,10 @@ function tidy(s: Session) {
   s.deletedBelow = Math.max(s.deletedBelow, s.asked - KEEP_BEHIND);
   if (!CAN_PAUSE || s.done || !s.proc) return;
   const ahead = newest - s.asked;
-  if (!s.paused && ahead > MAX_AHEAD) {
+  const maxAhead = s.converting ? MAX_AHEAD_CONVERTING : MAX_AHEAD;
+  if (!s.paused && ahead > maxAhead) {
     s.paused = s.proc.kill("SIGSTOP");
-  } else if (s.paused && ahead < MAX_AHEAD / 2) {
+  } else if (s.paused && ahead < maxAhead / 2) {
     s.paused = false;
     s.proc.kill("SIGCONT");
   }
@@ -134,14 +149,42 @@ function tidy(s: Session) {
 /** How far back to look for a keyframe; films keep them at most about ten seconds apart. */
 const KEYFRAME_LOOKBACK_SEC = 30;
 
+/** Keyframes already read from a file: the stretches of it looked at, and the keyframes found there. */
+interface KeyframeIndex {
+  ranges: Array<{ from: number; to: number }>;
+  keyframes: number[];
+}
+/** Files whose keyframes are remembered; the oldest are forgotten past this. */
+const KEYFRAME_INDEX_FILES = 64;
+const keyframeIndex = new Map<string, KeyframeIndex>();
+
+/** Keeps what one probe found, so a seek into the same stretch of the same file skips the probe. */
+function rememberKeyframes(file: string, from: number, to: number, found: number[]) {
+  const index = keyframeIndex.get(file) ?? { ranges: [], keyframes: [] };
+  keyframeIndex.delete(file); // re-inserted last, so the map stays in order of use
+  index.ranges.push({ from, to });
+  index.keyframes = [...new Set([...index.keyframes, ...found])].sort((a, b) => a - b);
+  keyframeIndex.set(file, index);
+  if (keyframeIndex.size > KEYFRAME_INDEX_FILES) keyframeIndex.delete(keyframeIndex.keys().next().value!);
+}
+
+/** The keyframe a past probe found at or before `at`, when one covered that stretch; undefined to probe. */
+function rememberedKeyframe(file: string, from: number, at: number): number | undefined {
+  const index = keyframeIndex.get(file);
+  if (!index?.ranges.some((r) => r.from <= from && r.to >= at + 1)) return undefined;
+  return index.keyframes.filter((t) => t <= at + 0.05).at(-1) ?? index.keyframes.find((t) => t > at);
+}
+
 /**
  * The keyframe at or before `at`, where a copied picture can start (the one after it when there's
  * none before); `at` itself if that can't be read. The sound is kept from the same point, so the
- * two start together.
+ * two start together. Scrubbing back and forth over the same minutes probes the file once.
  */
 function keyframeAt(file: string, at: number): Promise<number> {
   if (at <= 0) return Promise.resolve(0);
   const from = Math.max(0, at - KEYFRAME_LOOKBACK_SEC);
+  const known = rememberedKeyframe(file, from, at);
+  if (known !== undefined) return Promise.resolve(known);
   return new Promise((resolve) => {
     execFile(
       env.ffprobePath,
@@ -157,6 +200,7 @@ function keyframeAt(file: string, at: number): Promise<number> {
           .map(([pts]) => Number(pts))
           .filter((t) => Number.isFinite(t))
           .sort((a, b) => a - b);
+        rememberKeyframes(file, from, at + 1, keyframes);
         const before = keyframes.filter((t) => t <= at + 0.05).at(-1);
         resolve(before ?? keyframes[0] ?? at);
       },
@@ -169,12 +213,18 @@ export async function startStream(owner: string, src: VideoSource, at: number): 
   // A copied picture can only start on a keyframe; a converted one starts exactly where asked.
   const converting = src.video === "h264";
   const start = converting ? at : await keyframeAt(src.file, at);
+  // Only once this one can start do the person's oldest sessions make room for it.
+  const mine = [...sessions.values()].filter((s) => s.owner === owner).sort((a, b) => a.lastSeen - b.lastSeen);
+  const making = mine.slice(0, Math.max(0, mine.length - MAX_PER_OWNER + 1));
+  // Their own sessions about to go don't count against them: a seek replaces one, it doesn't add one.
+  const others = [...sessions.values()].filter((s) => s.converting && !s.done && !making.includes(s)).length;
+  if (converting && others >= MAX_CONVERTING) {
+    throw new HttpError(503, "The server is converting as many videos as it can. Try again in a moment.", { "Retry-After": "15" });
+  }
+  for (const s of making) stop(s);
   const id = crypto.randomBytes(12).toString("base64url");
   const dir = path.join(root(), id);
   fs.mkdirSync(dir, { recursive: true });
-  // Only once this one can start do the person's oldest sessions make room for it.
-  const mine = [...sessions.values()].filter((s) => s.owner === owner).sort((a, b) => a.lastSeen - b.lastSeen);
-  for (const s of mine.slice(0, Math.max(0, mine.length - MAX_PER_OWNER + 1))) stop(s);
   const hevc = /^(hvc1|hev1)/.test(src.videoCodec ?? "");
   const codecs = [
     // The picture is tagged hvc1 below, so its codec string says the same.
@@ -185,18 +235,20 @@ export async function startStream(owner: string, src: VideoSource, at: number): 
     .join(",");
   // ffmpeg's HLS muxer only knows "/" as a folder break: with Windows paths, init.mp4 lands in the working folder.
   const out = (name: string) => path.join(dir, name).replaceAll("\\", "/");
+  const threads = threadArgs();
   const argsWith = async (enc: Encoder) => {
     const picture = { width: src.width, height: src.height, hdr: !!src.hdr };
     const h264 = converting ? h264Args(enc, picture, src.quality, await canToneMap(), SEGMENT_SEC) : null;
     return [
       ...["-v", "error", "-nostdin", "-readrate", String(READ_RATE), "-readrate_initial_burst", String(INITIAL_BURST_SEC)],
+      ...threads.before,
       ...(h264?.before ?? []),
       // A copied picture starts on the keyframe the seek lands on; without this ffmpeg would still
       // trim converted sound to the exact second, leaving it behind the picture.
       ...(converting ? [] : ["-noaccurate_seek"]),
       ...["-ss", start.toFixed(3), "-i", src.file],
       ...["-map", "0:v:0", "-map", `0:a:${src.track}?`],
-      ...(h264?.after ?? ["-c:v", "copy"]),
+      ...(h264 ? [...h264.after, ...threads.after] : ["-c:v", "copy"]),
       // Safari only plays HEVC tagged hvc1; unofficial keeps Dolby Vision's details.
       ...(hevc && !converting ? ["-tag:v", "hvc1", "-strict", "unofficial"] : []),
       ...(src.audio === "copy" ? ["-c:a", "copy"] : ["-c:a", "aac", "-b:a", "192k", "-ac", "2"]),
@@ -212,6 +264,7 @@ export async function startStream(owner: string, src: VideoSource, at: number): 
     owner,
     dir,
     codecs,
+    converting,
     proc: null,
     done: false,
     error: null,

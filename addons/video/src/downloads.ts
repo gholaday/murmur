@@ -1,8 +1,10 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { apiPaths, gigabytes, type VideoDownloadDto, type VideoSource } from "@murmur/shared";
+import { threadArgs } from "./cpu";
 import { canToneMap, encoder, type Encoder, giveUpOn, h264Args } from "./encoders";
 import { env } from "./env";
 import { HttpError } from "./http";
@@ -30,6 +32,8 @@ const ABANDONED_MS = 10 * 60_000;
 const MAX_BITRATE = { full: 10_000_000, light: 4_000_000 };
 /** Left free beyond the download, for stream pieces and anything else on that disk. */
 const SPARE_BYTES = 2 * 1024 ** 3;
+/** Nobody is waiting on a download the way they wait on a stream, so its ffmpeg runs at a lower priority (Unix nice). */
+const DOWNLOAD_NICE = 10;
 
 interface Job {
   id: string;
@@ -93,12 +97,14 @@ function args(src: VideoSource, enc: Encoder, toneMap: boolean, out: string): st
   const picture = { width: src.width, height: src.height, hdr: !!src.hdr };
   const h264 = src.video === "h264" ? h264Args(enc, picture, src.quality, toneMap, KEYFRAME_SEC) : null;
   const hevc = /^(hvc1|hev1)/.test(src.videoCodec ?? "");
+  const threads = threadArgs();
   return [
     ...["-v", "error", "-nostdin", "-y", "-progress", "pipe:1", "-nostats"],
+    ...threads.before,
     ...(h264?.before ?? []),
     ...["-i", src.file],
     ...["-map", "0:v:0", "-map", `0:a:${src.track}?`],
-    ...(h264?.after ?? ["-c:v", "copy"]),
+    ...(h264 ? [...h264.after, ...threads.after] : ["-c:v", "copy"]),
     // Players want HEVC in an MP4 tagged hvc1; unofficial keeps Dolby Vision's details.
     ...(hevc && !h264 ? ["-tag:v", "hvc1", "-strict", "unofficial"] : []),
     ...(src.audio === "copy" ? ["-c:a", "copy"] : ["-c:a", "aac", "-b:a", "192k", "-ac", "2"]),
@@ -115,6 +121,14 @@ function run(j: Job, src: VideoSource, enc: Encoder, toneMap: boolean): Promise<
   return new Promise((resolve) => {
     const proc = spawn(env.ffmpegPath, args(src, enc, toneMap, part), { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     j.proc = proc;
+    // Streams come first: a season being prepared for a phone mustn't stall someone watching.
+    if (proc.pid) {
+      try {
+        os.setPriority(proc.pid, DOWNLOAD_NICE);
+      } catch {
+        // Not allowed here; it runs at the usual priority.
+      }
+    }
     let errors = "";
     proc.stderr!.on("data", (chunk: Buffer) => {
       errors = (errors + chunk.toString()).slice(-2000);

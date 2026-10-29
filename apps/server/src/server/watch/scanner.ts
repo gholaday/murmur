@@ -9,6 +9,7 @@ import { createLimiter } from "../library/probe";
 import type { ScanState } from "../library/scanner";
 import { storeArt } from "./art";
 import { grabStill, probeVideo, videoProblem } from "./video-addon";
+import { bumpChanges } from "../changes";
 import {
   ART_NAMES,
   editionOf,
@@ -312,20 +313,35 @@ export function createWatchScanner(deps: WatchScannerDeps) {
 
     const videos = sqlite
       .prepare(
-        `SELECT v.id, v.folder_id, v.rel_path, v.duration_sec, v.hdr, m.backdrop_hash
+        `SELECT v.id, v.folder_id, v.rel_path, v.duration_sec, v.hdr, m.backdrop_hash, te.still_hash AS tmdb_still
          FROM videos v LEFT JOIN movies m ON m.id = v.movie_id
+         LEFT JOIN tmdb_episodes te ON te.show_id = v.show_id AND te.season = v.season AND te.episode = v.episode
          WHERE v.folder_id IS NOT NULL AND v.missing_since IS NULL AND v.still_hash IS NULL`,
       )
-      .all() as Array<{ id: string; folder_id: number; rel_path: string; duration_sec: number; hdr: string | null; backdrop_hash: string | null }>;
+      .all() as Array<{
+      id: string;
+      folder_id: number;
+      rel_path: string;
+      duration_sec: number;
+      hdr: string | null;
+      backdrop_hash: string | null;
+      tmdb_still: string | null;
+    }>;
     const setStill = sqlite.prepare("UPDATE videos SET still_hash = ?, still_from_file = ? WHERE id = ?");
+    const thumbOf = (v: (typeof videos)[number]) => pickArt(images(v.folder_id, dirOf(v.rel_path)), [`${stem(path.posix.basename(v.rel_path))}-thumb`]);
+    // TMDB's still is shown over a grabbed frame, so those episodes only take a -thumb. They stay
+    // unset, so a later scan still grabs one if TMDB's goes.
+    const todo = videos.filter((v) => !v.tmdb_still || thumbOf(v));
+    const started = Date.now();
+    if (todo.length) log.info("filling stills", { videos: todo.length });
     // The whole body holds a slot: a thumbnail's sharp work is as heavy as a frame grab.
     await Promise.all(
-      videos.map((v) =>
+      todo.map((v) =>
         probeLimit(async () => {
           const root = roots.get(v.folder_id);
           if (!root) return;
           const dir = dirOf(v.rel_path);
-          const thumb = pickArt(images(v.folder_id, dir), [`${stem(path.posix.basename(v.rel_path))}-thumb`]);
+          const thumb = thumbOf(v);
           let still: string | null;
           if (thumb) still = await storeImage(root, dir, thumb, "wide");
           else if (v.backdrop_hash) still = v.backdrop_hash;
@@ -343,6 +359,7 @@ export function createWatchScanner(deps: WatchScannerDeps) {
         }),
       ),
     );
+    if (todo.length) log.info("stills filled", { ms: Date.now() - started });
   }
 
   async function runOnce() {
@@ -392,8 +409,10 @@ export function createWatchScanner(deps: WatchScannerDeps) {
             return;
           }
           const result = await importVideo(kind, folder, file, walked.extras, now);
-          if (result === "ok") stats[row ? "updated" : "added"]++;
-          else if (result === "failed") stats.failed++;
+          if (result === "ok") {
+            stats[row ? "updated" : "added"]++;
+            bumpChanges("watch");
+          } else if (result === "failed") stats.failed++;
         }),
       );
       for (const gone of existing.values()) {
@@ -409,13 +428,16 @@ export function createWatchScanner(deps: WatchScannerDeps) {
     sqlite.prepare("DELETE FROM shows WHERE folder_id IS NULL OR id NOT IN (SELECT show_id FROM videos WHERE show_id IS NOT NULL)").run();
     sqlite.prepare("DELETE FROM movies WHERE folder_id IS NULL OR id NOT IN (SELECT movie_id FROM videos WHERE movie_id IS NOT NULL)").run();
 
-    await fillArt(extrasByFolder);
+    // Matching first (it started as titles were found), so stills skip episodes TMDB has one for.
     // Online details are optional: a failure there is logged and never fails the scan.
     try {
       await deps.matchPending?.();
     } catch (err) {
       log.warn("matching failed", { error: errorMessage(err) });
     }
+    await fillArt(extrasByFolder);
+    // Stills and pictures too, so one more reload after the files.
+    if (stats.added || stats.updated || stats.missing || stats.removed) bumpChanges("watch");
     return { stats, problems };
   }
 

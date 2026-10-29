@@ -4,6 +4,7 @@
 export type * from "./index";
 export * from "./ads";
 export * from "./api-paths";
+export * from "./changes";
 export * from "./format";
 export * from "./library";
 export * from "./music";
