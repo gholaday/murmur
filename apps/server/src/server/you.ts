@@ -4,6 +4,7 @@ import { adsEnabled } from "./ads";
 import type { AppContext } from "./context";
 import { env } from "./env";
 import { folderList } from "./library/folders";
+import { libraryAdmin } from "./library-admin";
 import { musicSummary } from "./music/queries";
 import { cacheStatus } from "./podcasts/cache-status";
 import { getPrefs } from "./prefs";
@@ -42,14 +43,12 @@ export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<Rea
     folders: user.isAdmin ? await folderList(ctx.db, ctx.sqlite) : [],
     adsEnabled: adsEnabled(),
     cache: user.isAdmin ? cacheStatus(ctx) : null,
+    libraryAdmin: user.isAdmin ? await libraryAdmin(ctx, user.id) : null,
     server: {
       version: env.version,
       devBuild: env.devBuild,
       updates: user.isAdmin ? updateStatus() : null,
       books: bookCount,
-      scanRunning: ctx.scanState.running,
-      lastScanAt: ctx.scanState.lastFinishedAt,
-      lastScanError: ctx.scanState.lastError,
       watcher: ctx.watcher.mode(),
     },
   };

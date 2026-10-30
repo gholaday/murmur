@@ -76,6 +76,8 @@ export function Sheet({
   title,
   head,
   keepInView,
+  foot,
+  tall,
   children,
 }: {
   open: boolean;
@@ -89,6 +91,10 @@ export function Sheet({
    * pull scrolling back before the sheet follows.
    */
   keepInView?: { top: number; height: number };
+  /** Stays under the list, for the sheet's main button. */
+  foot?: React.ReactNode;
+  /** Always full height, for a sheet with tabs, so switching tabs doesn't make it jump. */
+  tall?: boolean;
   children: React.ReactNode;
 }) {
   const t = useTheme();
@@ -220,7 +226,7 @@ export function Sheet({
             }}
             style={[
               {
-                maxHeight: "80%",
+                ...(tall ? { height: "80%" } : { maxHeight: "80%" }),
                 backgroundColor: t.surface,
                 borderTopLeftRadius: 24,
                 borderTopRightRadius: 24,
@@ -264,6 +270,7 @@ export function Sheet({
                 <InSheet.Provider value>{children}</InSheet.Provider>
               </SortableScrollProvider>
             </SheetScroll>
+            {foot ? <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>{foot}</View> : null}
           </Animated.View>
         </GestureDetector>
         <Toaster layer={toastLayer} />
@@ -284,6 +291,40 @@ function useKeyboardHeight() {
     };
   }, []);
   return height;
+}
+
+/**
+ * An item's menu on a card: mounted on long press, and unmounted once the menu and anything it
+ * opened (Edit, Match) have closed and slid away, so idle cards carry none of it.
+ */
+export function useCardMenu() {
+  const [shown, setShown] = useState(false);
+  const [open, setOpen] = useState(false);
+  return {
+    shown,
+    open,
+    show: () => {
+      setShown(true);
+      setOpen(true);
+    },
+    close: () => setOpen(false),
+    idle: () => setShown(false),
+  };
+}
+
+/** Calls `onIdle` a moment after nothing in a menu is open, once the last sheet has slid away. */
+export function useMenuIdle(busy: boolean, onIdle: (() => void) | undefined) {
+  useEffect(() => {
+    if (busy || !onIdle) return;
+    const timer = setTimeout(onIdle, 400);
+    return () => clearTimeout(timer);
+  }, [busy, onIdle]);
+}
+
+/** A line between a menu's groups, e.g. before the admin items. */
+export function SheetDivider() {
+  const t = useTheme();
+  return <View style={{ height: 1, backgroundColor: t.line, marginVertical: 6, marginHorizontal: 12 }} />;
 }
 
 export function SheetItem({

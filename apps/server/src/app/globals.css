@@ -498,6 +498,7 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--tex
 .menu [role="menuitem"] { height: 38px; padding: 0 10px; border-radius: 8px; text-align: left; font-size: 14px; font-weight: 600; }
 .menu [role="menuitem"]:hover, .menu [role="menuitem"]:focus-visible { background: color-mix(in srgb, var(--text) 8%, transparent); outline: none; }
 .menu [role="menuitem"]:disabled { opacity: 0.45; }
+.menu [role="menuitem"].danger { color: var(--danger); }
 .menu-sep { height: 1px; background: var(--line); margin: 6px 4px; }
 .card-done { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 12px; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center; }
 
@@ -947,12 +948,16 @@ a.episode-show:hover { color: var(--accent); }
   gap: 12px;
   width: 100%;
   min-height: 48px;
-  padding: 0 4px;
-  border-bottom: 1px solid var(--line);
+  padding: 0 12px;
+  border-radius: 12px;
   text-align: left;
   font-size: 15px;
 }
-.sheet-item:last-child { border-bottom: 0; }
+/* Rows have no lines between them, as in the app; a menu's only line is the divider before its admin items. */
+.sheet-item:hover:not(:disabled) { background: var(--surface-2); }
+/* The row's text lines up with the sheet title; its hover reaches past it. */
+.sheet-scroll > .sheet-item { width: auto; margin-inline: -12px; }
+.sheet .menu-sep { margin: 0; }
 .sheet-item[aria-current="true"] { color: var(--accent); font-weight: 700; }
 .sheet-item.danger { color: var(--danger); }
 .sheet .chapter-list { max-height: 60dvh; overflow-y: auto; }
@@ -1003,6 +1008,11 @@ a.episode-show:hover { color: var(--accent); }
 .cover-suggest button { display: flex; flex-direction: column; gap: 4px; text-align: left; color: var(--text-2); }
 .cover-suggest img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; outline: 2px solid transparent; outline-offset: 2px; }
 .cover-suggest button:hover img { outline-color: var(--accent); }
+.art-suggest { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.art-suggest.backdrop { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.art-suggest img, .art-suggest .skel { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; outline: 2px solid transparent; outline-offset: 2px; }
+.art-suggest.backdrop img, .art-suggest.backdrop .skel { aspect-ratio: 16 / 9; }
+.art-suggest button:hover img { outline-color: var(--accent); }
 .match-panel { display: flex; flex-direction: column; gap: 12px; }
 /* Review and Apply stay at the top of the dialog while the results or fields scroll under them.
    The negative margins reach the dialog's edges; top matches .edit-body's top padding. */
@@ -1468,8 +1478,8 @@ button.setting-link { width: 100%; text-align: left; color: inherit; }
 .match-overview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 4px; }
 
 /* A rescan button's arrow turns while the scan runs. */
-.icon-btn.spinning svg { animation: spin 1s linear infinite; }
-.icon-btn.spinning:disabled { opacity: 1; }
+.spinning svg { animation: spin 1s linear infinite; }
+.spinning:disabled { opacity: 1; }
 
 /* The video playing on in the mini player: the picture where the cover goes, the page's parts hidden. */
 .mini.vp-mini { flex-direction: row; align-items: center; gap: 12px; padding-left: 8px; }

@@ -23,6 +23,43 @@ export function progressPct(b: BookSummary): number {
 /** Under a Next in series card: which book it is (series names are too long to fit), else the author. */
 export const nextInSeriesSub = (b: BookSummary) => (b.seriesPosition !== null ? `Book ${b.seriesPosition}` : b.author);
 
+/** Problems an admin can fix from a book's Edit, listed under Needs attention. */
+const BOOK_ISSUES: Array<{ label: string; test: (b: BookSummary) => boolean }> = [
+  { label: "No cover", test: (b) => !b.coverHash },
+  { label: "Unknown author", test: (b) => !b.author },
+  { label: "Files missing", test: (b) => b.missingSince !== null },
+];
+
+/** A book's problems, as labels for under its cover; none means it's fine. */
+export const bookIssues = (b: BookSummary): string[] => BOOK_ISSUES.filter((i) => i.test(b)).map((i) => i.label);
+
+export interface ScanStatusDto {
+  running: boolean;
+  lastFinishedAt: number | null;
+  lastError: string | null;
+}
+
+/** You > Library for admins: each kind's counts, scan and what needs a look. */
+export interface LibraryAdminDto {
+  books: { total: number; attention: number; unmatched: number; scan: ScanStatusDto };
+  music: { albums: number; unmatched: number; scan: ScanStatusDto };
+  watch: { movies: number; shows: number; scan: ScanStatusDto };
+}
+
+/** Under a kind's count in You > Library: whether it's scanning, failed, or when it last scanned. */
+export function scanStatusText(scan: ScanStatusDto, now = Date.now()): string {
+  if (scan.running) return "Scanning now";
+  if (scan.lastError) return scan.lastError;
+  if (!scan.lastFinishedAt) return "Not scanned yet";
+  const mins = Math.round((now - scan.lastFinishedAt) / 60_000);
+  if (mins < 1) return "Scanned just now";
+  if (mins < 60) return `Scanned ${mins} ${mins === 1 ? "minute" : "minutes"} ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `Scanned ${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  const days = Math.round(hours / 24);
+  return `Scanned ${days} ${days === 1 ? "day" : "days"} ago`;
+}
+
 /** Under "No books yet": why the library is empty, from the scan state in `/api/health`. */
 export function emptyLibraryReason(scan: { running: boolean; lastError: string | null }): string {
   if (scan.running) return "The first scan is running. Books appear as soon as it finishes.";

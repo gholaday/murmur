@@ -230,6 +230,14 @@ export async function listMovies(ctx: AppContext, userId: number): Promise<Movie
   return rows.map((m) => toMovie(m, progress, colors));
 }
 
+/** Which pictures an admin chose in Edit, so Edit can offer to remove them. */
+function chosenArt(ctx: AppContext, table: "movies" | "shows", id: string): { poster: boolean; backdrop: boolean } {
+  const row = ctx.sqlite.prepare(`SELECT poster_chosen, backdrop_chosen FROM ${table} WHERE id = ?`).get(id) as
+    | { poster_chosen: number; backdrop_chosen: number }
+    | undefined;
+  return { poster: row?.poster_chosen === 1, backdrop: row?.backdrop_chosen === 1 };
+}
+
 export async function getMovie(ctx: AppContext, userId: number, id: string): Promise<MovieDetail | null> {
   const movie = ctx.sqlite.prepare(`${MOVIE_SELECT} WHERE m.id = ?`).get(id) as MovieRow | undefined;
   if (!movie) return null;
@@ -239,6 +247,7 @@ export async function getMovie(ctx: AppContext, userId: number, id: string): Pro
     description: movie.description,
     backdropHash: movie.backdrop_hash,
     tmdbId: movie.tmdb_id,
+    chosenArt: chosenArt(ctx, "movies", id),
     versionList: versions.map(toVersion),
   };
 }
@@ -305,6 +314,7 @@ export async function getShow(ctx: AppContext, userId: number, id: string): Prom
     description: row.description,
     backdropHash: row.backdrop_hash,
     tmdbId: row.tmdb_id,
+    chosenArt: chosenArt(ctx, "shows", id),
     seasonList,
     upNextId: showUpNext(episodes),
   };

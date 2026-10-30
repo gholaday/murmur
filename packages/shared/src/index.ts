@@ -115,6 +115,20 @@ export const musicFoldersSchema = z.object({
 export const albumSortSchema = z.enum(["added", "name", "artist", "year"]).catch("added");
 /** Match for a movie or show: the TMDB title picked. */
 export const watchMatchSchema = z.object({ tmdbId: z.number().int().positive() });
+
+/** Edit for a movie or show: what you type wins over the files and TMDB from then on. */
+export const watchDetailsSchema = z.object({
+  title: z.string().trim().min(1, "Give it a title.").max(300),
+  year: z.string().trim().regex(/^(\d{4})?$/, "Year is four digits.").nullable(),
+  description: z.string().trim().max(10_000).nullable(),
+});
+export type WatchDetailsInput = z.infer<typeof watchDetailsSchema>;
+
+/** A poster or backdrop: a link to download, or one of TMDB's (`tmdbPath` from the options). */
+export const watchArtSchema = z.union([
+  z.object({ url: z.url({ protocol: /^https?$/ }).trim().max(2000) }),
+  z.object({ tmdbPath: z.string().regex(/^\/[\w.-]+$/) }),
+]);
 /** Stream a video remuxed: which audio track, whether its sound is copied or converted, and from where. */
 export const watchStreamSchema = z.object({
   track: z.number().int().min(0).max(99),
@@ -703,6 +717,8 @@ export interface HealthDto extends HealthProbeDto {
     encoder: string;
     /** Settings' Video row, worded by the server so the web and the app say the same. */
     status: VideoStatus;
+    /** A TMDB key is set, so Match and Edit's picture suggestions work. */
+    tmdb: boolean;
     scan: { running: boolean; lastFinishedAt: number | null; lastError: string | null };
   } | null;
 }

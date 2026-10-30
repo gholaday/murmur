@@ -4,11 +4,10 @@ import { useLocalSearchParams } from "expo-router";
 import { albumCover, type AlbumDetail, albumDiscs, albumInMusic, albumPills, plural, songNumber, type TrackDto } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { CheckIcon, DownloadIcon, MoreIcon, PlusIcon } from "@/components/icons";
-import { ActionButton, addSongsToUpNext, openArtist, Pills, PlayButton, ShuffleButton, SongSheet, TrackRow } from "@/components/music";
+import { ActionButton, AlbumActions, openArtist, Pills, PlayButton, ShuffleButton, SongSheet, TrackRow } from "@/components/music";
 import { Empty, NestedScreen, SectionTitle } from "@/components/page";
-import { AddToPlaylistSheet } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
-import { RemoveDownloadSheet, Sheet, SheetItem } from "@/components/sheet";
+import { RemoveDownloadSheet } from "@/components/sheet";
 import { Bone, FadeIn, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { IconButton, Text } from "@/components/ui";
 import { setInMusic, useAlbum } from "@/lib/data";
@@ -33,7 +32,6 @@ export default function AlbumScreen() {
   const state = a ? albumInMusic(a) : "none";
   const [more, setMore] = useState(false);
   const [song, setSong] = useState<TrackDto | null>(null);
-  const [adding, setAdding] = useState(false);
 
   let body: React.ReactNode;
   if (a) {
@@ -136,43 +134,8 @@ export default function AlbumScreen() {
       }
       after={
         <>
-          {a ? (
-            <Sheet open={more} onClose={() => setMore(false)} title={a.title}>
-              <SheetItem
-                label="Add to Up Next"
-                onPress={() => {
-                  setMore(false);
-                  void addSongsToUpNext(a.tracks);
-                }}
-              />
-              <SheetItem
-                label="Add to playlist…"
-                onPress={() => {
-                  setMore(false);
-                  setAdding(true);
-                }}
-              />
-              <SheetItem
-                label={`Go to ${a.artist}`}
-                onPress={() => {
-                  setMore(false);
-                  openArtist(a.artistId);
-                }}
-              />
-              {a.songsInMusic > 0 ? (
-                <SheetItem
-                  label="Remove from your music"
-                  danger
-                  onPress={() => {
-                    setMore(false);
-                    void setInMusic({ albums: [a] }, false);
-                  }}
-                />
-              ) : null}
-            </Sheet>
-          ) : null}
+          {a ? <AlbumActions album={a} open={more} onClose={() => setMore(false)} /> : null}
           <SongSheet track={song} onClose={() => setSong(null)} hideAlbum />
-          {a ? <AddToPlaylistSheet open={adding} onClose={() => setAdding(false)} title={a.title} trackIds={a.tracks.map((tr) => tr.id)} /> : null}
         </>
       }
     >

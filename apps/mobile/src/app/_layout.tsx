@@ -71,6 +71,7 @@ function Navigation() {
           <Stack.Screen name="playback" />
           <Stack.Screen name="server" />
           <Stack.Screen name="library" />
+          <Stack.Screen name="library-list" />
           <Stack.Screen name="episode-cache" />
           <Stack.Screen name="users" />
           <Stack.Screen name="tab-settings" />

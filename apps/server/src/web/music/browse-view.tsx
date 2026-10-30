@@ -5,10 +5,9 @@ import { type AlbumSummary, albumInMusic, albumMatches, isNewAlbum, type MusicSu
 import { CloseIcon, FilterIcon, SearchIcon } from "../icons";
 import { Chip, Chips, CountPill, EmptyState, SearchBox } from "../ui";
 import { MusicBackRow } from "./album-view";
-import { AlbumMatchAll } from "./match-all";
 import { AlbumCard, AlbumSortSheet, useAlbumSort } from "./music-view";
 
-type Filter = "all" | "not" | "new" | "unmatched";
+type Filter = "all" | "not" | "new";
 const FILTERS: Array<{ id: Filter; label: string }> = [
   { id: "all", label: "All" },
   { id: "not", label: "Not added" },
@@ -16,7 +15,7 @@ const FILTERS: Array<{ id: Filter; label: string }> = [
 ];
 
 /** Every album, each with a + to add it to your music (or a check once it's in). */
-export function BrowseView({ summary, albums, isAdmin }: { summary: MusicSummaryDto; albums: AlbumSummary[]; isAdmin: boolean }) {
+export function BrowseView({ summary, albums }: { summary: MusicSummaryDto; albums: AlbumSummary[] }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useAlbumSort();
   const [sortOpen, setSortOpen] = useState(false);
@@ -29,10 +28,8 @@ export function BrowseView({ summary, albums, isAdmin }: { summary: MusicSummary
     all: () => true,
     not: (a) => albumInMusic(a) !== "all",
     new: isNewAlbum,
-    unmatched: (a) => !a.matched,
   };
   const shown = sorted.filter((a) => albumMatches(a, q) && keep[filter](a));
-  const unmatched = albums.filter((a) => !a.matched);
   const grid = shown.length ? (
     <div className="grid">
       {shown.map((a) => (
@@ -45,9 +42,7 @@ export function BrowseView({ summary, albums, isAdmin }: { summary: MusicSummary
         ? `No album matches "${query.trim()}".`
         : filter === "new"
           ? "No new albums in the last two weeks."
-          : filter === "unmatched"
-            ? "Every album is matched."
-            : "Every album is in your music."}
+          : "Every album is in your music."}
     </EmptyState>
   );
 
@@ -88,14 +83,9 @@ export function BrowseView({ summary, albums, isAdmin }: { summary: MusicSummary
             {f.id === "new" && summary.newAlbums > 0 ? <CountPill count={summary.newAlbums} /> : null}
           </Chip>
         ))}
-        {isAdmin && (unmatched.length > 0 || filter === "unmatched") ? (
-          <Chip selected={filter === "unmatched"} onClick={() => setFilter("unmatched")}>
-            Not matched
-          </Chip>
-        ) : null}
       </Chips>
 
-      <div style={{ marginTop: 16 }}>{filter === "unmatched" ? <AlbumMatchAll albums={unmatched}>{grid}</AlbumMatchAll> : grid}</div>
+      <div style={{ marginTop: 16 }}>{grid}</div>
 
       <AlbumSortSheet open={sortOpen} onClose={() => setSortOpen(false)} sort={sort} onPick={setSort} />
     </>

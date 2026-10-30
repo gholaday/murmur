@@ -28,6 +28,8 @@ export interface ScannerDeps {
   missingGraceMs: number;
   log: Logger;
   state: ScanState;
+  /** Runs after each scan, for lookups that need the new books (matching on their own). */
+  afterScan?: () => Promise<void>;
 }
 
 export interface ScanState {
@@ -473,6 +475,8 @@ export function createScanner(deps: ScannerDeps) {
           state.lastStats = stats;
           state.lastError = problems.length ? problems.join(" ") : null;
           log.info(pass === "full" ? "scan finished" : "folder rescan finished", { ...stats, ms: Date.now() - started });
+          // Not awaited: online lookups mustn't hold up the next scan or the status.
+          void deps.afterScan?.().catch((err: unknown) => log.warn("after-scan step failed", { error: errorMessage(err) }));
         } catch (err) {
           state.lastError = errorMessage(err);
           log.error("scan failed", { error: state.lastError });

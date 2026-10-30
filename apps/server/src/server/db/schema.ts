@@ -60,6 +60,8 @@ export const books = sqliteTable(
     addedAt: integer("added_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
     missingSince: integer("missing_since"),
+    /** When matching on its own was tried; null means not yet. */
+    matchTriedAt: integer("match_tried_at"),
   },
   (t) => [
     uniqueIndex("books_folder_idx").on(t.libraryFolderId, t.folderPath),
@@ -136,6 +138,8 @@ export const albums = sqliteTable(
     coverHash: text("cover_hash"),
     addedAt: integer("added_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
+    /** When matching on its own was tried; null means not yet. */
+    matchTriedAt: integer("match_tried_at"),
   },
   (t) => [uniqueIndex("albums_artist_title_idx").on(t.artistId, t.titleKey), index("albums_added_idx").on(t.addedAt)],
 );
@@ -575,6 +579,9 @@ const matchColumns = () => ({
   /** The picture came from TMDB, so another match may replace it; a local one never is. */
   posterTmdb: integer("poster_tmdb", { mode: "boolean" }).notNull().default(false),
   backdropTmdb: integer("backdrop_tmdb", { mode: "boolean" }).notNull().default(false),
+  /** An admin chose the picture in Edit; removing it brings back the files' or TMDB's. */
+  posterChosen: integer("poster_chosen", { mode: "boolean" }).notNull().default(false),
+  backdropChosen: integer("backdrop_chosen", { mode: "boolean" }).notNull().default(false),
 });
 
 export const shows = sqliteTable(

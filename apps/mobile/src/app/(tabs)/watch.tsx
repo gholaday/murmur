@@ -8,7 +8,7 @@ import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, Skeleton } from "@/components/skeleton";
 import { Button, Chips, IconButton } from "@/components/ui";
-import { type PosterItem, PosterCard, RescanButton, StillCard, useWatchSort, WatchSortSheet } from "@/components/watch";
+import { type PosterItem, PosterCard, StillCard, useWatchSort, WatchSortSheet } from "@/components/watch";
 import { useDownloads } from "@/lib/downloads";
 import { useOnline } from "@/lib/query";
 import { useSession } from "@/lib/session";
@@ -117,7 +117,6 @@ export default function Watch() {
         right={
           noFolder ? null : (
             <>
-              {admin ? <RescanButton /> : null}
               <IconButton
                 label={searching ? "Close search" : "Search"}
                 onPress={() => {

@@ -8,5 +8,5 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
   const user = await requirePageUser();
   const album = await getAlbum(await getContext(), user.id, (await params).id);
   if (!album) notFound();
-  return <AlbumView album={album} isAdmin={user.isAdmin} />;
+  return <AlbumView album={album} />;
 }

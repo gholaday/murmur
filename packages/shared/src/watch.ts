@@ -100,6 +100,8 @@ export interface MovieDetail extends MovieSummary {
   backdropHash: string | null;
   /** The TMDB title it's matched to; null when not matched. */
   tmdbId: number | null;
+  /** Pictures an admin chose in Edit, which Remove takes off again. */
+  chosenArt: { poster: boolean; backdrop: boolean };
   /** Biggest picture first; the first is the one Play starts. */
   versionList: MovieVersion[];
 }
@@ -151,6 +153,8 @@ export interface ShowDetail extends ShowSummary {
   backdropHash: string | null;
   /** The TMDB title it's matched to; null when not matched. */
   tmdbId: number | null;
+  /** Pictures an admin chose in Edit, which Remove takes off again. */
+  chosenArt: { poster: boolean; backdrop: boolean };
   /** Seasons in order, Specials (0) last. */
   seasonList: Array<{ season: number; episodes: VideoEpisode[] }>;
   /** Where Resume goes: the episode in progress, else the next unwatched one. Null when all are watched. */
@@ -158,6 +162,14 @@ export interface ShowDetail extends ShowSummary {
 }
 
 /** A TMDB search result in the Match sheet. */
+/** One of TMDB's posters or backdrops, offered in Edit. */
+export interface WatchArtOption {
+  /** Sent back to pick it. */
+  tmdbPath: string;
+  /** A small copy straight from TMDB. */
+  thumbUrl: string;
+}
+
 export interface WatchMatchResult {
   tmdbId: number;
   title: string;

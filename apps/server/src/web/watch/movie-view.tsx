@@ -22,7 +22,10 @@ import { setFinished } from "../progress";
 import { Sheet, SheetItem } from "../sheet";
 import { BackButton, SettingsCard } from "../ui";
 import { playHref, Poster } from "./cards";
-import { WatchMatchDialog } from "./match-sheet";
+import { useAdmin } from "../admin";
+import { MenuSheet } from "../card-menu";
+import { WatchEditDialog, type WatchEditTab } from "./edit-sheet";
+import { WatchMenuItems } from "./poster-menu";
 import { QualityPick } from "./quality-pick";
 
 /** Codecs, size and name of a file, for when something won't play. */
@@ -46,12 +49,13 @@ export function FileDetails({ file }: { file: VideoFileInfo }) {
 }
 
 /** A movie: poster, Play or Resume, Mark watched, the description, its versions and the file. */
-export function MovieView({ movie, canMatch }: { movie: MovieDetail; canMatch: boolean }) {
+export function MovieView({ movie }: { movie: MovieDetail }) {
   const router = useRouter();
+  const { tmdb } = useAdmin();
   const [expanded, setExpanded] = useState(false);
   const [picking, setPicking] = useState(false);
   const [menu, setMenu] = useState(false);
-  const [matching, setMatching] = useState(false);
+  const [editing, setEditing] = useState<WatchEditTab | null>(null);
   const [versionId, setVersionId] = useState(movie.versionList[0]!.id);
   /** A converted-video quality picked for this viewing; null means your setting. */
   const [quality, setQuality] = useState<VideoQuality | null>(null);
@@ -90,11 +94,9 @@ export function MovieView({ movie, canMatch }: { movie: MovieDetail; canMatch: b
       >
         <div className="hero-bar">
           <BackButton fallback="/watch" />
-          {canMatch ? (
-            <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMenu(true)}>
-              <MoreIcon />
-            </button>
-          ) : null}
+          <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMenu(true)}>
+            <MoreIcon />
+          </button>
         </div>
         <div className="show-hero">
           <Poster kind="movie" id={movie.id} hash={movie.posterHash} color={movie.color} title={movie.title} sub={movie.year} />
@@ -175,19 +177,24 @@ export function MovieView({ movie, canMatch }: { movie: MovieDetail; canMatch: b
         ))}
       </Sheet>
 
-      <Sheet open={menu} onClose={() => setMenu(false)} title={movie.title}>
-        <SheetItem
-          onClick={() => {
-            setMenu(false);
-            setMatching(true);
-          }}
-        >
-          Match…
-        </SheetItem>
-      </Sheet>
-      {matching ? (
-        <WatchMatchDialog kind="movie" id={movie.id} title={movie.title} year={movie.year} tmdbId={movie.tmdbId} onClose={() => setMatching(false)} />
-      ) : null}
+      <MenuSheet
+        open={menu}
+        onClose={() => setMenu(false)}
+        title={movie.title}
+        items={(choose) => (
+          <WatchMenuItems
+            kind="movie"
+            id={movie.id}
+            watched={finished}
+            resume={started}
+            playHref={playHref}
+            load={async () => movie}
+            edit={setEditing}
+            choose={choose}
+          />
+        )}
+      />
+      {editing ? <WatchEditDialog kind="movie" item={movie} tab={editing} canMatch={tmdb} onClose={() => setEditing(null)} /> : null}
     </>
   );
 }

@@ -5,8 +5,9 @@ import { env } from "./env";
 import { ensureDefaultFolder, ensureMountedFolder, listFolders, saveFolders, type LibraryFolder } from "./library/folders";
 import { createWatchScanner, type WatchScanner } from "./watch/scanner";
 import { createWatchMatcher, type WatchMatcher } from "./watch/match";
-import { createTmdb } from "./watch/tmdb";
+import { createTmdb, type Tmdb } from "./watch/tmdb";
 import { setBusy } from "./changes";
+import { autoMatching, autoMatchPending } from "./metadata/auto-match";
 import { pruneProviderCache } from "./metadata/providers";
 import { fillArtistPhotos } from "./music/match";
 import { createMusicScanner, type MusicScanner } from "./music/scanner";
@@ -44,6 +45,8 @@ export interface AppContext {
     saveFolders: (kind: "movies" | "shows", paths: string[]) => Promise<void>;
     /** TMDB matching; null without a TMDB key. */
     matcher: WatchMatcher | null;
+    /** TMDB itself, for Edit's pictures; null without a TMDB key. */
+    tmdb: Tmdb | null;
   };
   podcasts: PodcastService;
   episodeCache: EpisodeCache;
@@ -93,6 +96,7 @@ async function boot(): Promise<AppContext> {
     missingGraceMs: env.missingGraceMs,
     log: createLogger("scanner"),
     state: scanState,
+    afterScan: () => autoMatchPending(getContext),
   });
 
   const watchLog = createLogger("watcher");
@@ -136,7 +140,10 @@ async function boot(): Promise<AppContext> {
     missingGraceMs: env.missingGraceMs,
     log: createLogger("music"),
     state: musicState,
-    afterScan: () => fillArtistPhotos(sqlite),
+    afterScan: async () => {
+      await fillArtistPhotos(sqlite);
+      await autoMatchPending(getContext);
+    },
   });
   // Music has its own watcher: any change rescans the music folders, which only probes what changed.
   const startMusicWatch = () =>
@@ -167,14 +174,10 @@ async function boot(): Promise<AppContext> {
   const watchState = createScanState();
   const watchFolders = () => ({ movies: listFolders(db, "movies"), shows: listFolders(db, "shows") });
   // Online details only with a TMDB key; without one Watch runs on local files.
-  const matcher = env.tmdbApiKey
-    ? createWatchMatcher({
-        sqlite,
-        coversDir: env.coversDir,
-        log: createLogger("watch-match"),
-        tmdb: createTmdb(sqlite, { apiKey: env.tmdbApiKey, language: env.tmdbLanguage, userAgent: `Murmur/${env.version}` }),
-      })
+  const tmdb = env.tmdbApiKey
+    ? createTmdb(sqlite, { apiKey: env.tmdbApiKey, language: env.tmdbLanguage, userAgent: `Murmur/${env.version}` })
     : null;
+  const matcher = tmdb ? createWatchMatcher({ sqlite, coversDir: env.coversDir, log: createLogger("watch-match"), tmdb }) : null;
   const watchScanner = createWatchScanner({
     sqlite,
     folders: watchFolders,
@@ -203,6 +206,7 @@ async function boot(): Promise<AppContext> {
     state: watchState,
     folders: watchFolders,
     matcher,
+    tmdb,
     saveFolders: async (kind, paths) => {
       saveFolders(db, paths, kind);
       await videoWatcher.close();
@@ -238,7 +242,7 @@ async function boot(): Promise<AppContext> {
   registerShutdown(sqlite, watcher);
   startUpdateChecks();
 
-  setBusy(() => scanState.running || musicState.running || watchState.running || !!matcher?.busy());
+  setBusy(() => scanState.running || musicState.running || watchState.running || !!matcher?.busy() || autoMatching());
   void scanner.scan(); // initial scans run in the background; the server is usable meanwhile
   void musicScanner.scan();
   void watchScanner.scan();

@@ -1,4 +1,5 @@
 import { getContext } from "@/server/context";
+import { AdminProvider } from "@/web/admin";
 import { getPrefs } from "@/server/prefs";
 import { requirePageUser } from "@/server/session";
 import { PlayerProvider } from "@/web/player/engine";
@@ -10,12 +11,14 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   const user = await requirePageUser();
   const ctx = await getContext();
   return (
-    <PlayerProvider>
-      <VideoProvider>
-        <Shell tabs={getPrefs(ctx, user.id).tabs}>
-          {children}
-        </Shell>
-      </VideoProvider>
-    </PlayerProvider>
+    <AdminProvider isAdmin={user.isAdmin} tmdb={!!ctx.watch.tmdb}>
+      <PlayerProvider>
+        <VideoProvider>
+          <Shell tabs={getPrefs(ctx, user.id).tabs}>
+            {children}
+          </Shell>
+        </VideoProvider>
+      </PlayerProvider>
+    </AdminProvider>
   );
 }

@@ -6,5 +6,5 @@ import { BrowseView } from "@/web/music/browse-view";
 export default async function BrowsePage() {
   const user = await requirePageUser();
   const ctx = await getContext();
-  return <BrowseView summary={musicSummary(ctx, user.id)} albums={await listAlbums(ctx, user.id, "all", "added")} isAdmin={user.isAdmin} />;
+  return <BrowseView summary={musicSummary(ctx, user.id)} albums={await listAlbums(ctx, user.id, "all", "added")} />;
 }

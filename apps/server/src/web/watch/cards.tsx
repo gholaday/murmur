@@ -4,6 +4,7 @@ import Link from "next/link";
 import { apiPaths, episodeLabel, percentDone, timeLeft, type VideoQuality, type WatchCard, watchCardArtUrl } from "@murmur/shared/client";
 import { Cover } from "../cover";
 import { CheckIcon } from "../icons";
+import { PosterCardMenu } from "./poster-menu";
 
 /** Where a movie or show page is. */
 export const movieHref = (id: string) => `/watch/movie/${id}`;
@@ -80,6 +81,7 @@ export function PosterCard({
         <div className="card-title">{title}</div>
         {year ? <div className="card-sub">{year}</div> : null}
       </Link>
+      <PosterCardMenu kind={kind} id={id} title={title} watched={watched} resume={!watched && !!percent} playHref={playHref} />
     </div>
   );
 }

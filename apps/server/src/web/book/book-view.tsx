@@ -5,15 +5,14 @@ import { useRouter } from "next/navigation";
 import { memo, useCallback, useState } from "react";
 import { toast } from "sonner";
 import { apiPaths, type BookDetail, bookStarted, type ChapterDto, chapterAt, duration, errorText, pastStart, plural, timeLeft } from "@murmur/shared/client";
-import { api } from "../api";
+import { MenuSheet } from "../card-menu";
 import { Cover } from "../cover";
 import { BookmarkAddIcon, CheckIcon, MoreIcon, PauseIcon, PlayIcon } from "../icons";
 import { bookToPlayable, usePlayer, usePosition } from "../player/engine";
 import { setFinished } from "../progress";
-import { Sheet, SheetItem } from "../sheet";
+import { BookMenuItems } from "../library/book-card";
 import { BackButton, SectionTitle } from "../ui";
 import { EditBookDialog, type EditTab } from "./edit-dialog";
-import { setMarkedMatched } from "./match-mark";
 import { setPlayNext } from "./play-next";
 
 export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean }) {
@@ -57,13 +56,6 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
   const togglePlayNext = () => {
     setMenu(false);
     void setPlayNext(book.id, !onPlayNext, () => router.refresh()).catch((err: unknown) => toast.error(errorText(err)));
-  };
-
-  const revertMatch = async () => {
-    setMenu(false);
-    await api(`/api/books/${book.id}/match`, { method: "DELETE" });
-    toast("Match undone, using the files' details");
-    router.refresh();
   };
 
   const left = timeLeft(book.durationSec, position);
@@ -183,59 +175,12 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
         <ChapterList chapters={book.chapters} currentChapter={currentChapter} onPlay={playChapter} />
       ) : null}
 
-      <Sheet open={menu} onClose={() => setMenu(false)} title={book.title}>
-        {canPlayNext ? <SheetItem onClick={togglePlayNext}>{onPlayNext ? "Remove from Play next" : "Add to Play next"}</SheetItem> : null}
-        <SheetItem onClick={() => void mark(!finished)}>
-          {finished ? "Mark as not finished" : "Mark as finished"}
-        </SheetItem>
-        {book.progress && !book.progress.finished ? (
-          <SheetItem onClick={() => void mark(false)}>Reset progress</SheetItem>
-        ) : null}
-        {isAdmin ? (
-          <>
-            <SheetItem
-              onClick={() => {
-                setMenu(false);
-                setEditing("details");
-              }}
-            >
-              Edit details…
-            </SheetItem>
-            <SheetItem
-              onClick={() => {
-                setMenu(false);
-                setEditing("cover");
-              }}
-            >
-              Change cover…
-            </SheetItem>
-            <SheetItem
-              onClick={() => {
-                setMenu(false);
-                setEditing("match");
-              }}
-            >
-              Match metadata…
-            </SheetItem>
-            {/* Not offered once a real match was applied: Undo match is the way back there. */}
-            {!book.match ? (
-              <SheetItem
-                onClick={() => {
-                  setMenu(false);
-                  void setMarkedMatched(book.id, !book.markedMatched, () => router.refresh()).catch((err: unknown) => toast.error(errorText(err)));
-                }}
-              >
-                {book.markedMatched ? "Mark as not matched" : "Mark as matched"}
-              </SheetItem>
-            ) : null}
-          </>
-        ) : null}
-        {isAdmin && book.match ? (
-          <SheetItem danger onClick={() => void revertMatch()}>
-            Undo match (use file metadata)
-          </SheetItem>
-        ) : null}
-      </Sheet>
+      <MenuSheet
+        open={menu}
+        onClose={() => setMenu(false)}
+        title={book.title}
+        items={(choose) => <BookMenuItems book={book} isAdmin={isAdmin} edit={(_, tab) => setEditing(tab)} choose={choose} />}
+      />
 
       {isAdmin && editing ? (
         <EditBookDialog

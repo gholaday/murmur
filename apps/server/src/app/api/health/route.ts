@@ -23,6 +23,7 @@ async function watchHealth(ctx: Awaited<ReturnType<typeof getContext>>): Promise
     ffmpeg: video?.ffmpeg ?? false,
     encoder: video?.encoder ?? "cpu",
     status: videoStatus(video),
+    tmdb: ctx.watch.tmdb !== null,
     scan: { running: s.running, lastFinishedAt: s.lastFinishedAt, lastError: s.lastError },
   };
 }

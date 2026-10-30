@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Linking, Pressable, Switch, View } from "react-native";
 import Constants from "expo-constants";
+import { type Href, router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
 import {
   adScanStatus,
@@ -13,9 +15,12 @@ import {
   type HealthDto,
   joinPath,
   KEEP_PER_SHOW_OPTIONS,
+  type LibraryAdminDto,
   type LibraryFolderDto,
+  plural,
+  type ScanStatusDto,
+  scanStatusText,
   type ServerVersionDto,
-  shortDate,
   type UserDto,
   versionStatus,
 } from "@murmur/shared/client";
@@ -24,7 +29,7 @@ import { selectHaptic } from "@/lib/haptics";
 import { APP_NAME } from "@/lib/platform";
 import { queryClient } from "@/lib/query";
 import { fonts, useTheme } from "@/theme";
-import { BackIcon, CheckIcon, FolderIcon } from "./icons";
+import { BackIcon, CheckIcon, ChevronIcon, FolderIcon, RefreshIcon } from "./icons";
 import { ConfirmSheet, Sheet } from "./sheet";
 import { Bone, FadeIn, Skeleton } from "./skeleton";
 import { toast } from "./toast";
@@ -186,7 +191,7 @@ export function RolePill({ admin }: { admin: boolean }) {
 }
 
 /** App-styled checkbox: a rounded square that fills with the accent colour when ticked. */
-function Checkbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+export function Checkbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   const t = useTheme();
   return (
     <Pressable
@@ -348,7 +353,7 @@ function TmdbLogo({ height }: { height: number }) {
 
 // ---------- Admin: library ----------
 
-const libraryKeys = { health: ["health"], folders: ["library-folders"], users: ["users"], cache: ["episode-cache"] } as const;
+const libraryKeys = { health: ["health"], admin: ["library-admin"], folders: ["library-folders"], users: ["users"], cache: ["episode-cache"] } as const;
 
 // Shared by the sections and the You tab's rows, which show a short value from them.
 export const useServerVersion = () => useQuery({ queryKey: ["server-version"], queryFn: () => api<ServerVersionDto>("/api/server/version") });
@@ -447,20 +452,12 @@ export function EpisodeCacheSection() {
   );
 }
 
-function scanStatus(h: HealthDto) {
-  if (h.scan.running) return "Scanning now…";
-  if (h.scan.lastError) return h.scan.lastError;
-  if (!h.scan.lastFinishedAt) return "Not scanned yet";
-  const time = new Date(h.scan.lastFinishedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  return `Last scanned ${shortDate(h.scan.lastFinishedAt).toLowerCase()} at ${time}`;
-}
-
 /** The kinds of folder the server reads, as the web lists them under You > Library. */
 const FOLDER_KINDS = {
-  books: { url: "/api/library/folders", heading: "Book folders", item: "book", things: "books", title: "Add a library folder", min: 1, refresh: [["books"]] },
-  music: { url: "/api/music/folders", heading: "Music folders", item: "album", things: "albums", title: "Add a music folder", min: 0, refresh: [["music"], ["albums"]] },
-  movies: { url: "/api/watch/folders/movies", heading: "Movie folders", item: "movie", things: "movies", title: "Add a movie folder", min: 0, refresh: [["watch"]] },
-  shows: { url: "/api/watch/folders/shows", heading: "Show folders", item: "show", things: "shows", title: "Add a show folder", min: 0, refresh: [["watch"]] },
+  books: { url: "/api/library/folders", item: "book", things: "books", title: "Add a library folder", min: 1, refresh: [["books"]] },
+  music: { url: "/api/music/folders", item: "album", things: "albums", title: "Add a music folder", min: 0, refresh: [["music"], ["albums"]] },
+  movies: { url: "/api/watch/folders/movies", item: "movie", things: "movies", title: "Add a movie folder", min: 0, refresh: [["watch"]] },
+  shows: { url: "/api/watch/folders/shows", item: "show", things: "shows", title: "Add a show folder", min: 0, refresh: [["watch"]] },
 } as const;
 type FolderKind = keyof typeof FOLDER_KINDS;
 const KIND_LIST = Object.keys(FOLDER_KINDS) as FolderKind[];
@@ -472,6 +469,7 @@ const useFolders = (kind: FolderKind) => useQuery({ queryKey: folderKey(kind), q
 function refreshSoon(kind: FolderKind) {
   const run = () => {
     void queryClient.invalidateQueries({ queryKey: libraryKeys.health });
+    void queryClient.invalidateQueries({ queryKey: libraryKeys.admin });
     void queryClient.invalidateQueries({ queryKey: libraryKeys.folders });
     for (const key of FOLDER_KINDS[kind].refresh) void queryClient.invalidateQueries({ queryKey: key });
   };
@@ -479,10 +477,26 @@ function refreshSoon(kind: FolderKind) {
   setTimeout(run, 3000);
 }
 
-/** Book count, last scan, Rescan, and the folders the server reads books, music, movies and shows from. */
+export const useLibraryAdmin = () =>
+  useQuery({
+    queryKey: libraryKeys.admin,
+    queryFn: () => api<LibraryAdminDto>("/api/library/admin"),
+    // While any kind scans, so its row spins and then shows the new counts.
+    refetchInterval: (q) => (q.state.data && SCAN_KINDS.some((k) => q.state.data![k].scan.running) ? SCAN_POLL_MS : false),
+  });
+
+const SCAN_POLL_MS = 2000;
+const SCAN_KINDS = ["books", "music", "watch"] as const;
+type ScanKind = (typeof SCAN_KINDS)[number];
+const SCAN_URL: Record<ScanKind, string> = { books: "/api/library/scan", music: "/api/music/scan", watch: "/api/watch/scan" };
+
+/**
+ * You > Library for admins, like the web: Books, Music, and Movies and shows, each with its count,
+ * scan and Rescan, what needs a look, and its folders.
+ */
 export function LibrarySection() {
+  const admin = useLibraryAdmin();
   const health = useHealth();
-  const [busy, setBusy] = useState(false);
   const lists: Record<FolderKind, LibraryFolderDto[] | undefined> = {
     books: useFolders("books").data,
     music: useFolders("music").data,
@@ -491,73 +505,161 @@ export function LibrarySection() {
   };
   // Every other kind's folders, which a new folder may not overlap.
   const besides = (kind: FolderKind) => KIND_LIST.filter((k) => k !== kind).flatMap((k) => (lists[k] ?? []).map((f) => f.path));
-  const noWatch = lists.movies?.length === 0 && lists.shows?.length === 0;
+  const a = admin.data;
+  const video = health.data?.watch?.status;
+
+  // Each kind's card: its rows once loaded, a placeholder of the same rows before.
+  const card = (rows: number, body: (a: LibraryAdminDto) => React.ReactNode) => (
+    <Card>
+      {a ? (
+        <FadeIn>{body(a)}</FadeIn>
+      ) : admin.isError ? (
+        <Row title="Library" sub={admin.error.message} subDanger last />
+      ) : (
+        <Skeleton>
+          {Array.from({ length: rows }, (_, i) => (
+            <RowBone key={i} last={i === rows - 1} />
+          ))}
+        </Skeleton>
+      )}
+    </Card>
+  );
+
+  return (
+    <View style={{ gap: 10 }}>
+      <Text variant="heading">Books</Text>
+      {card(3, (a) => (
+        <>
+          <ScanRow kind="books" title={plural(a.books.total, "book")} scan={a.books.scan} />
+          <LinkRow
+            title="Needs attention"
+            dot={a.books.attention ? WARN_DOT : null}
+            value={plural(a.books.attention, "book")}
+            href={{ pathname: "/library-list", params: { list: "attention" } }}
+          />
+          <LinkRow title="Not matched" value={plural(a.books.unmatched, "book")} href={{ pathname: "/library-list", params: { list: "unmatched" } }} last />
+        </>
+      ))}
+      <FoldersCard kind="books" list={lists.books} otherPaths={besides("books")} />
+
+      <Text variant="heading" style={{ marginTop: 14 }}>
+        Music
+      </Text>
+      {card(2, (a) => (
+        <>
+          <ScanRow kind="music" title={plural(a.music.albums, "album")} scan={a.music.scan} />
+          <LinkRow title="Not matched" value={plural(a.music.unmatched, "album")} href={{ pathname: "/library-list", params: { list: "albums" } }} last />
+        </>
+      ))}
+      {lists.music?.length === 0 ? <Text variant="small">Albums come from the songs&apos; tags, or from Artist/Album folders when there are none.</Text> : null}
+      <FoldersCard kind="music" list={lists.music} otherPaths={besides("music")} />
+
+      <Text variant="heading" style={{ marginTop: 14 }}>
+        Movies and shows
+      </Text>
+      {card(1, (a) => (
+        <>
+          <ScanRow kind="watch" title={`${plural(a.watch.movies, "movie")} and ${plural(a.watch.shows, "show")}`} scan={a.watch.scan} last={!video} />
+          {video ? <Row title="Video" dot={video.problem ? WARN_DOT : OK_DOT} sub={video.problem ?? video.working} subDanger={!!video.problem} last /> : null}
+        </>
+      ))}
+      {lists.movies?.length === 0 && lists.shows?.length === 0 ? (
+        <Text variant="small">Movies go in &quot;Title (Year)&quot; folders, and shows in Show/Season folders.</Text>
+      ) : null}
+      <FoldersCard kind="movies" list={lists.movies} otherPaths={besides("movies")} />
+      <FoldersCard kind="shows" list={lists.shows} otherPaths={besides("shows")} />
+    </View>
+  );
+}
+
+/** A kind's count and scan status, with Rescan; its icon spins until the scan is done. */
+function ScanRow({ kind, title, scan, last }: { kind: ScanKind; title: string; scan: ScanStatusDto; last?: boolean }) {
+  const [asked, setAsked] = useState(false);
+  const running = asked || scan.running;
+  // When a scan finishes, everything it could have changed is fetched again.
+  const was = useRef(scan.running);
+  useEffect(() => {
+    if (was.current && !scan.running) void queryClient.invalidateQueries();
+    was.current = scan.running;
+  }, [scan.running]);
 
   const rescan = async () => {
-    setBusy(true);
+    setAsked(true);
     try {
-      await api("/api/library/scan", { method: "POST" });
-      toast.show("Scan started. New books appear when it finishes.");
-      refreshSoon("books");
+      await api(SCAN_URL[kind], { method: "POST" });
+      await queryClient.invalidateQueries({ queryKey: libraryKeys.admin });
+      // A scan with nothing new can be over before the counts are fetched again.
+      if (!queryClient.getQueryData<LibraryAdminDto>(libraryKeys.admin)?.[kind].scan.running) void queryClient.invalidateQueries();
     } catch (err) {
       toast.error(errorText(err));
     } finally {
-      setBusy(false);
+      setAsked(false);
     }
   };
 
-  const h = health.data;
   return (
-    <>
-      <Card>
-        {health.isPending ? (
-          <Skeleton>
-            <RowBone last />
-          </Skeleton>
-        ) : (
-          <FadeIn>
-            <Row
-              title={h ? `${h.library.books} ${h.library.books === 1 ? "book" : "books"}` : "Library"}
-              sub={h ? scanStatus(h) : health.isError ? health.error.message : null}
-              subDanger={!!h?.scan.lastError || health.isError}
-              last
-            >
-              <SmallButton label="Rescan" onPress={() => void rescan()} disabled={busy || !!h?.scan.running} />
-            </Row>
-          </FadeIn>
-        )}
-      </Card>
-      {KIND_LIST.map((kind) => (
-        <View key={kind}>
-          <Text variant="heading" style={{ marginTop: 24, marginBottom: 10 }}>
-            {FOLDER_KINDS[kind].heading}
-          </Text>
-          {kind === "music" && lists.music?.length === 0 ? (
-            <Text variant="small" style={{ marginBottom: 10 }}>
-              Albums come from the songs&apos; tags, or from Artist/Album folders when there are none.
-            </Text>
-          ) : kind === "movies" && noWatch ? (
-            <Text variant="small" style={{ marginBottom: 10 }}>
-              Movies go in &quot;Title (Year)&quot; folders, and shows in Show/Season folders.
-            </Text>
-          ) : null}
-          {kind === "movies" && h?.watch ? (
-            <View style={{ marginBottom: 10 }}>
-              <Card>
-                <Row
-                  title="Video"
-                  dot={h.watch.status.problem ? WARN_DOT : OK_DOT}
-                  sub={h.watch.status.problem ?? h.watch.status.working}
-                  subDanger={!!h.watch.status.problem}
-                  last
-                />
-              </Card>
+    <Row title={title} dot={scan.lastError ? WARN_DOT : null} sub={running ? "Scanning now" : scanStatusText(scan)} subDanger={!running && !!scan.lastError} last={last}>
+      <RescanButton spinning={running} onPress={() => void rescan()} />
+    </Row>
+  );
+}
+
+function RescanButton({ spinning, onPress }: { spinning: boolean; onPress: () => void }) {
+  const t = useTheme();
+  const spin = useSharedValue(0);
+  useEffect(() => {
+    if (spinning) spin.set(withRepeat(withTiming(360, { duration: 900, easing: Easing.linear }), -1));
+    else {
+      cancelAnimation(spin);
+      spin.set(withTiming(0, { duration: 200 }));
+    }
+  }, [spinning, spin]);
+  const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value}deg` }] }));
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={spinning ? "Scanning" : "Rescan"}
+      accessibilityState={{ disabled: spinning, busy: spinning }}
+      disabled={spinning}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        height: 38,
+        paddingHorizontal: 14,
+        borderRadius: 19,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        backgroundColor: pressed ? t.surface2 : t.chip,
+      })}
+    >
+      <Animated.View style={style}>
+        <RefreshIcon size={16} color={t.text} />
+      </Animated.View>
+      <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: t.text }}>Rescan</Text>
+    </Pressable>
+  );
+}
+
+/** A row that opens another screen, with its current value when there's a short one. */
+export function LinkRow({ title, value, dot, href, last }: { title: string; value?: string | null; dot?: string | null; href: Href; last?: boolean }) {
+  const t = useTheme();
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={value ? `${title}, ${value}` : title} onPress={() => router.push(href)}>
+      {({ pressed }) => (
+        <View style={{ opacity: pressed ? 0.6 : 1 }}>
+          <Row title={title} dot={dot} last={last}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}>
+              {value ? (
+                <Text numberOfLines={1} style={{ fontFamily: fonts.medium, fontSize: 14, color: t.muted, flexShrink: 1 }}>
+                  {value}
+                </Text>
+              ) : null}
+              <ChevronIcon size={20} color={t.faint} />
             </View>
-          ) : null}
-          <FoldersCard kind={kind} list={lists[kind]} otherPaths={besides(kind)} />
+          </Row>
         </View>
-      ))}
-    </>
+      )}
+    </Pressable>
   );
 }
 
@@ -605,7 +707,7 @@ function FoldersCard({ kind, list, otherPaths }: { kind: FolderKind; list: Libra
             ))}
           </FadeIn>
         )}
-        <Row title="Add a folder" last>
+        <Row title={k.title} last>
           <SmallButton label="Add" onPress={() => setAdding(true)} />
         </Row>
       </Card>

@@ -407,6 +407,29 @@ export function RoundButton({
   );
 }
 
+/** A wrapping row of Pills, under a title. */
+export function Pills({ labels }: { labels: string[] }) {
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+      {labels.map((label) => (
+        <Pill key={label} label={label} />
+      ))}
+    </View>
+  );
+}
+
+/** A small grey label, for an album's year, song count and length. */
+export function Pill({ label }: { label: string }) {
+  const t = useTheme();
+  return (
+    <View style={{ height: 24, maxWidth: "100%", paddingHorizontal: 9, borderRadius: 12, flexDirection: "row", alignItems: "center", backgroundColor: t.chip }}>
+      <RNText numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 12, color: t.text2 }}>
+        {label}
+      </RNText>
+    </View>
+  );
+}
+
 /** Thin progress bar. */
 export function Bar({ pct, height = 3, color }: { pct: number; height?: number; color?: string }) {
   const t = useTheme();

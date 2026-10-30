@@ -130,7 +130,7 @@ async function run(ctx: AppContext, job: Job) {
         item.status = "none";
         item.message = result.errors.length ? result.errors.join(" ") : "No results.";
       } else {
-        item.changes = (await plan(ctx, job, item.albumId, top)).changes;
+        item.changes = (await planAlbumMatch(ctx, job.dto.fields, item.albumId, top)).changes;
         item.status = "review";
       }
     } catch (err) {
@@ -153,17 +153,17 @@ async function run(ctx: AppContext, job: Job) {
 }
 
 /** What applying this result would do: the run's fields where the result has something better or different. */
-async function plan(ctx: AppContext, job: Job, albumId: string, c: AlbumCandidate) {
+export async function planAlbumMatch(ctx: AppContext, fields: AlbumMatchAllField[], albumId: string, c: AlbumCandidate) {
   const preview = await previewAlbumMatch(ctx, albumId, c.provider, c.providerId);
   const row = (ctx.sqlite.prepare("SELECT * FROM album_overrides WHERE album_id = ?").get(albumId) ?? null) as Record<string, unknown> | null;
-  const changes: AlbumMatchChange[] = job.dto.fields
+  const changes: AlbumMatchChange[] = fields
     .filter((f) => worthApplying(preview, f))
     .map((f) => ({ field: f, from: shown(preview, "current", f), to: shown(preview, "proposed", f) }));
   return { row, changes };
 }
 
 async function applyItem(ctx: AppContext, job: Job, item: AlbumMatchAllItem, c: AlbumCandidate) {
-  const { row, changes } = await plan(ctx, job, item.albumId, c);
+  const { row, changes } = await planAlbumMatch(ctx, job.dto.fields, item.albumId, c);
   const fields = changes.map((x) => x.field);
   // Nothing worth changing still marks the album matched, so it leaves the list.
   await applyAlbumMatch(ctx, item.albumId, { provider: c.provider, providerId: c.providerId, fields });

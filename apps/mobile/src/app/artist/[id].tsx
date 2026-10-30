@@ -3,15 +3,18 @@ import { Pressable, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { albumInMusic, artistImage, artistSub, plural, type TrackDto } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
-import { PlusIcon, ProfileIcon } from "@/components/icons";
+import { MoreIcon, PlusIcon, ProfileIcon } from "@/components/icons";
 import { Grid, useGridWidth } from "@/components/library";
+import { ArtistPhotoSheet } from "@/components/match";
 import { AlbumCard, SongRow, SongSheet } from "@/components/music";
 import { Empty, NestedScreen, PageTitle, SectionTitle } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
+import { Sheet, SheetItem } from "@/components/sheet";
 import { Bone, CoverGridBones, FadeIn, Skeleton, useJustLoaded } from "@/components/skeleton";
-import { Text } from "@/components/ui";
+import { IconButton, Text } from "@/components/ui";
 import { setInMusic, useArtist } from "@/lib/data";
 import { selectHaptic } from "@/lib/haptics";
+import { useSession } from "@/lib/session";
 import { playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
@@ -31,6 +34,9 @@ export default function ArtistScreen() {
   const added = (a?.albums.length ?? 0) - missing.length;
   const photo = a ? artistImage(a, 600) : null;
   const [song, setSong] = useState<TrackDto | null>(null);
+  const [menu, setMenu] = useState(false);
+  const [changing, setChanging] = useState(false);
+  const admin = !!useSession().user?.isAdmin;
 
   let body: React.ReactNode;
   if (a) {
@@ -118,7 +124,35 @@ export default function ArtistScreen() {
   }
 
   return (
-    <NestedScreen refreshControl={refresh} after={<SongSheet track={song} onClose={() => setSong(null)} />}>
+    <NestedScreen
+      refreshControl={refresh}
+      right={
+        admin && a ? (
+          <IconButton label="Artist options" onPress={() => setMenu(true)}>
+            <MoreIcon size={22} color={t.text} />
+          </IconButton>
+        ) : null
+      }
+      after={
+        <>
+          <SongSheet track={song} onClose={() => setSong(null)} />
+          {admin && a ? (
+            <>
+              <Sheet open={menu} onClose={() => setMenu(false)} title={a.name}>
+                <SheetItem
+                  label="Change photo…"
+                  onPress={() => {
+                    setMenu(false);
+                    setChanging(true);
+                  }}
+                />
+              </Sheet>
+              <ArtistPhotoSheet artist={changing ? a : null} onClose={() => setChanging(false)} />
+            </>
+          ) : null}
+        </>
+      }
+    >
       {body}
     </NestedScreen>
   );

@@ -53,6 +53,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 - Movie and show folders managed by the admin under You > Library; with none, the Watch tab (if you've turned it on) shows an empty state. A Video row there says whether the video add-on works and what converts video (`watch.status` in `/api/health`, worded by the server for the web and the app)
 - TMDB's logo and notice under You > Server while Watch is on, as TMDB's terms ask
 - Posters, descriptions and episode names from TMDB when a key is set, matched on their own like Plex, with Match to fix a wrong one
+- Edit for admins: title, year, description, and the poster and background (an image, a link, or one of TMDB's). What you save is kept over TMDB, like an .nfo; Remove takes a chosen picture off again, bringing back the files' or TMDB's
 - Plays the file as it is when the device can, else streams it through ffmpeg with the sound or the picture converted, on the GPU where there is one
 - Quality (1080p or 720p) for converted video, picked per video or as a setting; audio track choice; the next episode with a countdown (Play next episode turns it off)
 - Download movies and episodes to the phone
@@ -161,7 +162,8 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | Progress | `GET /progress?since=`, `PUT /progress` (batched, newest update wins) |
 | Up Next | `GET /up-next`, `PUT /up-next` (the whole list), `PATCH /up-next` (where it's at), `POST /up-next` (add one item, or several in order) |
 | Play next | `POST/DELETE /books/:id/play-next`, `PUT /play-next` (order) |
-| Admin | `GET/POST/DELETE /users`, `GET/PUT /library/folders`, `POST /library/folders/check`, `GET /library/browse?path=` |
+| Admin | `GET/POST/DELETE /users`, `GET /library/admin` (You > Library's counts and scans), `GET/PUT /library/folders`, `POST /library/folders/check`, `GET /library/browse?path=` |
+| Video editing (admin) | `PATCH /watch/{movies,shows}/:id` (title, year, description), `POST /watch/{movies,shows}/:id/{poster,backdrop}` (upload, `{ url }` or `{ tmdbPath }`), `DELETE` the same to remove a chosen one, `GET .../{poster,backdrop}/options` (TMDB's pictures) |
 | Episode cache and ads | `GET /episodes/:id/ads`; admin: `GET/PUT /server/cache`, `POST /server/ads/retry` |
 | Add-on (shared secret) | `POST /addon/ads/next`, `POST /addon/ads/:fileId`, `POST /addon/status` |
 | Casting | `POST /cast` `{ paths }` (prefixes of one item's stream and cover) returns `{ base, expiresAt }`; the Chromecast opens `base` + an API path (see Casting) |
@@ -261,11 +263,13 @@ Metadata comes from your files first; an optional Match button fills gaps from o
 | Duration and chapters | `music-metadata` on the audio files (constant-bitrate MP3 lengths from size and bitrate) |
 | Cover | `cover.jpg` or `cover.png`, then any image in the folder, then embedded art |
 
-**Layer 2: online match, on demand** (admin only)
+**Layer 2: online match** (admin only)
+
+After each scan, every book not tried yet is searched once, and a result scoring 100 is applied on its own: title, author and length all agree (no length caps a score at 85). It takes the cover (only when bigger), author, narrator, series, year and description, never a hand-edited field. Anything less waits in You > Library > Not matched for Match or Match all. `books.match_tried_at` keeps it from being asked again; a lookup that fails is tried after the next scan.
 
 1. From a book page or a library card's options menu, open **Match metadata**. The server searches Audible's catalog by title and author, with Google Books as a fallback.
 2. You pick the right result from a list with covers.
-3. The match fills only empty or poor fields (missing cover, description, narrator, series, a better chapter list from Audnexus). Fields you don't tick are left alone, and **Undo match** in the book menu returns to the file metadata.
+3. The match fills only empty or poor fields (missing cover, description, narrator, series, a better chapter list from Audnexus). Fields you don't tick are left alone, and **Undo all edits** in Edit's Files tab returns to the file metadata.
 4. Matched data is stored in the database as an override; your files are never modified, and a rescan never undoes a match.
 
 Nothing is applied without your confirmation. The Audible and Audnexus lookups are unofficial APIs, so if they break, matching degrades and everything else keeps working.
@@ -295,7 +299,10 @@ The same book always gets the same answer, and a weak answer is shown as weak in
 
 **Layer 3: editing by hand** (admin only, web)
 
-Every book card has an options menu (Play, Add to Play next for books not yet started, Mark as finished, and for admins Edit details, Change cover, Match metadata, Rescan files). The edit dialog has five tabs:
+Every card has an options menu, the same way for books, albums, movies and shows: a long press in the app, the ⋯ or a right-click on the web. The ⋯ on the item's own page opens the same items, for everyone, with admin items last:
+- **Book:** Play, Add to Play next (books not yet started), Mark as finished; for admins Edit…, Match…, Mark as matched. Rescanning is You > Library's Rescan, or one book from Edit's Files tab.
+- **Album:** Play, Add to Up Next, Add to playlist…, Go to the artist, Add to or Remove from your music; for admins Match….
+- **Movie or show:** Play or Resume, Mark as watched; for admins Edit… and Match… (with TMDB). The edit dialog has five tabs:
 
 | Tab | What it does |
 | --- | --- |
@@ -305,7 +312,9 @@ Every book card has an options menu (Play, Add to Play next for books not yet st
 | Match | The online match above, inside the dialog |
 | Files | The book's folder and files with length, size and bitrate; rescan this book; undo every edit and match |
 
-Edits are stored in the same override row as a match, so a rescan keeps them and the files are never touched. An admin-only **Needs attention** view lists books with no cover, no author or missing files.
+Edits are stored in the same override row as a match, so a rescan keeps them and the files are never touched.
+
+**You > Library** (admins) holds the library's upkeep, so the tabs stay clean for everyone. A section per kind (Books, Music, Movies and shows) shows its count and last scan with a Rescan button, then its lists and folders: **Needs attention** (books with no cover, no author or missing files), **Not matched** for books and for albums, each with Match all. `GET /api/library/admin` gives the web and the app the same counts.
 
 **Podcasts:** show and episode titles, artwork, descriptions and durations come from the RSS feed itself.
 
@@ -366,12 +375,12 @@ One running list of songs and episodes, like YouTube Music's (`up_next`, one row
 
 **Matching (admins)**
 
-The books pattern, for albums: "Match metadata…" in an album's menu, and Match all under Browse's Not matched filter, with the same dialog, compare table and review screen as books.
+The books pattern, for albums: matched on their own after each scan when a result scores 100 (the song count has to agree), "Match metadata…" in an album's menu, and Match all under You > Library > Not matched, with the same dialog, compare table and review screen as books. Matching on its own takes the cover (only when bigger) and fills a missing year or genre.
 
 - **Sources:** MusicBrainz (covers from the Cover Art Archive) and Deezer are searched together. Apple Music is asked only when neither has a result scoring 70 or more. All three are free with no key, and go through the 30-day provider cache. On a tie, MusicBrainz wins, because Deezer and Apple often list a reissue's year. MusicBrainz is held to one request a second, with one retry when it's busy.
 - **Scoring** (`music/match-score.ts`, with tests): title 40, artist 35, song count 25. Edition words ("Deluxe", "Remastered") and catalog numbers ("[2156]") are left out. A different song count is never suggested.
 - **Fields:** cover (only when bigger), title, year, genre, and song titles and numbers. Songs are offered only in a single album's Match, and only when the result has the same number of songs; they're paired by position. Match all only fills a missing year or genre and never touches songs.
-- Values go in `album_overrides` and `track_overrides`, so a rescan keeps them. Undo match removes both.
+- Values go in `album_overrides` and `track_overrides`, so a rescan keeps them.
 
 **Artist photos**
 
@@ -613,7 +622,6 @@ These are left out on purpose; each can be added later if it earns its place.
 
 **Not planned**
 
-- Automatic online metadata matching for books (Match and Match all are started by an admin and confirmed)
 - Reading `.m3u` playlists from the music folders
 - Transcoding books, podcasts or music; they're served as they are (only video is converted, and only for a device that can't play it)
 - Editing tags or moving files

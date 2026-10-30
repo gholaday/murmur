@@ -9,5 +9,5 @@ export default async function ShowPage({ params }: { params: Promise<{ id: strin
   const ctx = await getContext();
   const show = await getShow(ctx, user.id, (await params).id);
   if (!show) notFound();
-  return <TvShowView show={show} canMatch={user.isAdmin && !!ctx.watch.matcher} />;
+  return <TvShowView show={show} />;
 }

@@ -34,6 +34,7 @@ import { GroupGrid } from "../library/library";
 import { Sheet, SheetItem } from "../sheet";
 import { SongRowsSkeleton } from "../skeletons";
 import { Chip, Chips, EmptyState, SearchBox } from "../ui";
+import { AlbumCardMenu } from "./album-menu";
 import { AlbumBadge, MineToggle, useMineChange } from "./mine";
 import { NewPlaylistButton, PlaylistCard } from "./playlist-view";
 import { SongMenuButton } from "./song-menu";
@@ -102,6 +103,7 @@ export function AlbumCard({ album, sub, badge }: { album: AlbumSummary; sub?: st
         {current ? <Mixer playing={player.playing} /> : null}
         {badge ? <AlbumBadge title={album.title} added={albumInMusic(album) === "all"} albumId={album.id} /> : null}
       </div>
+      <AlbumCardMenu album={album} />
       <Link href={`/music/album/${album.id}`} className="card-link">
         <div className="card-title">{album.title}</div>
         <div className="card-sub">{sub === undefined ? album.artist : (sub ?? " ")}</div>

@@ -6,14 +6,14 @@ import { CheckIcon, MoreIcon, PlayedIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { Empty, NestedFallback, SectionTitle, useBottomPad } from "@/components/page";
-import { Sheet, SheetItem } from "@/components/sheet";
+import { SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { Chips, IconButton, RoundButton, Text } from "@/components/ui";
-import { ArtBar, QualityButton, startEpisodeDownload, Still, VideoDownloadButton, WatchHero, WatchMatchSheet, WidePlayButton } from "@/components/watch";
+import { ArtBar, QualityButton, startEpisodeDownload, Still, VideoDownloadButton, WatchHero, WidePlayButton } from "@/components/watch";
+import { WatchActions } from "@/components/watch-edit";
 import { useDownloads } from "@/lib/downloads";
 import { useOnline } from "@/lib/query";
-import { useSession } from "@/lib/session";
 import { episodeSub, markWatched, openVideoPlayer, showEpisodes, useShow } from "@/lib/watch";
 import { fonts, useTheme } from "@/theme";
 
@@ -45,8 +45,7 @@ const markEpisode = (e: VideoEpisode, done: boolean) => mark([e], done, episodeL
 function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number | null }) {
   const t = useTheme();
   const bottomPad = useBottomPad();
-  const admin = !!useSession().user?.isAdmin;
-  const [sheet, setSheet] = useState<null | "menu" | "match">(null);
+  const [sheet, setSheet] = useState<null | "menu">(null);
   const [expanded, setExpanded] = useState(false);
   /** A converted-video quality picked for this viewing; null means your setting. */
   const [quality, setQuality] = useState<VideoQuality | null>(null);
@@ -151,11 +150,14 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
       </ScrollView>
 
       <BottomMiniPlayer />
-      <Sheet open={sheet === "menu"} onClose={() => setSheet(null)} title={show.title}>
-        <SheetItem label="Download season" onPress={downloadSeason} />
-        {admin ? <SheetItem label="Match…" onPress={() => setSheet("match")} /> : null}
-      </Sheet>
-      <WatchMatchSheet open={sheet === "match"} onClose={() => setSheet(null)} kind="show" id={show.id} title={show.title} year={show.year} tmdbId={show.tmdbId} />
+      <WatchActions
+        kind="show"
+        id={show.id}
+        title={show.title}
+        open={sheet === "menu"}
+        onClose={() => setSheet(null)}
+        extra={<SheetItem label="Download season" onPress={downloadSeason} />}
+      />
     </View>
   );
 }

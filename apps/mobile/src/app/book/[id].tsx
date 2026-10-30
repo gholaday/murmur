@@ -8,7 +8,8 @@ import { HeroBackdrop } from "@/components/hero";
 import { CheckIcon, DownloadIcon, MoreIcon, PauseIcon, PlayIcon, PlayNextAddIcon } from "@/components/icons";
 import { openGroup, PAD } from "@/components/library";
 import { BackRow, Empty, NestedFallback, useBottomPad, SectionTitle, useTopInset } from "@/components/page";
-import { RemoveDownloadSheet, Sheet, SheetItem } from "@/components/sheet";
+import { BookActions } from "@/components/book-card";
+import { RemoveDownloadSheet } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { Bar, IconButton, RoundButton, Text } from "@/components/ui";
@@ -235,20 +236,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
       </ScrollView>
 
       <BottomMiniPlayer />
-      <Sheet open={menu} onClose={() => setMenu(false)} title={book.title}>
-        {canPlayNext ? (
-          <SheetItem
-            label={onPlayNext ? "Remove from Play next" : "Add to Play next"}
-            onPress={() => {
-              setMenu(false);
-              void setPlayNext(book.id, !onPlayNext);
-            }}
-          />
-        ) : null}
-        <SheetItem label={downloadLabel} onPress={toggleDownload} />
-        <SheetItem label={book.progress?.finished ? "Mark as not finished" : "Mark as finished"} onPress={() => mark(!book.progress?.finished)} />
-        {book.progress && !book.progress.finished ? <SheetItem label="Reset progress" onPress={() => mark(false)} /> : null}
-      </Sheet>
+      <BookActions book={book} open={menu} onClose={() => setMenu(false)} />
       <RemoveDownloadSheet
         open={confirmRemove}
         title={book.title}

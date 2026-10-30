@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { toast } from "sonner";
 import {
   albumCover,
   albumDiscs,
@@ -13,13 +12,11 @@ import {
   type ArtistDetail,
   artistImage,
   artistSub,
-  errorText,
   guestArtist,
   plural,
   songLength,
   songNumber,
 } from "@murmur/shared/client";
-import { api } from "../api";
 import { Cover } from "../cover";
 import { MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
@@ -27,9 +24,11 @@ import { MixerBars } from "../mixer";
 import { BackRow, SectionTitle } from "../ui";
 import { Sheet, SheetItem } from "../sheet";
 import { type MusicSource, usePlayer } from "../player/engine";
-import { ArtistPhotoDialog, AlbumMatchDialog } from "./match";
+import { MenuSheet } from "../card-menu";
+import { AlbumMenuItems, useAlbumMenuSheets } from "./album-menu";
+import { ArtistPhotoDialog } from "./match";
 import { MineToggle, useMineChange } from "./mine";
-import { AddToPlaylistSheet, SongMenuButton } from "./song-menu";
+import { SongMenuButton } from "./song-menu";
 import { AlbumCard, SongRow } from "./music-view";
 
 /** Back to wherever you came from, or the Music tab when opened directly; `children` go on the right. */
@@ -37,13 +36,11 @@ export function MusicBackRow({ children }: { children?: React.ReactNode }) {
   return <BackRow fallback="/music">{children}</BackRow>;
 }
 
-export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boolean }) {
-  const router = useRouter();
+export function AlbumView({ album }: { album: AlbumDetail }) {
   const send = useMineChange();
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
-  const [matching, setMatching] = useState(false);
-  const [adding, setAdding] = useState(false);
+  const menuSheets = useAlbumMenuSheets(album);
   const state = albumInMusic(album);
   const toAdd = album.trackCount - album.songsInMusic;
   const p = usePlayer();
@@ -60,13 +57,6 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
     setBusy(true);
     await send(add, { albumIds: [album.id] });
     setBusy(false);
-  };
-
-  const revertMatch = async () => {
-    setMenu(false);
-    await api(`/api/music/albums/${album.id}/match`, { method: "DELETE" });
-    toast("Match undone, using the files' details");
-    router.refresh();
   };
 
   return (
@@ -152,77 +142,13 @@ export function AlbumView({ album, isAdmin }: { album: AlbumDetail; isAdmin: boo
         </section>
       ))}
 
-      <Sheet open={menu} onClose={() => setMenu(false)} title={album.title}>
-        <SheetItem
-          onClick={() => {
-            setMenu(false);
-            p.addToUpNext(
-              album.tracks.map((t) => ({ itemType: "track", itemId: t.id })),
-              "next",
-            ).then(
-              () => toast("Added to Up Next"),
-              (err: unknown) => toast.error(errorText(err)),
-            );
-          }}
-        >
-          Add to Up Next
-        </SheetItem>
-        <SheetItem
-          onClick={() => {
-            setMenu(false);
-            setAdding(true);
-          }}
-        >
-          Add to playlist…
-        </SheetItem>
-        <SheetItem
-          onClick={() => {
-            setMenu(false);
-            router.push(`/music/artist/${album.artistId}`);
-          }}
-        >
-          Go to {album.artist}
-        </SheetItem>
-        {state !== "none" ? (
-          <SheetItem
-            danger
-            onClick={() => {
-              setMenu(false);
-              void change(false);
-            }}
-          >
-            {state === "all" ? "Remove from your music" : `Remove ${plural(album.songsInMusic, "song")} from your music`}
-          </SheetItem>
-        ) : null}
-        {isAdmin ? (
-          <SheetItem
-            onClick={() => {
-              setMenu(false);
-              setMatching(true);
-            }}
-          >
-            Match metadata…
-          </SheetItem>
-        ) : null}
-        {isAdmin && album.match ? (
-          <SheetItem danger onClick={() => void revertMatch()}>
-            Undo match (use file metadata)
-          </SheetItem>
-        ) : null}
-      </Sheet>
-
-      <AddToPlaylistSheet open={adding} onClose={() => setAdding(false)} title={album.title} trackIds={album.tracks.map((t) => t.id)} />
-      {isAdmin && matching ? (
-        <AlbumMatchDialog
-          album={album}
-          onClose={() => setMatching(false)}
-          onApplied={() => {
-            setMatching(false);
-            toast("Match applied");
-            router.refresh();
-          }}
-        />
-      ) : null}
+      <MenuSheet
+        open={menu}
+        onClose={() => setMenu(false)}
+        title={album.title}
+        items={(choose) => <AlbumMenuItems album={album} choose={choose} onAddToPlaylist={menuSheets.onAddToPlaylist} onMatch={menuSheets.onMatch} />}
+      />
+      {menuSheets.sheets}
     </>
   );
 }

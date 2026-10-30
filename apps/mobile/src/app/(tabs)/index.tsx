@@ -22,7 +22,7 @@ import {
   sortBooks,
   timeLeft,
 } from "@murmur/shared/client";
-import { BookCard } from "@/components/book-card";
+import { BookActions, BookCard } from "@/components/book-card";
 import { Cover } from "@/components/cover";
 import { Mixer, useNowPlaying } from "@/components/mixer";
 import { CloseIcon, CustomizeIcon, DragIcon, FilterIcon, SearchIcon } from "@/components/icons";
@@ -31,10 +31,12 @@ import { SmallButton, useHealth } from "@/components/settings";
 import { BookSortSheet, useBookSort } from "@/components/book-sort";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, FadeIn, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
+import { useCardMenu } from "@/components/sheet";
 import { DragHandle, SortableList, SortableScrollProvider, useSortableScroll } from "@/components/sortable-list";
 import { GAP, Grid, Group, openAllBooks, openGroup, openShelf, PAD, Shelf, shelfSub, todayKey, useGridWidth, useShelfWidth } from "@/components/library";
 import { Bar, Button, Chips, CountPill, IconButton, Text } from "@/components/ui";
 import { saveBookSections, useBookSections, useBooks } from "@/lib/data";
+import { withLongPressHaptic } from "@/lib/haptics";
 import { isCurrent } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
@@ -533,13 +535,18 @@ function SectionHeading({
 function ContinueCard({ book, width }: { book: BookSummary; width: number }) {
   const t = useTheme();
   const now = useNowPlaying((s) => isCurrent(s, "book", book.id));
+  const menu = useCardMenu();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={book.title}
+      accessibilityActions={[{ name: "longpress", label: "Options" }]}
+      onAccessibilityAction={menu.show}
       onPress={() => router.push(`/book/${book.id}`)}
+      onLongPress={withLongPressHaptic(menu.show)}
       style={({ pressed }) => ({ width, gap: 8, opacity: pressed ? 0.75 : 1 })}
     >
+      {menu.shown ? <BookActions book={book} open={menu.open} onClose={menu.close} onIdle={menu.idle} /> : null}
       <View>
         <Cover path={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 600) : null} title={book.title} color={book.coverColor} radius={12} />
         {now ? <Mixer playing={now === "playing"} /> : null}

@@ -292,10 +292,13 @@ export function StatusDot({ warn }: { warn?: boolean }) {
 }
 
 /** A settings row that opens its own screen, with its current value and a chevron. */
-export function SettingLink({ title, value, href }: { title: string; value?: string | null; href: string }) {
+export function SettingLink({ title, value, href, dot }: { title: string; value?: string | null; href: string; dot?: "warn" }) {
   return (
     <Link href={href} className="setting setting-link">
-      <span className="setting-title">{title}</span>
+      <span className="setting-title">
+        {dot ? <StatusDot warn /> : null}
+        {title}
+      </span>
       <span className="setting-value">
         {value ? <span>{value}</span> : null}
         <ChevronIcon />

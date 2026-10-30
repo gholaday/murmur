@@ -2,11 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { toast } from "sonner";
+import { useSearchParams } from "next/navigation";
 import {
-  errorText,
-  type HealthDto,
   type MovieSummary,
   percentDone,
   type ShowSummary,
@@ -16,8 +13,7 @@ import {
   type WatchHomeDto,
   type WatchSort,
 } from "@murmur/shared/client";
-import { api } from "../api";
-import { CloseIcon, FilterIcon, RefreshIcon, SearchIcon } from "../icons";
+import { CloseIcon, FilterIcon, SearchIcon } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
 import { Chip, Chips, EmptyState, ScrollRow, SearchBox, SectionTitle } from "../ui";
 import { PosterCard, StillCard } from "./cards";
@@ -77,42 +73,6 @@ function PosterGrid({ items }: { items: Item[] }) {
         <ItemCard key={`${i.kind}-${i.kind === "movie" ? i.m.id : i.s.id}`} item={i} />
       ))}
     </div>
-  );
-}
-
-const SCAN_POLL_MS = 2000;
-
-/** Admins: rescans the movies and shows folders (and matches what's new), spinning until it's done. */
-function RescanButton() {
-  const router = useRouter();
-  const [scanning, setScanning] = useState(false);
-  const rescan = async () => {
-    setScanning(true);
-    try {
-      await api("/api/watch/scan", { method: "POST" });
-      // The scan runs in the background; health says when it's finished.
-      for (;;) {
-        await new Promise((r) => setTimeout(r, SCAN_POLL_MS));
-        const health = await api<HealthDto>("/api/health");
-        if (!health.watch?.scan.running) break;
-      }
-      router.refresh();
-    } catch (err) {
-      toast.error(errorText(err));
-    } finally {
-      setScanning(false);
-    }
-  };
-  return (
-    <button
-      type="button"
-      className={`icon-btn ${scanning ? "spinning" : ""}`}
-      aria-label={scanning ? "Scanning" : "Rescan movies and shows"}
-      disabled={scanning}
-      onClick={rescan}
-    >
-      <RefreshIcon />
-    </button>
   );
 }
 
@@ -191,7 +151,6 @@ export function WatchView({
       <div className="page-head">
         <h1 className="page-title">Watch</h1>
         <div className="head-actions">
-          {isAdmin ? <RescanButton /> : null}
           <button
             type="button"
             className="icon-btn"

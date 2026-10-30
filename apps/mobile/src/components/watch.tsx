@@ -1,12 +1,10 @@
-import { memo, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Pressable, TextInput, View } from "react-native";
-import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
+import { memo, useState, useSyncExternalStore } from "react";
+import { Pressable, View } from "react-native";
+import Animated from "react-native-reanimated";
 import {
   apiPaths,
   episodeLabel,
-  errorText,
   fileDetailParts,
-  type HealthDto,
   percentDone,
   QUALITY_LABEL,
   timeLeft,
@@ -17,28 +15,25 @@ import {
   type VideoQuality,
   type WatchCard,
   watchCardArtUrl,
-  type WatchMatchResult,
   WATCH_SORT_KEY,
   WATCH_SORTS,
   type WatchSort,
 } from "@murmur/shared/client";
-import { api } from "@/lib/api";
 import { useVideoQuality } from "@/lib/data";
 import { downloadingText, downloadMovie, downloadTvEpisode, removeDownload, useDownload } from "@/lib/downloads";
+import { withLongPressHaptic } from "@/lib/haptics";
 import { getJson, setJson } from "@/lib/storage";
-import { invalidateWatch, openVideoPlayer } from "@/lib/watch";
+import { openVideoPlayer } from "@/lib/watch";
 import { convertsPicture, videoDownloadSource } from "@/player/video";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { HeroBackdrop } from "./hero";
-import { CheckIcon, DownloadIcon, PlayIcon, RefreshIcon, SearchIcon } from "./icons";
+import { CheckIcon, DownloadIcon, PlayIcon } from "./icons";
 import { PAD } from "./library";
-import { Pills } from "./music";
 import { BackRow, SectionTitle, useTopInset } from "./page";
-import { RemoveDownloadSheet, Sheet, SheetItem } from "./sheet";
-import { Bone, Skeleton } from "./skeleton";
-import { toast } from "./toast";
-import { Button, IconButton, RoundButton, Text } from "./ui";
+import { RemoveDownloadSheet, Sheet, SheetItem, useCardMenu } from "./sheet";
+import { IconButton, Pills, RoundButton, Text } from "./ui";
+import { WatchActions } from "./watch-edit";
 
 /** A 2:3 poster, or a tinted tile with the title when there's none. */
 export function Poster({
@@ -131,8 +126,18 @@ export function WatchSortSheet({ open, onClose }: { open: boolean; onClose: () =
 /** A poster in a grid or shelf: the poster, the title and the year, with the accent check once watched. */
 export const PosterCard = memo(function PosterCard({ item, width, onPress }: { item: PosterItem; width: number; onPress: () => void }) {
   const t = useTheme();
+  const menu = useCardMenu();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={item.title} onPress={onPress} style={({ pressed }) => ({ width, gap: 6, opacity: pressed ? 0.75 : 1 })}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={item.title}
+      accessibilityActions={[{ name: "longpress", label: "Options" }]}
+      onAccessibilityAction={menu.show}
+      onPress={onPress}
+      onLongPress={withLongPressHaptic(menu.show)}
+      style={({ pressed }) => ({ width, gap: 6, opacity: pressed ? 0.75 : 1 })}
+    >
+      {menu.shown ? <WatchActions kind={item.kind} id={item.id} title={item.title} open={menu.open} onClose={menu.close} onIdle={menu.idle} /> : null}
       <View>
         <Poster kind={item.kind} id={item.id} hash={item.posterHash} color={item.color} title={item.title} width={width} />
         {item.watched ? (
@@ -168,13 +173,20 @@ export function StillCard({ card }: { card: WatchCard }) {
   const position = card.progress && !card.progress.finished ? card.progress.positionSec : 0;
   const left = position > 0 ? timeLeft(card.durationSec, position) : null;
   const episode = card.kind === "episode";
+  const menu = useCardMenu();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={episode ? `${card.title}, ${episodeLabel(card.season ?? 1, card.episode ?? 0)}` : card.title}
+      accessibilityActions={[{ name: "longpress", label: "Options" }]}
+      onAccessibilityAction={menu.show}
       onPress={() => openVideoPlayer(episode ? { kind: "episode", id: card.id, showId: card.showId! } : { kind: "movie", id: card.id })}
+      onLongPress={withLongPressHaptic(menu.show)}
       style={({ pressed }) => ({ width: STILL_CARD_WIDTH, gap: 8, opacity: pressed ? 0.75 : 1 })}
     >
+      {menu.shown ? (
+        <WatchActions kind={episode ? "show" : "movie"} id={episode ? card.showId! : card.id} title={card.title} open={menu.open} onClose={menu.close} onIdle={menu.idle} />
+      ) : null}
       <View>
         <Cover path={watchCardArtUrl(card)} title={card.title} radius={10} aspectRatio={16 / 9} />
         {position > 0 ? <ArtBar pct={percentDone(position, card.durationSec)} /> : null}
@@ -411,225 +423,5 @@ export function FileDetails({ file }: { file: VideoFileInfo }) {
         <Pills labels={fileDetailParts(file)} />
       </View>
     </>
-  );
-}
-
-const SCAN_POLL_MS = 2000;
-
-/** Admins: rescans the movies and shows folders (and matches what's new), spinning until it's done. */
-export function RescanButton() {
-  const t = useTheme();
-  const [scanning, setScanning] = useState(false);
-  const spin = useSharedValue(0);
-  useEffect(() => {
-    if (scanning) spin.value = withRepeat(withTiming(360, { duration: 900, easing: Easing.linear }), -1);
-    else {
-      cancelAnimation(spin);
-      spin.value = withTiming(0, { duration: 200 });
-    }
-  }, [scanning, spin]);
-  const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value}deg` }] }));
-  // Leaving the screen stops the polling; the scan itself carries on.
-  const mounted = useRef(true);
-  useEffect(
-    () => () => {
-      mounted.current = false;
-    },
-    [],
-  );
-
-  const rescan = async () => {
-    setScanning(true);
-    try {
-      await api("/api/watch/scan", { method: "POST" });
-      // The scan runs in the background; health says when it's finished.
-      for (;;) {
-        await new Promise((r) => setTimeout(r, SCAN_POLL_MS));
-        if (!mounted.current) return;
-        const health = await api<HealthDto>("/api/health");
-        if (!health.watch?.scan.running) break;
-      }
-      invalidateWatch();
-    } catch (err) {
-      if (mounted.current) toast.error(errorText(err));
-    } finally {
-      if (mounted.current) setScanning(false);
-    }
-  };
-  return (
-    <IconButton label={scanning ? "Scanning" : "Rescan movies and shows"} disabled={scanning} onPress={() => void rescan()}>
-      <Animated.View style={style}>
-        <RefreshIcon color={t.text} />
-      </Animated.View>
-    </IconButton>
-  );
-}
-
-/**
- * Match for a movie or show, like the web's: the title and year to search, TMDB's results, and
- * picking one applies it straight away.
- */
-export function WatchMatchSheet(props: {
-  open: boolean;
-  onClose: () => void;
-  kind: "movie" | "show";
-  id: string;
-  title: string;
-  year: string | null;
-  tmdbId: number | null;
-}) {
-  return (
-    <Sheet open={props.open} onClose={props.onClose} title="Match">
-      {props.open ? <MatchBody {...props} /> : null}
-    </Sheet>
-  );
-}
-
-const matchSearch = (kind: "movie" | "show", q: string, y: string) => {
-  const params = new URLSearchParams({ kind, q });
-  if (/^\d{4}$/.test(y)) params.set("year", y);
-  return api<WatchMatchResult[]>(`/api/watch/match?${params}`);
-};
-
-function MatchBody({ onClose, kind, id, title, year, tmdbId }: Parameters<typeof WatchMatchSheet>[0]) {
-  const t = useTheme();
-  const [query, setQuery] = useState(title);
-  const [yearText, setYearText] = useState(year ?? "");
-  const [results, setResults] = useState<WatchMatchResult[] | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const search = useCallback(
-    async (q: string, y: string) => {
-      setBusy(true);
-      try {
-        setResults(await matchSearch(kind, q, y));
-      } catch (err) {
-        toast.error(errorText(err));
-        setResults([]);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [kind],
-  );
-
-  // Opens already searching for the title it has.
-  useEffect(() => {
-    let live = true;
-    matchSearch(kind, title, year ?? "").then(
-      (r) => live && setResults(r),
-      (err: unknown) => {
-        if (!live) return;
-        toast.error(errorText(err));
-        setResults([]);
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [kind, title, year]);
-
-  const pick = async (r: WatchMatchResult) => {
-    setBusy(true);
-    try {
-      await api(`/api/watch/${kind === "movie" ? "movies" : "shows"}/${id}/match`, { method: "POST", body: { tmdbId: r.tmdbId } });
-      toast.show(`Matched to ${r.title}`);
-      invalidateWatch();
-      onClose();
-    } catch (err) {
-      toast.error(errorText(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const input = { color: t.text, fontFamily: fonts.medium, fontSize: 15 } as const;
-  return (
-    <View style={{ paddingHorizontal: 12, gap: 12, paddingBottom: 8 }}>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, height: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: t.surface2 }}>
-            <SearchIcon size={20} color={t.muted} />
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Title"
-              accessibilityLabel="Search title"
-              placeholderTextColor={t.faint}
-              selectionColor={t.accent}
-              returnKeyType="search"
-              onSubmitEditing={() => query.trim() && void search(query.trim(), yearText.trim())}
-              style={[input, { flex: 1 }]}
-            />
-          </View>
-          <TextInput
-            value={yearText}
-            onChangeText={setYearText}
-            placeholder="Year"
-            accessibilityLabel="Year"
-            keyboardType="number-pad"
-            maxLength={4}
-            placeholderTextColor={t.faint}
-            selectionColor={t.accent}
-            returnKeyType="search"
-            onSubmitEditing={() => query.trim() && void search(query.trim(), yearText.trim())}
-            style={[input, { width: 76, height: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: t.surface2 }]}
-          />
-        </View>
-        <Button label="Search" busy={busy && results !== null} disabled={!query.trim()} onPress={() => void search(query.trim(), yearText.trim())} />
-        {results === null ? (
-          // Placeholders shaped like the result rows: a poster with a title, year and overview.
-          <Skeleton style={{ gap: 8 }}>
-            {[0, 1, 2].map((i) => (
-              <View key={i} style={{ flexDirection: "row", gap: 12, padding: 8 }}>
-                <Bone width={56} height={84} radius={6} />
-                <View style={{ flex: 1, gap: 8, paddingTop: 2 }}>
-                  <Bone width="70%" height={15} />
-                  <Bone width="20%" height={11} />
-                  <Bone width="90%" height={11} />
-                </View>
-              </View>
-            ))}
-          </Skeleton>
-        ) : results.length === 0 ? (
-          <Text variant="small" style={{ textAlign: "center", paddingVertical: 16 }}>
-            No results.
-          </Text>
-        ) : (
-          results.map((r) => (
-            <Pressable
-              key={r.tmdbId}
-              accessibilityRole="button"
-              accessibilityState={{ selected: r.tmdbId === tmdbId, disabled: busy }}
-              disabled={busy}
-              onPress={() => void pick(r)}
-              style={({ pressed }) => ({
-                flexDirection: "row",
-                gap: 12,
-                padding: 8,
-                borderRadius: 12,
-                borderWidth: 1.5,
-                borderColor: r.tmdbId === tmdbId ? t.accent : "transparent",
-                backgroundColor: pressed ? t.surface2 : t.chip,
-              })}
-            >
-              <Cover path={r.posterUrl} title={r.title} size={56} radius={6} aspectRatio={2 / 3} />
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text variant="bodyStrong" numberOfLines={2}>
-                  {r.title}
-                </Text>
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  {r.year ? <Text variant="small">{r.year}</Text> : null}
-                  {r.tmdbId === tmdbId ? <Text variant="small" style={{ color: t.accent, fontFamily: fonts.bold }}>Now</Text> : null}
-                </View>
-                {r.overview ? (
-                  <Text variant="small" numberOfLines={2}>
-                    {r.overview}
-                  </Text>
-                ) : null}
-              </View>
-            </Pressable>
-          ))
-        )}
-    </View>
   );
 }

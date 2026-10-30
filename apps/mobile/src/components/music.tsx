@@ -13,19 +13,21 @@ import {
   songSub,
   type TrackDto,
 } from "@murmur/shared/client";
-import { setInMusic } from "@/lib/data";
+import { setInMusic, useAlbum } from "@/lib/data";
 import { selectHaptic, withLongPressHaptic } from "@/lib/haptics";
 import { downloadTrack, removeDownload, useDownload, useInAlbumDownload } from "@/lib/downloads";
+import { useSession } from "@/lib/session";
 import { getJson, setJson } from "@/lib/storage";
-import { addToUpNext, isCurrent, isPlayingFrom, isWaiting, removeWaiting, toggle, toggleShuffle, usePlayerSelect } from "@/player/engine";
+import { addToUpNext, playMusic, isCurrent, isPlayingFrom, isWaiting, removeWaiting, toggle, toggleShuffle, usePlayerSelect } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { CheckIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon, ShuffleIcon } from "./icons";
+import { AlbumMatchSheet } from "./match";
 import { Mixer, MixerBars, useNowPlaying } from "./mixer";
 import { AddToPlaylistSheet } from "./playlists";
-import { Sheet, SheetItem } from "./sheet";
+import { Sheet, SheetDivider, SheetItem, useCardMenu, useMenuIdle } from "./sheet";
 import { toast } from "./toast";
-import { IconButton, Text } from "./ui";
+import { IconButton, Pill, Pills, Text } from "./ui";
 
 // Shared by the Music tab, Album and Artist screens. The text helpers (songSub, albumPills and so
 // on) live in @murmur/shared, so the web and the app say the same thing.
@@ -42,6 +44,58 @@ export const addSongsToUpNext = (tracks: TrackDto[]) =>
     (err: unknown) => toast.error(err instanceof Error ? err.message : "Couldn't do that."),
   );
 export const openArtist = (id: string) => router.push(`/artist/${id}`);
+
+/**
+ * An album's menu, the same from a card's long press and the album page's ⋯ (like the web's):
+ * play, Up Next, playlist, artist and your music, then for admins Match.
+ */
+export function AlbumActions({ album, open, onClose, onIdle }: { album: AlbumSummary; open: boolean; onClose: () => void; onIdle?: () => void }) {
+  const admin = !!useSession().user?.isAdmin;
+  // The songs, for playing and adding; already cached on the album page.
+  const tracks = useAlbum(album.id).data?.tracks;
+  const [adding, setAdding] = useState(false);
+  const [matching, setMatching] = useState(false);
+  useMenuIdle(open || adding || matching, onIdle);
+  const all = albumInMusic(album) === "all";
+  const then = (fn: () => void) => () => {
+    onClose();
+    fn();
+  };
+
+  return (
+    <>
+      <Sheet open={open} onClose={onClose} title={album.title}>
+        <SheetItem
+          label="Play"
+          disabled={!tracks}
+          onPress={then(() => {
+            if (!tracks) return;
+            playMusic({ kind: "album", refId: album.id, title: album.title, tracks }, -1);
+            router.push("/player");
+          })}
+        />
+        <SheetItem label="Add to Up Next" disabled={!tracks} onPress={then(() => tracks && void addSongsToUpNext(tracks))} />
+        <SheetItem label="Add to playlist…" disabled={!tracks} onPress={then(() => setAdding(true))} />
+        <SheetItem label={`Go to ${album.artist}`} onPress={then(() => openArtist(album.artistId))} />
+        <SheetItem
+          label={all ? "Remove from your music" : "Add to your music"}
+          onPress={then(() => {
+            selectHaptic();
+            void setInMusic({ albums: [album] }, !all);
+          })}
+        />
+        {admin ? (
+          <>
+            <SheetDivider />
+            <SheetItem label="Match…" onPress={then(() => setMatching(true))} />
+          </>
+        ) : null}
+      </Sheet>
+      <AddToPlaylistSheet open={adding} onClose={() => setAdding(false)} title={album.title} trackIds={tracks?.map((tr) => tr.id) ?? []} />
+      {admin ? <AlbumMatchSheet album={matching ? album : null} onClose={() => setMatching(false)} /> : null}
+    </>
+  );
+}
 
 // ---------- Album sort, kept on this phone ----------
 
@@ -99,13 +153,18 @@ export const AlbumCard = memo(function AlbumCard({ album, width, sub, badge }: {
   const all = albumInMusic(album) === "all";
   // From the album itself, a playlist or Up Next: any song of this album playing counts.
   const now = useNowPlaying((s) => s.item?.type === "track" && s.item.album?.id === album.id);
+  const menu = useCardMenu();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${album.title}, ${album.artist}`}
+      accessibilityActions={[{ name: "longpress", label: "Options" }]}
+      onAccessibilityAction={menu.show}
       onPress={() => openAlbum(album.id)}
+      onLongPress={withLongPressHaptic(menu.show)}
       style={({ pressed }) => ({ width, gap: 8, opacity: pressed ? 0.75 : 1 })}
     >
+      {menu.shown ? <AlbumActions album={album} open={menu.open} onClose={menu.close} onIdle={menu.idle} /> : null}
       <View>
         <Cover path={albumCover(album.id, album.coverHash, 600)} title={album.title} color={album.coverColor} />
         {now ? <Mixer playing={now === "playing"} /> : null}
@@ -524,23 +583,5 @@ export function ShuffleButton({ from, onPlay }: { from: MusicRef; onPlay: () => 
   );
 }
 
-/** A wrapping row of Pills, under a title. */
-export function Pills({ labels }: { labels: string[] }) {
-  return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-      {labels.map((label) => (
-        <Pill key={label} label={label} />
-      ))}
-    </View>
-  );
-}
-
-/** A small grey label, for an album's year, song count and length. */
-export function Pill({ label }: { label: string }) {
-  const t = useTheme();
-  return (
-    <View style={{ height: 24, paddingHorizontal: 9, borderRadius: 12, flexDirection: "row", alignItems: "center", backgroundColor: t.chip }}>
-      <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: t.text2 }}>{label}</Text>
-    </View>
-  );
-}
+// Kept in ui.tsx so screens that don't need the music helpers can use them too.
+export { Pill, Pills };

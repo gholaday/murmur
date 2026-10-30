@@ -37,20 +37,9 @@ import { Sheet, SheetItem } from "../sheet";
 import { useSortable } from "../sortable";
 import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle } from "../ui";
 import { BookActionsContext, BookCard } from "./book-card";
-import { BulkMatch } from "./bulk-match";
 import { PlayNextList } from "./play-next-list";
 
-type Tab = "books" | "authors" | "series" | "finished" | "attention" | "unmatched";
-
-/** Problems an admin can fix from the edit dialog, listed under Needs attention. */
-const ISSUES = [
-  { id: "cover", label: "No cover", test: (b: BookSummary) => !b.coverHash },
-  { id: "author", label: "Unknown author", test: (b: BookSummary) => !b.author },
-  { id: "missing", label: "Files missing", test: (b: BookSummary) => b.missingSince !== null },
-] as const;
-/** Which list the admin view shows: books with problems, or books not matched yet. */
-type IssueId = "all" | "unmatched";
-const issuesOf = (b: BookSummary) => ISSUES.filter((i) => i.test(b));
+type Tab = "books" | "authors" | "series" | "finished";
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: "books", label: "Books" },
@@ -103,13 +92,21 @@ interface LibraryProps {
 }
 
 export function Library(props: LibraryProps) {
+  return (
+    <BookActions isAdmin={props.isAdmin}>
+      <LibraryView {...props} />
+    </BookActions>
+  );
+}
+
+/** Book cards' menu actions, with the Edit dialog they open for admins. */
+export function BookActions({ isAdmin, children }: { isAdmin: boolean; children: React.ReactNode }) {
   const router = useRouter();
-  const { isAdmin } = props;
   const [editing, setEditing] = useState<{ id: string; tab: EditTab } | null>(null);
   const actions = useMemo(() => ({ isAdmin, edit: (id: string, tab: EditTab) => setEditing({ id, tab }) }), [isAdmin]);
   return (
     <BookActionsContext.Provider value={actions}>
-      <LibraryView {...props} />
+      {children}
       {isAdmin && editing ? (
         <EditBookDialog
           key={`${editing.id}:${editing.tab}`}
@@ -200,8 +197,6 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
     all: books.length,
   };
   const sorted = useMemo(() => sortBooks(books, sort), [books, sort]);
-  const attentionCount = useMemo(() => books.filter((b) => issuesOf(b).length > 0).length, [books]);
-  const unmatchedCount = useMemo(() => books.filter((b) => !b.matched).length, [books]);
   const q = query.trim().toLowerCase();
 
   const sortSheet = (
@@ -424,32 +419,7 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
                 {t.label}
               </Chip>
             ))}
-            {isAdmin && (attentionCount > 0 || tab === "attention") ? (
-              <Chip
-                warn
-                selected={tab === "attention"}
-                onClick={() => {
-                  setCustomizing(false);
-                  go({ tab: "attention" });
-                }}
-              >
-                Needs attention
-              </Chip>
-            ) : null}
-            {isAdmin && (unmatchedCount > 0 || tab === "unmatched") ? (
-              <Chip
-                selected={tab === "unmatched"}
-                onClick={() => {
-                  setCustomizing(false);
-                  go({ tab: "unmatched" });
-                }}
-              >
-                Not matched
-              </Chip>
-            ) : null}
           </Chips>
-
-          {tab === "attention" || tab === "unmatched" ? <AttentionView books={sorted} issue={tab === "unmatched" ? "unmatched" : "all"} /> : null}
 
           {tab === "books" ? (
             <>
@@ -606,26 +576,6 @@ function BookSections({
         );
       })}
     </div>
-  );
-}
-
-function AttentionView({ books, issue }: { books: BookSummary[]; issue: IssueId }) {
-  const list = issue === "unmatched" ? books.filter((b) => !b.matched) : books.filter((b) => issuesOf(b).length > 0);
-  const grid =
-    list.length === 0 ? (
-      <EmptyState>Nothing to fix here.</EmptyState>
-    ) : (
-      <div className="grid">
-        {list.map((b) => (
-          // Unmatched books already carry a "Not matched" mark on the cover, so they show their author.
-          <BookCard key={b.id} book={b} sub={issue === "unmatched" ? undefined : issuesOf(b).map((i) => i.label).join(", ")} />
-        ))}
-      </div>
-    );
-  return (
-    <section className="section">
-      {issue === "unmatched" ? <BulkMatch unmatched={list.filter((b) => b.missingSince === null).length}>{grid}</BulkMatch> : grid}
-    </section>
   );
 }
 

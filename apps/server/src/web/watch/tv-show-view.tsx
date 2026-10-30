@@ -19,10 +19,12 @@ import {
 } from "@murmur/shared/client";
 import { CheckIcon, MoreIcon, PlayedIcon, PlayIcon } from "../icons";
 import { setManyFinished } from "../progress";
-import { Sheet, SheetItem } from "../sheet";
 import { BackButton, Chip, Chips } from "../ui";
 import { playHref, Poster, Still } from "./cards";
-import { WatchMatchDialog } from "./match-sheet";
+import { useAdmin } from "../admin";
+import { MenuSheet } from "../card-menu";
+import { WatchEditDialog, type WatchEditTab } from "./edit-sheet";
+import { WatchMenuItems } from "./poster-menu";
 import { QualityPick } from "./quality-pick";
 
 /** An episode row: still with how far you are, title, "S1 E2" with the time, and a watched toggle. */
@@ -61,14 +63,16 @@ function EpisodeRow({ e, onMark }: { e: VideoEpisode; onMark: (e: VideoEpisode, 
 }
 
 /** A show: poster, Resume on the next episode, a chip per season and its episodes. */
-export function TvShowView({ show, canMatch }: { show: ShowDetail; canMatch: boolean }) {
+export function TvShowView({ show }: { show: ShowDetail }) {
   const router = useRouter();
+  const { tmdb } = useAdmin();
   const params = useSearchParams();
   const [menu, setMenu] = useState(false);
-  const [matching, setMatching] = useState(false);
+  const [editing, setEditing] = useState<WatchEditTab | null>(null);
   /** A converted-video quality picked for this viewing; null means your setting. */
   const [quality, setQuality] = useState<VideoQuality | null>(null);
   const all = show.seasonList.flatMap((s) => s.episodes);
+  const watchedAll = all.length > 0 && all.every((e) => e.progress?.finished);
   const upNext = all.find((e) => e.id === show.upNextId) ?? null;
   // Opens on the season you're in, or the one asked for.
   const asked = Number(params.get("season"));
@@ -111,11 +115,9 @@ export function TvShowView({ show, canMatch }: { show: ShowDetail; canMatch: boo
       >
         <div className="hero-bar">
           <BackButton fallback="/watch" />
-          {canMatch ? (
-            <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMenu(true)}>
-              <MoreIcon />
-            </button>
-          ) : null}
+          <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMenu(true)}>
+            <MoreIcon />
+          </button>
         </div>
         <div className="show-hero">
           <Poster kind="show" id={show.id} hash={show.posterHash} color={show.color} title={show.title} sub={show.year} />
@@ -181,19 +183,24 @@ export function TvShowView({ show, canMatch }: { show: ShowDetail; canMatch: boo
         </div>
       </section>
 
-      <Sheet open={menu} onClose={() => setMenu(false)} title={show.title}>
-        <SheetItem
-          onClick={() => {
-            setMenu(false);
-            setMatching(true);
-          }}
-        >
-          Match…
-        </SheetItem>
-      </Sheet>
-      {matching ? (
-        <WatchMatchDialog kind="show" id={show.id} title={show.title} year={show.year} tmdbId={show.tmdbId} onClose={() => setMatching(false)} />
-      ) : null}
+      <MenuSheet
+        open={menu}
+        onClose={() => setMenu(false)}
+        title={show.title}
+        items={(choose) => (
+          <WatchMenuItems
+            kind="show"
+            id={show.id}
+            watched={watchedAll}
+            resume={!watchedAll && all.some((e) => e.progress)}
+            playHref={playHref}
+            load={async () => show}
+            edit={setEditing}
+            choose={choose}
+          />
+        )}
+      />
+      {editing ? <WatchEditDialog kind="show" item={show} tab={editing} canMatch={tmdb} onClose={() => setEditing(null)} /> : null}
     </>
   );
 }

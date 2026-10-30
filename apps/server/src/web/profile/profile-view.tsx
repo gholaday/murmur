@@ -10,7 +10,9 @@ import {
   gigabytes,
   joinPath,
   KEEP_PER_SHOW_OPTIONS,
-  shortDate,
+  scanStatusText,
+  type LibraryAdminDto,
+  type ScanStatusDto,
   SKIP_BACK_OPTIONS,
   SKIP_FORWARD_OPTIONS,
   THEME_CHOICES,
@@ -30,7 +32,7 @@ import {
   plural,
 } from "@murmur/shared/client";
 import { api } from "../api";
-import { BackIcon, FolderIcon, PlusIcon } from "../icons";
+import { BackIcon, FolderIcon, PlusIcon, RefreshIcon } from "../icons";
 import { AD_MODES, adPrefsStore, useAdPrefs } from "../player/ad-prefs";
 import { usePlayer } from "../player/engine";
 import { Sheet } from "../sheet";
@@ -45,9 +47,6 @@ interface ServerInfo {
   /** For admins: whether GitHub has been asked yet, and any newer release it has. */
   updates: { checked: boolean; update: { latest: string; url: string } | null } | null;
   books: number;
-  scanRunning: boolean;
-  lastScanAt: number | null;
-  lastScanError: string | null;
   watcher: "events" | "polling" | "periodic-only";
 }
 
@@ -58,6 +57,7 @@ export function ProfileView({
   folders,
   adsEnabled,
   cache,
+  libraryAdmin,
   server,
   shows,
   tabs,
@@ -88,6 +88,8 @@ export function ProfileView({
   folders: LibraryFolderDto[];
   adsEnabled: boolean;
   cache: EpisodeCacheStatusDto | null;
+  /** You > Library's counts and scans, for admins. */
+  libraryAdmin: LibraryAdminDto | null;
   server: ServerInfo;
 }) {
   const router = useRouter();
@@ -132,35 +134,48 @@ export function ProfileView({
               <VersionCard version={server.version} devBuild={server.devBuild} updates={server.updates} />
               {watch.enabled ? <TmdbCredit /> : null}
             </>
-          ) : section === "library" ? (
+          ) : section === "library" && libraryAdmin ? (
             <>
-              <LibraryCard server={server} onScanned={refresh} />
-              <h2 className="section-title">Book folders</h2>
+              <h2 className="section-title">Books</h2>
+              <SettingsCard>
+                <ScanRow title={plural(libraryAdmin.books.total, "book")} scan={libraryAdmin.books.scan} url="/api/library/scan" kind="books" />
+                <SettingLink title="Needs attention" dot={libraryAdmin.books.attention ? "warn" : undefined} value={plural(libraryAdmin.books.attention, "book")} href="/you/library/attention" />
+                <SettingLink title="Not matched" value={plural(libraryAdmin.books.unmatched, "book")} href="/you/library/unmatched" />
+              </SettingsCard>
               <FoldersCard folders={folders} otherPaths={pathsBesides(musicFolders, movieFolders, showFolders)} onSaved={refresh} />
-              <h2 className="section-title">Music folders</h2>
+              <h2 className="section-title">Music</h2>
+              <SettingsCard>
+                <ScanRow title={plural(libraryAdmin.music.albums, "album")} scan={libraryAdmin.music.scan} url="/api/music/scan" kind="music" />
+                <SettingLink title="Not matched" value={plural(libraryAdmin.music.unmatched, "album")} href="/you/library/albums" />
+              </SettingsCard>
               {musicFolders.length === 0 ? (
                 <p className="muted small" style={{ margin: 0 }}>
                   Albums come from the songs' tags, or from Artist/Album folders when there are none.
                 </p>
               ) : null}
               <FoldersCard kind="music" folders={musicFolders} otherPaths={pathsBesides(folders, movieFolders, showFolders)} onSaved={refresh} />
-              <h2 className="section-title">Movie folders</h2>
-              {video ? (
-                <SettingsCard>
+              <h2 className="section-title">Movies and shows</h2>
+              <SettingsCard>
+                <ScanRow
+                  title={`${plural(libraryAdmin.watch.movies, "movie")} and ${plural(libraryAdmin.watch.shows, "show")}`}
+                  scan={libraryAdmin.watch.scan}
+                  url="/api/watch/scan"
+                  kind="watch"
+                />
+                {video ? (
                   <Setting
                     title="Video"
                     dot={video.problem ? "warn" : "ok"}
                     sub={<SettingSub error={!!video.problem}>{video.problem ?? video.working}</SettingSub>}
                   />
-                </SettingsCard>
-              ) : null}
+                ) : null}
+              </SettingsCard>
               {movieFolders.length + showFolders.length === 0 ? (
                 <p className="muted small" style={{ margin: 0 }}>
                   Movies go in &quot;Title (Year)&quot; folders, and shows in Show/Season folders.
                 </p>
               ) : null}
               <FoldersCard kind="movies" folders={movieFolders} otherPaths={pathsBesides(folders, musicFolders, showFolders)} onSaved={refresh} />
-              <h2 className="section-title">Show folders</h2>
               <FoldersCard kind="shows" folders={showFolders} otherPaths={pathsBesides(folders, musicFolders, movieFolders)} onSaved={refresh} />
             </>
           ) : section === "podcasts" ? (
@@ -496,43 +511,38 @@ function TmdbCredit() {
   );
 }
 
-function LibraryCard({ server, onScanned }: { server: ServerInfo; onScanned: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const status = server.scanRunning
-    ? "Scanning now…"
-    : server.lastScanError
-      ? server.lastScanError
-      : server.lastScanAt
-        ? `Last scanned ${shortDate(server.lastScanAt).toLowerCase()} at ${new Date(server.lastScanAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`
-        : "Not scanned yet";
+const SCAN_POLL_MS = 2000;
+
+/** A kind's count and scan status, with Rescan; spins until the scan is done, then refreshes. */
+function ScanRow({ title, scan, url, kind }: { title: string; scan: ScanStatusDto; url: string; kind: keyof LibraryAdminDto }) {
+  const router = useRouter();
+  const [scanning, setScanning] = useState(false);
+  const running = scanning || scan.running;
+  const rescan = async () => {
+    setScanning(true);
+    try {
+      await api(url, { method: "POST" });
+      for (;;) {
+        await new Promise((r) => setTimeout(r, SCAN_POLL_MS));
+        if (!(await api<LibraryAdminDto>("/api/library/admin"))[kind].scan.running) break;
+      }
+      router.refresh();
+    } catch (err) {
+      toast.error(errorText(err));
+    } finally {
+      setScanning(false);
+    }
+  };
   return (
-    <SettingsCard>
-      <Setting
-        title={`${server.books} books`}
-        dot={server.lastScanError ? "warn" : "ok"}
-        sub={<SettingSub error={!!server.lastScanError}>{status}</SettingSub>}
-      >
-        <button
-          type="button"
-          className="btn"
-          disabled={busy || server.scanRunning}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              await api("/api/library/scan", { method: "POST" });
-              toast("Scan started. New books appear when it finishes.");
-              setTimeout(onScanned, 3000);
-            } catch (err) {
-              toast.error(errorText(err));
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          Rescan
-        </button>
-      </Setting>
-    </SettingsCard>
+    <Setting
+      title={title}
+      dot={scan.lastError ? "warn" : undefined}
+      sub={<SettingSub error={!!scan.lastError}>{running ? "Scanning now" : scanStatusText(scan)}</SettingSub>}
+    >
+      <button type="button" className={`btn ${running ? "spinning" : ""}`} disabled={running} onClick={() => void rescan()}>
+        <RefreshIcon size={16} /> Rescan
+      </button>
+    </Setting>
   );
 }
 

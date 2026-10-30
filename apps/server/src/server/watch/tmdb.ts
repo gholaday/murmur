@@ -108,6 +108,15 @@ export function createTmdb(sqlite: Sqlite, opts: { apiKey: string; language: str
     }));
   }
 
+  /** Every poster or backdrop TMDB has for a title, best voted first: textless and your language. */
+  async function images(kind: TmdbKind, id: number, which: "poster" | "backdrop"): Promise<string[]> {
+    const lang = opts.language.split("-")[0];
+    const body = await get<{ posters?: Array<{ file_path: string }>; backdrops?: Array<{ file_path: string }> }>(
+      `/${kind === "movie" ? "movie" : "tv"}/${id}/images?include_image_language=${encodeURIComponent(`${lang},null`)}`,
+    );
+    return ((which === "poster" ? body?.posters : body?.backdrops) ?? []).map((i) => i.file_path);
+  }
+
   /** A picture's bytes, at a size a little over what Murmur stores. */
   async function image(imagePath: string, size: "w780" | "w1280"): Promise<Buffer> {
     const res = await fetch(`${IMAGES}/${size}${imagePath}`, {
@@ -118,7 +127,7 @@ export function createTmdb(sqlite: Sqlite, opts: { apiKey: string; language: str
     return Buffer.from(await res.arrayBuffer());
   }
 
-  return { search, details, season, image };
+  return { search, details, season, images, image };
 }
 
 export type Tmdb = ReturnType<typeof createTmdb>;

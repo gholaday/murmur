@@ -159,7 +159,7 @@ async function run(ctx: AppContext, job: Job) {
         item.status = "none";
         item.message = result.errors.length ? result.errors.join(" ") : "No results.";
       } else {
-        item.changes = (await plan(ctx, job, item.bookId, top)).changes;
+        item.changes = (await planMatch(ctx, job.dto.fields, item.bookId, top)).changes;
         item.status = "review";
       }
     } catch (err) {
@@ -186,13 +186,13 @@ async function run(ctx: AppContext, job: Job) {
  * What applying this result would do: the run's fields that aren't hand edited and where the
  * result has something better or different, plus the hand-edited ones it leaves alone.
  */
-async function plan(ctx: AppContext, job: Job, bookId: string, c: MatchCandidate) {
+export async function planMatch(ctx: AppContext, fields: MatchField[], bookId: string, c: MatchCandidate) {
   const preview = await previewMatch(ctx, bookId, c.provider, c.providerId);
   const row = (ctx.sqlite.prepare("SELECT * FROM book_overrides WHERE book_id = ?").get(bookId) ?? null) as
     | Record<string, unknown>
     | null;
   const changes: BulkMatchChange[] = [];
-  for (const f of job.dto.fields) {
+  for (const f of fields) {
     if (!worthApplying(preview, f)) continue;
     changes.push({ field: f, from: shown(preview, "current", f), to: shown(preview, "proposed", f), edited: row?.[COLUMN[f]] != null });
   }
@@ -200,7 +200,7 @@ async function plan(ctx: AppContext, job: Job, bookId: string, c: MatchCandidate
 }
 
 async function applyItem(ctx: AppContext, job: Job, item: BulkMatchItem, c: MatchCandidate) {
-  const { row, changes, fields } = await plan(ctx, job, item.bookId, c);
+  const { row, changes, fields } = await planMatch(ctx, job.dto.fields, item.bookId, c);
   await applyMatch(ctx, item.bookId, { provider: c.provider, providerId: c.providerId, fields });
   job.before.set(item.bookId, row);
   item.status = "applied";

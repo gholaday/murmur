@@ -1,7 +1,8 @@
-import { requireUser } from "@/server/auth";
+import { requireAdmin, requireUser } from "@/server/auth";
 import { getContext } from "@/server/context";
-import { HttpError, route } from "@/server/http";
+import { HttpError, json, route } from "@/server/http";
 import { artResponse } from "@/server/watch/art";
+import { removeWatchArt, setWatchArtFromRequest } from "@/server/watch/edit";
 import { movieArtHash } from "@/server/watch/queries";
 
 type Ctx = { params: Promise<{ id: string; kind: string }> };
@@ -13,4 +14,22 @@ export const GET = route<Ctx>(async (req, { params }) => {
   const { id, kind } = await params;
   if (kind !== "poster" && kind !== "backdrop") throw new HttpError(404, "Not found.");
   return artResponse(req, movieArtHash(ctx, id, kind), kind === "poster" ? "poster" : "wide");
+});
+
+/** Edit: a new poster or backdrop, kept over TMDB's. */
+export const POST = route<Ctx>(async (req, { params }) => {
+  const ctx = await getContext();
+  requireAdmin(ctx, req);
+  const { id, kind } = await params;
+  await setWatchArtFromRequest(ctx, req, "movie", id, kind);
+  return json({ ok: true });
+});
+
+/** Edit: takes off a chosen picture, bringing back the files' or TMDB's. */
+export const DELETE = route<Ctx>(async (req, { params }) => {
+  const ctx = await getContext();
+  requireAdmin(ctx, req);
+  const { id, kind } = await params;
+  await removeWatchArt(ctx, "movie", id, kind);
+  return json({ ok: true });
 });

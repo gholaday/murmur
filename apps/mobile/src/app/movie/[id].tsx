@@ -11,8 +11,8 @@ import { Sheet, SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { IconButton, RoundButton, Text } from "@/components/ui";
-import { FileDetails, QualityButton, startMovieDownload, VideoDownloadButton, WatchHero, WatchMatchSheet, WidePlayButton } from "@/components/watch";
-import { useSession } from "@/lib/session";
+import { FileDetails, QualityButton, startMovieDownload, VideoDownloadButton, WatchHero, WidePlayButton } from "@/components/watch";
+import { WatchActions } from "@/components/watch-edit";
 import { markWatched, openVideoPlayer, useMovie } from "@/lib/watch";
 import { fonts, useTheme } from "@/theme";
 
@@ -34,8 +34,7 @@ export default function MovieScreen() {
 function MovieView({ movie }: { movie: MovieDetail }) {
   const t = useTheme();
   const bottomPad = useBottomPad();
-  const admin = !!useSession().user?.isAdmin;
-  const [sheet, setSheet] = useState<null | "menu" | "version" | "match">(null);
+  const [sheet, setSheet] = useState<null | "menu" | "version">(null);
   const [expanded, setExpanded] = useState(false);
   const [versionId, setVersionId] = useState(movie.versionList[0]!.id);
   /** A converted-video quality picked for this viewing; null means your setting. */
@@ -68,11 +67,9 @@ function MovieView({ movie }: { movie: MovieDetail }) {
           art={art}
           pills={pills}
           right={
-            admin ? (
-              <IconButton label="More options" onPress={() => setSheet("menu")} style={{ marginRight: -10 }}>
-                <MoreIcon color={t.text} />
-              </IconButton>
-            ) : null
+            <IconButton label="More options" onPress={() => setSheet("menu")} style={{ marginRight: -10 }}>
+              <MoreIcon color={t.text} />
+            </IconButton>
           }
         />
 
@@ -140,18 +137,7 @@ function MovieView({ movie }: { movie: MovieDetail }) {
           />
         ))}
       </Sheet>
-      <Sheet open={sheet === "menu"} onClose={() => setSheet(null)} title={movie.title}>
-        <SheetItem label="Match…" onPress={() => setSheet("match")} />
-      </Sheet>
-      <WatchMatchSheet
-        open={sheet === "match"}
-        onClose={() => setSheet(null)}
-        kind="movie"
-        id={movie.id}
-        title={movie.title}
-        year={movie.year}
-        tmdbId={movie.tmdbId}
-      />
+      <WatchActions kind="movie" id={movie.id} title={movie.title} open={sheet === "menu"} onClose={() => setSheet(null)} />
     </View>
   );
 }
