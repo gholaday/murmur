@@ -95,7 +95,8 @@ export const MARK_PLAYED_AT_SEC = 180;
 export function showMarkPlayed(type: PlayType, durationSec: number, position: number): boolean {
   if (type !== "episode" || durationSec < MARK_PLAYED_AT_SEC * 2) return false;
   const left = durationSec - position;
-  return left > 0 && left <= MARK_PLAYED_AT_SEC;
+  // 0 left counts: holding the scrubber at the very end still offers it.
+  return left >= 0 && left <= MARK_PLAYED_AT_SEC;
 }
 
 // ---------- Up Next ----------

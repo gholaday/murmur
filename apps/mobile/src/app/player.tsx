@@ -98,7 +98,6 @@ export default function Player() {
   const [speedDraft, setSpeedDraft] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [titleY, setTitleY] = useState(0);
-  const [barWidth, setBarWidth] = useState(0);
   const titleRef = useRef<ViewInstance>(null);
   /** Where the seek thumb was on the last change, for the ticks it passes. */
   const scrubFrom = useRef(0);
@@ -175,6 +174,8 @@ export default function Player() {
   const marks = showAds && adMode !== "off" && p.ads?.enabled ? p.ads.ads : [];
   const adIndex = marks.findIndex((a) => pos >= a.startSec && pos < a.endSec);
   const inAd = adIndex >= 0 ? adBreak(marks, adIndex) : null;
+  // An ad that runs to the episode's end has nothing to skip to once it's over.
+  const canSkipAd = inAd && !(item.durationSec && item.durationSec - pos < 1);
   /** Where a time falls on the bar, 0 to 1. */
   const frac = (sec: number) => Math.min(Math.max(sec - span.start, 0), spanLen) / spanLen;
   const trackColor = t.isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)";
@@ -238,27 +239,29 @@ export default function Player() {
             }}
           >
             <Cover path={item.coverPathLarge} title={item.title} color={item.color} radius={16} />
-            {/* Over the artwork like a video player's skip button, so nothing below moves. */}
-            {inAd ? (
-              <CoverPill key="ad" color={AD} onPress={() => seek(inAd.endSec)}>
-                <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: ON_AD }}>Skip ad</Text>
-                <NextChapterIcon size={16} color={ON_AD} />
-              </CoverPill>
-            ) : showMarkPlayed(item.type, item.durationSec, pos) ? (
-              // Marking it played closes the player, as reaching the end does.
-              <CoverPill
-                key="played"
-                color="rgba(11,11,13,0.82)"
-                iconFirst
-                onPress={() => {
-                  markCurrent(true);
-                  toast.show("Marked as played");
-                }}
-              >
-                <CheckIcon size={16} color="#fff" />
-                <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: "#fff" }}>Mark played</Text>
-              </CoverPill>
-            ) : null}
+            {/* Over the artwork like a video player's skip button, so nothing below moves. Both can
+                show at once, Mark played on top. */}
+            <View pointerEvents="box-none" style={{ position: "absolute", right: 12, bottom: 12, gap: 8, alignItems: "flex-end" }}>
+              {showMarkPlayed(item.type, item.durationSec, pos) ? (
+                // Marking it played closes the player, as reaching the end does.
+                <CoverPill
+                  color={t.accent}
+                  onPress={() => {
+                    markCurrent(true);
+                    toast.show("Marked as played");
+                  }}
+                >
+                  <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.onAccent }}>Mark played</Text>
+                  <CheckIcon size={16} color={t.onAccent} />
+                </CoverPill>
+              ) : null}
+              {inAd && canSkipAd ? (
+                <CoverPill color={AD} onPress={() => seek(inAd.endSec)}>
+                  <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: ON_AD }}>Skip ad</Text>
+                  <NextChapterIcon size={16} color={ON_AD} />
+                </CoverPill>
+              ) : null}
+            </View>
           </View>
 
           <View style={{ gap: 4 }}>
@@ -272,10 +275,7 @@ export default function Player() {
           </View>
 
           <View>
-            <View onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}>
-            {segmented && dragging && chapter ? (
-              <ScrubBubble x={frac(pos) * barWidth} width={barWidth} time={clock(pos)} label={`${ci + 1}. ${chapter.title}`} />
-            ) : null}
+            <View>
             {segmented ? (
               <ChapterSegments chapters={item.chapters} current={ci} pos={pos} frac={frac} grow={dragging} marks={marks} />
             ) : marks.length ? (
@@ -331,7 +331,8 @@ export default function Player() {
               {segmented ? (
                 chapter ? (
                   <Pressable accessibilityRole="button" accessibilityHint="Opens the chapters" onPress={() => setSheet("chapters")} hitSlop={6} style={{ flex: 1, paddingHorizontal: 10 }}>
-                    <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize: 12, textAlign: "center", color: t.text }}>
+                    {/* While dragging, the chapter under the thumb, in the accent. */}
+                    <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize: 12, textAlign: "center", color: dragging ? t.accent : t.text }}>
                       {chapter.title}
                     </Text>
                   </Pressable>
@@ -572,18 +573,18 @@ export default function Player() {
 }
 
 /** A pill in the cover's bottom-right corner for a timely tap: Skip ad, or Mark played. */
-function CoverPill({ color, iconFirst, onPress, children }: { color: string; iconFirst?: boolean; onPress: () => void; children: React.ReactNode }) {
+function CoverPill({ color, onPress, children }: { color: string; onPress: () => void; children: React.ReactNode }) {
   return (
-    <Animated.View entering={FadeIn.duration(150)} style={{ position: "absolute", right: 12, bottom: 12 }}>
+    <Animated.View entering={FadeIn.duration(150)}>
       <Pressable
         accessibilityRole="button"
         onPress={onPress}
         style={({ pressed }) => ({
           flexDirection: "row",
           alignItems: "center",
-          gap: iconFirst ? 6 : 4,
-          paddingLeft: iconFirst ? 12 : 14,
-          paddingRight: iconFirst ? 14 : 10,
+          gap: 4,
+          paddingLeft: 14,
+          paddingRight: 12,
           paddingVertical: 6,
           borderRadius: 999,
           backgroundColor: color,
@@ -662,44 +663,6 @@ function ChapterSegments({
       })}
       <AdMarks marks={marks} pos={pos} frac={frac} />
     </View>
-  );
-}
-
-/** Over the thumb while dragging: the time, and which chapter it's in. Stays within the bar. */
-function ScrubBubble({ x, width, time, label }: { x: number; width: number; time: string; label: string }) {
-  const t = useTheme();
-  const [own, setOwn] = useState(0);
-  const left = Math.min(Math.max(0, x - own / 2), Math.max(0, width - own));
-  return (
-    <Animated.View
-      entering={FadeIn.duration(120)}
-      pointerEvents="none"
-      onLayout={(e) => setOwn(e.nativeEvent.layout.width)}
-      style={{
-        position: "absolute",
-        bottom: 34,
-        left,
-        maxWidth: Math.min(260, width * 0.8),
-        opacity: own ? 1 : 0,
-        alignItems: "center",
-        gap: 1,
-        paddingVertical: 6,
-        paddingHorizontal: 10,
-        borderRadius: 10,
-        backgroundColor: t.surface2,
-        elevation: 6,
-        shadowColor: "#000",
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 4 },
-        zIndex: 1,
-      }}
-    >
-      <Text style={{ fontFamily: fonts.bold, fontSize: 12, fontVariant: ["tabular-nums"], color: t.text }}>{time}</Text>
-      <Text numberOfLines={1} style={{ fontFamily: fonts.medium, fontSize: 12, color: t.muted }}>
-        {label}
-      </Text>
-    </Animated.View>
   );
 }
 

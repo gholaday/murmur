@@ -70,10 +70,10 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 - Skip back and forward (configurable, defaults 10 s and 30 s), chapter skip. On an episode without chapters, previous and next (in the player, media keys and the notification) go to the item before or after it in Up Next, and past either end to the episode above or below it in its show's list (`GET /episodes/:id/neighbor`). Previous restarts the episode first once it's more than 3 s in
 - Playback speed 0.5× to 3× (2× on Android), remembered per book and per show
 - Sleep timer: minutes or end of chapter
-- Episode chapters, when the show publishes them: the scrubber splits into one segment per chapter over the whole episode, with the playing chapter's title between the elapsed and remaining times in place of the time left (tap for the list), and dragging (or hovering with a mouse on the web) shows the time and chapter above the bar. A book's bar spans its current chapter instead
+- Episode chapters, when the show publishes them: the scrubber splits into one segment per chapter over the whole episode, with the playing chapter's title between the elapsed and remaining times in place of the time left (tap for the list), and dragging (or, on the web, hovering with a mouse) shows the title of the chapter you'd land in there, in the accent colour. A book's bar spans its current chapter instead
 - The third player tile is Chapters for books and for episodes with chapters, else Ads when the show is scanned for ads, else none and the other three share the row. The ad setting is also always in the episode's ⋯ menu. Which one is decided when the episode loads, so tiles never change mid-listen
-- In an episode's last 3 minutes, a Mark played button on the cover marks it played and closes the player, so a long outro needn't run out (not on episodes under 6 minutes; Skip ad takes the spot while an ad plays)
-- Volume slider and mute in the web player on desktop, remembered per browser (phones use their own buttons)
+- In an episode's last 3 minutes, a Mark played button on the cover marks it played and closes the player, so a long outro needn't run out (not on episodes under 6 minutes). During an ad it sits above Skip ad, and Skip ad goes once the episode is in its last second
+- Volume slider and mute in the web player on desktop, remembered per browser (phones use their own buttons): a row under the audio player's controls, and a speaker that slides a slider out on the video player
 - Lock screen, notification, Bluetooth and headphone controls in the app
 - Casting books, podcasts, music, movies and shows to a Chromecast from the web (Chrome and Edge) and the app (see Casting)
 

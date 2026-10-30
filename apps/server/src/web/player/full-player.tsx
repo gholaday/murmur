@@ -48,7 +48,7 @@ import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } f
 import { CastButton } from "../cast/cast-button";
 import { useCast } from "../cast/cast";
 import { usePlayer, usePosition, useTint } from "./engine";
-import { VolumeControl } from "./volume-control";
+import { VolumeRow } from "./volume-control";
 
 /** Matches the `sink` animation in globals.css. */
 const CLOSE_MS = 200;
@@ -190,9 +190,14 @@ export function FullPlayer() {
   const marks = showAds && adMode !== "off" ? p.ads : [];
   const adIndex = marks.findIndex((a) => pos >= a.startSec && pos < a.endSec);
   const inAd = adIndex >= 0 ? adBreak(marks, adIndex) : null;
-  // The bubble follows a drag, or a mouse hovering over the bar.
-  const bubbleAt = segmented ? (scrub ?? hoverAt) : null;
-  const bubbleChapter = bubbleAt !== null ? item.chapters[chapterAt(item.chapters, bubbleAt)] : undefined;
+  // An ad that runs to the end leaves nothing to skip to once the time is up.
+  const canSkipAd = inAd !== null && !(item.durationSec && item.durationSec - pos < 1);
+  const markPlayed = showMarkPlayed(item.type, item.durationSec, pos);
+  // Hovering a mouse over the bar lights up that chapter's segment and shows its title in the
+  // times row; a drag shows the chapter it would land in the same way. Both in accent.
+  const hoverIndex = segmented && scrub === null && hoverAt !== null ? chapterAt(item.chapters, hoverAt) : -1;
+  const lineIndex = hoverIndex >= 0 ? hoverIndex : ci;
+  const previewing = hoverIndex >= 0 || (segmented && scrub !== null);
   const pct = (sec: number) => `${(Math.min(Math.max(sec - span.start, 0), spanLen) / spanLen) * 100}%`;
 
   return (
@@ -234,24 +239,29 @@ export function FullPlayer() {
         {/* Skip ad and Mark played sit on the cover so they never move the controls. */}
         <div className="player-cover-wrap player-pull" {...pull.handlers}>
           <Cover src={item.coverUrlLarge} color={item.color} title={item.title} subtitle={item.subtitle} className="player-cover" large />
-          {inAd ? (
-            <button type="button" className="skip-ad" onClick={() => p.seek(inAd.endSec)}>
-              Skip ad
-              <NextChapterIcon size={16} />
-            </button>
-          ) : showMarkPlayed(item.type, item.durationSec, pos) ? (
-            // Marking it played closes the player, as reaching the end does.
-            <button
-              type="button"
-              className="finish-pill"
-              onClick={() => {
-                void p.markCurrent(true);
-                toast("Marked as played");
-              }}
-            >
-              <CheckIcon size={16} />
-              Mark played
-            </button>
+          {canSkipAd || markPlayed ? (
+            <div className="cover-pills">
+              {markPlayed ? (
+                // Marking it played closes the player, as reaching the end does.
+                <button
+                  type="button"
+                  className="finish-pill"
+                  onClick={() => {
+                    void p.markCurrent(true);
+                    toast("Marked as played");
+                  }}
+                >
+                  Mark played
+                  <CheckIcon size={16} />
+                </button>
+              ) : null}
+              {canSkipAd ? (
+                <button type="button" className="skip-ad" onClick={() => p.seek(inAd.endSec)}>
+                  Skip ad
+                  <NextChapterIcon size={16} />
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
 
@@ -262,25 +272,16 @@ export function FullPlayer() {
             </h1>
             <div className="player-sub">{multiChapter && !segmented && chapter ? chapter.title : item.subtitle}</div>
           </div>
-          <VolumeControl />
         </div>
 
         <div className={`player-scrub${segmented ? " chaptered" : ""}`}>
           <div className={`scrub-wrap${scrub !== null ? " dragging" : ""}`}>
-            {bubbleAt !== null && bubbleChapter ? (
-              <div className="scrub-bubble" style={{ left: `clamp(70px, ${pct(bubbleAt)}, calc(100% - 70px))` }} aria-hidden="true">
-                <strong>{clock(bubbleAt)}</strong>
-                <span>
-                  {bubbleChapter.index + 1}. {bubbleChapter.title}
-                </span>
-              </div>
-            ) : null}
             {segmented ? (
               <div className="scrub-segs" aria-hidden="true">
                 {item.chapters.map((c, i) => (
                   <div
                     key={c.index}
-                    className={`scrub-seg${i < ci ? " played" : i === ci ? " current" : ""}`}
+                    className={`scrub-seg${i < ci ? " played" : i === ci ? " current" : i === hoverIndex ? " hovered" : ""}`}
                     style={
                       {
                         left: pct(c.startSec),
@@ -346,9 +347,13 @@ export function FullPlayer() {
           <div className="player-times">
             <span>{clock(within)}</span>
             {/* With chapters, the playing one's title takes the middle; the time left is on the right anyway. */}
-            {segmented && chapter ? (
-              <button type="button" className="player-chapter-line" onClick={() => setSheet("chapters")}>
-                {chapter.title}
+            {segmented && item.chapters[lineIndex] ? (
+              <button
+                type="button"
+                className={`player-chapter-line${previewing ? " preview" : ""}`}
+                onClick={() => setSheet("chapters")}
+              >
+                {item.chapters[lineIndex]!.title}
               </button>
             ) : (
               <span>{item.durationSec && !song ? timeLeft(item.durationSec, pos) : ""}</span>
@@ -434,6 +439,7 @@ export function FullPlayer() {
             </>
           )}
         </div>
+        <VolumeRow />
         {p.error ? <p className="error player-error">{p.error}</p> : null}
       </div>
 

@@ -837,7 +837,8 @@ a.episode-show:hover { color: var(--accent); }
 .player-main { width: 100%; max-width: 440px; margin: 0 auto; padding: 0 32px; display: flex; flex-direction: column; }
 .player-cover-wrap { position: relative; width: 100%; max-width: 340px; margin: 20px auto 0; }
 .player-cover { width: 100%; border-radius: 16px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
-.player-cover-wrap :is(.skip-ad, .finish-pill) { position: absolute; right: 12px; bottom: 12px; }
+/* Skip ad and Mark played stack in the cover's corner when both apply. */
+.cover-pills { position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 /* The title block with the volume control at its right, the same on the audio and video players. */
 .player-info-row { display: flex; align-items: flex-end; gap: 8px; padding-top: 26px; }
 .player-info-row .player-info { flex: 1; min-width: 0; padding-top: 0; }
@@ -923,8 +924,8 @@ a.episode-show:hover { color: var(--accent); }
 .scrub-ad { position: absolute; top: 0; bottom: 0; min-width: 2px; background: linear-gradient(to right, var(--ad-heard) var(--heard), var(--ad) var(--heard)); }
 /*
  * An episode's chapters as segments over the whole bar, with gaps between: played ones solid, the
- * current one filling, the rest faint. Ad marks sit on top. Dragging thickens the current segment
- * and shows a bubble with the time and chapter above the thumb.
+ * current one filling, the rest faint. Ad marks sit on top. Dragging thickens the current segment;
+ * hovering lights a later segment in accent while its title shows in the times row.
  */
 /* Square segment and ad edges; only the bar's two ends are rounded (the clip, lifted while dragging so the thicker segment shows). */
 .scrub-segs { position: absolute; left: 0; right: 0; top: 8px; height: 4px; pointer-events: none; border-radius: 2px; overflow: hidden; }
@@ -937,13 +938,8 @@ a.episode-show:hover { color: var(--accent); }
 .scrub-seg.current { background-image: linear-gradient(to right, var(--text) var(--fill), transparent var(--fill)); }
 .scrub-segs .scrub-ad { border-radius: 0; }
 .scrub-wrap.dragging .scrub-seg.current { transform: scaleY(2); }
-.scrub-bubble {
-  position: absolute; bottom: calc(100% + 6px); transform: translateX(-50%); z-index: 1; max-width: min(260px, 80%);
-  display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 10px; border-radius: 10px;
-  background: var(--surface-2); box-shadow: var(--shadow); font-size: 12px; pointer-events: none; animation: fade-in 120ms ease-out both;
-}
-.scrub-bubble strong { font-variant-numeric: tabular-nums; }
-.scrub-bubble span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.scrub-seg.hovered { background-color: var(--accent); }
+.player-times .player-chapter-line.preview { color: var(--accent); }
 .player-times .player-chapter-line {
   flex: 1; min-width: 0; padding: 0 12px; font-size: 12px; font-weight: 700; color: var(--text); text-align: center;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -952,8 +948,8 @@ a.episode-show:hover { color: var(--accent); }
 .scrubber.over-track::-webkit-slider-runnable-track { background: transparent; }
 .scrubber.over-track::-moz-range-track { background: transparent; }
 .skip-ad { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px 6px 14px; border-radius: 999px; background: var(--ad); color: var(--on-ad); font-size: 13px; font-weight: 700; animation: fade-in 0.15s ease-out; }
-/* An episode's last few minutes: the same pill as Skip ad, dark so it reads on any cover. */
-.finish-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px 6px 12px; border-radius: 999px; background: rgba(11, 11, 13, 0.82); color: #fff; font-size: 13px; font-weight: 700; animation: fade-in 0.15s ease-out; }
+/* An episode's last few minutes: the same pill as Skip ad, in the accent colour. */
+.finish-pill { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px 6px 14px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 13px; font-weight: 700; animation: fade-in 0.15s ease-out; }
 .sheet-note { margin: -6px 0 0; font-size: 13px; color: var(--muted); }
 .sheet-item-text { display: flex; flex-direction: column; gap: 2px; padding-block: 8px; }
 .sheet-item-sub { font-size: 13px; font-weight: 400; color: var(--muted); }
@@ -1435,7 +1431,14 @@ button.setting-link { width: 100%; text-align: left; color: inherit; }
 .vol { display: flex; align-items: center; }
 .vol .vol-slider { width: 0; opacity: 0; margin-right: 0; transition: width 160ms ease, opacity 160ms ease, margin 160ms ease; }
 .vol:hover .vol-slider, .vol:focus-within .vol-slider { width: 84px; opacity: 1; margin-right: 4px; }
-@media (hover: none) and (pointer: coarse) { .vol { display: none; } }
+/* The audio player's volume row under the controls: mute, slider, loud speaker. */
+.vol-row { display: flex; align-items: center; gap: 8px; padding-top: 10px; color: var(--muted); }
+.vol-row .icon-btn { width: 32px; height: 32px; margin-left: -6px; color: inherit; }
+.vol-row .scrubber { flex: 1; }
+.vol-row .scrubber::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -4px; }
+.vol-row .scrubber::-moz-range-thumb { width: 12px; height: 12px; }
+.vol-row > svg { flex-shrink: 0; }
+@media (hover: none) and (pointer: coarse) { .vol, .vol-row { display: none; } }
 .vp-over .vol { --text: #fff; }
 .vp-tiles { flex-shrink: 0; padding-top: 16px; padding-bottom: 8px; }
 /* The next episodes scroll in whatever height is left. */
