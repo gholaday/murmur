@@ -14,22 +14,24 @@ jobs:
   image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ghcr.io/${{ github.repository_owner }}/murmur
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -44,22 +46,24 @@ jobs:
   adscan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ghcr.io/${{ github.repository_owner }}/murmur-adscan
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: addons/adscan
           platforms: linux/amd64,linux/arm64
@@ -74,22 +78,24 @@ jobs:
   video:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ghcr.io/${{ github.repository_owner }}/murmur-video
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: addons/video/Dockerfile
@@ -101,28 +107,27 @@ jobs:
           cache-from: type=gha,scope=video
           cache-to: type=gha,mode=max,scope=video
 
-  # The Android app, signed with Murmur's release key and attached to the GitHub release,
-  # where Obtainium picks it up. Needs the ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
-  # ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD secrets.
+  # The Android app, built here with no secrets: the build runs code from npm and Gradle plugins,
+  # so it never sees the signing key. Without the key, release builds use the debug key, and the
+  # sign job below re-signs the APK.
   apk:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          # The release notes link to the commits since the previous tag.
-          fetch-depth: 0
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: pnpm
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: 17
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
       - run: pnpm install --frozen-lockfile
       # The tag sets the app's version. versionCode has to grow with every release:
       # 0.2.5 becomes 205, 1.0.0 becomes 10000.
@@ -137,33 +142,79 @@ jobs:
             app.expo.version = version;
             app.expo.android.versionCode = major * 10000 + minor * 100 + patch;
             fs.writeFileSync(file, JSON.stringify(app, null, 2));
-            fs.appendFileSync(process.env.GITHUB_ENV, `VERSION=${version}\n`);
           '
       - name: Generate the Android project
         working-directory: apps/mobile
         run: pnpm exec expo prebuild --platform android --clean --no-install
       - name: Build the APK
         working-directory: apps/mobile/android
+        run: ./gradlew assembleRelease --no-daemon
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: apk
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 1
+
+  # Signs the APK with Murmur's release key and attaches it to the GitHub release, where
+  # Obtainium picks it up. It's the only job that reads the key, and it runs in the `release`
+  # environment, which only v* tags can use. It runs no npm or Gradle code, only GitHub's own
+  # actions and the Android SDK's apksigner. Needs the ANDROID_KEYSTORE_BASE64,
+  # ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD repository secrets.
+  sign:
+    needs: apk
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The release notes link to the commits since the previous tag.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: apk
+          path: ${{ runner.temp }}/apk
+      # apksigner replaces the debug signature. The keystore is written to the runner's temp
+      # folder and removed straight after.
+      - name: Sign the APK
         env:
-          MURMUR_KEYSTORE: ${{ runner.temp }}/murmur.jks
-          MURMUR_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          MURMUR_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          MURMUR_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          # Without the secrets the build stops here, rather than publishing a debug-signed APK.
+          set -o pipefail
+          # Without the secrets the release stops here, rather than publishing a debug-signed APK.
           test -n "$KEYSTORE_BASE64" || { echo "::error::The ANDROID_KEYSTORE_BASE64 secret is missing"; exit 1; }
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$MURMUR_KEYSTORE"
-          ./gradlew assembleRelease --no-daemon
-          rm "$MURMUR_KEYSTORE"
+          # The newest stable build tools; -P 16 needs 35 or later.
+          tools=$(ls -d "$ANDROID_HOME"/build-tools/* | grep -v -- '-rc' | sort -V | tail -1)
+          keystore="$RUNNER_TEMP/murmur.jks"
+          trap 'rm -f "$keystore"' EXIT
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          "$tools/zipalign" -f -P 16 4 "$RUNNER_TEMP/apk/app-release.apk" "$RUNNER_TEMP/aligned.apk"
+          "$tools/apksigner" sign --ks "$keystore" --ks-pass env:KEYSTORE_PASSWORD \
+            --ks-key-alias "$KEY_ALIAS" --key-pass env:KEY_PASSWORD --v4-signing-enabled false \
+            --out "murmur-${GITHUB_REF_NAME#v}.apk" "$RUNNER_TEMP/aligned.apk"
+          # Exactly one signer, Murmur's: the debug signature must be gone.
+          "$tools/apksigner" verify --print-certs "murmur-${GITHUB_REF_NAME#v}.apk" | tee "$RUNNER_TEMP/certs.txt"
+          test "$(grep 'certificate SHA-256 digest:' "$RUNNER_TEMP/certs.txt" | sed 's/.*digest: //' | sort -u | wc -l)" = 1 \
+            || { echo "::error::The APK should have exactly one signer"; exit 1; }
+          ! grep -q 'CN=Android Debug' "$RUNNER_TEMP/certs.txt" \
+            || { echo "::error::The APK is still signed with the debug key"; exit 1; }
+          # This guards the key, not the build: the APK comes from a job that runs npm and Gradle
+          # code. Its hash goes in the run summary so a bad build can be traced later.
+          echo "APK SHA-256: \`$(sha256sum "murmur-${GITHUB_REF_NAME#v}.apk" | cut -d' ' -f1)\`" >> "$GITHUB_STEP_SUMMARY"
       # Settings' What's new opens this release, so its notes are the "Release x.y.z" commit's
       # plain description of the changes. Without one, GitHub's generated notes.
       - name: Attach it to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
           apk="murmur-$VERSION.apk"
-          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk "$apk"
           bash .github/release-notes.sh "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
           if [ -s "$RUNNER_TEMP/notes.md" ]; then notes=(--notes-file "$RUNNER_TEMP/notes.md"); else notes=(--generate-notes); fi
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then

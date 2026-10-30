@@ -1,0 +1,11 @@
+# Keeps the workflows' pinned actions current: a pull request each month moves the commit hashes
+# to the newest release, so pinning doesn't leave old versions behind.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
