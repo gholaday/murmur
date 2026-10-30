@@ -501,6 +501,16 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--tex
 .menu [role="menuitem"].danger { color: var(--danger); }
 .menu-sep { height: 1px; background: var(--line); margin: 6px 4px; }
 .card-done { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 12px; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center; }
+/* Artist cards (More like on Music Home): a round photo, name and album count centred under it. */
+.artist-card { text-align: center; }
+.artist-card .cover { border-radius: 50%; }
+.artist-card-empty { background: var(--surface-2); color: var(--muted); display: flex; align-items: center; justify-content: center; }
+/* New playlist, first in the Playlists grid: a cover-sized dashed tile with an accent plus. */
+.new-tile { display: flex; flex-direction: column; gap: 6px; text-align: left; color: inherit; }
+.new-tile-art { aspect-ratio: 1 / 1; width: 100%; border-radius: 8px; border: 1.5px dashed color-mix(in srgb, var(--muted) 40%, transparent); background: var(--surface); color: var(--accent); display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.new-tile:hover .new-tile-art { background: var(--surface-2); }
+/* The film whose page this is, in its own collection shelf. */
+.card-current .card-title { color: var(--accent); }
 
 .bar { height: 3px; border-radius: 2px; background: var(--track); overflow: hidden; }
 .bar > div { height: 100%; background: var(--accent); }

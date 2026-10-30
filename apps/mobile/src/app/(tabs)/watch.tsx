@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { FlatList, TextInput, View } from "react-native";
 import { router } from "expo-router";
-import { type MovieSummary, percentDone, type ShowSummary, sortWatch, type WatchCard, WATCH_SORTS } from "@murmur/shared/client";
+import { type MovieSummary, percentDone, type ShowSummary, sortWatch, type WatchCard, type WatchPoster, WATCH_SORTS } from "@murmur/shared/client";
 import { CloseIcon, FilterIcon, SearchIcon } from "@/components/icons";
 import { GAP, gridRows, PAD, Shelf, useGridWidth, useShelfWidth } from "@/components/library";
 import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
@@ -94,10 +94,16 @@ export default function Watch() {
     const h = home.data;
     if (!h) return [];
     const byKey = new Map(all.map((i) => [`${i.kind}-${i.id}`, i]));
-    const recent = h.recentlyAdded.flatMap((p) => byKey.get(`${p.kind}-${p.id}`) ?? []);
+    const items = (posters: WatchPoster[]) => posters.flatMap((p) => byKey.get(`${p.kind}-${p.id}`) ?? []);
+    const recent = items(h.recentlyAdded);
+    // Older servers don't send these; a shelf the server couldn't build comes back empty.
+    const nextInCollection = items(h.nextInCollection ?? []);
+    const moreLike = items(h.moreLike?.items ?? []);
     const out: Row[] = [];
     if (h.continueWatching.length) out.push({ kind: "stills", key: "continue", title: "Continue watching", cards: h.continueWatching });
     if (h.nextEpisodes.length) out.push({ kind: "stills", key: "next", title: "Next episodes", cards: h.nextEpisodes });
+    if (nextInCollection.length) out.push({ kind: "shelf", key: "collection", title: "Next in the collection", items: nextInCollection });
+    if (h.moreLike && moreLike.length) out.push({ kind: "shelf", key: "like", title: h.moreLike.title, items: moreLike });
     const recentMovies = recent.filter((i) => i.kind === "movie");
     const recentShows = recent.filter((i) => i.kind === "show");
     if (recentMovies.length) out.push({ kind: "shelf", key: "movies", title: "Recently added movies", items: recentMovies });

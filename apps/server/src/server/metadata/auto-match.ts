@@ -5,7 +5,7 @@ import { createLogger, errorMessage } from "../log";
 import { planAlbumMatch } from "../music/match-all";
 import { applyAlbumMatch, searchAlbumMatches } from "../music/match";
 import { planMatch } from "./bulk-match";
-import { applyMatch, searchMatches } from "./match";
+import { applyMatch, fillAudibleGenres, searchMatches } from "./match";
 
 /**
  * Books and albums matched on their own after each scan, like movies and shows. Each one not
@@ -47,6 +47,7 @@ export function autoMatchPending(getCtx: () => Promise<AppContext>): Promise<voi
       state.again = false;
       await matchBooks(ctx);
       await matchAlbums(ctx);
+      await fillBookGenres(ctx);
     } while (state.again);
   })()
     .catch((err: unknown) => log.warn("auto-match failed", { error: errorMessage(err) }))
@@ -75,6 +76,31 @@ async function matchBooks(ctx: AppContext) {
     }
     return null;
   });
+}
+
+/**
+ * Genres for books matched on Audible before they were kept, for More like. Each is fetched once
+ * ('[]' when Audible has none); when Audible can't be reached the rest waits for the next scan.
+ */
+async function fillBookGenres(ctx: AppContext) {
+  const rows = ctx.sqlite
+    .prepare("SELECT book_id AS id, provider_id FROM book_overrides WHERE provider = 'audible' AND provider_id IS NOT NULL AND genres IS NULL")
+    .all() as Array<{ id: string; provider_id: string }>;
+  // A second apart, so a big library takes a while the first time.
+  if (rows.length) log.info("filling book genres", { books: rows.length });
+  for (const [i, row] of rows.entries()) {
+    if (i > 0) await pause();
+    try {
+      await fillAudibleGenres(ctx, row.id, row.provider_id);
+    } catch (err) {
+      log.warn("Audible unreachable, genres wait for the next scan", { error: errorMessage(err) });
+      return;
+    }
+  }
+  if (rows.length) {
+    bumpChanges("books");
+    log.info("book genres filled", { books: rows.length });
+  }
 }
 
 async function matchAlbums(ctx: AppContext) {

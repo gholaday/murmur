@@ -1,19 +1,19 @@
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { apiPaths, duration, type MovieDetail, pastStart, resolutionLabel, timeLeft, versionLabel, type VideoQuality } from "@murmur/shared/client";
+import { apiPaths, duration, type MovieDetail, pastStart, resolutionLabel, timeLeft, versionLabel, type VideoQuality, type WatchPoster } from "@murmur/shared/client";
 import { CheckIcon, ChevronIcon, MoreIcon } from "@/components/icons";
-import { PAD } from "@/components/library";
+import { PAD, Shelf, useShelfWidth } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { Empty, NestedFallback, useBottomPad } from "@/components/page";
+import { Empty, NestedFallback, SectionTitle, useBottomPad } from "@/components/page";
 import { Card, Row } from "@/components/settings";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { IconButton, RoundButton, Text } from "@/components/ui";
-import { FileDetails, QualityButton, startMovieDownload, VideoDownloadButton, WatchHero, WidePlayButton } from "@/components/watch";
+import { FileDetails, PosterCard, QualityButton, startMovieDownload, VideoDownloadButton, WatchHero, WidePlayButton } from "@/components/watch";
 import { WatchActions } from "@/components/watch-edit";
-import { markWatched, openVideoPlayer, useMovie } from "@/lib/watch";
+import { markWatched, openMovie, openVideoPlayer, useMovie } from "@/lib/watch";
 import { fonts, useTheme } from "@/theme";
 
 export default function MovieScreen() {
@@ -25,12 +25,28 @@ export default function MovieScreen() {
   }
   return (
     <FadeIn when={waited} style={{ flex: 1 }}>
-      <MovieView movie={query.data} />
+      {/* Keyed, so moving to another film from its shelves starts fresh (version, description). */}
+      <MovieView key={query.data.id} movie={query.data} />
     </FadeIn>
   );
 }
 
-/** A movie: poster, Play or Resume, Mark watched, the description, its versions and the file. */
+/** A row of films on a movie's page: its collection, or ones like it. This film's title is in the accent. */
+function MovieShelf({ title, items, current }: { title: string; items: WatchPoster[]; current: string }) {
+  const width = useShelfWidth();
+  return (
+    <View>
+      <SectionTitle title={title} />
+      <Shelf>
+        {items.map((p) => (
+          <PosterCard key={p.id} item={p} width={width} current={p.id === current} onPress={() => p.id !== current && openMovie(p.id)} />
+        ))}
+      </Shelf>
+    </View>
+  );
+}
+
+/** A movie: poster, Play or Resume, Mark watched, the description, its versions, its shelves and the file. */
 function MovieView({ movie }: { movie: MovieDetail }) {
   const t = useTheme();
   const bottomPad = useBottomPad();
@@ -118,6 +134,9 @@ function MovieView({ movie }: { movie: MovieDetail }) {
             </Card>
           </Pressable>
         ) : null}
+
+        {movie.collection?.items.length ? <MovieShelf title={movie.collection.name} items={movie.collection.items} current={movie.id} /> : null}
+        {movie.similar?.length ? <MovieShelf title="More like this" items={movie.similar} current={movie.id} /> : null}
 
         <FileDetails file={version.file} />
       </ScrollView>

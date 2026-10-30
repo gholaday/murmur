@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { apiPaths, type BookSummary, duration, SHELF_IDS, SHELF_TITLES, shelfBooks, type ShelfId } from "@murmur/shared/client";
+import { apiPaths, type BookSummary, duration, SHELF_IDS, SHELF_TITLES, shelfBooks, type ShelfId, shelfSub } from "@murmur/shared/client";
 import { AllBooks } from "@/components/all-books";
 import { BookCard } from "@/components/book-card";
 import { Cover } from "@/components/cover";
 import { DragIcon, MoreIcon } from "@/components/icons";
-import { Grid, PAD, shelfSub, todayKey, useGridWidth } from "@/components/library";
+import { Grid, PAD, safeShelf, safeShelfTitle, todayKey, useGridWidth } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { BackRow, Empty, NestedScreen, PageTitle, useBottomPad, useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
@@ -26,11 +26,11 @@ export default function ShelfScreen() {
 function ShelfList({ id }: { id: ShelfId }) {
   const width = useGridWidth();
   const books = useBooks();
-  const list = shelfBooks(id, books.data ?? [], todayKey());
+  const list = safeShelf(id, books.data ?? [], todayKey());
 
   return (
     <NestedScreen>
-      <PageTitle title={SHELF_TITLES[id]} count={list.length} />
+      <PageTitle title={safeShelfTitle(id, books.data ?? [])} count={list.length} />
       {list.length === 0 ? (
         books.isPending ? null : <Empty>Nothing here right now.</Empty>
       ) : (

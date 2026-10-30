@@ -316,6 +316,23 @@ export const trackPlays = sqliteTable(
   (t) => [primaryKey({ columns: [t.userId, t.trackId] })],
 );
 
+/**
+ * The albums and playlists each person played from, for Jump back in. No foreign key, since
+ * refId points at either table; rows for ones that are gone drop out when read.
+ */
+export const recentSources = sqliteTable(
+  "recent_sources",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["album", "playlist"] }).notNull(),
+    refId: text("ref_id").notNull(),
+    lastPlayedAt: integer("last_played_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.kind, t.refId] }), index("recent_sources_played_idx").on(t.userId, t.lastPlayedAt)],
+);
+
 /** One row per feed, shared by every user subscribed to it. */
 export const podcasts = sqliteTable("podcasts", {
   id: text("id").primaryKey(),
@@ -496,6 +513,11 @@ export const bookOverrides = sqliteTable("book_overrides", {
   coverHash: text("cover_hash"),
   /** JSON array of { title, startSec, endSec }. */
   chapters: text("chapters"),
+  /**
+   * JSON array of Audible genre ladders ("A > B > C"), for More like. Null until fetched;
+   * '[]' once fetched with none, so the backfill doesn't ask again.
+   */
+  genres: text("genres"),
   matchedAt: integer("matched_at"),
   editedAt: integer("edited_at"),
   /** An admin said the book needs no match, so it isn't listed as Not matched. */
@@ -591,6 +613,16 @@ const matchColumns = () => ({
   backdropChosen: integer("backdrop_chosen", { mode: "boolean" }).notNull().default(false),
 });
 
+/** What TMDB says about a matched movie, for its collection and More like. */
+const movieTmdbColumns = () => ({
+  collectionId: integer("collection_id"),
+  collectionName: text("collection_name"),
+  /** YYYY-MM-DD, for ordering a collection. */
+  releaseDate: text("release_date"),
+  /** JSON array of genre names. Null until fetched; '[]' once fetched with none. */
+  genres: text("genres"),
+});
+
 export const shows = sqliteTable(
   "shows",
   {
@@ -631,10 +663,15 @@ export const movies = sqliteTable(
     posterHash: text("poster_hash"),
     backdropHash: text("backdrop_hash"),
     ...matchColumns(),
+    ...movieTmdbColumns(),
     addedAt: integer("added_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
-  (t) => [uniqueIndex("movies_folder_path_idx").on(t.folderId, t.relPath), index("movies_sort_idx").on(t.sortTitle)],
+  (t) => [
+    uniqueIndex("movies_folder_path_idx").on(t.folderId, t.relPath),
+    index("movies_sort_idx").on(t.sortTitle),
+    index("movies_collection_idx").on(t.collectionId),
+  ],
 );
 
 /** One row per video file: a version of a movie, or an episode. */

@@ -239,6 +239,7 @@ interface OverrideRow {
   year: string | null;
   cover_hash: string | null;
   chapters: string | null;
+  genres: string | null;
 }
 
 /** Applies the chosen fields as overrides. Fields not chosen keep any earlier match. */
@@ -255,9 +256,12 @@ export async function applyMatch(ctx: AppContext, bookId: string, input: MatchAp
     year: null,
     cover_hash: null,
     chapters: null,
+    genres: null,
   };
   const next: OverrideRow = { ...existing };
   const fields = new Set(input.fields);
+  // Not a field you pick: genres follow the match. Only Audible has them; '[]' marks them fetched.
+  next.genres = input.provider === "audible" ? JSON.stringify(detail.genres ?? []) : null;
 
   if (fields.has("title") && detail.title) next.title = detail.title;
   if (fields.has("author") && detail.author) next.author = detail.author;
@@ -294,16 +298,22 @@ export async function applyMatch(ctx: AppContext, bookId: string, input: MatchAp
   ctx.sqlite
     .prepare(
       `INSERT INTO book_overrides (book_id, provider, provider_id, title, author, narrator, series, series_position,
-         description, year, cover_hash, chapters, matched_at)
+         description, year, cover_hash, chapters, genres, matched_at)
        VALUES (@bookId, @provider, @providerId, @title, @author, @narrator, @series, @series_position,
-         @description, @year, @cover_hash, @chapters, @matchedAt)
+         @description, @year, @cover_hash, @chapters, @genres, @matchedAt)
        ON CONFLICT (book_id) DO UPDATE SET provider = excluded.provider, provider_id = excluded.provider_id,
          title = excluded.title, author = excluded.author, narrator = excluded.narrator, series = excluded.series,
          series_position = excluded.series_position, description = excluded.description, year = excluded.year,
-         cover_hash = excluded.cover_hash, chapters = excluded.chapters, matched_at = excluded.matched_at`,
+         cover_hash = excluded.cover_hash, chapters = excluded.chapters, genres = excluded.genres, matched_at = excluded.matched_at`,
     )
     // next comes first: a row read with SELECT * also carries the old provider, which mustn't win.
     .run({ ...next, bookId, provider: input.provider, providerId: input.providerId, matchedAt: Date.now() });
+}
+
+/** A book matched on Audible before genres were kept: its genres, fetched once. Provider errors are thrown. */
+export async function fillAudibleGenres(ctx: AppContext, bookId: string, asin: string): Promise<void> {
+  const detail = await getProviders(ctx).audibleByAsin(asin);
+  ctx.sqlite.prepare("UPDATE book_overrides SET genres = ? WHERE book_id = ?").run(JSON.stringify(detail?.genres ?? []), bookId);
 }
 
 export function removeMatch(ctx: AppContext, bookId: string) {

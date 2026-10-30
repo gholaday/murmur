@@ -11,6 +11,7 @@ import {
   WATCH_SORT_KEY,
   WATCH_SORTS,
   type WatchHomeDto,
+  type WatchPoster,
   type WatchSort,
 } from "@murmur/shared/client";
 import { CloseIcon, FilterIcon, SearchIcon } from "../icons";
@@ -116,14 +117,19 @@ export function WatchView({
     watched: all.filter(watchedOf),
   };
   const searched = q ? (tab === "home" ? all : byTab[tab]).filter((i) => titleOf(i).toLowerCase().includes(q)) : null;
-  const recent: Item[] = home.recentlyAdded.flatMap((p): Item[] => {
-    if (p.kind === "movie") {
-      const m = movies.find((x) => x.id === p.id);
-      return m ? [{ kind: "movie", m }] : [];
-    }
-    const s = shows.find((x) => x.id === p.id);
-    return s ? [{ kind: "show", s }] : [];
-  });
+  const toItems = (posters: WatchPoster[]): Item[] =>
+    posters.flatMap((p): Item[] => {
+      if (p.kind === "movie") {
+        const m = movies.find((x) => x.id === p.id);
+        return m ? [{ kind: "movie", m }] : [];
+      }
+      const s = shows.find((x) => x.id === p.id);
+      return s ? [{ kind: "show", s }] : [];
+    });
+  const recent = toItems(home.recentlyAdded);
+  // Older servers don't send these; a shelf the server couldn't build comes back empty.
+  const nextInCollection = toItems(home.nextInCollection ?? []);
+  const moreLike = home.moreLike ? { title: home.moreLike.title, items: toItems(home.moreLike.items) } : null;
   const recentMovies = recent.filter((i) => i.kind === "movie");
   const recentShows = recent.filter((i) => i.kind === "show");
 
@@ -222,6 +228,18 @@ export function WatchView({
                   <StillCard key={c.id} card={c} />
                 ))}
               </ScrollRow>
+            </section>
+          ) : null}
+          {nextInCollection.length ? (
+            <section className="section">
+              <SectionTitle title="Next in the collection" />
+              <PosterShelf items={nextInCollection} />
+            </section>
+          ) : null}
+          {moreLike?.items.length ? (
+            <section className="section">
+              <SectionTitle title={moreLike.title} />
+              <PosterShelf items={moreLike.items} />
             </section>
           ) : null}
           {recentMovies.length ? (

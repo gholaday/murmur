@@ -16,12 +16,13 @@ import {
   type VideoFileInfo,
   type VideoQuality,
   versionLabel,
+  type WatchPoster,
 } from "@murmur/shared/client";
 import { CheckIcon, ChevronIcon, MoreIcon, PlayIcon } from "../icons";
 import { setFinished } from "../progress";
 import { Sheet, SheetItem } from "../sheet";
-import { BackButton, SettingsCard } from "../ui";
-import { playHref, Poster } from "./cards";
+import { BackButton, ScrollRow, SectionTitle, SettingsCard } from "../ui";
+import { playHref, Poster, PosterCard } from "./cards";
 import { useAdmin } from "../admin";
 import { MenuSheet } from "../card-menu";
 import { WatchEditDialog, type WatchEditTab } from "./edit-sheet";
@@ -48,7 +49,23 @@ export function FileDetails({ file }: { file: VideoFileInfo }) {
   );
 }
 
-/** A movie: poster, Play or Resume, Mark watched, the description, its versions and the file. */
+/** A row of films on a movie's page: its collection, or ones like it. This film's card is marked. */
+function MovieShelf({ title, items, current }: { title: string; items: WatchPoster[]; current: string }) {
+  return (
+    <section className="section">
+      <SectionTitle title={title} />
+      <ScrollRow>
+        {items.map((p) => (
+          <div key={p.id} className={p.id === current ? "card-current" : undefined}>
+            <PosterCard kind="movie" id={p.id} title={p.title} year={p.year} posterHash={p.posterHash} color={p.color} watched={p.watched} />
+          </div>
+        ))}
+      </ScrollRow>
+    </section>
+  );
+}
+
+/** A movie: poster, Play or Resume, Mark watched, the description, its versions, its shelves and the file. */
 export function MovieView({ movie }: { movie: MovieDetail }) {
   const router = useRouter();
   const { tmdb } = useAdmin();
@@ -158,6 +175,9 @@ export function MovieView({ movie }: { movie: MovieDetail }) {
           </SettingsCard>
         </div>
       ) : null}
+
+      {movie.collection ? <MovieShelf title={movie.collection.name} items={movie.collection.items} current={movie.id} /> : null}
+      {movie.similar?.length ? <MovieShelf title="More like this" items={movie.similar} current={movie.id} /> : null}
 
       <FileDetails file={version.file} />
 

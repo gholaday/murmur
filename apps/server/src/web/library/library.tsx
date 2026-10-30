@@ -23,8 +23,9 @@ import {
   BOOK_SORTS,
   type BookSort as Sort,
   LIBRARY_SORT_KEY,
-  nextInSeriesSub,
   progressPct,
+  shelfSub,
+  shelfTitle,
   timeLeft,
 } from "@murmur/shared/client";
 import { api } from "../api";
@@ -121,6 +122,16 @@ export function BookActions({ isAdmin, children }: { isAdmin: boolean; children:
   );
 }
 
+/** A shelf's books; one whose rule fails comes back empty and hides, so the rest of the tab still shows. */
+function safeShelf(id: ShelfId, books: BookSummary[], day: string): BookSummary[] {
+  try {
+    return shelfBooks(id, books, day);
+  } catch (err) {
+    console.warn(`The ${id} shelf couldn't be built`, err);
+    return [];
+  }
+}
+
 function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections: savedSections }: LibraryProps) {
   // The shelves' daily shuffle follows this device's day, like the app; the server's only fills
   // the first render.
@@ -177,11 +188,21 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
     () => ({
       playnext: shelfBooks("playnext", books, today),
       next: shelfBooks("next", books, today),
+      like: safeShelf("like", books, today),
+      short: safeShelf("short", books, today),
       added: shelfBooks("added", books, today),
       unstarted: shelfBooks("unstarted", books, today),
     }),
     [books, today],
   );
+  const likeTitle = useMemo(() => {
+    try {
+      return shelfTitle("like", books);
+    } catch {
+      return SHELF_TITLES.like;
+    }
+  }, [books]);
+  const titleOf = (id: BookSectionId) => (id === "like" ? likeTitle : BOOK_SECTION_TITLES[id]);
   // The Authors and Series tabs, grouped once per book list rather than on every render.
   const byAuthor = useMemo(() => groupBy(books, (b) => b.author).map(([name, items]) => ({ name, items: sortBooks(items, "author") })), [books]);
   const bySeries = useMemo(
@@ -192,6 +213,8 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
     continue: continuing.length,
     playnext: shelves.playnext.length,
     next: shelves.next.length,
+    like: shelves.like.length,
+    short: shelves.short.length,
     added: shelves.added.length,
     unstarted: shelves.unstarted.length,
     all: books.length,
@@ -258,14 +281,14 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
   // A shelf's full list, opened from its heading.
   if (shelf === "playnext") return <PlayNextList books={shelves.playnext} />;
   if (shelf) {
-    const list = shelfBooks(shelf, books, today);
+    const list = safeShelf(shelf, books, today);
     return (
       <>
-        <NestedHead title={SHELF_TITLES[shelf]} count={list.length} />
+        <NestedHead title={titleOf(shelf)} count={list.length} />
         {list.length ? (
           <div className="grid">
             {list.map((b) => (
-              <BookCard key={b.id} book={b} sub={shelf === "next" ? nextInSeriesSub(b) : undefined} />
+              <BookCard key={b.id} book={b} sub={shelfSub(shelf, b)} />
             ))}
           </div>
         ) : (
@@ -353,7 +376,7 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
     return list.length ? (
       <ScrollRow>
         {list.slice(0, SHELF_SIZE).map((b) => (
-          <BookCard key={b.id} book={b} sub={id === "next" ? nextInSeriesSub(b) : undefined} />
+          <BookCard key={b.id} book={b} sub={id === "all" ? undefined : shelfSub(id, b)} />
         ))}
       </ScrollRow>
     ) : null;
@@ -430,6 +453,7 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
                 onChange={saveSections}
                 onOpen={(id) => go({ shelf: id })}
                 body={sectionBody}
+                titleOf={titleOf}
               />
               {!customizing && sections.every((s) => s.hidden) ? (
                 <EmptyState title="Everything here is hidden">
@@ -497,6 +521,7 @@ function BookSections({
   onChange,
   onOpen,
   body,
+  titleOf,
 }: {
   sections: BookSection[];
   counts: Record<BookSectionId, number>;
@@ -504,6 +529,8 @@ function BookSections({
   onChange: (next: BookSection[]) => void;
   onOpen: (id: BookSectionId) => void;
   body: (id: BookSectionId) => React.ReactNode;
+  /** More like names its book. */
+  titleOf: (id: BookSectionId) => string;
 }) {
   const move = (from: number, to: number) => {
     if (from === to || to < 0 || to >= sections.length) return;
@@ -517,7 +544,7 @@ function BookSections({
   return (
     <div ref={sortable.listRef} className={sortable.sorting ? "sorting" : undefined}>
       {sections.map((s, i) => {
-        const title = BOOK_SECTION_TITLES[s.id];
+        const title = titleOf(s.id);
         const row = sortable.rowProps(i);
         // A hidden section's cards are only needed while customizing, where they slide open on Show.
         const cards = s.hidden && !customizing ? null : body(s.id);

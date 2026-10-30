@@ -127,6 +127,24 @@ export interface PlaylistSummary {
   updatedAt: number;
 }
 
+/** An album or playlist you played from lately. */
+export type JumpBackItem = { kind: "album"; album: AlbumSummary } | { kind: "playlist"; playlist: PlaylistSummary };
+
+/** The Music Home chip's shelves. Each is empty when it has nothing, or when it couldn't be built. */
+export interface MusicHomeDto {
+  jumpBackIn: JumpBackItem[];
+  /** The songs you listened to most over the last ON_REPEAT_DAYS days. */
+  onRepeat: TrackDto[];
+  /** Albums like the last album you played: its artist's other albums, then the same genre by artists not in moreLikeArtist. */
+  moreLikeAlbum?: { title: string; items: AlbumSummary[] } | null;
+  /** Artists like that album's artist, by shared genres. */
+  moreLikeArtist?: { title: string; items: ArtistSummary[] } | null;
+  /** Albums found in the last NEW_ALBUM_DAYS days, newest first. */
+  newAlbums: AlbumSummary[];
+}
+
+export const ON_REPEAT_DAYS = 30;
+
 export interface PlaylistDetail extends PlaylistSummary {
   /** In playlist order. */
   tracks: TrackDto[];

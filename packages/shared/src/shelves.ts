@@ -1,19 +1,28 @@
 import type { BookSummary } from "./index";
+import { duration } from "./format";
+import { nextInSeriesSub } from "./library";
+import { ladderKeys, rankSimilar, splitPeople, type SimilarItem } from "./similar";
 
 // The rows at the top of the Books tab, shared by the web and the app. Each heading opens
 // its full list.
 
-export type ShelfId = "continue" | "playnext" | "next" | "added" | "unstarted";
+export type ShelfId = "continue" | "playnext" | "next" | "like" | "short" | "added" | "unstarted";
 
-export const SHELF_IDS: ShelfId[] = ["continue", "playnext", "next", "added", "unstarted"];
+export const SHELF_IDS: ShelfId[] = ["continue", "playnext", "next", "like", "short", "added", "unstarted"];
 
+/** Fixed titles, as Customize lists them; `shelfTitle` names the book on More like. */
 export const SHELF_TITLES: Record<ShelfId, string> = {
   continue: "Continue listening",
   playnext: "Play next",
   next: "Next in series",
+  like: "More like",
+  short: "Short listens",
   added: "Recently added",
   unstarted: "Not started",
 };
+
+/** Short listens are under this long. */
+export const SHORT_LISTEN_SEC = 5 * 3600;
 
 /** How many books a shelf shows before its full list. */
 export const SHELF_SIZE = 12;
@@ -85,10 +94,62 @@ export function notStarted(books: BookSummary[], day: string): BookSummary[] {
   return books.filter((b) => present(b) && !started(b) && b.playNext === null && !next.has(b.id)).sort((a, b) => rank(a.id) - rank(b.id));
 }
 
+/**
+ * Unstarted books under five hours, shortest first. Books of unknown length, and ones already
+ * on Play next or Next in series, are left out.
+ */
+export function shortListens(books: BookSummary[]): BookSummary[] {
+  const next = new Set(nextInSeries(books).map((b) => b.id));
+  return books
+    .filter((b) => present(b) && !started(b) && b.playNext === null && !next.has(b.id) && b.durationSec > 0 && b.durationSec < SHORT_LISTEN_SEC)
+    .sort((a, b) => a.durationSec - b.durationSec);
+}
+
+const similarItem = (b: BookSummary): SimilarItem & { book: BookSummary } => ({
+  id: b.id,
+  title: b.title,
+  // A book list cached by an older app build has no genres yet.
+  keys: ladderKeys(b.genres ?? []),
+  authors: splitPeople(b.author),
+  narrators: splitPeople(b.narrator),
+  book: b,
+});
+
+/** The book More like is about: the one you finished last that has genres, or at least an author. */
+export function moreLikeSource(books: BookSummary[]): BookSummary | null {
+  const finished = books.filter((b) => present(b) && b.progress?.finished).sort((a, b) => b.progress!.updatedAt - a.progress!.updatedAt);
+  return finished.find((b) => (b.genres ?? []).length > 0) ?? finished.find((b) => b.author) ?? null;
+}
+
+/** Unstarted books like the one you finished last, best match first. Play next books are left out. */
+export function moreLike(books: BookSummary[]): BookSummary[] {
+  const source = moreLikeSource(books);
+  if (!source) return [];
+  // Rarity is judged against the whole library, not just what's left to play.
+  const ranked = rankSimilar(similarItem(source), books.filter(present).map(similarItem));
+  return ranked.map((r) => r.book).filter((b) => !started(b) && b.playNext === null);
+}
+
+/** The line under a card on a shelf, when it isn't the author: which book of the series, or how long. */
+export function shelfSub(id: ShelfId, b: BookSummary): string | null | undefined {
+  if (id === "next") return nextInSeriesSub(b);
+  if (id === "short") return duration(b.durationSec);
+  return undefined;
+}
+
+/** A shelf's heading: More like names its book. */
+export function shelfTitle(id: ShelfId, books: BookSummary[]): string {
+  if (id !== "like") return SHELF_TITLES[id];
+  const source = moreLikeSource(books);
+  return source ? `More like ${source.title}` : SHELF_TITLES.like;
+}
+
 export function shelfBooks(id: ShelfId, books: BookSummary[], day: string): BookSummary[] {
   if (id === "continue") return continueListening(books);
   if (id === "playnext") return playNextBooks(books);
   if (id === "next") return nextInSeries(books);
+  if (id === "like") return moreLike(books);
+  if (id === "short") return shortListens(books);
   if (id === "added") return recentlyAdded(books);
   return notStarted(books, day);
 }

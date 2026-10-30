@@ -71,6 +71,8 @@ export interface ChapterList {
 /** Full details for applying a match: the candidate plus what only a detail lookup has. */
 export interface CandidateDetail extends UnscoredCandidate {
   description: string | null;
+  /** Audible genre ladders ("A > B > C"), when asked for by ASIN; undefined from other sources. */
+  genres?: string[];
 }
 
 // ---------- Audible (unofficial catalog API, the same one Audiobookshelf uses) ----------
@@ -104,6 +106,7 @@ interface AudibleProduct {
   product_images?: Record<string, string>;
   publisher_summary?: string;
   merchandising_summary?: string;
+  category_ladders?: Array<{ root?: string; ladder?: Array<{ name?: string }> }>;
 }
 
 function audibleCandidate(p: AudibleProduct): CandidateDetail {
@@ -125,7 +128,17 @@ function audibleCandidate(p: AudibleProduct): CandidateDetail {
     language: p.language ?? null,
     coverUrl: biggest ? images[biggest]! : null,
     description: htmlToText(p.publisher_summary ?? p.merchandising_summary ?? "") || null,
+    genres: p.category_ladders ? audibleGenres(p.category_ladders) : undefined,
   };
+}
+
+/** Genre ladders as "A > B > C", deduped. Only the Genres root counts; others are store sections. */
+function audibleGenres(ladders: NonNullable<AudibleProduct["category_ladders"]>): string[] {
+  const paths = ladders
+    .filter((l) => l.root === "Genres")
+    .map((l) => (l.ladder ?? []).map((c) => c.name?.trim()).filter(Boolean).join(" > "))
+    .filter(Boolean);
+  return [...new Set(paths)];
 }
 
 export function createProviders(sqlite: Sqlite, opts: { region: string; userAgent: string; googleApiKey?: string | null }) {
@@ -162,7 +175,7 @@ export function createProviders(sqlite: Sqlite, opts: { region: string; userAgen
   }
 
   async function audibleByAsin(asin: string): Promise<CandidateDetail | null> {
-    const qs = new URLSearchParams({ response_groups: AUDIBLE_GROUPS, image_sizes: "500,1024" });
+    const qs = new URLSearchParams({ response_groups: `${AUDIBLE_GROUPS},category_ladders`, image_sizes: "500,1024" });
     const data = await get<{ product?: AudibleProduct }>(`https://${host}/1.0/catalog/products/${encodeURIComponent(asin)}?${qs}`);
     return data?.product?.title ? audibleCandidate(data.product) : null;
   }

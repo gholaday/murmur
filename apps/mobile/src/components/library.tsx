@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
-import { type BookSummary, nextInSeriesSub, type ShelfId } from "@murmur/shared/client";
+import { type BookSummary, SHELF_TITLES, shelfBooks, type ShelfId, shelfTitle } from "@murmur/shared/client";
 import { useTheme } from "@/theme";
 import { CountPill, Text } from "./ui";
 
@@ -67,10 +67,24 @@ export function todayKey() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** The line under a card on a home shelf: Next in series shows which book it is. */
-export function shelfSub(id: ShelfId, b: BookSummary) {
-  if (id !== "next") return undefined;
-  return nextInSeriesSub(b);
+/** A shelf's books; one whose rule fails comes back empty and hides, so the rest of the tab still shows. */
+export function safeShelf(id: ShelfId, books: BookSummary[], day: string): BookSummary[] {
+  try {
+    return shelfBooks(id, books, day);
+  } catch (err) {
+    console.warn(`The ${id} shelf couldn't be built`, err);
+    return [];
+  }
+}
+
+/** A shelf's heading, falling back to its plain title if More like can't name its book. */
+export function safeShelfTitle(id: ShelfId, books: BookSummary[]): string {
+  try {
+    return shelfTitle(id, books);
+  } catch (err) {
+    console.warn(`The ${id} shelf's title couldn't be built`, err);
+    return SHELF_TITLES[id];
+  }
 }
 
 export function openGroup(params: { author: string } | { series: string }) {

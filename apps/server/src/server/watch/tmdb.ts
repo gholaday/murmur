@@ -21,6 +21,12 @@ export interface TmdbDetails {
   overview: string | null;
   posterPath: string | null;
   backdropPath: string | null;
+  /** Movies: the collection it belongs to, if any. */
+  collection: { id: number; name: string } | null;
+  /** Genre names, for More like. */
+  genres: string[];
+  /** YYYY-MM-DD, or null. */
+  releaseDate: string | null;
   /** Shows: the seasons TMDB knows, by number. */
   seasons: number[];
 }
@@ -46,6 +52,8 @@ interface RawResult {
   poster_path?: string | null;
   backdrop_path?: string | null;
   seasons?: Array<{ season_number: number }>;
+  belongs_to_collection?: { id: number; name?: string } | null;
+  genres?: Array<{ id: number; name?: string }>;
 }
 
 const yearOf = (date: string | undefined) => (date && /^\d{4}/.test(date) ? date.slice(0, 4) : null);
@@ -91,6 +99,9 @@ export function createTmdb(sqlite: Sqlite, opts: { apiKey: string; language: str
       posterPath: r.poster_path ?? null,
       backdropPath: r.backdrop_path ?? null,
       seasons: (r.seasons ?? []).map((s) => s.season_number),
+      collection: r.belongs_to_collection?.id ? { id: r.belongs_to_collection.id, name: text(r.belongs_to_collection.name) ?? "Collection" } : null,
+      genres: (r.genres ?? []).map((g) => text(g.name)).filter((g): g is string => !!g),
+      releaseDate: r.release_date && /^\d{4}-\d{2}-\d{2}$/.test(r.release_date) ? r.release_date : null,
     };
   }
 

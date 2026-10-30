@@ -23,6 +23,8 @@ export const apiPaths = {
 
   /** MusicSummaryDto: whether there's music, and how much. */
   music: "/api/music",
+  /** MusicHomeDto: the Home chip's shelves. */
+  musicHome: "/api/music/home",
   /** AlbumSummary[]: "mine" is albums you have songs from, "all" is Browse. */
   albums: (scope: "mine" | "all", sort: "added" | "name" | "artist" | "year" = "added") => `/api/music/albums?scope=${scope}&sort=${sort}`,
   /** AlbumDetail. */

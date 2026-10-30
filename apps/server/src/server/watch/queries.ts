@@ -17,8 +17,11 @@ import type {
   WatchPoster,
   WatchSummaryDto,
 } from "@murmur/shared";
+import { collectionOrder, type CollectionMovie, flatKeys, nextInCollection, rankSimilar } from "@murmur/shared";
+import { stringList } from "../books";
 import type { AppContext } from "../context";
 import { env } from "../env";
+import { shelf } from "../shelf";
 import { HttpError } from "../http";
 import { coverColors } from "../library/covers";
 import { resolveInside } from "../stream";
@@ -239,17 +242,108 @@ function chosenArt(ctx: AppContext, table: "movies" | "shows", id: string): { po
 }
 
 export async function getMovie(ctx: AppContext, userId: number, id: string): Promise<MovieDetail | null> {
-  const movie = ctx.sqlite.prepare(`${MOVIE_SELECT} WHERE m.id = ?`).get(id) as MovieRow | undefined;
+  // MOVIE_SELECT ranks every movie's versions whatever the WHERE, so one read serves the movie and its shelves.
+  const all = allMovies(ctx);
+  const movie = all.find((m) => m.id === id);
   if (!movie) return null;
   const versions = movieVersions(ctx, id);
+  const progress = progressFor(ctx, userId);
+  const [collection, similar] = await Promise.all([
+    shelf("movie collection", () => collectionShelf(all, movie, progress), null),
+    shelf("more like this", () => similarShelf(all, movie, progress), []),
+  ]);
   return {
-    ...toMovie(movie, progressFor(ctx, userId), await colorsFor([movieTint(movie)])),
+    ...toMovie(movie, progress, await colorsFor([movieTint(movie)])),
     description: movie.description,
     backdropHash: movie.backdrop_hash,
     tmdbId: movie.tmdb_id,
     chosenArt: chosenArt(ctx, "movies", id),
     versionList: versions.map(toVersion),
+    genres: stringList(movie.genres),
+    collection,
+    similar,
   };
+}
+
+// ---------- Collection and More like shelves ----------
+
+/** A movie with what TMDB said about it (movies.* carries these). */
+interface ShelfMovieRow extends MovieRow {
+  collection_id: number | null;
+  collection_name: string | null;
+  release_date: string | null;
+  genres: string | null;
+}
+
+/** How many films More like shows. */
+const SIMILAR_LIMIT = 20;
+
+/** Every movie with a live version, newest first. */
+const allMovies = (ctx: AppContext) => ctx.sqlite.prepare(`${MOVIE_SELECT} ORDER BY m.added_at DESC`).all() as ShelfMovieRow[];
+
+const startedVideo = (p: VideoProgress | undefined) => !!p && (p.finished || p.positionSec > 5);
+
+async function moviePosters(rows: ShelfMovieRow[], progress: Map<string, VideoProgress>): Promise<WatchPoster[]> {
+  const colors = await colorsFor(rows.map(movieTint));
+  return rows.map((m) => ({
+    kind: "movie" as const,
+    id: m.id,
+    title: m.title,
+    year: m.year,
+    posterHash: m.poster_hash,
+    color: colorOf(colors, movieTint(m)),
+    watched: progress.get(m.id)?.finished ?? false,
+    addedAt: m.added_at,
+  }));
+}
+
+const asCollectionMovie = (m: ShelfMovieRow, progress: Map<string, VideoProgress>): CollectionMovie & { row: ShelfMovieRow } => ({
+  id: m.id,
+  title: m.title,
+  collectionId: m.collection_id!,
+  released: m.release_date ?? m.year,
+  progress: progress.get(m.id) ?? null,
+  row: m,
+});
+
+const asSimilar = (m: ShelfMovieRow) => ({ id: m.id, title: m.title, keys: flatKeys(stringList(m.genres)), row: m });
+
+/** Every film of this movie's collection in your library, this one included; null with fewer than two. */
+async function collectionShelf(all: ShelfMovieRow[], movie: ShelfMovieRow, progress: Map<string, VideoProgress>) {
+  if (movie.collection_id === null) return null;
+  const rows = all.filter((m) => m.collection_id === movie.collection_id);
+  if (rows.length < 2) return null;
+  const ordered = collectionOrder(rows.map((m) => asCollectionMovie(m, progress))).map((m) => m.row);
+  return { name: movie.collection_name ?? "Collection", items: await moviePosters(ordered, progress) };
+}
+
+/** Films like this one: unwatched first, each group best match first. */
+async function similarShelf(all: ShelfMovieRow[], movie: ShelfMovieRow, progress: Map<string, VideoProgress>) {
+  if (!stringList(movie.genres).length) return [];
+  const ranked = rankSimilar(asSimilar(movie), all.map(asSimilar)).map((s) => s.row);
+  const ordered = [...ranked.filter((m) => !progress.get(m.id)?.finished), ...ranked.filter((m) => progress.get(m.id)?.finished)];
+  return moviePosters(ordered.slice(0, SIMILAR_LIMIT), progress);
+}
+
+/** The Watch home's Next in the collection. */
+async function nextInCollectionShelf(all: ShelfMovieRow[], progress: Map<string, VideoProgress>) {
+  const rows = all.filter((m) => m.collection_id !== null);
+  const picks = nextInCollection(rows.map((m) => asCollectionMovie(m, progress))).map((m) => m.row);
+  return moviePosters(picks.slice(0, CONTINUE_LIMIT), progress);
+}
+
+/** The Watch home's More like: about the last film you finished that has genres; unwatched films only. */
+async function moreLikeShelf(all: ShelfMovieRow[], progress: Map<string, VideoProgress>) {
+  const rows = all.filter((m) => m.genres !== null);
+  const source = rows
+    .filter((m) => progress.get(m.id)?.finished && stringList(m.genres).length)
+    .sort((a, b) => progress.get(b.id)!.updatedAt - progress.get(a.id)!.updatedAt)[0];
+  if (!source) return null;
+  const ranked = rankSimilar(asSimilar(source), rows.map(asSimilar))
+    .map((s) => s.row)
+    .filter((m) => !startedVideo(progress.get(m.id)));
+  if (!ranked.length) return null;
+  return { title: `More like ${source.title}`, items: await moviePosters(ranked.slice(0, SIMILAR_LIMIT), progress) };
 }
 
 export async function listShows(ctx: AppContext, userId: number): Promise<ShowSummary[]> {
@@ -362,11 +456,10 @@ export async function watchHome(ctx: AppContext, userId: number): Promise<WatchH
     .filter(([, p]) => !p.finished && p.positionSec > 0)
     .sort((a, b) => b[1].updatedAt - a[1].updatedAt);
 
+  // One read of every movie (MOVIE_SELECT ranks them all whatever the WHERE), shared by the shelves below.
+  const all = allMovies(ctx);
   // Movies and episodes you're partway through, most recent first.
-  const partwayMovies = ctx.sqlite
-    .prepare(`${MOVIE_SELECT} WHERE m.id IN (SELECT value FROM json_each(?))`)
-    .all(JSON.stringify(partway.map(([id]) => id))) as MovieRow[];
-  const movieById = new Map(partwayMovies.map((m) => [m.id, m]));
+  const movieById = new Map(all.map((m) => [m.id, m]));
   const episodeById = ctx.sqlite.prepare(
     `SELECT ${EPISODE_COLUMNS}, s.title AS show_title, s.backdrop_hash AS show_backdrop, s.poster_hash AS show_poster FROM videos v JOIN shows s ON s.id = v.show_id ${EPISODE_JOIN} WHERE v.id = ? AND ${LIVE}`,
   );
@@ -425,7 +518,7 @@ export async function watchHome(ctx: AppContext, userId: number): Promise<WatchH
   const shows = ctx.sqlite
     .prepare(`${SHOW_SELECT} GROUP BY s.id ORDER BY MAX(v.added_at) DESC LIMIT ${RECENT_LIMIT}`)
     .all({ user: userId }) as ShowRow[];
-  const recentMovies = ctx.sqlite.prepare(`${MOVIE_SELECT} ORDER BY m.added_at DESC LIMIT ${RECENT_LIMIT}`).all() as MovieRow[];
+  const recentMovies = all.slice(0, RECENT_LIMIT);
   const showTint = (s: ShowRow) => s.poster_hash || s.first_still;
   const colors = await colorsFor([...recentMovies.map(movieTint), ...shows.map(showTint)]);
   const recentlyAdded: WatchPoster[] = [
@@ -451,7 +544,13 @@ export async function watchHome(ctx: AppContext, userId: number): Promise<WatchH
     })),
   ].sort((a, b) => b.addedAt - a.addedAt);
 
-  return { enabled: true, continueWatching, nextEpisodes, recentlyAdded };
+  // Built on their own: if one fails it's left off and the rest of the page still loads.
+  const [nextInCollection, moreLike] = await Promise.all([
+    shelf("next in the collection", () => nextInCollectionShelf(all, progress), []),
+    shelf("more like", () => moreLikeShelf(all, progress), null),
+  ]);
+
+  return { enabled: true, continueWatching, nextEpisodes, nextInCollection, moreLike, recentlyAdded };
 }
 
 /** A movie version's or episode's still. */

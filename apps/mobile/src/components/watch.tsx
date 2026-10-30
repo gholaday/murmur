@@ -124,7 +124,18 @@ export function WatchSortSheet({ open, onClose }: { open: boolean; onClose: () =
 }
 
 /** A poster in a grid or shelf: the poster, the title and the year, with the accent check once watched. */
-export const PosterCard = memo(function PosterCard({ item, width, onPress }: { item: PosterItem; width: number; onPress: () => void }) {
+export const PosterCard = memo(function PosterCard({
+  item,
+  width,
+  onPress,
+  current,
+}: {
+  item: PosterItem;
+  width: number;
+  onPress: () => void;
+  /** The film whose page this is, in its own collection: its title is in the accent. */
+  current?: boolean;
+}) {
   const t = useTheme();
   const menu = useCardMenu();
   return (
@@ -152,7 +163,7 @@ export const PosterCard = memo(function PosterCard({ item, width, onPress }: { i
         ) : null}
       </View>
       <View>
-        <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14 }}>
+        <Text variant="bodyStrong" numberOfLines={1} style={[{ fontSize: 14 }, current && { color: t.accent }]}>
           {item.title}
         </Text>
         <Text variant="small" numberOfLines={1}>

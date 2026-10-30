@@ -21,7 +21,9 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 **Audiobooks**
 
 - Library with covers, sorted and filtered by author, series, recently added and progress
-- Home shelves: Continue listening, Play next, Next in series, Recently added and Not started, each opening a full list. Users can reorder and hide them, saved on the server so web and app match
+- Home shelves: Continue listening, Play next, Next in series, More like, Short listens, Recently added and Not started, each opening a full list. Users can reorder and hide them, saved on the server so web and app match
+- More like *book*: unstarted books like the last one you finished that has genres (or at least an author), not on Play next. Short listens: unstarted books under 5 hours with a known length, shortest first, leaving out Play next and Next in series books. Both rules live in `packages/shared` (`shelves.ts`, `similar.ts`), and a shelf whose rule fails shows nothing instead of breaking the tab
+- Ranking (`rankSimilar`): book genres are Audible's ladders ("A > B > C"), saved in `book_overrides.genres` when a book is matched on Audible, whatever fields were ticked. Every prefix two or more levels deep is a key, weighted by depth (two levels 1, three 2, and so on) times its rarity in the library (`1 / log(1 + n)`), so deep, rare matches count most and a shared root counts for nothing. Ties go to shared authors, then narrators (comma-split, spaces and dots ignored), then title. Books matched on Audible before genres were kept are filled once each after a scan, a second apart; '[]' marks one fetched with none. Audible names genres in each store's language, so books matched on different regions don't match each other
 - Play next: books you haven't started, added from a book's menu and dragged into order in the full list (`play_next`, per person). A book leaves it once it's started, since it's in Continue listening from then on. A book on Play next isn't repeated in Next in series or Not started. Books never go in Up Next, and when a book ends, playback stops
 - Book page: cover, author, narrator, series and position, description, duration, chapter list
 - Single-file `.m4b` and multi-file books, played as one continuous timeline
@@ -345,7 +347,16 @@ Music is optional. It comes from one or more music folders, managed by the admin
 **Your music**
 
 - Music is per person: a list of songs (`user_tracks`), and everyone starts with none. Adding an album adds its songs. Album and artist state is worked out from the songs, so nothing else is stored.
-- The Music tab shows your music as Playlists, Albums, Artists and Songs, opening on Albums. Browse, above the chips, has every album, filtered to All, Not added, or New (found in the last 14 days). The UI never mentions the server.
+- The Music tab shows Home, then your music as Playlists, Albums, Artists and Songs, opening on Home. Browse, above the chips, has every album, filtered to All, Not added, or New (found in the last 14 days). The UI never mentions the server.
+- Home (`GET /music/home`, `musicHome`) has five shelves, each built on its own so one that fails just doesn't show:
+  - Jump back in: albums and playlists you played from, newest first.
+  - On repeat: the songs you listened to longest over 30 days, from `listening_days`, so every device counts. It shows the top five; picking one queues up to 25. Its songs may come from albums in Jump back in: one shelf is songs, the other albums.
+  - More like *album*, about the last album you played (the first album in Jump back in): that artist's other albums, then albums of the same genre by artists not in the next shelf. Albums in Jump back in are left out.
+  - More like *artist*: other artists ranked by the genres of their albums, rarer genres counting for more (`rankSimilar`), as round artist cards.
+  - New albums: found in the last 14 days, with the add button.
+  The two More like shelves cover the whole server, not just your music, so album cards carry the add button. With none of them, Home says to play something.
+- Playlists: the New playlist tile comes first in the grid, the size of a playlist cover, and opens the name sheet.
+- Jump back in reads `recent_sources` (person, album or playlist, last played). A counted play sends its Up Next source with it (optional, so older apps still count plays); from an artist it records the song's album, and Your songs records nothing. Song plays from before any source was recorded fill in by album. Rows for deleted albums and playlists drop out when read.
 - Lists take `scope=mine` or `scope=all`; the server defaults to `all`.
 - There's no following of artists, so songs the server gets later aren't added for you.
 
@@ -454,7 +465,9 @@ Unlike books and music, Watch matches on its own, the way Plex does, since rips 
 - **Sideways or full screen:** the video fills the screen, with the title along the top and the controls along the bottom, fading after three seconds. Double-tap either side skips back or forward.
 - **Web:** one `<video>` kept in the shell beside the audio engine, so it plays on between pages; `/watch/play/[kind]/[id]` opens it. Full screen on a phone locks to landscape where allowed. **App:** `expo-video` on a full-screen route that unlocks rotation (the rest of the app stays upright), with picture in picture.
 
-**Screens:** the Watch tab (fifth, after Music) has chips for Home, Movies, Shows and Watched, and off Home a Sort (Recently added, Title, Year; `sortWatch` in shared, kept on the device); Home has Continue watching and Next episodes (16:9: the movie's or show's backdrop, else the still, else the poster) and Recently added movies and shows (2:3 posters). Movie and show pages use the book header with pills, Play or Resume, Mark watched, a Version row, an Audio row, a season chip per season and episode rows. A file no device here can play says so in one sentence, and the movie page's File section lists its codecs.
+**Screens:** the Watch tab (fifth, after Music) has chips for Home, Movies, Shows and Watched, and off Home a Sort (Recently added, Title, Year; `sortWatch` in shared, kept on the device); Home has Continue watching and Next episodes (16:9: the movie's or show's backdrop, else the still, else the poster), then Next in the collection, More like *movie* and Recently added movies and shows (2:3 posters). Movie and show pages use the book header with pills, Play or Resume, Mark watched, a Version row, an Audio row, a season chip per season and episode rows. A movie page also has its collection (every film of it in your library, in release order, this one's title in the accent colour; only with two or more) and More like this (unwatched first), above File. A file no device here can play says so in one sentence, and the movie page's File section lists its codecs.
+
+**Collections and More like:** matching a movie also keeps TMDB's collection, release date and genre names (`movies.collection_id`, `collection_name`, `release_date`, `genres`), from the same details call. Movies matched before these were kept are filled once each in the matcher's pass after a scan; '[]' marks one TMDB has no genres for. Next in the collection: for each collection you've finished a film of, the first unwatched one after the last finished, in release order (date, then year, then title), skipping collections with a film in progress (`nextInCollection` in shared). More like ranks by shared genres weighted by rarity, the same `rankSimilar` as books; on Home it's about the last film you finished that has genres, unwatched films only. Each shelf is built on its own, so one that fails is left off and the page still loads. Without a TMDB key none of them show.
 
 **Downloads (app)**
 

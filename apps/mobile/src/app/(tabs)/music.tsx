@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { FlatList, Pressable, TextInput, View } from "react-native";
+import { FlatList, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import {
   albumInMusic,
@@ -10,29 +10,31 @@ import {
   type AlbumSummary,
   artistMatches,
   type ArtistSummary,
+  type JumpBackItem,
   plural,
   type PlaylistSummary,
   songMatches,
   sortAlbums,
   type TrackDto,
 } from "@murmur/shared/client";
-import { BrowseIcon, CloseIcon, FilterIcon, MusicIcon, PlusIcon, SearchIcon } from "@/components/icons";
-import { GAP, gridRows, Group, PAD, useGridWidth, useShelfWidth } from "@/components/library";
+import { BrowseIcon, CloseIcon, FilterIcon, MusicIcon, SearchIcon } from "@/components/icons";
+import { GAP, gridRows, Group, PAD, Shelf, useGridWidth, useShelfWidth } from "@/components/library";
 import { Eyebrow } from "@/components/listening";
-import { AlbumAddRow, AlbumCard, AlbumSortSheet, openArtist, PlayButton, ShuffleButton, SongRow, SongSheet, useAlbumSort } from "@/components/music";
-import { Empty, PageTitle, useTopInset } from "@/components/page";
-import { NamePlaylistSheet, openPlaylist, PlaylistCard } from "@/components/playlists";
+import { AlbumAddRow, AlbumCard, AlbumSortSheet, ArtistCard, openArtist, PlayButton, ShuffleButton, SongRow, SongSheet, useAlbumSort } from "@/components/music";
+import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
+import { NamePlaylistSheet, NewPlaylistTile, openPlaylist, PlaylistCard } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
-import { CoverGridBones, ListRowBone, SectionBone, Skeleton } from "@/components/skeleton";
+import { Bone, CoverGridBones, ListRowBone, SectionBone, Skeleton } from "@/components/skeleton";
 import { Button, CardLink, Chips, IconButton, Text } from "@/components/ui";
-import { createPlaylist, setInMusic, useAlbums, useArtists, useMusicSummary, usePlaylists, useTracks } from "@/lib/data";
+import { createPlaylist, setInMusic, useAlbums, useArtists, useMusicHome, useMusicSummary, usePlaylists, useTracks } from "@/lib/data";
 import { useSession } from "@/lib/session";
 import { playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
-type View_ = "albums" | "artists" | "songs" | "playlists";
+type View_ = "home" | "albums" | "artists" | "songs" | "playlists";
 
 const VIEWS: { id: View_; label: string; placeholder: string }[] = [
+  { id: "home", label: "Home", placeholder: "Album or artist" },
   { id: "playlists", label: "Playlists", placeholder: "Playlist" },
   { id: "albums", label: "Albums", placeholder: "Album or artist" },
   { id: "artists", label: "Artists", placeholder: "Artist" },
@@ -41,14 +43,24 @@ const VIEWS: { id: View_; label: string; placeholder: string }[] = [
 
 type Item =
   | { kind: "albums"; key: string; albums: AlbumSummary[] }
-  | { kind: "playlists"; key: string; playlists: PlaylistSummary[] }
+  // Null is the New playlist tile, first in the grid.
+  | { kind: "playlists"; key: string; playlists: (PlaylistSummary | null)[] }
   | { kind: "artist"; key: string; artist: ArtistSummary; albums: AlbumSummary[] }
   | { kind: "song"; key: string; track: TrackDto; toggle?: boolean }
   | { kind: "head"; key: string; title: string }
-  | { kind: "addAlbum"; key: string; album: AlbumSummary };
+  | { kind: "addAlbum"; key: string; album: AlbumSummary }
+  // Home's shelves.
+  | { kind: "shelfTitle"; key: string; title: string }
+  | { kind: "jump"; key: string; items: JumpBackItem[] }
+  | { kind: "repeat"; key: string; track: TrackDto }
+  | { kind: "albumShelf"; key: string; albums: AlbumSummary[] }
+  | { kind: "artistShelf"; key: string; artists: ArtistSummary[] };
 
 const playSongs = (tracks: TrackDto[], index: number, shuffle = false) =>
   playMusic({ kind: "songs", refId: null, title: "Your songs", tracks }, index, shuffle);
+
+/** How many On repeat songs Home lists. */
+const ON_REPEAT_ROWS = 5;
 
 // Defined once: an inline component here would be a new type each render.
 const RowGap = () => <View style={{ height: 18 }} />;
@@ -62,7 +74,7 @@ export default function Music() {
   const top = useTopInset();
   const width = useGridWidth();
   const shelfWidth = useShelfWidth();
-  const [view, setView] = useState<View_>("albums");
+  const [picked, setPicked] = useState<View_>("home");
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   const [sortOpen, setSortOpen] = useState(false);
@@ -78,6 +90,14 @@ export default function Music() {
   const nothingYet = noFolder || (mine?.tracks === 0 && !playlists.data?.length);
   const q = query.trim().toLowerCase();
   const albums = useAlbums("mine");
+  const home = useMusicHome();
+  // A server from before Home has none: no chip, and Albums first.
+  const noHome = home.data === null;
+  const view: View_ = noHome && picked === "home" ? "albums" : picked;
+  const views = noHome ? VIEWS.filter((v) => v.id !== "home") : VIEWS;
+  // Home lists the first few; a tap queues the whole list from that song.
+  const repeatAll = useMemo(() => home.data?.onRepeat ?? [], [home.data]);
+  const onRepeat = useMemo(() => repeatAll.slice(0, ON_REPEAT_ROWS), [repeatAll]);
   // Artists and songs load the first time their chip is picked.
   const [seen, setSeen] = useState<Set<View_>>(() => new Set(["albums"]));
   const artists = useArtists("mine", seen.has("artists"));
@@ -93,8 +113,14 @@ export default function Music() {
     },
     [tracks.data],
   );
+  const playRepeat = useCallback(
+    (track: TrackDto) => playMusic({ kind: "songs", refId: null, title: "On repeat", tracks: repeatAll }, repeatAll.indexOf(track)),
+    [repeatAll],
+  );
 
-  const current = view === "albums" ? albums : view === "artists" ? artists : view === "songs" ? tracks : playlists;
+  // Home with a search shows album results, like Albums.
+  const current =
+    view === "home" ? (q ? albums : home) : view === "albums" ? albums : view === "artists" ? artists : view === "songs" ? tracks : playlists;
   const refresh = usePullRefresh(() => Promise.all([summary.refetch(), current.refetch()]));
 
   const items = useMemo((): Item[] => {
@@ -102,10 +128,33 @@ export default function Music() {
     if (view === "playlists") {
       // Only your playlists; there's nothing to add from elsewhere.
       const list = (playlists.data ?? []).filter((p) => p.name.toLowerCase().includes(q));
-      for (const row of gridRows(list)) out.push({ kind: "playlists", key: row[0]!.id, playlists: row });
+      // New playlist leads the grid, except while searching.
+      const tiles = q || !playlists.data ? list : [null, ...list];
+      for (const row of gridRows(tiles)) out.push({ kind: "playlists", key: row[0]?.id ?? "new", playlists: row });
       return out;
     }
-    if (view === "albums") {
+    if (view === "home" && !q) {
+      // Each shelf is left out when it has nothing.
+      const h = home.data;
+      if (!h) return out;
+      // A field the server didn't send reads as an empty shelf.
+      const jumpBackIn = h.jumpBackIn ?? [];
+      const newAlbums = h.newAlbums ?? [];
+      if (jumpBackIn.length) out.push({ kind: "shelfTitle", key: "t:jump", title: "Jump back in" }, { kind: "jump", key: "jump", items: jumpBackIn });
+      if (onRepeat.length) {
+        out.push({ kind: "shelfTitle", key: "t:repeat", title: "On repeat" });
+        for (const s of onRepeat) out.push({ kind: "repeat", key: `repeat:${s.id}`, track: s });
+      }
+      if (h.moreLikeAlbum?.items.length) {
+        out.push({ kind: "shelfTitle", key: "t:likeAlbum", title: h.moreLikeAlbum.title }, { kind: "albumShelf", key: "likeAlbum", albums: h.moreLikeAlbum.items });
+      }
+      if (h.moreLikeArtist?.items.length) {
+        out.push({ kind: "shelfTitle", key: "t:likeArtist", title: h.moreLikeArtist.title }, { kind: "artistShelf", key: "likeArtist", artists: h.moreLikeArtist.items });
+      }
+      if (newAlbums.length) out.push({ kind: "shelfTitle", key: "t:new", title: "New albums" }, { kind: "albumShelf", key: "new", albums: newAlbums });
+      return out;
+    }
+    if (view === "albums" || view === "home") {
       const list = sortAlbums(albums.data ?? [], sort).filter((a) => albumMatches(a, q));
       for (const row of gridRows(list)) out.push({ kind: "albums", key: row[0]!.id, albums: row });
     } else if (view === "artists") {
@@ -124,10 +173,10 @@ export default function Music() {
     ];
     if (!more.length) return out;
     return [...(out.length ? [{ kind: "head", key: "head:mine", title: "In your music" } as Item] : []), ...out, { kind: "head", key: "head:more", title: "More to add" }, ...more];
-  }, [view, albums.data, artists.data, tracks.data, playlists.data, allAlbums.data, allTracks.data, q, sort]);
+  }, [view, albums.data, artists.data, tracks.data, playlists.data, allAlbums.data, allTracks.data, home.data, onRepeat, q, sort]);
 
   const pick = (next: View_) => {
-    setView(next);
+    setPicked(next);
     setSeen((s) => (s.has(next) ? s : new Set(s).add(next)));
   };
 
@@ -173,33 +222,13 @@ export default function Music() {
       ) : null}
       {nothingYet || q ? null : <BrowseRow notAdded={(summary.data?.albums ?? 0) - (mine?.albums ?? 0)} fresh={summary.data?.newAlbums ?? 0} />}
       {nothingYet ? null : (
-        <Chips gap={8} options={VIEWS} value={view} onPick={pick} />
+        <Chips gap={8} options={views} value={view} onPick={pick} />
       )}
       {view === "songs" && !q && tracks.data?.length ? (
         <View style={{ flexDirection: "row", gap: 10 }}>
           <PlayButton label="Play all" from={{ kind: "songs", refId: null }} onPress={() => playSongs(tracks.data, -1)} />
           <ShuffleButton from={{ kind: "songs", refId: null }} onPlay={() => playSongs(tracks.data, -1, true)} />
         </View>
-      ) : null}
-      {view === "playlists" && !q ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setNaming(true)}
-          style={({ pressed }) => ({
-            height: 44,
-            borderRadius: 22,
-            borderWidth: 1,
-            borderColor: t.line,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            opacity: pressed ? 0.6 : 1,
-          })}
-        >
-          <PlusIcon size={18} color={t.text} />
-          <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: t.text }}>New playlist</Text>
-        </Pressable>
       ) : null}
     </View>
   );
@@ -210,7 +239,20 @@ export default function Music() {
     <StartHere total={summary.data?.albums ?? 0} all={allAlbums.data} />
   ) : current.isPending ? (
     <Skeleton>
-      {view === "albums" || view === "playlists" ? (
+      {view === "home" && !q ? (
+        <View style={{ marginTop: -28 }}>
+          <SectionBone />
+          <View style={{ flexDirection: "row", columnGap: GAP }}>
+            {[0, 1, 2].map((i) => (
+              <Bone key={i} width={shelfWidth} height={shelfWidth} radius={10} />
+            ))}
+          </View>
+          <SectionBone />
+          {[0, 1, 2].map((i) => (
+            <ListRowBone key={i} thumb={44} />
+          ))}
+        </View>
+      ) : view === "albums" || view === "home" || view === "playlists" ? (
         <CoverGridBones count={6} />
       ) : view === "artists" ? (
         [0, 1].map((i) => (
@@ -229,6 +271,8 @@ export default function Music() {
     <Empty>{q ? `Nothing matches "${query.trim()}".` : "Make a playlist, then add songs to it from the menu on any song."}</Empty>
   ) : q ? (
     <Empty>{`Nothing matches "${query.trim()}".`}</Empty>
+  ) : view === "home" ? (
+    <Empty>Play something and it shows up here.</Empty>
   ) : (
     <Empty>Nothing here yet.</Empty>
   );
@@ -243,10 +287,14 @@ export default function Music() {
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={header}
         ListEmptyComponent={empty}
+        // With no playlists, the grid is just the New playlist tile, with the note under it.
+        ListFooterComponent={
+          view === "playlists" && !q && playlists.data?.length === 0 ? <Empty>Make a playlist, then add songs to it from the menu on any song.</Empty> : undefined
+        }
         ItemSeparatorComponent={(view === "albums" || view === "playlists") && !q ? RowGap : undefined}
         windowSize={7}
         maxToRenderPerBatch={8}
-        renderItem={({ item }) =>
+        renderItem={({ item, index }) =>
           item.kind === "albums" ? (
             <View style={{ flexDirection: "row", columnGap: GAP, marginBottom: q ? 18 : 0 }}>
               {item.albums.map((a) => (
@@ -256,9 +304,9 @@ export default function Music() {
             </View>
           ) : item.kind === "playlists" ? (
             <View style={{ flexDirection: "row", columnGap: GAP, marginBottom: q ? 18 : 0 }}>
-              {item.playlists.map((p) => (
-                <PlaylistCard key={p.id} playlist={p} width={width} />
-              ))}
+              {item.playlists.map((p) =>
+                p ? <PlaylistCard key={p.id} playlist={p} width={width} /> : <NewPlaylistTile key="new" width={width} onPress={() => setNaming(true)} />,
+              )}
             </View>
           ) : item.kind === "artist" ? (
             // Like the Books tab's authors: the name opens the artist, then a row of their albums.
@@ -273,6 +321,34 @@ export default function Music() {
             </View>
           ) : item.kind === "addAlbum" ? (
             <AlbumAddRow album={item.album} />
+          ) : item.kind === "shelfTitle" ? (
+            <View style={{ marginTop: index === 0 ? -12 : 0 }}>
+              <SectionTitle title={item.title} />
+            </View>
+          ) : item.kind === "jump" ? (
+            <Shelf>
+              {item.items.map((i) =>
+                i.kind === "album" ? (
+                  <AlbumCard key={`a-${i.album.id}`} album={i.album} width={shelfWidth} />
+                ) : (
+                  <PlaylistCard key={`p-${i.playlist.id}`} playlist={i.playlist} width={shelfWidth} />
+                ),
+              )}
+            </Shelf>
+          ) : item.kind === "albumShelf" ? (
+            <Shelf>
+              {item.albums.map((a) => (
+                <AlbumCard key={a.id} album={a} width={shelfWidth} badge />
+              ))}
+            </Shelf>
+          ) : item.kind === "artistShelf" ? (
+            <Shelf>
+              {item.artists.map((a) => (
+                <ArtistCard key={a.id} artist={a} width={shelfWidth} />
+              ))}
+            </Shelf>
+          ) : item.kind === "repeat" ? (
+            <SongRow track={item.track} onPlay={playRepeat} onMore={setSong} />
           ) : (
             // Your own songs play the whole list from that one; songs you could add open their album.
             <SongRow track={item.track} toggle={item.toggle} onPlay={item.toggle ? undefined : playOwn} onMore={setSong} />

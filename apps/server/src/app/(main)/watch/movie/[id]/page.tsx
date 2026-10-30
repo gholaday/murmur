@@ -9,5 +9,6 @@ export default async function MoviePage({ params }: { params: Promise<{ id: stri
   const ctx = await getContext();
   const movie = await getMovie(ctx, user.id, (await params).id);
   if (!movie) notFound();
-  return <MovieView movie={movie} />;
+  // Keyed, so moving to another film from its shelves starts fresh (version, description).
+  return <MovieView key={movie.id} movie={movie} />;
 }

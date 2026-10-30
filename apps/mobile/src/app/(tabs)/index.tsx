@@ -17,6 +17,7 @@ import {
   SHELF_SIZE,
   type ShelfId,
   shelfBooks,
+  shelfSub,
   matchesBook,
   seriesLabel,
   sortBooks,
@@ -33,7 +34,7 @@ import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, FadeIn, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { useCardMenu } from "@/components/sheet";
 import { DragHandle, SortableList, SortableScrollProvider, useSortableScroll } from "@/components/sortable-list";
-import { GAP, Grid, Group, openAllBooks, openGroup, openShelf, PAD, Shelf, shelfSub, todayKey, useGridWidth, useShelfWidth } from "@/components/library";
+import { GAP, Grid, Group, openAllBooks, openGroup, openShelf, PAD, safeShelf, safeShelfTitle, Shelf, todayKey, useGridWidth, useShelfWidth } from "@/components/library";
 import { Bar, Button, Chips, CountPill, IconButton, Text } from "@/components/ui";
 import { saveBookSections, useBookSections, useBooks } from "@/lib/data";
 import { withLongPressHaptic } from "@/lib/haptics";
@@ -376,15 +377,20 @@ function BooksTab({
     () => ({
       playnext: shelfBooks("playnext", books, day),
       next: shelfBooks("next", books, day),
+      like: safeShelf("like", books, day),
+      short: safeShelf("short", books, day),
       added: shelfBooks("added", books, day),
       unstarted: shelfBooks("unstarted", books, day),
     }),
     [books, day],
   );
+  const likeTitle = useMemo(() => safeShelfTitle("like", books), [books]);
   const counts: Record<BookSectionId, number> = {
     continue: continuing.length,
     playnext: shelves.playnext.length,
     next: shelves.next.length,
+    like: shelves.like.length,
+    short: shelves.short.length,
     added: shelves.added.length,
     unstarted: shelves.unstarted.length,
     all: books.length,
@@ -430,7 +436,7 @@ function BooksTab({
   // Shown sections are the same rows in both modes, so their covers stay mounted (and on
   // screen) when customize opens and closes.
   const section = (s: BookSection) => {
-    const title = BOOK_SECTION_TITLES[s.id];
+    const title = s.id === "like" ? likeTitle : BOOK_SECTION_TITLES[s.id];
     return (
       <View style={{ paddingTop: 24 }}>
         <SectionHeading

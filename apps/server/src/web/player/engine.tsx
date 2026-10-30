@@ -1061,7 +1061,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const needed = dur > 0 ? Math.min(PLAY_COUNTS_AFTER_SEC, dur / 2) : PLAY_COUNTS_AFTER_SEC;
     if (!counted.current && heardSec.current >= needed) {
       counted.current = true;
-      void api(apiPaths.trackPlays, { method: "POST", body: { trackId: it.id } }).catch(() => undefined);
+      const source = listRef.current.source;
+      void api(apiPaths.trackPlays, {
+        method: "POST",
+        body: { trackId: it.id, source: source ? { kind: source.kind, refId: source.refId } : null },
+      }).catch(() => undefined);
     }
     if (!(dur > 0 && dur - pos < PRELOAD_SEC)) return;
     const next = nextIndex(listRef.current, repeatRef.current, true);

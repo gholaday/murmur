@@ -8,6 +8,7 @@ import {
   type ArtistSummary,
   type MusicMineChange,
   type MusicScope,
+  type MusicHomeDto,
   type MusicSummaryDto,
   type PlaylistDetail,
   type PlaylistSummary,
@@ -26,7 +27,7 @@ import {
   EPISODE_PAGE,
 } from "@murmur/shared/client";
 import { toast } from "@/components/toast";
-import { api } from "./api";
+import { api, HttpError } from "./api";
 import { queryClient } from "./query";
 
 export const keys = {
@@ -41,6 +42,7 @@ export const keys = {
   upNext: ["upNext"] as const,
   prefs: ["prefs"] as const,
   music: ["music"] as const,
+  musicHome: ["music", "home"] as const,
   albums: (scope: MusicScope) => ["albums", scope] as const,
   album: (id: string) => ["album", id] as const,
   artists: (scope: MusicScope) => ["artists", scope] as const,
@@ -108,6 +110,17 @@ export const useBook = (id: string) =>
 
 /** Whether the server has music; everything about music hides until it says so. */
 export const useMusicSummary = () => useQuery({ queryKey: keys.music, queryFn: () => api<MusicSummaryDto>(apiPaths.music) });
+
+/** The Home chip's shelves: Jump back in, On repeat and New albums. Null on a server from before Home. */
+export const useMusicHome = () =>
+  useQuery({
+    queryKey: keys.musicHome,
+    queryFn: () =>
+      api<MusicHomeDto>(apiPaths.musicHome).catch((err: unknown) => {
+        if (err instanceof HttpError && err.status === 404) return null;
+        throw err;
+      }),
+  });
 
 // Music comes in two scopes: "mine" is your music (songs you added, and their albums and artists),
 // "all" is everything, shown under Browse.

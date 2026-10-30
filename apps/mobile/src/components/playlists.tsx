@@ -8,6 +8,7 @@ import { addToPlaylist, createPlaylist, usePlaylists } from "@/lib/data";
 import { isPlayingFrom } from "@/player/engine";
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
+import { PlusIcon } from "./icons";
 import { Mixer, useNowPlaying } from "./mixer";
 import { Sheet, SheetItem } from "./sheet";
 import { Bone, Skeleton } from "./skeleton";
@@ -78,6 +79,33 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, width }: { pl
     </Pressable>
   );
 });
+
+/** New playlist, first in the Playlists grid: a cover-sized dashed tile with an accent plus. */
+export function NewPlaylistTile({ width, onPress }: { width: number; onPress: () => void }) {
+  const t = useTheme();
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="New playlist" onPress={onPress} style={({ pressed }) => ({ width, gap: 8, opacity: pressed ? 0.75 : 1 })}>
+      <View
+        style={{
+          width,
+          aspectRatio: 1,
+          borderRadius: 10,
+          borderWidth: 1.5,
+          borderStyle: "dashed",
+          borderColor: t.faint,
+          backgroundColor: t.surface,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <PlusIcon size={32} color={t.accent} />
+      </View>
+      <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14 }}>
+        New playlist
+      </Text>
+    </Pressable>
+  );
+}
 
 /** "13 songs" and "52m", for the pills on a playlist's page. */
 export const playlistPills = (p: PlaylistSummary): string[] =>

@@ -14,7 +14,9 @@ import {
   albumsByArtist,
   apiPaths,
   type ArtistSummary,
+  artistImage,
   artistMatches,
+  type MusicHomeDto,
   type MusicSummaryDto,
   type PlaylistSummary,
   plural,
@@ -27,20 +29,21 @@ import {
 import { api } from "../api";
 import { Cover } from "../cover";
 import { Mixer } from "../mixer";
-import { ChevronIcon, CloseIcon, FilterIcon, FolderIcon, MusicIcon, PauseIcon, PlayIcon, SearchIcon } from "../icons";
+import { ChevronIcon, CloseIcon, FilterIcon, FolderIcon, MusicIcon, PauseIcon, PlayIcon, ProfileIcon, SearchIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
 import { type MusicSource, useNowPlaying, usePlayer } from "../player/engine";
 import { GroupGrid } from "../library/library";
 import { Sheet, SheetItem } from "../sheet";
 import { SongRowsSkeleton } from "../skeletons";
-import { Chip, Chips, EmptyState, SearchBox } from "../ui";
+import { Chip, Chips, EmptyState, ScrollRow, SearchBox, SectionTitle } from "../ui";
 import { AlbumCardMenu } from "./album-menu";
 import { AlbumBadge, MineToggle, useMineChange } from "./mine";
 import { NewPlaylistButton, PlaylistCard } from "./playlist-view";
 import { SongMenuButton } from "./song-menu";
 
-export type MusicTab = "albums" | "artists" | "songs" | "playlists";
+export type MusicTab = "home" | "albums" | "artists" | "songs" | "playlists";
 const TABS: Array<{ id: MusicTab; label: string; placeholder: string }> = [
+  { id: "home", label: "Home", placeholder: "Album or artist" },
   { id: "playlists", label: "Playlists", placeholder: "Playlist" },
   { id: "albums", label: "Albums", placeholder: "Album or artist" },
   { id: "artists", label: "Artists", placeholder: "Artist" },
@@ -294,9 +297,98 @@ function MoreToAdd({ q }: { q: string }) {
   );
 }
 
-/** The Music tab: your music as albums, artists or songs, with Browse above. */
+/** How many On repeat songs Home lists. */
+const ON_REPEAT_ROWS = 5;
+
+/** A round artist photo (else one of their covers, else a person icon) with the name and album count under it; opens the artist. */
+function ArtistCard({ artist }: { artist: ArtistSummary }) {
+  const src = artistImage(artist);
+  return (
+    <Link href={`/music/artist/${artist.id}`} className="card card-link artist-card">
+      {src ? (
+        <Cover src={src} color={null} title={artist.name} />
+      ) : (
+        <span className="cover artist-card-empty" aria-hidden="true">
+          <ProfileIcon size={40} />
+        </span>
+      )}
+      <div className="card-title">{artist.name}</div>
+      <div className="card-sub">{plural(artist.albumCount, "album")}</div>
+    </Link>
+  );
+}
+
+/** The Home chip: Jump back in, On repeat, More like the last album and its artist, and New albums. A shelf with nothing to show is left out. */
+function MusicHome({ home }: { home: MusicHomeDto }) {
+  const player = usePlayer();
+  // Five rows show; picking one queues all of them (up to 25) from that song on.
+  const onRepeat = home.onRepeat.slice(0, ON_REPEAT_ROWS);
+  const onRepeatSource: MusicSource = { kind: "songs", refId: null, title: "On repeat", tracks: home.onRepeat };
+  const likeAlbum = home.moreLikeAlbum?.items.length ? home.moreLikeAlbum : null;
+  const likeArtist = home.moreLikeArtist?.items.length ? home.moreLikeArtist : null;
+  if (!home.jumpBackIn.length && !onRepeat.length && !likeAlbum && !likeArtist && !home.newAlbums.length) {
+    return <EmptyState>Play something and it shows up here.</EmptyState>;
+  }
+  return (
+    <>
+      {home.jumpBackIn.length ? (
+        <section className="section" style={{ marginTop: 0 }}>
+          <SectionTitle title="Jump back in" />
+          <ScrollRow>
+            {home.jumpBackIn.map((i) =>
+              i.kind === "album" ? <AlbumCard key={`a-${i.album.id}`} album={i.album} /> : <PlaylistCard key={`p-${i.playlist.id}`} playlist={i.playlist} />,
+            )}
+          </ScrollRow>
+        </section>
+      ) : null}
+      {onRepeat.length ? (
+        <section className="section">
+          <SectionTitle title="On repeat" />
+          <div className="list">
+            {onRepeat.map((t, i) => (
+              <SongRow key={t.id} track={t} onPlay={() => player.playMusic(onRepeatSource, i)} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {likeAlbum ? (
+        <section className="section">
+          <SectionTitle title={likeAlbum.title} />
+          <ScrollRow>
+            {likeAlbum.items.map((a) => (
+              <AlbumCard key={a.id} album={a} badge />
+            ))}
+          </ScrollRow>
+        </section>
+      ) : null}
+      {likeArtist ? (
+        <section className="section">
+          <SectionTitle title={likeArtist.title} />
+          <ScrollRow>
+            {likeArtist.items.map((a) => (
+              <ArtistCard key={a.id} artist={a} />
+            ))}
+          </ScrollRow>
+        </section>
+      ) : null}
+      {home.newAlbums.length ? (
+        <section className="section">
+          <SectionTitle title="New albums" />
+          <ScrollRow>
+            {home.newAlbums.map((a) => (
+              <AlbumCard key={a.id} album={a} badge />
+            ))}
+          </ScrollRow>
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+/** The Music tab: Home's shelves, then your music as albums, artists or songs, with Browse above. */
 export function MusicView({
   summary,
+  home,
   albums,
   artists,
   playlists,
@@ -304,6 +396,7 @@ export function MusicView({
   isAdmin,
 }: {
   summary: MusicSummaryDto;
+  home: MusicHomeDto;
   albums: AlbumSummary[];
   artists: ArtistSummary[];
   playlists: PlaylistSummary[];
@@ -329,7 +422,7 @@ export function MusicView({
 
   const switchTab = (next: MusicTab) => {
     setTab(next);
-    window.history.replaceState(null, "", next === "albums" ? pathname : `${pathname}?tab=${next}`);
+    window.history.replaceState(null, "", next === "home" ? pathname : `${pathname}?tab=${next}`);
   };
 
   const sorted = useMemo(() => sortAlbums(albums, sort), [albums, sort]);
@@ -399,7 +492,9 @@ export function MusicView({
       </Chips>
 
       <div style={{ marginTop: 16 }}>
-        {tab === "albums" ? (
+        {tab === "home" && !q ? (
+          <MusicHome home={home} />
+        ) : tab === "albums" || tab === "home" ? (
           shownAlbums.length ? (
             <div className="grid">
               {shownAlbums.map((a) => (
@@ -424,14 +519,16 @@ export function MusicView({
           )
         ) : tab === "playlists" ? (
           <>
-            {q ? null : <NewPlaylistButton />}
-            {shownPlaylists.length ? (
-              <div className="grid" style={{ marginTop: 16 }}>
+            {/* New playlist is the first tile; a search shows only what matches. */}
+            {shownPlaylists.length || !q ? (
+              <div className="grid">
+                {q ? null : <NewPlaylistButton />}
                 {shownPlaylists.map((p) => (
                   <PlaylistCard key={p.id} playlist={p} />
                 ))}
               </div>
-            ) : (
+            ) : null}
+            {shownPlaylists.length ? null : (
               <EmptyState>{q ? `Nothing matches "${query.trim()}".` : "Make a playlist, then add songs to it from the menu on any song."}</EmptyState>
             )}
           </>

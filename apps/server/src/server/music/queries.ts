@@ -154,6 +154,25 @@ export function listAlbums(ctx: AppContext, userId: number, scope: MusicScope, s
   return toAlbums(ctx.sqlite.prepare(`${ALBUM_SELECT} ${where} GROUP BY a.id ORDER BY ${ALBUM_ORDER[sort]}`).all({ user: userId }) as AlbumRow[]);
 }
 
+/** These albums, by id, in no particular order; ones gone from the server are left out. */
+export function albumsByIds(ctx: AppContext, userId: number, ids: string[]): Promise<AlbumSummary[]> {
+  if (!ids.length) return Promise.resolve([]);
+  return toAlbums(
+    ctx.sqlite
+      .prepare(`${ALBUM_SELECT} WHERE a.id IN (SELECT value FROM json_each(@ids)) GROUP BY a.id`)
+      .all({ user: userId, ids: JSON.stringify(ids) }) as AlbumRow[],
+  );
+}
+
+/** Albums found since `since`, newest first. */
+export function listNewAlbums(ctx: AppContext, userId: number, since: number): Promise<AlbumSummary[]> {
+  return toAlbums(
+    ctx.sqlite
+      .prepare(`${ALBUM_SELECT} WHERE a.added_at > @since GROUP BY a.id ORDER BY ${ALBUM_ORDER.added}`)
+      .all({ user: userId, since }) as AlbumRow[],
+  );
+}
+
 export async function getAlbum(ctx: AppContext, userId: number, id: string): Promise<AlbumDetail | null> {
   const [album] = await toAlbums(ctx.sqlite.prepare(`${ALBUM_SELECT} WHERE a.id = @id GROUP BY a.id`).all({ user: userId, id }) as AlbumRow[]);
   if (!album) return null;
@@ -220,6 +239,28 @@ const toArtist = (r: ArtistRow): ArtistSummary => ({
   coverAlbumId: r.cover_album_id,
   coverHash: r.cover_hash,
 });
+
+/** These artists, by id, in the order given; ones with no albums left are skipped. */
+export function artistsByIds(ctx: AppContext, userId: number, ids: string[]): ArtistSummary[] {
+  if (!ids.length) return [];
+  const rows = ctx.sqlite
+    .prepare(`${artistSelect(false)} WHERE ar.id IN (SELECT value FROM json_each(@ids))`)
+    .all({ user: userId, ids: JSON.stringify(ids) }) as ArtistRow[];
+  const byId = new Map(rows.filter((r) => r.album_count > 0).map((r) => [r.id, toArtist(r)]));
+  return ids.flatMap((id) => byId.get(id) ?? []);
+}
+
+/** Every live album's id, artist, genre (Match's wins) and when it was added: what More like ranks on, without the summaries. */
+export function albumGenres(ctx: AppContext): Array<{ id: string; artistId: string; artist: string; title: string; genre: string | null; addedAt: number }> {
+  return ctx.sqlite
+    .prepare(
+      `SELECT a.id, a.artist_id AS artistId, ar.name AS artist, a.title, a.genre, a.added_at AS addedAt
+       FROM ${ALBUMS} a JOIN artists ar ON ar.id = a.artist_id
+       WHERE EXISTS (SELECT 1 FROM tracks t WHERE t.album_id = a.id AND t.missing_since IS NULL)
+       ORDER BY a.added_at DESC`,
+    )
+    .all() as Array<{ id: string; artistId: string; artist: string; title: string; genre: string | null; addedAt: number }>;
+}
 
 /** Album artists, A to Z. Artists only featured on others' songs are reached from those songs. */
 export function listArtists(ctx: AppContext, userId: number, scope: MusicScope): ArtistSummary[] {
@@ -300,13 +341,35 @@ export function getTrackFile(ctx: AppContext, id: string): { root: string | null
 // ---------- Playing ----------
 
 /** One more play of a song. */
-export function addTrackPlay(ctx: AppContext, userId: number, trackId: string): void {
+export function addTrackPlay(
+  ctx: AppContext,
+  userId: number,
+  trackId: string,
+  source: { kind: "album" | "artist" | "songs" | "playlist"; refId: string | null } | null,
+): void {
+  const now = Date.now();
   ctx.sqlite
     .prepare(
       `INSERT INTO track_plays (user_id, track_id, count, last_played_at) VALUES (?, ?, 1, ?)
        ON CONFLICT (user_id, track_id) DO UPDATE SET count = count + 1, last_played_at = excluded.last_played_at`,
     )
-    .run(userId, trackId, Date.now());
+    .run(userId, trackId, now);
+  // Jump back in: the album or playlist it came from. From an artist, that's the song's album;
+  // Your songs and search say nothing about what you'd go back to.
+  let recent: { kind: "album" | "playlist"; refId: string } | null = null;
+  if ((source?.kind === "album" || source?.kind === "playlist") && source.refId) recent = { kind: source.kind, refId: source.refId };
+  else if (source?.kind === "artist") {
+    const row = ctx.sqlite.prepare("SELECT album_id FROM tracks WHERE id = ?").get(trackId) as { album_id: string } | undefined;
+    if (row) recent = { kind: "album", refId: row.album_id };
+  }
+  if (recent) {
+    ctx.sqlite
+      .prepare(
+        `INSERT INTO recent_sources (user_id, kind, ref_id, last_played_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT (user_id, kind, ref_id) DO UPDATE SET last_played_at = excluded.last_played_at`,
+      )
+      .run(userId, recent.kind, recent.refId, now);
+  }
 }
 
 /** A single song, for the player to resume with after a reload. */

@@ -128,4 +128,6 @@ export function addToPlaylist(ctx: AppContext, userId: number, id: string, track
 export function deletePlaylist(ctx: AppContext, userId: number, id: string) {
   owned(ctx, userId, id);
   ctx.sqlite.prepare("DELETE FROM playlists WHERE id = ?").run(id);
+  // No foreign key there (ref_id also names albums), so Jump back in's row goes by hand.
+  ctx.sqlite.prepare("DELETE FROM recent_sources WHERE kind = 'playlist' AND ref_id = ?").run(id);
 }

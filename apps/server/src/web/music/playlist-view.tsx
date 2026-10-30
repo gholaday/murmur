@@ -69,7 +69,7 @@ export function PlaylistCard({ playlist }: { playlist: PlaylistSummary }) {
   );
 }
 
-/** The New playlist button and its sheet; opens the new playlist once it's made. */
+/** The New playlist tile, first in the Playlists grid, and its sheet; opens the new playlist once it's made. */
 export function NewPlaylistButton() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -89,14 +89,16 @@ export function NewPlaylistButton() {
     <>
       <button
         type="button"
-        className="btn btn-outline add-all"
+        className="new-tile"
         onClick={() => {
           setName("");
           setOpen(true);
         }}
       >
-        <PlusIcon size={18} />
-        New playlist
+        <span className="new-tile-art">
+          <PlusIcon size={34} />
+        </span>
+        <span className="card-title">New playlist</span>
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title="New playlist">
         <NameForm name={name} setName={setName} busy={busy} label="Make playlist" onSubmit={() => void create()} />

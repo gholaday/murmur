@@ -164,7 +164,13 @@ export const upNextSchema = z.object({
 });
 export type UpNextInput = z.infer<typeof upNextSchema>;
 export const upNextIndexSchema = z.object({ index: z.number().int().min(-1) });
-export const trackPlaySchema = z.object({ trackId: z.string().min(1).max(64) });
+export const trackPlaySchema = z.object({
+  trackId: z.string().min(1).max(64),
+  /** Where the song was played from, for Jump back in. Older app builds don't send it. */
+  source: z
+    .object({ kind: z.enum(["album", "artist", "songs", "playlist"]), refId: z.string().max(64).nullable() })
+    .nullish(),
+});
 export const musicMineSchema = z
   .object({
     trackIds: z.array(z.string().min(1).max(64)).max(5000).optional(),
@@ -384,6 +390,8 @@ export interface BookSummary {
   /** The book's place on your Play next shelf, from 0; null when it isn't on it. */
   playNext: number | null;
   progress: Pick<ProgressDto, "positionSec" | "finished" | "speed" | "updatedAt"> | null;
+  /** Audible genre ladders ("A > B > C") saved when the book was matched; empty otherwise. */
+  genres: string[];
 }
 
 export interface BookFileDto {
@@ -780,6 +788,7 @@ export * from "./podcasts";
 export * from "./proxied";
 export * from "./settings";
 export * from "./shelves";
+export * from "./similar";
 export * from "./stats";
 export * from "./up-next";
 export * from "./video-addon";

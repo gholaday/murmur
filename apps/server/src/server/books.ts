@@ -21,6 +21,18 @@ interface BookRow {
   p_updated: number | null;
   p_speed: number | null;
   play_next: number | null;
+  genres: string | null;
+}
+
+/** A JSON list of names from the database; null or anything broken reads as none, so one bad row can't break a page. */
+export function stringList(json: string | null): string[] {
+  if (!json) return [];
+  try {
+    const value: unknown = JSON.parse(json);
+    return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 // Matched or edited values (book_overrides) win over scanned ones; a null override keeps the
@@ -33,7 +45,7 @@ const SUMMARY_COLUMNS = `
   b.duration_sec, COALESCE(o.cover_hash, b.cover_hash) AS cover_hash, b.added_at, b.missing_since,
   (o.provider IS NOT NULL OR o.marked_matched = 1) AS matched, COALESCE(o.marked_matched, 0) AS marked_matched,
   p.position_sec AS p_position, p.finished AS p_finished, p.updated_at AS p_updated, p.speed AS p_speed,
-  pn.position AS play_next`;
+  pn.position AS play_next, o.genres`;
 
 /** Takes the user's id twice: once for progress, once for Play next. */
 const JOINS = `
@@ -57,6 +69,7 @@ function toSummary(r: BookRow, colors: Map<string, string>): BookSummary {
     matched: r.matched === 1,
     markedMatched: r.marked_matched === 1,
     playNext: r.play_next,
+    genres: stringList(r.genres),
     progress:
       r.p_updated === null
         ? null

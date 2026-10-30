@@ -7,7 +7,10 @@ import {
   albumInMusic,
   type AlbumSort,
   type AlbumSummary,
+  artistImage,
+  type ArtistSummary,
   guestArtist,
+  plural,
   type UpNextSource,
   songLength,
   songSub,
@@ -21,7 +24,7 @@ import { getJson, setJson } from "@/lib/storage";
 import { addToUpNext, playMusic, isCurrent, isPlayingFrom, isWaiting, removeWaiting, toggle, toggleShuffle, usePlayerSelect } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { CheckIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon, ShuffleIcon } from "./icons";
+import { CheckIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon, ProfileIcon, ShuffleIcon } from "./icons";
 import { AlbumMatchSheet } from "./match";
 import { Mixer, MixerBars, useNowPlaying } from "./mixer";
 import { AddToPlaylistSheet } from "./playlists";
@@ -201,6 +204,36 @@ export const AlbumCard = memo(function AlbumCard({ album, width, sub, badge }: {
         </Text>
         <Text variant="small" numberOfLines={1}>
           {sub === undefined ? album.artist : (sub ?? " ")}
+        </Text>
+      </View>
+    </Pressable>
+  );
+});
+
+/** An artist on a shelf: their round photo (or an album cover of theirs), the name and how many albums, centred. */
+export const ArtistCard = memo(function ArtistCard({ artist, width }: { artist: ArtistSummary; width: number }) {
+  const t = useTheme();
+  const photo = artistImage(artist);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${artist.name}, ${plural(artist.albumCount, "album")}`}
+      onPress={() => openArtist(artist.id)}
+      style={({ pressed }) => ({ width, gap: 8, opacity: pressed ? 0.75 : 1 })}
+    >
+      {photo ? (
+        <Cover path={photo} title={artist.name} size={width} radius={width / 2} />
+      ) : (
+        <View style={{ width, height: width, borderRadius: width / 2, backgroundColor: t.surface, alignItems: "center", justifyContent: "center" }}>
+          <ProfileIcon size={40} color={t.muted} />
+        </View>
+      )}
+      <View style={{ gap: 2, alignItems: "center" }}>
+        <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14 }}>
+          {artist.name}
+        </Text>
+        <Text variant="small" numberOfLines={1}>
+          {plural(artist.albumCount, "album")}
         </Text>
       </View>
     </Pressable>

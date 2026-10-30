@@ -104,6 +104,12 @@ export interface MovieDetail extends MovieSummary {
   chosenArt: { poster: boolean; backdrop: boolean };
   /** Biggest picture first; the first is the one Play starts. */
   versionList: MovieVersion[];
+  /** TMDB genre names, saved when matched. */
+  genres?: string[];
+  /** Every film of its collection in your library, in release order, this one included. */
+  collection?: { name: string; items: WatchPoster[] } | null;
+  /** Films like this one, unwatched first. */
+  similar?: WatchPoster[];
 }
 
 /** "4K", "1080p", "720p", or the height. */
@@ -229,7 +235,50 @@ export interface WatchHomeDto {
   enabled: boolean;
   continueWatching: WatchCard[];
   nextEpisodes: WatchCard[];
+  /** The next film in each collection you've started. Missing from servers before 0.10. */
+  nextInCollection?: WatchPoster[];
+  /** Films like the one you finished last; null when there's nothing to show. */
+  moreLike?: { title: string; items: WatchPoster[] } | null;
   recentlyAdded: WatchPoster[];
+}
+
+/** A movie as the collection rules see it. */
+export interface CollectionMovie {
+  id: string;
+  title: string;
+  collectionId: number;
+  /** Release date or year, as sortable text; null sorts last. */
+  released: string | null;
+  progress: VideoProgress | null;
+}
+
+const watchStarted = (p: VideoProgress | null) => !!p && (p.finished || p.positionSec > 5);
+
+/** A collection's films in release order, ties and unknown dates by title. */
+export function collectionOrder<T extends Pick<CollectionMovie, "title" | "released">>(movies: readonly T[]): T[] {
+  return [...movies].sort(
+    (a, b) => (a.released ?? "￿").localeCompare(b.released ?? "￿") || collator.compare(a.title, b.title),
+  );
+}
+
+/**
+ * For each collection you've finished a film of, the first film after the last finished one
+ * that you haven't started. Collections with a film in progress are left out; it's already in
+ * Continue watching. Most recently finished collection first.
+ */
+export function nextInCollection<T extends CollectionMovie>(movies: readonly T[]): T[] {
+  const byCollection = new Map<number, T[]>();
+  for (const m of movies) byCollection.set(m.collectionId, [...(byCollection.get(m.collectionId) ?? []), m]);
+  const picks: { movie: T; finishedAt: number }[] = [];
+  for (const list of byCollection.values()) {
+    if (list.some((m) => m.progress && !m.progress.finished && m.progress.positionSec > 5)) continue;
+    const ordered = collectionOrder(list);
+    const lastDone = ordered.findLastIndex((m) => m.progress?.finished);
+    if (lastDone === -1) continue;
+    const next = ordered.slice(lastDone + 1).find((m) => !watchStarted(m.progress));
+    if (next) picks.push({ movie: next, finishedAt: ordered[lastDone]!.progress!.updatedAt });
+  }
+  return picks.sort((a, b) => b.finishedAt - a.finishedAt).map((p) => p.movie);
 }
 
 /** Whether there's anything to watch, for the tab bar and You. */

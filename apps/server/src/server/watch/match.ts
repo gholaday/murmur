@@ -80,6 +80,27 @@ export function createWatchMatcher(deps: { sqlite: Sqlite; coversDir: string; lo
     }
   }
 
+  /** A movie's collection, release date and genres. Genres become '[]' when TMDB has none, so they count as fetched. */
+  function saveMovieTmdb(id: string, d: TmdbDetails) {
+    sqlite
+      .prepare("UPDATE movies SET collection_id = ?, collection_name = ?, release_date = ?, genres = ? WHERE id = ?")
+      .run(d.collection?.id ?? null, d.collection?.name ?? null, d.releaseDate, JSON.stringify(d.genres), id);
+  }
+
+  /** Movies matched before collections and genres were kept: fetched once each, through the same cache. */
+  async function backfillMovies() {
+    const rows = sqlite.prepare("SELECT id, tmdb_id FROM movies WHERE tmdb_id IS NOT NULL AND genres IS NULL").all() as Array<{ id: string; tmdb_id: number }>;
+    if (!rows.length) return;
+    for (const r of rows) {
+      const d = await tmdb.details("movie", r.tmdb_id);
+      // Gone from TMDB: mark it fetched so it isn't asked for again.
+      if (d) saveMovieTmdb(r.id, d);
+      else sqlite.prepare("UPDATE movies SET genres = '[]' WHERE id = ?").run(r.id);
+    }
+    bumpChanges("watch");
+    log.info("movie collections and genres filled", { movies: rows.length });
+  }
+
   /** Puts a TMDB title's details and pictures on a movie or show, then a show's episode details. */
   async function apply(table: Table, row: ParentRow, d: TmdbDetails) {
     const title = row.details_local ? row.title : d.title || row.title;
@@ -99,6 +120,7 @@ export function createWatchMatcher(deps: { sqlite: Sqlite; coversDir: string; lo
          WHERE id = ?`,
       )
       .run(d.id, Date.now(), title, sortTitle(title), year, d.overview, poster, poster, poster, backdrop, backdrop, backdrop, Date.now(), row.id);
+    if (table === "movies") saveMovieTmdb(row.id, d);
     // Said now, so the poster shows and the log moves while a long show's episodes come in.
     bumpChanges("watch");
     log.info("matched", { kind: table === "shows" ? "show" : "movie", title: row.title, tmdb: d.title });
@@ -147,6 +169,7 @@ export function createWatchMatcher(deps: { sqlite: Sqlite; coversDir: string; lo
       )
       .all() as Array<{ id: string; tmdb_id: number; season: number }>;
     for (const m of missing) await fillSeasons(m.id, m.tmdb_id, [m.season]);
+    await backfillMovies();
   }
 
   /**

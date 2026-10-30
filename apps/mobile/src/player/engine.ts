@@ -698,7 +698,12 @@ function musicTick(it: Playable, pos: number, heard: number) {
   const needed = dur > 0 ? Math.min(PLAY_COUNTS_AFTER_SEC, dur / 2) : PLAY_COUNTS_AFTER_SEC;
   if (!counted && heardSec >= needed) {
     counted = true;
-    void api(apiPaths.trackPlays, { method: "POST", body: { trackId: it.id } }).catch(() => undefined);
+    // Where it was played from, for Jump back in.
+    const source = state.upNext.source;
+    void api(apiPaths.trackPlays, {
+      method: "POST",
+      body: { trackId: it.id, source: source ? { kind: source.kind, refId: source.refId } : null },
+    }).catch(() => undefined);
   }
   if (casting || !(dur > 0 && dur - pos < PRELOAD_SEC)) return;
   const next = nextIndex(state.upNext, state.repeat, true);
