@@ -1,6 +1,6 @@
 import { apiPaths } from "./api-paths";
 import { clock, duration } from "./format";
-import type { ChapterDto, QueueEntry, QueueRef } from "./index";
+import type { ChapterDto, PlayType, QueueEntry, QueueRef } from "./index";
 import { REPEAT_MODES, type RepeatMode } from "./music";
 
 // Player rules shared by the web player and the app's, so both behave the same.
@@ -39,6 +39,18 @@ export function chapterAt(chapters: ChapterDto[], position: number): number {
   return chapters.findLastIndex((c) => c.startSec <= position + 0.25);
 }
 
+/** A book stopped at its very end; the player's top line says Finished instead of where it's playing from. */
+export function bookFinished(type: PlayType, durationSec: number, position: number, playing: boolean): boolean {
+  return type === "book" && !playing && durationSec > 0 && position >= durationSec - 1;
+}
+
+/** An episode's chapters once the file's real length is known: the last one runs to the new end. */
+export function fitChapters(chapters: ChapterDto[], durationSec: number): ChapterDto[] {
+  const last = chapters.at(-1);
+  if (!last || last.endSec === durationSec || durationSec <= last.startSec) return chapters;
+  return [...chapters.slice(0, -1), { ...last, endSec: durationSec }];
+}
+
 // ---------- Skip buttons ----------
 
 export interface SkipSettings {
@@ -69,6 +81,22 @@ export const HAPTICS_KEY = "murmur.haptics";
 export const SAVE_EVERY_MS = 10_000;
 /** How often ad times are re-fetched while the current episode is still being scanned. */
 export const ADS_POLL_MS = 60_000;
+
+// ---------- Mark played on the cover ----------
+
+/** An episode's "Mark played" button shows on the cover this long before its end. */
+export const MARK_PLAYED_AT_SEC = 180;
+
+/**
+ * Whether an episode's "Mark played" button shows on the cover: in its last few minutes, so it
+ * can be marked played before the outro runs out. Not for books or songs, nor for an episode so
+ * short it would show from near the start. Skip ad takes the spot while an ad plays.
+ */
+export function showMarkPlayed(type: PlayType, durationSec: number, position: number): boolean {
+  if (type !== "episode" || durationSec < MARK_PLAYED_AT_SEC * 2) return false;
+  const left = durationSec - position;
+  return left > 0 && left <= MARK_PLAYED_AT_SEC;
+}
 
 // ---------- Up Next ----------
 

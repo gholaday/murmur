@@ -15,6 +15,8 @@ interface Deps {
   log: Logger;
   /** Called once a feed nobody follows is deleted, so its cached audio goes too. */
   onPodcastRemoved?: (podcastId: string) => void;
+  /** Called after a feed's episodes are saved, not awaited (the newest episodes' chapters are looked up). */
+  onFeedSaved?: (podcastId: string) => void;
 }
 
 const FEED_TIMEOUT_MS = 15_000;
@@ -86,9 +88,9 @@ export function createPodcastService(deps: Deps) {
   const upsertEpisode = () =>
     sqlite.prepare(`
       INSERT INTO episodes (id, podcast_id, guid, title, description, published_at, duration_sec, audio_url,
-                            mime_type, size_bytes, image_url, season, episode_number, first_seen_at)
+                            mime_type, size_bytes, image_url, season, episode_number, first_seen_at, chapters_url, chapters)
       VALUES (@id, @podcastId, @guid, @title, @description, @publishedAt, @durationSec, @audioUrl,
-              @mimeType, @sizeBytes, @imageUrl, @season, @episodeNumber, @now)
+              @mimeType, @sizeBytes, @imageUrl, @season, @episodeNumber, @now, @chaptersUrl, @chapters)
       ON CONFLICT (podcast_id, guid) DO UPDATE SET
         title = excluded.title,
         description = excluded.description,
@@ -99,7 +101,14 @@ export function createPodcastService(deps: Deps) {
         size_bytes = excluded.size_bytes,
         image_url = excluded.image_url,
         season = excluded.season,
-        episode_number = excluded.episode_number
+        episode_number = excluded.episode_number,
+        chapters_url = excluded.chapters_url,
+        -- Chapters written in the feed win. Otherwise what was found stays, unless the chapters
+        -- file or the audio changed, which means looking again.
+        chapters = CASE
+          WHEN excluded.chapters IS NOT NULL THEN excluded.chapters
+          WHEN episodes.chapters_url IS NOT excluded.chapters_url OR episodes.audio_url IS NOT excluded.audio_url THEN NULL
+          ELSE episodes.chapters END
       -- Most of a feed is unchanged on each check; skipping those rows saves rewriting them.
       WHERE episodes.title IS NOT excluded.title
         OR episodes.description IS NOT excluded.description
@@ -110,7 +119,9 @@ export function createPodcastService(deps: Deps) {
         OR episodes.size_bytes IS NOT excluded.size_bytes
         OR episodes.image_url IS NOT excluded.image_url
         OR episodes.season IS NOT excluded.season
-        OR episodes.episode_number IS NOT excluded.episode_number`);
+        OR episodes.episode_number IS NOT excluded.episode_number
+        OR episodes.chapters_url IS NOT excluded.chapters_url
+        OR (excluded.chapters IS NOT NULL AND episodes.chapters IS NOT excluded.chapters)`);
 
   /** Writes the feed's channel fields and episodes. Episodes that drop out of a feed are kept. */
   function saveFeed(podcastId: string, feed: ParsedFeed, etag: string | null, lastModified: string | null) {
@@ -126,6 +137,7 @@ export function createPodcastService(deps: Deps) {
         upsert.run({ id: newId(), podcastId, now, ...e });
       }
     })();
+    deps.onFeedSaved?.(podcastId);
   }
 
   function getRow(podcastId: string): PodcastRow | undefined {

@@ -11,6 +11,7 @@ export const apiPaths = {
   episodeUrl: (episodeId: string) => `/api/stream/episode/${episodeId}`,
   /** Ad times for an episode (EpisodeAdsDto). */
   episodeAds: (episodeId: string) => `/api/episodes/${episodeId}/ads`,
+  episodeChapters: (episodeId: string) => `/api/episodes/${episodeId}/chapters`,
   /** `{ id }` of the episode below (1, older) or above (-1, newer) in its show's list, or null at the end. */
   episodeNeighbor: (episodeId: string, dir: 1 | -1) => `/api/episodes/${episodeId}/neighbor?dir=${dir}`,
   /** GET your settings, PUT the ones that changed. */

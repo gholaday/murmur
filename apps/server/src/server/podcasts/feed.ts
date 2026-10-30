@@ -1,4 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
+import { parsePscChapters } from "./chapters";
 
 export interface ParsedEpisode {
   guid: string;
@@ -12,6 +13,10 @@ export interface ParsedEpisode {
   imageUrl: string | null;
   season: number | null;
   episodeNumber: number | null;
+  /** The Podcasting 2.0 chapters file, read when the chapters are first wanted. */
+  chaptersUrl: string | null;
+  /** Podlove chapters written in the feed, as JSON `RawChapter[]`; null when the feed has none. */
+  chapters: string | null;
 }
 
 export interface ParsedFeed {
@@ -37,7 +42,7 @@ const parser = new XMLParser({
   trimValues: true,
   processEntities: entityLimits,
   htmlEntities: true,
-  isArray: (name) => name === "item" || name === "outline",
+  isArray: (name) => name === "item" || name === "outline" || name === "psc:chapter",
 });
 
 /** Types an episode's audio may be served as. Anything else a feed claims is served as MP3 instead of trusted. */
@@ -151,6 +156,8 @@ export function parseFeed(xml: string): ParsedFeed {
     if (!audioUrl) continue; // not an audio episode
     const published = Date.parse(text(item.pubDate) ?? "");
     const itemTitle = text(item.title) ?? text(item["itunes:title"]) ?? "Untitled episode";
+    const chaptersType = attr(item["podcast:chapters"], "type");
+    const psc = parsePscChapters((item["psc:chapters"] as Node | undefined)?.["psc:chapter"]);
     episodes.push({
       guid: text(item.guid) ?? audioUrl,
       title: itemTitle,
@@ -163,6 +170,8 @@ export function parseFeed(xml: string): ParsedFeed {
       imageUrl: httpUrl(attr(item["itunes:image"], "href")),
       season: int(text(item["itunes:season"])),
       episodeNumber: int(text(item["itunes:episode"])),
+      chaptersUrl: !chaptersType || chaptersType.includes("json") ? httpUrl(attr(item["podcast:chapters"], "url")) : null,
+      chapters: psc.length > 1 ? JSON.stringify(psc) : null,
     });
   }
 

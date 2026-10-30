@@ -370,6 +370,13 @@ export const episodes = sqliteTable(
     season: integer("season"),
     episodeNumber: integer("episode_number"),
     firstSeenAt: integer("first_seen_at").notNull(),
+    /** The feed's Podcasting 2.0 chapters file (`<podcast:chapters>`), fetched when the chapters are first wanted. */
+    chaptersUrl: text("chapters_url"),
+    /**
+     * The chapters once found, as JSON `RawChapter[]` (podcasts/chapters.ts): from the feed, its
+     * chapters file or the audio's ID3 tags. `[]` when the episode has none; null until looked up.
+     */
+    chapters: text("chapters"),
   },
   (t) => [
     uniqueIndex("episodes_podcast_guid_idx").on(t.podcastId, t.guid),

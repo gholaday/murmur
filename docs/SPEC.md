@@ -70,6 +70,9 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 - Skip back and forward (configurable, defaults 10 s and 30 s), chapter skip. On an episode without chapters, previous and next (in the player, media keys and the notification) go to the item before or after it in Up Next, and past either end to the episode above or below it in its show's list (`GET /episodes/:id/neighbor`). Previous restarts the episode first once it's more than 3 s in
 - Playback speed 0.5× to 3× (2× on Android), remembered per book and per show
 - Sleep timer: minutes or end of chapter
+- Episode chapters, when the show publishes them: the scrubber splits into one segment per chapter over the whole episode, with the playing chapter's title between the elapsed and remaining times in place of the time left (tap for the list), and dragging (or hovering with a mouse on the web) shows the time and chapter above the bar. A book's bar spans its current chapter instead
+- The third player tile is Chapters for books and for episodes with chapters, else Ads when the show is scanned for ads, else none and the other three share the row. The ad setting is also always in the episode's ⋯ menu. Which one is decided when the episode loads, so tiles never change mid-listen
+- In an episode's last 3 minutes, a Mark played button on the cover marks it played and closes the player, so a long outro needn't run out (not on episodes under 6 minutes; Skip ad takes the spot while an ad plays)
 - Volume slider and mute in the web player on desktop, remembered per browser (phones use their own buttons)
 - Lock screen, notification, Bluetooth and headphone controls in the app
 - Casting books, podcasts, music, movies and shows to a Chromecast from the web (Chrome and Edge) and the app (see Casting)
@@ -144,7 +147,7 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | `book_files` | Each audio file in a book: path, order, duration, start offset |
 | `chapters` | Title, start and end time per book |
 | `podcasts` | Feed URL, title, author, artwork, last checked |
-| `episodes` | GUID, title, publish date, duration, audio URL |
+| `episodes` | GUID, title, publish date, duration, audio URL, chapters file URL and the chapters found (unset until looked up, empty when there are none) |
 | `progress` | Per user and item: position, finished flag, last updated, speed |
 | `up_next` | Per user: Up Next as one running list of episodes and songs, with the one playing |
 | `play_next` | Per user: the ordered Play next books |
@@ -164,7 +167,7 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | Play next | `POST/DELETE /books/:id/play-next`, `PUT /play-next` (order) |
 | Admin | `GET/POST/DELETE /users`, `GET /library/admin` (You > Library's counts and scans), `GET/PUT /library/folders`, `POST /library/folders/check`, `GET /library/browse?path=` |
 | Video editing (admin) | `PATCH /watch/{movies,shows}/:id` (title, year, description), `POST /watch/{movies,shows}/:id/{poster,backdrop}` (upload, `{ url }` or `{ tmdbPath }`), `DELETE` the same to remove a chosen one, `GET .../{poster,backdrop}/options` (TMDB's pictures) |
-| Episode cache and ads | `GET /episodes/:id/ads`; admin: `GET/PUT /server/cache`, `POST /server/ads/retry` |
+| Episode cache, chapters and ads | `GET /episodes/:id/chapters`, `GET /episodes/:id/ads`; admin: `GET/PUT /server/cache`, `POST /server/ads/retry` |
 | Add-on (shared secret) | `POST /addon/ads/next`, `POST /addon/ads/:fileId`, `POST /addon/status` |
 | Casting | `POST /cast` `{ paths }` (prefixes of one item's stream and cover) returns `{ base, expiresAt }`; the Chromecast opens `base` + an API path (see Casting) |
 | Changes | `GET /changes`: a 204 whose `x-murmur-changes` header is `boot.books.music.watch.busy`, a count per kind that goes up as scans and matching add or change things, and whether one is running. `src/proxy.ts` puts the same header on every API answer. Clients (`createChangesPoller` in shared) ask every 3 s while busy and every 10 minutes otherwise, only while in front, take the header from calls they make anyway, and reload a kind's lists when its count moves, so new items appear as they're scanned and posters as they're matched |
@@ -215,7 +218,7 @@ The bar is high: every screen opens instantly, playback starts in about a second
 - **Podcast feeds are isolated.** Each check has a 15 s timeout, retries with backoff, and uses conditional requests; one broken feed never blocks the rest.
 - **Bounded logs**: one JSON line per event to stdout, rotated by Docker's log settings.
 - **Few dependencies,** all pinned.
-- **Tested before release.** A small set of unit tests covers the rules that matter most (folder and title parsing, file ordering, chapter timing, range requests, match scoring, cache eviction, ad spans); no integration tests. CI must pass before an image is published.
+- **Tested before release.** A small set of unit tests covers the rules that matter most (folder and title parsing, file ordering, chapter timing, episode chapter parsing, range requests, match scoring, cache eviction, ad spans); no integration tests. CI must pass before an image is published.
 
 ## Library scanning rules
 
@@ -317,6 +320,14 @@ Edits are stored in the same override row as a match, so a rescan keeps them and
 **You > Library** (admins) holds the library's upkeep, so the tabs stay clean for everyone. A section per kind (Books, Music, Movies and shows) shows its count and last scan with a Rescan button, then its lists and folders: **Needs attention** (books with no cover, no author or missing files), **Not matched** for books and for albums, each with Match all. `GET /api/library/admin` gives the web and the app the same counts.
 
 **Podcasts:** show and episode titles, artwork, descriptions and durations come from the RSS feed itself.
+
+**Episode chapters** come from the first of three places that has them, with no AI guessing:
+
+1. Podlove `<psc:chapters>` in the feed, saved at each feed check.
+2. The Podcasting 2.0 chapters file (`<podcast:chapters>`, JSON). Entries marked `toc: false` only change the artwork and are left out.
+3. ID3 CHAP frames at the start of an MP3: read from the cached copy when there is one, otherwise a range request for the tag (up to 8 MB). M4A chapters aren't read.
+
+They're looked up the first time an episode is played, and after each feed check for a show's three newest episodes, so they're usually there before you press play. The result is stored, and an empty list means "none". If a source can't be reached and nothing was found, nothing is stored and it's tried again next time. Fewer than two chapters counts as none. Each chapter ends where the next one starts, and the last ends at the episode's end, corrected once the file's real length is known. A new chapters file or audio address in the feed clears the stored chapters.
 
 ## Music
 

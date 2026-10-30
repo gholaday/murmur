@@ -40,8 +40,41 @@ it("reads channel and episode fields, skipping items without audio", () => {
       imageUrl: null,
       season: null,
       episodeNumber: null,
+      chaptersUrl: null,
+      chapters: null,
     },
   ]);
+});
+
+it("reads an episode's chapters file address and its Podlove chapters", () => {
+  const feed = parseFeed(`<?xml version="1.0"?>
+    <rss xmlns:podcast="https://podcastindex.org/namespace/1.0" xmlns:psc="http://podlove.org/simple-chapters">
+      <channel><title>Show</title>
+        <item>
+          <title>One</title>
+          <enclosure url="https://example.com/1.mp3" type="audio/mpeg"/>
+          <podcast:chapters url="https://example.com/1.json" type="application/json+chapters"/>
+          <psc:chapters version="1.2">
+            <psc:chapter start="00:00:00" title="Intro"/>
+            <psc:chapter start="00:10:00" title="Main"/>
+          </psc:chapters>
+        </item>
+        <item>
+          <title>Two</title>
+          <enclosure url="https://example.com/2.mp3" type="audio/mpeg"/>
+          <podcast:chapters url="https://example.com/2.html" type="text/html"/>
+          <psc:chapters><psc:chapter start="0" title="Just one"/></psc:chapters>
+        </item>
+      </channel>
+    </rss>`);
+  expect(feed.episodes[0]).toMatchObject({
+    chaptersUrl: "https://example.com/1.json",
+    chapters: JSON.stringify([
+      { startSec: 0, title: "Intro" },
+      { startSec: 600, title: "Main" },
+    ]),
+  });
+  expect(feed.episodes[1]).toMatchObject({ chaptersUrl: null, chapters: null });
 });
 
 it("finds feeds nested in OPML folders", () => {

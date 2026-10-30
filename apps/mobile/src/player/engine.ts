@@ -14,6 +14,7 @@ import {
   type EpisodeAdsDto,
   type EpisodeWithShow,
   EMPTY_UP_NEXT,
+  fitChapters,
   type ListeningStore,
   ListeningTracker,
   moveItem as moveListItem,
@@ -253,7 +254,10 @@ const positionListeners = new Set<() => void>();
 
 function set(change: Partial<PlayerState>) {
   state = { ...state, ...change };
-  if ("item" in change) watchAds();
+  if ("item" in change) {
+    watchAds();
+    watchChapters();
+  }
   stateListeners.forEach((l) => l());
 }
 
@@ -371,6 +375,27 @@ function watchAds() {
     adsTimer = setTimeout(() => void fetchAds(), ADS_POLL_MS);
   };
   void fetchAds();
+}
+
+let chaptersFor: string | null = null;
+
+/**
+ * An episode's chapters, which may take a moment the first time (the server looks them up).
+ * None, or a failure, just means a plain scrubber.
+ */
+function watchChapters() {
+  const it = state.item;
+  const key = it ? `${it.type}:${it.id}` : null;
+  if (key === chaptersFor) return;
+  chaptersFor = key;
+  if (!it || it.type !== "episode") return;
+  api<ChapterDto[]>(apiPaths.episodeChapters(it.id))
+    .then((chapters) => {
+      const cur = state.item;
+      if (chaptersFor !== key || !chapters.length || !cur || cur.type !== "episode" || cur.id !== it.id) return;
+      set({ item: { ...cur, chapters: fitChapters(chapters, cur.durationSec) } });
+    })
+    .catch(() => undefined);
 }
 
 let lastTickAt = 0;
@@ -603,7 +628,9 @@ function onStatus(s: AudioStatus) {
     });
     // Feeds often omit or misstate an episode's length; trust the file.
     if (it.type === "episode" && s.duration > 0 && Math.abs(it.durationSec - s.duration) > 1) {
-      set({ item: { ...it, durationSec: s.duration, files: [{ ...it.files[0]!, durationSec: s.duration }] } });
+      set({
+        item: { ...it, durationSec: s.duration, files: [{ ...it.files[0]!, durationSec: s.duration }], chapters: fitChapters(it.chapters, s.duration) },
+      });
     }
     return;
   }

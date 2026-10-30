@@ -3,10 +3,11 @@ import { ActivityIndicator, Pressable, ScrollView, useWindowDimensions, View, ty
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { Easing, FadeIn, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import Slider from "@react-native-community/slider";
 import {
+  bookFinished,
   chapterAt,
   clampSpeed,
   clock,
@@ -15,6 +16,7 @@ import {
   MIN_SPEED,
   SLEEP_MINUTES,
   sleepLabel,
+  showMarkPlayed,
   SPEED_STEP,
   speedText,
   timeLeft,
@@ -45,7 +47,8 @@ import { useTopInset } from "@/components/page";
 import { CastButton, SkipButton, Tile } from "@/components/player-controls";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
-import { Caption, Chips, IconButton, Text } from "@/components/ui";
+import { MixerBars } from "@/components/mixer";
+import { Caption, Chips, CountPill, IconButton, Text } from "@/components/ui";
 import { UpNextSheet } from "@/components/up-next";
 import { useAlbumColor } from "@/lib/data";
 import { dragEndHaptic, selectHaptic, tapHaptic } from "@/lib/haptics";
@@ -95,6 +98,7 @@ export default function Player() {
   const [speedDraft, setSpeedDraft] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [titleY, setTitleY] = useState(0);
+  const [barWidth, setBarWidth] = useState(0);
   const titleRef = useRef<ViewInstance>(null);
   /** Where the seek thumb was on the last change, for the ticks it passes. */
   const scrubFrom = useRef(0);
@@ -146,8 +150,11 @@ export default function Player() {
   const ci = chapterAt(item.chapters, pos);
   const chapter = item.chapters[ci];
   const multiChapter = item.chapters.length > 1;
-  // With chapters the bar spans the current chapter, like Pocket Casts; otherwise the whole item.
-  const span = chapter && multiChapter ? { start: chapter.startSec, end: chapter.endSec } : { start: 0, end: item.durationSec || 0 };
+  // An episode's chapters split the bar into segments over the whole episode; a book's bar spans
+  // the current chapter, like Pocket Casts. Without chapters it's the whole item.
+  const segmented = item.type === "episode" && multiChapter;
+  const span =
+    chapter && multiChapter && !segmented ? { start: chapter.startSec, end: chapter.endSec } : { start: 0, end: item.durationSec || 0 };
   const spanLen = Math.max(1, span.end - span.start);
   const within = Math.min(spanLen, Math.max(0, pos - span.start));
   const speed = speedDraft ?? p.speed;
@@ -172,12 +179,17 @@ export default function Player() {
   const frac = (sec: number) => Math.min(Math.max(sec - span.start, 0), spanLen) / spanLen;
   const trackColor = t.isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)";
   const showOverride: AdMode | null = item.podcastId ? (adPrefs.shows[item.podcastId] ?? null) : null;
+  // An episode's third tile is Chapters when it has them, else Ads when the show is scanned, else
+  // nothing (the other tiles share the row); books always keep Chapters. Ads are also in More.
+  const slot = item.type === "book" || segmented ? "chapters" : showAds ? "ads" : null;
+  const adShort = AD_MODES.find((m) => m.id === adMode)?.short;
+  const dragging = scrub !== null;
   const choose = (fn: () => void) => () => {
     fn();
     setSheet(null);
   };
   // A book that played to its end waits there: nothing starts on its own, so it offers a replay.
-  const ended = item.type === "book" && !p.playing && !p.loading && item.durationSec > 0 && pos >= item.durationSec - 1;
+  const ended = bookFinished(item.type, item.durationSec, pos, p.playing || p.loading);
 
   return (
     <GestureDetector gesture={pullDown}>
@@ -201,7 +213,7 @@ export default function Player() {
             </IconButton>
           </View>
           <Caption numberOfLines={1} style={{ flex: 1, textAlign: "center", letterSpacing: 0.6, color: soft }}>
-            {cast.device ? `Playing on ${cast.device}` : `Playing from ${song ? (p.upNext.source?.title ?? "Music") : item.type === "book" ? "Books" : "Podcasts"}`}
+            {ended ? "Finished" : cast.device ? `Playing on ${cast.device}` : `Playing from ${song ? (p.upNext.source?.title ?? "Music") : item.type === "book" ? "Books" : "Podcasts"}`}
           </Caption>
           <View style={{ flexDirection: "row" }}>
             <CastButton color={t.text} />
@@ -226,77 +238,54 @@ export default function Player() {
             }}
           >
             <Cover path={item.coverPathLarge} title={item.title} color={item.color} radius={16} />
+            {/* Over the artwork like a video player's skip button, so nothing below moves. */}
             {inAd ? (
-              // Over the artwork like a video player's skip button, so nothing below moves.
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => seek(inAd.endSec)}
-                style={({ pressed }) => ({
-                  position: "absolute",
-                  right: 12,
-                  bottom: 12,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 4,
-                  paddingLeft: 14,
-                  paddingRight: 10,
-                  paddingVertical: 6,
-                  borderRadius: 999,
-                  backgroundColor: AD,
-                  opacity: pressed ? 0.8 : 1,
-                })}
-              >
+              <CoverPill key="ad" color={AD} onPress={() => seek(inAd.endSec)}>
                 <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: ON_AD }}>Skip ad</Text>
                 <NextChapterIcon size={16} color={ON_AD} />
-              </Pressable>
+              </CoverPill>
+            ) : showMarkPlayed(item.type, item.durationSec, pos) ? (
+              // Marking it played closes the player, as reaching the end does.
+              <CoverPill
+                key="played"
+                color="rgba(11,11,13,0.82)"
+                iconFirst
+                onPress={() => {
+                  markCurrent(true);
+                  toast.show("Marked as played");
+                }}
+              >
+                <CheckIcon size={16} color="#fff" />
+                <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: "#fff" }}>Mark played</Text>
+              </CoverPill>
             ) : null}
           </View>
 
           <View style={{ gap: 4 }}>
-            {ended ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <CheckIcon size={16} color={t.accent} />
-                <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.accent }}>Finished</Text>
-              </View>
-            ) : multiChapter ? (
-              <Pressable onPress={() => setSheet("chapters")} hitSlop={6} style={{ alignSelf: "flex-start" }}>
-                <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.accent }}>
-                  Chapter {ci + 1} of {item.chapters.length}
-                </Text>
-              </Pressable>
-            ) : null}
             {/* Fades into the page's tint where it sits, so it needs its place on the screen. */}
             <View ref={titleRef} onLayout={() => titleRef.current?.measureInWindow((_x, y) => setTitleY(y))}>
               <MarqueeText text={item.title} variant="title" style={{ fontSize: 22 }} />
             </View>
             <Text variant="small" numberOfLines={1} style={{ fontSize: 14, color: soft }}>
-              {multiChapter && chapter ? chapter.title : item.subtitle}
+              {multiChapter && !segmented && chapter ? chapter.title : item.subtitle}
             </Text>
           </View>
 
           <View>
-            <View>
-            {marks.length ? (
+            <View onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}>
+            {segmented && dragging && chapter ? (
+              <ScrubBubble x={frac(pos) * barWidth} width={barWidth} time={clock(pos)} label={`${ci + 1}. ${chapter.title}`} />
+            ) : null}
+            {segmented ? (
+              <ChapterSegments chapters={item.chapters} current={ci} pos={pos} frac={frac} grow={dragging} marks={marks} />
+            ) : marks.length ? (
               // The slider's own track can't show ads, so it draws see-through over this one.
               <View
                 pointerEvents="none"
                 style={{ position: "absolute", left: 0, right: 0, top: 14, height: 4, borderRadius: 2, overflow: "hidden", backgroundColor: trackColor }}
               >
                 <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${frac(pos) * 100}%`, backgroundColor: t.text }} />
-                {marks.map((a) => {
-                  const left = frac(a.startSec);
-                  const width = frac(a.endSec) - left;
-                  if (width <= 0) return null;
-                  const heard = Math.min(1, Math.max(0, (pos - a.startSec) / (a.endSec - a.startSec)));
-                  return (
-                    <View
-                      key={a.startSec}
-                      style={{ position: "absolute", top: 0, bottom: 0, left: `${left * 100}%`, width: `${width * 100}%`, minWidth: 2, backgroundColor: AD }}
-                    >
-                      <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${heard * 100}%`, backgroundColor: AD_HEARD }} />
-                    </View>
-                  );
-                })}
+                <AdMarks marks={marks} pos={pos} frac={frac} />
               </View>
             ) : null}
             <Slider
@@ -305,8 +294,8 @@ export default function Player() {
               minimumValue={0}
               maximumValue={spanLen}
               value={within}
-              minimumTrackTintColor={marks.length ? "transparent" : t.text}
-              maximumTrackTintColor={marks.length ? "transparent" : trackColor}
+              minimumTrackTintColor={marks.length || segmented ? "transparent" : t.text}
+              maximumTrackTintColor={marks.length || segmented ? "transparent" : trackColor}
               thumbTintColor={t.text}
               onSlidingStart={(v) => {
                 tapHaptic();
@@ -315,9 +304,14 @@ export default function Player() {
               }}
               onValueChange={(v) => {
                 if (scrub === null) return;
-                // A tick at each end and as the thumb crosses into or out of an ad.
+                // A tick at each end, as the thumb crosses into or out of an ad, and at each chapter.
                 const from = scrubFrom.current;
-                const edges = [0, spanLen, ...marks.flatMap((a) => [a.startSec - span.start, a.endSec - span.start])];
+                const edges = [
+                  0,
+                  spanLen,
+                  ...marks.flatMap((a) => [a.startSec - span.start, a.endSec - span.start]),
+                  ...(segmented ? item.chapters.slice(1).map((c) => c.startSec) : []),
+                ];
                 if (edges.some((e) => (from < e && v >= e) || (from > e && v <= e))) selectHaptic();
                 scrubFrom.current = v;
                 setScrub(span.start + v);
@@ -329,11 +323,20 @@ export default function Player() {
               }}
             />
             </View>
-            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <Text variant="small" style={{ fontVariant: ["tabular-nums"], color: soft }}>
                 {clock(within)}
               </Text>
-              {item.durationSec && !song ? (
+              {/* An episode's chapter takes the middle: the time left is already on the right. */}
+              {segmented ? (
+                chapter ? (
+                  <Pressable accessibilityRole="button" accessibilityHint="Opens the chapters" onPress={() => setSheet("chapters")} hitSlop={6} style={{ flex: 1, paddingHorizontal: 10 }}>
+                    <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize: 12, textAlign: "center", color: t.text }}>
+                      {chapter.title}
+                    </Text>
+                  </Pressable>
+                ) : null
+              ) : item.durationSec && !song ? (
                 <Text variant="small" style={{ color: soft }}>
                   {timeLeft(item.durationSec, pos)}
                 </Text>
@@ -422,15 +425,15 @@ export default function Player() {
           <Tile label={sleepLabel(p.sleep, now)} onPress={() => setSheet("sleep")} active={p.sleep.mode !== "off"}>
             <MoonIcon size={20} color={p.sleep.mode !== "off" ? t.accent : t.text} />
           </Tile>
-          {showAds ? (
-            <Tile label="Ads" onPress={() => setSheet("ads")}>
-              <Text style={{ fontFamily: fonts.extrabold, fontSize: 16, color: t.text }}>{AD_MODES.find((m) => m.id === adMode)?.short}</Text>
-            </Tile>
-          ) : song ? null : (
+          {slot === "chapters" ? (
             <Tile label="Chapters" onPress={() => setSheet("chapters")} disabled={!multiChapter}>
               <ListIcon size={20} color={t.text} />
             </Tile>
-          )}
+          ) : slot === "ads" ? (
+            <Tile label="Ads" onPress={() => setSheet("ads")}>
+              <Text style={{ fontFamily: fonts.extrabold, fontSize: 16, color: t.text }}>{adShort}</Text>
+            </Tile>
+          ) : null}
           <Tile label="Up Next" count={p.upNext.items.length - p.upNext.index - 1} onPress={() => setSheet("upnext")}>
             <QueueIcon size={20} color={t.text} />
           </Tile>
@@ -487,7 +490,18 @@ export default function Player() {
         />
       </Sheet>
 
-      <Sheet open={sheet === "chapters"} onClose={() => setSheet(null)} title="Chapters" keepInView={{ top: ci * CHAPTER_ROW, height: CHAPTER_ROW }}>
+      <Sheet
+        open={sheet === "chapters"}
+        onClose={() => setSheet(null)}
+        head={
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text variant="heading">Chapters</Text>
+            <CountPill count={item.chapters.length} />
+          </View>
+        }
+        keepInView={{ top: ci * CHAPTER_ROW, height: CHAPTER_ROW }}
+        noScrollbar
+      >
         {item.chapters.map((c, i) => (
           <Pressable
             key={c.index}
@@ -503,13 +517,21 @@ export default function Player() {
               backgroundColor: pressed ? t.surface2 : "transparent",
             })}
           >
-            <Text variant="small" style={{ width: 26, color: i === ci ? t.accent : t.muted }}>
-              {i + 1}
-            </Text>
+            <View style={{ width: 26 }}>
+              {i === ci ? (
+                <MixerBars playing={p.playing} color={t.accent} />
+              ) : (
+                <Text variant="small" style={{ color: t.muted }}>
+                  {i + 1}
+                </Text>
+              )}
+            </View>
             <Text numberOfLines={1} style={{ flex: 1, fontFamily: i === ci ? fonts.bold : fonts.medium, color: i === ci ? t.accent : i < ci ? t.muted : t.text }}>
               {c.title}
             </Text>
-            <Text variant="small">{duration(c.endSec - c.startSec)}</Text>
+            <Text variant="small" style={{ color: t.muted }}>
+              {duration(c.endSec - c.startSec)}
+            </Text>
           </Pressable>
         ))}
       </Sheet>
@@ -540,7 +562,7 @@ export default function Player() {
       </Sheet>
 
       <Sheet open={sheet === "more"} onClose={() => setSheet(null)} title={item.title}>
-        <MoreItems item={item} close={() => setSheet(null)} />
+        <MoreItems item={item} close={() => setSheet(null)} ads={showAds ? adShort : undefined} openAds={() => setSheet("ads")} />
       </Sheet>
 
       <UpNextSheet open={sheet === "upnext"} onClose={() => setSheet(null)} />
@@ -549,8 +571,140 @@ export default function Player() {
   );
 }
 
+/** A pill in the cover's bottom-right corner for a timely tap: Skip ad, or Mark played. */
+function CoverPill({ color, iconFirst, onPress, children }: { color: string; iconFirst?: boolean; onPress: () => void; children: React.ReactNode }) {
+  return (
+    <Animated.View entering={FadeIn.duration(150)} style={{ position: "absolute", right: 12, bottom: 12 }}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }) => ({
+          flexDirection: "row",
+          alignItems: "center",
+          gap: iconFirst ? 6 : 4,
+          paddingLeft: iconFirst ? 12 : 14,
+          paddingRight: iconFirst ? 14 : 10,
+          paddingVertical: 6,
+          borderRadius: 999,
+          backgroundColor: color,
+          opacity: pressed ? 0.8 : 1,
+        })}
+      >
+        {children}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+type Span = { startSec: number; endSec: number };
+
+/** The ads on the bar, filling darker as they're heard. */
+function AdMarks({ marks, pos, frac }: { marks: Span[]; pos: number; frac: (sec: number) => number }) {
+  return marks.map((a) => {
+    const left = frac(a.startSec);
+    const width = frac(a.endSec) - left;
+    if (width <= 0) return null;
+    const heard = Math.min(1, Math.max(0, (pos - a.startSec) / (a.endSec - a.startSec)));
+    return (
+      <View key={a.startSec} style={{ position: "absolute", top: 0, bottom: 0, left: `${left * 100}%`, width: `${width * 100}%`, minWidth: 2, backgroundColor: AD }}>
+        <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${heard * 100}%`, backgroundColor: AD_HEARD }} />
+      </View>
+    );
+  });
+}
+
+/**
+ * An episode's bar, one segment per chapter with a small gap between: played ones solid, the
+ * current one filling up, later ones faint. The current one thickens while dragging.
+ */
+function ChapterSegments({
+  chapters,
+  current,
+  pos,
+  frac,
+  grow,
+  marks,
+}: {
+  chapters: Span[];
+  current: number;
+  pos: number;
+  frac: (sec: number) => number;
+  grow: boolean;
+  marks: Span[];
+}) {
+  const t = useTheme();
+  return (
+    // Square segments, with only the bar's two ends rounded; while dragging nothing is clipped, so
+    // the thicker current segment shows.
+    <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: 14, height: 4, borderRadius: 2, overflow: grow ? "visible" : "hidden" }}>
+      {chapters.map((c, i) => {
+        const left = frac(c.startSec);
+        const fill = Math.min(1, Math.max(0, (pos - c.startSec) / (c.endSec - c.startSec || 1)));
+        return (
+          <View
+            key={c.startSec}
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: `${left * 100}%`,
+              width: `${(frac(c.endSec) - left) * 100}%`,
+              paddingRight: i < chapters.length - 1 ? 3 : 0,
+              transform: [{ scaleY: grow && i === current ? 2 : 1 }],
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <View style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, backgroundColor: t.text, opacity: 0.18 }} />
+              <View style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: `${fill * 100}%`, backgroundColor: t.text }} />
+            </View>
+          </View>
+        );
+      })}
+      <AdMarks marks={marks} pos={pos} frac={frac} />
+    </View>
+  );
+}
+
+/** Over the thumb while dragging: the time, and which chapter it's in. Stays within the bar. */
+function ScrubBubble({ x, width, time, label }: { x: number; width: number; time: string; label: string }) {
+  const t = useTheme();
+  const [own, setOwn] = useState(0);
+  const left = Math.min(Math.max(0, x - own / 2), Math.max(0, width - own));
+  return (
+    <Animated.View
+      entering={FadeIn.duration(120)}
+      pointerEvents="none"
+      onLayout={(e) => setOwn(e.nativeEvent.layout.width)}
+      style={{
+        position: "absolute",
+        bottom: 34,
+        left,
+        maxWidth: Math.min(260, width * 0.8),
+        opacity: own ? 1 : 0,
+        alignItems: "center",
+        gap: 1,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        borderRadius: 10,
+        backgroundColor: t.surface2,
+        elevation: 6,
+        shadowColor: "#000",
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        zIndex: 1,
+      }}
+    >
+      <Text style={{ fontFamily: fonts.bold, fontSize: 12, fontVariant: ["tabular-nums"], color: t.text }}>{time}</Text>
+      <Text numberOfLines={1} style={{ fontFamily: fonts.medium, fontSize: 12, color: t.muted }}>
+        {label}
+      </Text>
+    </Animated.View>
+  );
+}
+
 /** The More sheet, as the web's: go to it, mark it or start it over (not songs), or stop. */
-function MoreItems({ item, close }: { item: Playable; close: () => void }) {
+function MoreItems({ item, close, ads, openAds }: { item: Playable; close: () => void; ads?: string; openAds: () => void }) {
   const song = item.type === "track";
   const choose = (fn: () => void) => () => {
     fn();
@@ -580,6 +734,7 @@ function MoreItems({ item, close }: { item: Playable; close: () => void }) {
             })}
           />
           <SheetItem label="Start from the beginning" onPress={choose(() => markCurrent(false))} />
+          {ads ? <SheetItem label="Ads" value={ads} chevron onPress={openAds} /> : null}
         </>
       )}
       <SheetItem label="Stop playback" danger onPress={choose(stop)} />

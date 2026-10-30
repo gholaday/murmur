@@ -588,7 +588,8 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--tex
   padding: 6px 0;
 }
 .chapter-num { width: 28px; font-size: 12px; font-weight: 700; color: var(--muted); flex-shrink: 0; }
-.chapter-title { flex: 1; font-size: 14px; min-width: 0; }
+.chapter-title { flex: 1; font-size: 14px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chapter-list button > :last-child { flex-shrink: 0; }
 .chapter-list button[aria-current="true"] .chapter-title,
 .chapter-list button[aria-current="true"] .chapter-num { color: var(--accent); font-weight: 700; }
 .chapter-list .done .chapter-title { color: var(--muted); }
@@ -836,12 +837,11 @@ a.episode-show:hover { color: var(--accent); }
 .player-main { width: 100%; max-width: 440px; margin: 0 auto; padding: 0 32px; display: flex; flex-direction: column; }
 .player-cover-wrap { position: relative; width: 100%; max-width: 340px; margin: 20px auto 0; }
 .player-cover { width: 100%; border-radius: 16px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
-.player-cover-wrap .skip-ad { position: absolute; right: 12px; bottom: 12px; }
+.player-cover-wrap :is(.skip-ad, .finish-pill) { position: absolute; right: 12px; bottom: 12px; }
 /* The title block with the volume control at its right, the same on the audio and video players. */
 .player-info-row { display: flex; align-items: flex-end; gap: 8px; padding-top: 26px; }
 .player-info-row .player-info { flex: 1; min-width: 0; padding-top: 0; }
 .player-info { padding-top: 26px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
-.player-chapter { font-size: 13px; font-weight: 700; color: var(--accent); }
 .player-title { font-size: 22px; font-weight: 800; line-height: 1.2; width: 100%; min-width: 0; }
 .player-sub { font-size: 14px; color: var(--muted); }
 .player-scrub { padding-top: 20px; }
@@ -855,8 +855,21 @@ a.episode-show:hover { color: var(--accent); }
 .play-btn { width: 80px; height: 80px; border-radius: 40px; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center; }
 .player-error { text-align: center; color: var(--danger); }
 /* Four across; fewer (songs have no speed or chapters) stay that size and sit in the middle. */
-.player-tiles { width: 100%; max-width: 440px; margin: auto auto 0; padding: 24px 20px 28px; display: flex; justify-content: center; gap: 8px; }
+.player-tiles { position: relative; width: 100%; max-width: 440px; margin: auto auto 0; padding: 24px 20px 28px; display: flex; justify-content: center; gap: 8px; }
+/*
+ * A floating card: a note with one action and an X, floating just above a player's bottom
+ * buttons so nothing moves when it comes and goes.
+ */
+.float-card {
+  position: absolute; left: 20px; right: 20px; bottom: calc(100% + 12px); z-index: 2;
+  display: flex; align-items: center; gap: 10px; padding: 4px 2px 4px 14px; border-radius: 14px;
+  background: var(--surface-2); color: var(--text); font-size: 13px; box-shadow: var(--shadow); animation: fade-in 200ms ease-out both;
+}
+.float-card > span { flex: 1; min-width: 0; }
+.float-card .more-link { margin: 0; font-size: 13px; }
 .player-tiles > * { flex: 0 1 calc((100% - 24px) / 4); min-width: 0; }
+/* An episode with neither chapters nor ad scanning has three tiles, which share the row. */
+.player-tiles.fill > * { flex: 1 1 0; }
 .tile {
   height: 56px;
   border-radius: 14px;
@@ -908,10 +921,39 @@ a.episode-show:hover { color: var(--accent); }
 .scrub-track { position: absolute; left: 0; right: 0; top: 8px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 18%, transparent); overflow: hidden; pointer-events: none; }
 .scrub-played { position: absolute; left: 0; top: 0; bottom: 0; background: var(--text); }
 .scrub-ad { position: absolute; top: 0; bottom: 0; min-width: 2px; background: linear-gradient(to right, var(--ad-heard) var(--heard), var(--ad) var(--heard)); }
+/*
+ * An episode's chapters as segments over the whole bar, with gaps between: played ones solid, the
+ * current one filling, the rest faint. Ad marks sit on top. Dragging thickens the current segment
+ * and shows a bubble with the time and chapter above the thumb.
+ */
+/* Square segment and ad edges; only the bar's two ends are rounded (the clip, lifted while dragging so the thicker segment shows). */
+.scrub-segs { position: absolute; left: 0; right: 0; top: 8px; height: 4px; pointer-events: none; border-radius: 2px; overflow: hidden; }
+.scrub-wrap.dragging .scrub-segs { overflow: visible; }
+.scrub-seg {
+  position: absolute; top: 0; bottom: 0;
+  background-color: color-mix(in srgb, var(--text) 18%, transparent); transition: transform 0.12s;
+}
+.scrub-seg.played { background-color: var(--text); }
+.scrub-seg.current { background-image: linear-gradient(to right, var(--text) var(--fill), transparent var(--fill)); }
+.scrub-segs .scrub-ad { border-radius: 0; }
+.scrub-wrap.dragging .scrub-seg.current { transform: scaleY(2); }
+.scrub-bubble {
+  position: absolute; bottom: calc(100% + 6px); transform: translateX(-50%); z-index: 1; max-width: min(260px, 80%);
+  display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 10px; border-radius: 10px;
+  background: var(--surface-2); box-shadow: var(--shadow); font-size: 12px; pointer-events: none; animation: fade-in 120ms ease-out both;
+}
+.scrub-bubble strong { font-variant-numeric: tabular-nums; }
+.scrub-bubble span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.player-times .player-chapter-line {
+  flex: 1; min-width: 0; padding: 0 12px; font-size: 12px; font-weight: 700; color: var(--text); text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .scrubber.over-track { position: relative; }
 .scrubber.over-track::-webkit-slider-runnable-track { background: transparent; }
 .scrubber.over-track::-moz-range-track { background: transparent; }
 .skip-ad { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px 6px 14px; border-radius: 999px; background: var(--ad); color: var(--on-ad); font-size: 13px; font-weight: 700; animation: fade-in 0.15s ease-out; }
+/* An episode's last few minutes: the same pill as Skip ad, dark so it reads on any cover. */
+.finish-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px 6px 12px; border-radius: 999px; background: rgba(11, 11, 13, 0.82); color: #fff; font-size: 13px; font-weight: 700; animation: fade-in 0.15s ease-out; }
 .sheet-note { margin: -6px 0 0; font-size: 13px; color: var(--muted); }
 .sheet-item-text { display: flex; flex-direction: column; gap: 2px; padding-block: 8px; }
 .sheet-item-sub { font-size: 13px; font-weight: 400; color: var(--muted); }
@@ -955,12 +997,18 @@ a.episode-show:hover { color: var(--accent); }
 }
 /* Rows have no lines between them, as in the app; a menu's only line is the divider before its admin items. */
 .sheet-item:hover:not(:disabled) { background: var(--surface-2); }
+/* Opening a sheet focuses its first row: highlight it as on hover rather than ringing it. */
+.sheet-item:focus-visible, .chapter-list button:focus-visible { outline: none; background: var(--surface-2); }
 /* The row's text lines up with the sheet title; its hover reaches past it. */
 .sheet-scroll > .sheet-item { width: auto; margin-inline: -12px; }
 .sheet .menu-sep { margin: 0; }
 .sheet-item[aria-current="true"] { color: var(--accent); font-weight: 700; }
 .sheet-item.danger { color: var(--danger); }
+.sheet-item-grow { flex: 1; min-width: 0; }
 .sheet .chapter-list { max-height: 60dvh; overflow-y: auto; }
+/* Sheets scroll without a bar, as in the app. */
+.sheet-scroll, .sheet .chapter-list { scrollbar-width: none; }
+.sheet-scroll::-webkit-scrollbar, .sheet .chapter-list::-webkit-scrollbar { display: none; }
 
 /* ---------- Edit book dialog ---------- */
 
@@ -1379,13 +1427,6 @@ button.setting-link { width: 100%; text-align: left; color: inherit; }
   border: 2px solid color-mix(in srgb, currentColor 25%, transparent); border-top-color: currentColor; animation: spin 0.9s linear infinite;
 }
 /* "Converting slower than it plays": a card just above the tiles, or bottom left over the video in full screen. */
-.vp-slow {
-  position: absolute; left: 20px; right: 20px; bottom: calc(100% + 12px); z-index: 2;
-  display: flex; align-items: center; gap: 10px; padding: 4px 2px 4px 14px; border-radius: 14px;
-  background: var(--surface-2); color: var(--text); font-size: 13px; box-shadow: var(--shadow); animation: fade-in 200ms ease-out both;
-}
-.vp-slow > span { flex: 1; min-width: 0; }
-.vp-slow .more-link { margin: 0; font-size: 13px; }
 .vp-tiles { position: relative; }
 .vp-stage > .vp-slow { display: none; }
 .vp-over .vp-stage > .vp-slow { display: flex; right: auto; bottom: 150px; left: 24px; max-width: 380px; background: rgba(0, 0, 0, 0.78); color: #fff; }

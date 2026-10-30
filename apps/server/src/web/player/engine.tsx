@@ -40,6 +40,7 @@ import {
   type QueueRef,
   ADS_POLL_MS,
   chapterAt,
+  fitChapters,
   clampSpeed,
   DEFAULT_SKIP,
   NOW_PLAYING_KEY,
@@ -998,6 +999,26 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     };
   }, [itemKey]);
 
+  // An episode's chapters, which may take a moment the first time (the server looks them up).
+  // None, or a failure, just means a plain scrubber.
+  useEffect(() => {
+    const it = itemRef.current;
+    if (!it || it.type !== "episode") return;
+    let live = true;
+    api<ChapterDto[]>(apiPaths.episodeChapters(it.id))
+      .then((chapters) => {
+        const cur = itemRef.current;
+        if (!live || !chapters.length || !cur || cur.type !== "episode" || cur.id !== it.id) return;
+        const fixed = { ...cur, chapters: fitChapters(chapters, cur.durationSec) };
+        itemRef.current = fixed;
+        setItem(fixed);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [itemKey]);
+
   /**
    * Auto-skip: jumps past an ad when playback runs into its start, never when you seek into one.
    * `elapsedSec` is wall time since the last tick: a background tab can space ticks out, so
@@ -1215,7 +1236,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // Feeds often omit or misstate an episode's length; trust the file.
       const it = itemRef.current;
       if (it && it.type === "episode" && Number.isFinite(el.duration) && Math.abs(it.durationSec - el.duration) > 1) {
-        const fixed = { ...it, durationSec: el.duration, files: [{ ...it.files[0]!, durationSec: el.duration }] };
+        const fixed = {
+          ...it,
+          durationSec: el.duration,
+          files: [{ ...it.files[0]!, durationSec: el.duration }],
+          chapters: fitChapters(it.chapters, el.duration),
+        };
         itemRef.current = fixed;
         setItem(fixed);
       }

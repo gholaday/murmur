@@ -2,15 +2,19 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Cover } from "../cover";
 import { Marquee } from "../marquee";
+import { MixerBars } from "../mixer";
 import {
+  bookFinished,
   chapterAt,
   clampSpeed,
   clock,
   duration,
   MAX_SPEED,
   MIN_SPEED,
+  showMarkPlayed,
   SLEEP_MINUTES,
   sleepLabel,
   SPEED_STEP,
@@ -18,6 +22,8 @@ import {
   timeLeft,
 } from "@murmur/shared/client";
 import {
+  CheckIcon,
+  ChevronIcon,
   DownIcon,
   ListIcon,
   MinusIcon,
@@ -111,6 +117,8 @@ export function FullPlayer() {
   /** Slider value while dragging; saved once you let go. */
   const [speedDraft, setSpeedDraft] = useState<number | null>(null);
   const [scrub, setScrub] = useState<number | null>(null);
+  /** Where a mouse hovers over a chaptered bar, for the bubble. */
+  const [hoverAt, setHoverAt] = useState<number | null>(null);
   const { item, expanded, setExpanded } = p;
   const tint = useTint(item);
   const speedOpenRef = useRef(false);
@@ -156,8 +164,11 @@ export function FullPlayer() {
   const multiChapter = item.chapters.length > 1;
   // Without chapters, an episode's outer buttons step through Up Next and then its show.
   const inList = item.type !== "book";
-  // With chapters the bar spans the current chapter, like Pocket Casts; otherwise the whole item.
-  const span = chapter && multiChapter ? { start: chapter.startSec, end: chapter.endSec } : { start: 0, end: item.durationSec || 0 };
+  // An episode's chapters split the bar into segments over the whole episode; a book's bar spans
+  // the current chapter, like Pocket Casts. Without chapters it's the whole item.
+  const segmented = item.type === "episode" && multiChapter;
+  const span =
+    chapter && multiChapter && !segmented ? { start: chapter.startSec, end: chapter.endSec } : { start: 0, end: item.durationSec || 0 };
   const within = Math.max(0, pos - span.start);
   const spanLen = Math.max(1, span.end - span.start);
   const commitScrub = () => {
@@ -168,8 +179,10 @@ export function FullPlayer() {
     fn();
     setSheet(null);
   };
-  // Ads only ever exist for episodes; books keep the Chapters tile.
+  // Ads only ever exist for episodes. An episode's third tile is Chapters when it has them, else
+  // Ads when the show is scanned, else nothing; books always keep Chapters. Ads are also in More.
   const showAds = item.type === "episode" && p.adsEnabled;
+  const slot = item.type === "book" || segmented ? "chapters" : showAds ? "ads" : null;
   // Songs: previous and next instead of skips and chapters, no speed, no position kept.
   const song = item.type === "track";
   const waiting = p.upNext.items.length - p.upNext.index - 1;
@@ -177,6 +190,9 @@ export function FullPlayer() {
   const marks = showAds && adMode !== "off" ? p.ads : [];
   const adIndex = marks.findIndex((a) => pos >= a.startSec && pos < a.endSec);
   const inAd = adIndex >= 0 ? adBreak(marks, adIndex) : null;
+  // The bubble follows a drag, or a mouse hovering over the bar.
+  const bubbleAt = segmented ? (scrub ?? hoverAt) : null;
+  const bubbleChapter = bubbleAt !== null ? item.chapters[chapterAt(item.chapters, bubbleAt)] : undefined;
   const pct = (sec: number) => `${(Math.min(Math.max(sec - span.start, 0), spanLen) / spanLen) * 100}%`;
 
   return (
@@ -200,7 +216,11 @@ export function FullPlayer() {
           <DownIcon />
         </button>
         <div className="player-from">
-          {castDevice ? `Playing on ${castDevice}` : `Playing from ${song ? (p.upNext.source?.title ?? "Music") : item.type === "book" ? "Books" : "Podcasts"}`}
+          {bookFinished(item.type, item.durationSec, pos, p.playing || p.loading)
+            ? "Finished"
+            : castDevice
+              ? `Playing on ${castDevice}`
+              : `Playing from ${song ? (p.upNext.source?.title ?? "Music") : item.type === "book" ? "Books" : "Podcasts"}`}
         </div>
         <div className="player-top-end">
           <CastButton />
@@ -211,7 +231,7 @@ export function FullPlayer() {
       </div>
 
       <div className="player-main">
-        {/* Skip ad sits on the cover so it never moves the controls. */}
+        {/* Skip ad and Mark played sit on the cover so they never move the controls. */}
         <div className="player-cover-wrap player-pull" {...pull.handlers}>
           <Cover src={item.coverUrlLarge} color={item.color} title={item.title} subtitle={item.subtitle} className="player-cover" large />
           {inAd ? (
@@ -219,27 +239,73 @@ export function FullPlayer() {
               Skip ad
               <NextChapterIcon size={16} />
             </button>
+          ) : showMarkPlayed(item.type, item.durationSec, pos) ? (
+            // Marking it played closes the player, as reaching the end does.
+            <button
+              type="button"
+              className="finish-pill"
+              onClick={() => {
+                void p.markCurrent(true);
+                toast("Marked as played");
+              }}
+            >
+              <CheckIcon size={16} />
+              Mark played
+            </button>
           ) : null}
         </div>
 
         <div className="player-info-row">
           <div className="player-info">
-            {multiChapter ? (
-              <button type="button" className="player-chapter" onClick={() => setSheet("chapters")}>
-                Chapter {ci + 1} of {item.chapters.length}
-              </button>
-            ) : null}
             <h1 className="player-title">
               <Marquee text={item.title} />
             </h1>
-            <div className="player-sub">{multiChapter && chapter ? chapter.title : item.subtitle}</div>
+            <div className="player-sub">{multiChapter && !segmented && chapter ? chapter.title : item.subtitle}</div>
           </div>
           <VolumeControl />
         </div>
 
-        <div className="player-scrub">
-          <div className="scrub-wrap">
-            {marks.length ? (
+        <div className={`player-scrub${segmented ? " chaptered" : ""}`}>
+          <div className={`scrub-wrap${scrub !== null ? " dragging" : ""}`}>
+            {bubbleAt !== null && bubbleChapter ? (
+              <div className="scrub-bubble" style={{ left: `clamp(70px, ${pct(bubbleAt)}, calc(100% - 70px))` }} aria-hidden="true">
+                <strong>{clock(bubbleAt)}</strong>
+                <span>
+                  {bubbleChapter.index + 1}. {bubbleChapter.title}
+                </span>
+              </div>
+            ) : null}
+            {segmented ? (
+              <div className="scrub-segs" aria-hidden="true">
+                {item.chapters.map((c, i) => (
+                  <div
+                    key={c.index}
+                    className={`scrub-seg${i < ci ? " played" : i === ci ? " current" : ""}`}
+                    style={
+                      {
+                        left: pct(c.startSec),
+                        // A 3px gap before the next chapter; a very short chapter stays a dot.
+                        width: `max(2px, calc(${pct(c.endSec)} - ${pct(c.startSec)} - ${i < item.chapters.length - 1 ? 3 : 0}px))`,
+                        "--fill": `${Math.min(100, Math.max(0, ((pos - c.startSec) / (c.endSec - c.startSec || 1)) * 100))}%`,
+                      } as React.CSSProperties
+                    }
+                  />
+                ))}
+                {marks.map((a) => (
+                  <div
+                    key={a.startSec}
+                    className="scrub-ad"
+                    style={
+                      {
+                        left: pct(a.startSec),
+                        width: `calc(${pct(a.endSec)} - ${pct(a.startSec)})`,
+                        "--heard": `${Math.min(100, Math.max(0, ((pos - a.startSec) / (a.endSec - a.startSec || 1)) * 100))}%`,
+                      } as React.CSSProperties
+                    }
+                  />
+                ))}
+              </div>
+            ) : marks.length ? (
               <div className="scrub-track" aria-hidden="true">
                 <div className="scrub-played" style={{ width: pct(pos) }} />
                 {marks.map((a) => (
@@ -259,7 +325,7 @@ export function FullPlayer() {
             ) : null}
           <input
             type="range"
-            className={`scrubber${marks.length ? " over-track" : ""}`}
+            className={`scrubber${marks.length || segmented ? " over-track" : ""}`}
             aria-label="Position"
             min={0}
             max={Math.floor(spanLen)}
@@ -269,11 +335,24 @@ export function FullPlayer() {
             onChange={(e) => setScrub(span.start + Number(e.target.value))}
             onPointerUp={commitScrub}
             onKeyUp={commitScrub}
+            onPointerMove={(e) => {
+              if (!segmented || e.pointerType !== "mouse") return;
+              const r = e.currentTarget.getBoundingClientRect();
+              setHoverAt(span.start + Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * spanLen);
+            }}
+            onPointerLeave={() => setHoverAt(null)}
           />
           </div>
           <div className="player-times">
             <span>{clock(within)}</span>
-            <span>{item.durationSec && !song ? timeLeft(item.durationSec, pos) : ""}</span>
+            {/* With chapters, the playing one's title takes the middle; the time left is on the right anyway. */}
+            {segmented && chapter ? (
+              <button type="button" className="player-chapter-line" onClick={() => setSheet("chapters")}>
+                {chapter.title}
+              </button>
+            ) : (
+              <span>{item.durationSec && !song ? timeLeft(item.durationSec, pos) : ""}</span>
+            )}
             <span>-{clock(spanLen - within)}</span>
           </div>
         </div>
@@ -358,7 +437,7 @@ export function FullPlayer() {
         {p.error ? <p className="error player-error">{p.error}</p> : null}
       </div>
 
-      <div className="player-tiles">
+      <div className={`player-tiles${item.type === "episode" && !slot ? " fill" : ""}`}>
         <div className="speed-wrap" hidden={song}>
           {speedOpen ? (
             <>
@@ -423,17 +502,17 @@ export function FullPlayer() {
           <MoonIcon size={20} />
           <span>{sleepLabel(p.sleep, Date.now())}</span>
         </button>
-        {showAds ? (
-          <button type="button" className="tile" onClick={() => setSheet("ads")}>
-            <strong>{AD_MODES.find((m) => m.id === adMode)?.short}</strong>
-            <span>Ads</span>
-          </button>
-        ) : song ? null : (
+        {slot === "chapters" ? (
           <button type="button" className="tile" onClick={() => setSheet("chapters")} disabled={!multiChapter}>
             <ListIcon size={20} />
             <span>Chapters</span>
           </button>
-        )}
+        ) : slot === "ads" ? (
+          <button type="button" className="tile" onClick={() => setSheet("ads")}>
+            <strong>{AD_MODES.find((m) => m.id === adMode)?.short}</strong>
+            <span>Ads</span>
+          </button>
+        ) : null}
         <button type="button" className="tile" onClick={() => setSheet("upnext")}>
           <QueueIcon size={20} />
           <span>
@@ -465,12 +544,17 @@ export function FullPlayer() {
         </SheetItem>
       </Sheet>
 
-      <Sheet open={sheet === "chapters"} onClose={() => setSheet(null)} title="Chapters">
+      <Sheet open={sheet === "chapters"} onClose={() => setSheet(null)} title="Chapters" count={item.chapters.length}>
         <ol className="chapter-list">
           {item.chapters.map((c, i) => (
             <li key={c.index}>
-              <button type="button" aria-current={i === ci || undefined} onClick={choose(() => p.seek(c.startSec))}>
-                <span className="chapter-num">{i + 1}</span>
+              <button
+                type="button"
+                className={i < ci ? "done" : undefined}
+                aria-current={i === ci || undefined}
+                onClick={choose(() => p.seek(c.startSec))}
+              >
+                <span className="chapter-num">{i === ci ? <MixerBars playing={p.playing} /> : i + 1}</span>
                 <span className="chapter-title">{c.title}</span>
                 <span className="muted small">{duration(c.endSec - c.startSec)}</span>
               </button>
@@ -520,10 +604,24 @@ export function FullPlayer() {
         </Link>
         {song ? null : (
           <>
-            <SheetItem onClick={choose(() => p.markCurrent(true))}>
+            <SheetItem
+              onClick={choose(() => {
+                void p.markCurrent(true);
+                toast(item.type === "book" ? "Marked as finished" : "Marked as played");
+              })}
+            >
               {item.type === "book" ? "Mark as finished" : "Mark played"}
             </SheetItem>
             <SheetItem onClick={choose(() => p.markCurrent(false))}>Start from the beginning</SheetItem>
+            {showAds ? (
+              <SheetItem onClick={() => setSheet("ads")}>
+                <span className="sheet-item-grow">Ads</span>
+                <span className="setting-value">
+                  <span>{AD_MODES.find((m) => m.id === adMode)?.short}</span>
+                  <ChevronIcon size={18} />
+                </span>
+              </SheetItem>
+            ) : null}
           </>
         )}
         <SheetItem danger onClick={choose(() => p.stop())}>

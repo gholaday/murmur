@@ -7,6 +7,7 @@ import { MiniPlayer } from "@/components/mini-player";
 import { Text } from "@/components/ui";
 import "@/lib/changes";
 import { useTabPrefs } from "@/lib/data";
+import { selectHaptic } from "@/lib/haptics";
 import { restorePlayer } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
@@ -65,7 +66,10 @@ function TabBar({ state, descriptors, navigateToTab }: BottomTabBarProps) {
               accessibilityRole="tab"
               accessibilityState={{ selected: focused }}
               accessibilityLabel={label}
-              onPress={() => navigateToTab(route.key)}
+              onPress={() => {
+                if (!focused) selectHaptic();
+                navigateToTab(route.key);
+              }}
               style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 3, height: 64 }}
             >
               <Icon size={24} color={color} />

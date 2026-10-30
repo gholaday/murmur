@@ -386,7 +386,16 @@ export function createEpisodeCache(deps: Deps) {
     });
   }
 
-  return { init, open, prefetch, status, removePodcast, available: () => available };
+  /** The finished copy of an episode's audio, if one is on disk; never starts a download. */
+  function readyFile(episodeId: string): string | null {
+    if (!available) return null;
+    const row = fileRow(episodeId);
+    if (row?.status !== "ready") return null;
+    const file = fullPath(row.rel_path);
+    return fs.existsSync(file) ? file : null;
+  }
+
+  return { init, open, prefetch, status, removePodcast, readyFile, available: () => available };
 }
 
 export type EpisodeCache = ReturnType<typeof createEpisodeCache>;

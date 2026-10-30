@@ -5,7 +5,7 @@ import Animated, { Easing, useAnimatedRef, useAnimatedScrollHandler, useAnimated
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
 import { fonts, useTheme } from "@/theme";
-import { CheckIcon } from "./icons";
+import { CheckIcon, ChevronIcon } from "./icons";
 import { type SortableScroll, SortableScrollProvider } from "./sortable-list";
 import { Toaster, useToastLayer } from "./toast";
 import { Button, InSheet, Text } from "./ui";
@@ -78,6 +78,7 @@ export function Sheet({
   keepInView,
   foot,
   tall,
+  noScrollbar,
   children,
 }: {
   open: boolean;
@@ -95,6 +96,8 @@ export function Sheet({
   foot?: React.ReactNode;
   /** Always full height, for a sheet with tabs, so switching tabs doesn't make it jump. */
   tall?: boolean;
+  /** For a long list that reads as a list, like chapters. */
+  noScrollbar?: boolean;
   children: React.ReactNode;
 }) {
   const t = useTheme();
@@ -249,6 +252,7 @@ export function Sheet({
             </View>
             <SheetScroll
               contentContainerStyle={{ paddingHorizontal: 8 }}
+              showsVerticalScrollIndicator={!noScrollbar}
               // A tap on a result works straight away instead of first only closing the keyboard.
               keyboardShouldPersistTaps="handled"
               onContentSizeChange={(_, h) => {
@@ -335,6 +339,7 @@ export function SheetItem({
   disabled,
   hint,
   value,
+  chevron,
 }: {
   label: string;
   onPress: () => void;
@@ -345,6 +350,8 @@ export function SheetItem({
   hint?: string;
   /** What it's set to, on the right. */
   value?: string;
+  /** Opens another sheet. */
+  chevron?: boolean;
 }) {
   const t = useTheme();
   return (
@@ -375,6 +382,7 @@ export function SheetItem({
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 0 }}>
         {value ? <Text variant="small">{value}</Text> : null}
         {active ? <CheckIcon size={20} color={t.accent} /> : null}
+        {chevron ? <ChevronIcon size={18} color={t.faint} /> : null}
       </View>
     </Pressable>
   );

@@ -504,7 +504,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   // Floats above the tiles, or over the video in full screen, until waved away.
   const slowCard =
     slow && slowShut !== qualityShown ? (
-      <div className="vp-slow" role="status">
+      <div className="float-card vp-slow" role="status">
         <span>Converting slower than it plays</span>
         {qualityShown !== "light" ? (
           <button type="button" className="more-link" onClick={lowerQuality}>

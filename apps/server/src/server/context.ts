@@ -15,6 +15,7 @@ import { createScanState, createScanner, type ScanState, type Scanner } from "./
 import { startWatcher, type LibraryWatcher } from "./library/watcher";
 import { createLogger, errorMessage, type Logger } from "./log";
 import { queueScan, queueUnscanned } from "./ads";
+import { createChapterFinder, type ChapterFinder } from "./podcasts/chapters";
 import { createEpisodeCache, type EpisodeCache } from "./podcasts/episode-cache";
 import { createPodcastService, startFeedScheduler, type PodcastService } from "./podcasts/service";
 import { startUpdateChecks } from "./updates";
@@ -50,6 +51,8 @@ export interface AppContext {
   };
   podcasts: PodcastService;
   episodeCache: EpisodeCache;
+  /** Episode chapters, looked up the first time they're wanted. */
+  chapters: ChapterFinder;
   startedAt: number;
 }
 
@@ -224,6 +227,13 @@ async function boot(): Promise<AppContext> {
     version: env.version,
     log: podcastLog,
     onPodcastRemoved: (podcastId) => episodeCache.removePodcast(podcastId),
+    onFeedSaved: (podcastId) => void chapters.prefetch(podcastId),
+  });
+  const chapters = createChapterFinder({
+    sqlite,
+    log: podcastLog,
+    version: env.version,
+    cachedFile: (episodeId) => episodeCache.readyFile(episodeId),
   });
   const episodeCache = createEpisodeCache({
     sqlite,
@@ -256,7 +266,7 @@ async function boot(): Promise<AppContext> {
     data: env.dataDir,
     watcher: watcher.mode(),
   });
-  return { db, sqlite, scanner, scanState, watcher, library, music, watch, podcasts, episodeCache, startedAt: started };
+  return { db, sqlite, scanner, scanState, watcher, library, music, watch, podcasts, episodeCache, chapters, startedAt: started };
 }
 
 /** Episodes used to be downloaded to DATA_DIR/podcasts; the episode cache has its own folder now. */
