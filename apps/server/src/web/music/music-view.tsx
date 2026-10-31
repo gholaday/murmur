@@ -31,7 +31,7 @@ import { Cover } from "../cover";
 import { Mixer } from "../mixer";
 import { ChevronIcon, CloseIcon, FilterIcon, FolderIcon, MusicIcon, PauseIcon, PlayIcon, ProfileIcon, SearchIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
-import { type MusicSource, useNowPlaying, usePlayer } from "../player/engine";
+import { type MusicSource, useNowPlaying, usePlayerControls, usePlayerSelect } from "../player/engine";
 import { GroupGrid } from "../library/library";
 import { Sheet, SheetItem } from "../sheet";
 import { SongRowsSkeleton } from "../skeletons";
@@ -94,16 +94,16 @@ export function AlbumSortSheet({ open, onClose, sort, onPick }: { open: boolean;
 
 /** Cover with title and a sub line; `badge` puts the add / added button on the cover. */
 export function AlbumCard({ album, sub, badge }: { album: AlbumSummary; sub?: string | null; badge?: boolean }) {
-  const player = usePlayer();
   // Any of its songs, from the album itself or from a playlist or Up Next.
-  const current = player.item?.type === "track" && player.item.albumId === album.id;
+  const current = usePlayerSelect((s) => s.item?.type === "track" && s.item.albumId === album.id);
+  const playing = usePlayerSelect((s) => current && s.playing);
   return (
     <div className={`card${current ? " playing" : ""}`}>
       <div className="card-cover">
         <Link href={`/music/album/${album.id}`} aria-label={`${album.title}, ${album.artist}`} tabIndex={-1}>
           <Cover src={albumCover(album.id, album.coverHash)} color={album.coverColor} title={album.title} subtitle={album.artist} />
         </Link>
-        {current ? <Mixer playing={player.playing} /> : null}
+        {current ? <Mixer playing={playing} /> : null}
         {badge ? <AlbumBadge title={album.title} added={albumInMusic(album) === "all"} albumId={album.id} /> : null}
       </div>
       <AlbumCardMenu album={album} />
@@ -320,7 +320,7 @@ function ArtistCard({ artist }: { artist: ArtistSummary }) {
 
 /** The Home chip: Jump back in, On repeat, More like the last album and its artist, and New albums. A shelf with nothing to show is left out. */
 function MusicHome({ home }: { home: MusicHomeDto }) {
-  const player = usePlayer();
+  const player = usePlayerControls();
   // Five rows show; picking one queues all of them (up to 25) from that song on.
   const onRepeat = home.onRepeat.slice(0, ON_REPEAT_ROWS);
   const onRepeatSource: MusicSource = { kind: "songs", refId: null, title: "On repeat", tracks: home.onRepeat };
@@ -405,7 +405,7 @@ export function MusicView({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const player = usePlayer();
+  const player = usePlayerControls();
   const [tab, setTab] = useState<MusicTab>(initialTab);
   const [sort, setSort] = useAlbumSort();
   const [sortOpen, setSortOpen] = useState(false);
@@ -451,7 +451,8 @@ export function MusicView({
   const shownSongs = (songs ?? []).filter((t) => songMatches(t, q));
   const shownPlaylists = playlists.filter((p) => p.name.toLowerCase().includes(q));
   const songsSource: MusicSource = { kind: "songs", refId: null, title: "Your songs", tracks: shownSongs };
-  const songsFrom = player.isPlayingFrom("songs", null);
+  const songsFrom = usePlayerSelect((s) => s.isPlayingFrom("songs", null));
+  const songsPlaying = usePlayerSelect((s) => songsFrom && s.playing);
 
   return (
     <>
@@ -538,8 +539,8 @@ export function MusicView({
           <>
             <div className="songs-actions">
               <button type="button" className="btn btn-primary" onClick={() => (songsFrom ? player.toggle() : player.playMusic(songsSource, -1))}>
-                {songsFrom && player.playing ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
-                {songsFrom ? (player.playing ? "Pause" : "Resume") : "Play all"}
+                {songsPlaying ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
+                {songsFrom ? (songsPlaying ? "Pause" : "Resume") : "Play all"}
               </button>
               <ShuffleButton source={songsSource} size={20} />
             </div>

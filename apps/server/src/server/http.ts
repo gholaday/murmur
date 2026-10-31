@@ -75,3 +75,13 @@ export function route<C>(handler: Handler<C>): Handler<C> {
     }
   };
 }
+
+/** Longest text a search box may send. */
+const MAX_QUERY_CHARS = 200;
+
+/** A search box's text from the URL, or undefined when it's missing; refuses one past MAX_QUERY_CHARS. */
+export function queryText(url: URL, name: string): string | undefined {
+  const value = url.searchParams.get(name) ?? undefined;
+  if (value !== undefined && value.length > MAX_QUERY_CHARS) throw new HttpError(400, "That search is too long.");
+  return value;
+}

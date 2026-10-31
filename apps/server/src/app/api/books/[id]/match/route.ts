@@ -1,7 +1,7 @@
 import { matchApplySchema } from "@murmur/shared";
 import { requireAdmin } from "@/server/auth";
 import { getContext } from "@/server/context";
-import { json, readJson, route } from "@/server/http";
+import { json, queryText, readJson, route } from "@/server/http";
 import { applyMatch, removeMatch, searchMatches } from "@/server/metadata/match";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -12,8 +12,8 @@ export const GET = route<Ctx>(async (req, { params }) => {
   requireAdmin(ctx, req);
   const url = new URL(req.url);
   const result = await searchMatches(ctx, (await params).id, {
-    title: url.searchParams.get("title") ?? undefined,
-    author: url.searchParams.get("author") ?? undefined,
+    title: queryText(url, "title"),
+    author: queryText(url, "author"),
   });
   return json(result);
 });

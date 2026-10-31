@@ -16,7 +16,7 @@ import {
   naturalCompare,
   type ScannedAudioFile,
 } from "./parse";
-import { createLimiter, extractEmbeddedCover, probeFile } from "./probe";
+import { createLimiter, createUnreadable, extractEmbeddedCover, probeFile } from "./probe";
 import { bumpChanges } from "../changes";
 
 export interface ScannerDeps {
@@ -230,6 +230,7 @@ export async function walkFolder(folder: LibraryFolder, log: Logger, startRel = 
 export function createScanner(deps: ScannerDeps) {
   const { db, log, state } = deps;
   const limit = createLimiter(Math.max(1, deps.probeConcurrency));
+  const unreadable = createUnreadable();
 
   async function readText(root: string, file: FoundFile | null): Promise<string | null> {
     if (!file) return null;
@@ -260,11 +261,22 @@ export function createScanner(deps: ScannerDeps) {
 
   /** Probes every file of one book and writes it. Returns false if the book couldn't be read. */
   async function importBook(found: FoundBook, existingId: string | null, now: number): Promise<boolean> {
+    const keyOf = (f: FoundFile) => `${found.folderId}:${f.relPath}`;
+    if (found.audio.some((f) => unreadable.skip(keyOf(f), f))) return false;
     let audio: ScannedAudioFile[];
     try {
       audio = await Promise.all(
         found.audio.map((f) =>
-          limit(async () => ({ ...f, probe: await probeFile(path.join(found.root, f.relPath)) })),
+          limit(async () => {
+            try {
+              const probe = await probeFile(path.join(found.root, f.relPath));
+              unreadable.read(keyOf(f));
+              return { ...f, probe };
+            } catch (err) {
+              unreadable.failed(keyOf(f), f);
+              throw err;
+            }
+          }),
         ),
       );
     } catch (err) {

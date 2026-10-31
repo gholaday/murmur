@@ -341,17 +341,29 @@ export function getTrackFile(ctx: AppContext, id: string): { root: string | null
 // ---------- Playing ----------
 
 /** One more play of a song. */
+const PLAY_ID_KEEP_MS = 30 * 24 * 60 * 60 * 1000;
+
 export function addTrackPlay(
   ctx: AppContext,
   userId: number,
   trackId: string,
   source: { kind: "album" | "artist" | "songs" | "playlist"; refId: string | null } | null,
+  sent: { playId: string | null; playedAt: number | null } = { playId: null, playedAt: null },
 ): void {
-  const now = Date.now();
+  // A play from the outbox keeps its time, but never one ahead of the server's clock.
+  const now = Math.min(sent.playedAt ?? Date.now(), Date.now());
+  if (sent.playId) {
+    const seen = ctx.sqlite
+      .prepare("INSERT INTO track_play_ids (user_id, play_id, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")
+      .run(userId, sent.playId, Date.now());
+    if (seen.changes === 0) return;
+    ctx.sqlite.prepare("DELETE FROM track_play_ids WHERE created_at < ?").run(Date.now() - PLAY_ID_KEEP_MS);
+  }
+  // A play sent late doesn't move the song back in time.
   ctx.sqlite
     .prepare(
       `INSERT INTO track_plays (user_id, track_id, count, last_played_at) VALUES (?, ?, 1, ?)
-       ON CONFLICT (user_id, track_id) DO UPDATE SET count = count + 1, last_played_at = excluded.last_played_at`,
+       ON CONFLICT (user_id, track_id) DO UPDATE SET count = count + 1, last_played_at = MAX(last_played_at, excluded.last_played_at)`,
     )
     .run(userId, trackId, now);
   // Jump back in: the album or playlist it came from. From an artist, that's the song's album;
@@ -366,7 +378,7 @@ export function addTrackPlay(
     ctx.sqlite
       .prepare(
         `INSERT INTO recent_sources (user_id, kind, ref_id, last_played_at) VALUES (?, ?, ?, ?)
-         ON CONFLICT (user_id, kind, ref_id) DO UPDATE SET last_played_at = excluded.last_played_at`,
+         ON CONFLICT (user_id, kind, ref_id) DO UPDATE SET last_played_at = MAX(last_played_at, excluded.last_played_at)`,
       )
       .run(userId, recent.kind, recent.refId, now);
   }

@@ -541,11 +541,36 @@ def find_ads(words: list[list]) -> list[dict]:
     return ask_gemini(prompt)
 
 
+def clip(text, limit: int) -> str | None:
+    return text[:limit] if isinstance(text, str) and text else None
+
+
+def number(value) -> bool:
+    """A real, finite number (not a bool, None, or NaN)."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
 def clean(ads: list[dict], duration: float) -> list[dict]:
-    """Drops impossible spans, cuts ones past the end, and joins copies from overlapping pieces."""
+    """
+    Drops impossible spans, cuts ones past the end, and joins copies from overlapping pieces. Also
+    keeps the model's answer inside what Murmur accepts (adSpanSchema and addonReportSchema in
+    packages/shared), so one odd value can't fail the whole episode's scan.
+    """
     kinds = {"inserted", "host_read", "promo"}
     spans = sorted(
-        ({**a, "endSec": min(a["endSec"], duration), "kind": a["kind"] if a["kind"] in kinds else "inserted"} for a in ads),
+        (
+            {
+                **a,
+                "startSec": max(0.0, float(a["startSec"])),
+                "endSec": min(float(a["endSec"]), duration),
+                "kind": a.get("kind") if a.get("kind") in kinds else "inserted",
+                "advertiser": clip(a.get("advertiser"), 200),
+                "firstWords": clip(a.get("firstWords"), 300),
+            }
+            for a in ads
+            # A span missing its times, or with ones that aren't numbers, is dropped on its own.
+            if isinstance(a, dict) and number(a.get("startSec")) and number(a.get("endSec"))
+        ),
         key=lambda a: a["startSec"],
     )
     out: list[dict] = []
@@ -556,7 +581,7 @@ def clean(ads: list[dict], duration: float) -> list[dict]:
             out[-1]["endSec"] = max(out[-1]["endSec"], a["endSec"])
         else:
             out.append(dict(a))
-    return out
+    return out[:500]
 
 
 # ---------- Scans ----------
@@ -635,6 +660,8 @@ def process(job: dict) -> None:
     if deferred is not None:
         # Every piece is transcribed by now, so this episode only needs Gemini when it comes back.
         retry = deferred.seconds if isinstance(deferred, Paused) else 3600
+        # Murmur takes whole seconds, up to two days.
+        retry = int(min(max(retry, 0), 2 * 86_400))
         murmur(f"/api/addon/ads/{file_id}", {"status": "deferred", "retryAfterSec": retry, "reason": str(deferred)[:500]})
         return
     shutil.rmtree(work, ignore_errors=True)
@@ -654,6 +681,10 @@ def prune_state() -> None:
 def main() -> None:
     if not SECRET:
         sys.exit("Set ADDON_SECRET to the same value as Murmur's.")
+    # The same rule as Murmur's (ADDON_SECRET_MIN_LENGTH in packages/shared).
+    if len(SECRET) < 32:
+        sys.exit("ADDON_SECRET is too short. Use at least 32 characters, for example the output of "
+                 "openssl rand -hex 32, on Murmur and the add-ons.")
     STATE.mkdir(parents=True, exist_ok=True)
     prune_state()
     log("adscan started", version=VERSION, murmur=MURMUR_URL, model=GEMINI_MODEL,

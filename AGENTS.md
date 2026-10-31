@@ -1,6 +1,6 @@
 # Working on Murmur
 
-Murmur is a self-hosted audiobook, podcast and music server with a web player and an Android app. Keep it small, simple and low-maintenance. [docs/SPEC.md](docs/SPEC.md) explains how it works and why.
+Murmur is a self-hosted audiobook, podcast and music server with a web player and an Android app. Keep it small, simple and low-maintenance. [docs/spec](docs/spec/README.md) explains how it works and why.
 
 ## Workflow
 

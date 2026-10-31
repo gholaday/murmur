@@ -286,6 +286,7 @@ export async function startStream(owner: string, src: VideoSource, at: number): 
       if (session.proc !== proc) return;
       session.done = true;
       session.error = err.message;
+      log.warn("stream failed", { video: src.videoId, error: session.error });
     });
     proc.on("close", (code, signal) => {
       if (session.proc !== proc) return;
@@ -387,7 +388,8 @@ export async function streamFilePath(owner: string, id: string, name: string): P
   const file = path.join(s.dir, name);
   const until = Date.now() + WAIT_MS;
   while (!fs.existsSync(file)) {
-    if (s.error) throw new HttpError(500, `The stream stopped: ${s.error}`);
+    // ffmpeg's own words can name paths on the server, so they stay in the log.
+    if (s.error) throw new HttpError(500, "The stream stopped while the video was being converted.");
     if (s.done) throw new HttpError(404, "That part of the stream isn't there.");
     if (Date.now() > until) throw new HttpError(503, "That part of the stream is still being made.", { "Retry-After": "2" });
     await new Promise((r) => setTimeout(r, 150));

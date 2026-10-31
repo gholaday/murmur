@@ -52,9 +52,13 @@ Run `docker compose up -d`, open `http://<host>:3333`, and create the first acco
 
 [Getting started](docs/GETTING_STARTED.md) covers the rest: folder layout, remote access, installing the Android app, adding the web player to a phone's home screen, ad detection, movies and shows, and updating. The full example stack is [`docker-compose.yml`](docker-compose.yml).
 
+## How it works
+
+The [spec](docs/spec/README.md) explains how Murmur works and why, one page per area: [features](docs/spec/features.md), [architecture](docs/spec/architecture.md), [library scanning](docs/spec/library.md), [metadata](docs/spec/metadata.md), [music](docs/spec/music.md), [Watch](docs/spec/watch.md), [casting](docs/spec/casting.md), the [Android app](docs/spec/android.md), [podcasts and ad detection](docs/spec/podcasts.md), [deployment](docs/spec/deployment.md), and [what's left out](docs/spec/later.md).
+
 ## Settings
 
-All optional.
+All optional. With the example compose file, keys and secrets go in `murmur.env` beside it (copy [`murmur.env.example`](murmur.env.example)), and the rest in its `environment:` list.
 
 | Variable | Default | |
 | --- | --- | --- |
@@ -80,7 +84,7 @@ All optional.
 | `TMDB_LANGUAGE` | `en-US` | Language for those details |
 | `VIDEO_URL` | `http://murmur-video:3001` | Where the video add-on is |
 | `UPDATE_CHECK` | `true` | Ask GitHub every 6 hours for the newest release, so Settings tells admins when an update is out. `false` turns it off |
-| `ADDON_SECRET` | | Turns on the add-ons; the same value goes on `murmur-adscan` ([addons/adscan](addons/adscan/README.md)) and `murmur-video` ([addons/video](addons/video/README.md)) |
+| `ADDON_SECRET` | | Turns on the add-ons. **At least 32 characters** (`openssl rand -hex 32`): with a shorter one Murmur keeps the add-ons off, and the add-ons refuse to start. The same value goes on `murmur-adscan` ([addons/adscan](addons/adscan/README.md)) and `murmur-video` ([addons/video](addons/video/README.md)) |
 
 The video add-on's settings (GPU, cache and the rest) are in [its README](addons/video/README.md). The movie and show folders go into both containers at the same paths.
 
@@ -95,7 +99,7 @@ pnpm install
 pnpm dev
 ```
 
-Then open http://localhost:3000. `pnpm dev` also starts the video add-on on port 3001, which needs ffmpeg installed (on Windows, `winget install Gyan.FFmpeg`) and `ADDON_SECRET` in `apps/server/.env.local`. In development the database lives in the repo's git-ignored `data/` folder and the library is `data/audiobooks` (see `apps/server/.env.development`).
+Then open http://localhost:3000. `pnpm dev` also starts the video add-on on port 3001, which needs ffmpeg installed (on Windows, `winget install Gyan.FFmpeg`) and an `ADDON_SECRET` of at least 32 characters in `apps/server/.env.local`. In development the database lives in the repo's git-ignored `data/` folder and the library is `data/audiobooks` (see `apps/server/.env.development`).
 
 ```bash
 pnpm typecheck
@@ -109,10 +113,12 @@ pnpm test
 | `packages/shared` | Types and schemas shared by server and app |
 | `addons/adscan` | Optional ad detection add-on (Python) |
 | `addons/video` | Optional video add-on: ffmpeg, streams and downloads for movies and shows |
-| `docs/SPEC.md` | How Murmur works and why |
-| `docs/DESIGN.md` | Colours, type, components and wording |
+| [`docs/spec`](docs/spec/README.md) | How Murmur works and why, one page per area |
+| [`docs/DESIGN.md`](docs/DESIGN.md) | Colours, type, components and wording |
 
-**Releasing:** push a tag like `v0.3.0` and GitHub Actions publishes the Murmur and add-on images, and attaches the signed Android APK to a GitHub release (the tag sets the app's version). The release notes, which Settings' What's new opens, are the tagged commit's message minus its title line, so describe the changes there in plain words. The APK is built with no secrets, then a separate job signs it. Signing needs the `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` repository secrets; the signing job runs in the `release` environment, which only `v*` tags can use. Actions are pinned to commit hashes, and Dependabot moves them on monthly.
+**Releasing:** push a tag like `v0.3.0` and GitHub Actions publishes the Murmur and add-on images, and attaches the signed Android APK to a GitHub release (the tag sets the app's version). The release notes, which Settings' What's new opens, are the tagged commit's message minus its title line, so describe the changes there in plain words. The APK is built with no secrets, then a separate job signs it. Signing needs the `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` repository secrets; the signing job runs in the `release` environment, which only `v*` tags can use. Actions are pinned to commit hashes, base images to digests, the ad add-on's Python packages to hashes (`addons/adscan/requirements.in` says how to remake them) and pnpm to its hash, and Dependabot moves them on monthly. pnpm also refuses npm versions less than seven days old.
+
+**Checking a download:** each image and the APK carries a build provenance attestation from the release workflow. `gh attestation verify murmur-<version>.apk -R gholaday/murmur`, or `gh attestation verify oci://ghcr.io/gholaday/murmur:<version> -R gholaday/murmur`, confirms it was built by GitHub Actions from this repository.
 
 ## License
 

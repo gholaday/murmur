@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { apiPaths, errorText, type PlaylistDetail, type PlaylistSummary, plural, type TrackDto } from "@murmur/shared/client";
 import { api } from "../api";
 import { MoreIcon } from "../icons";
-import { usePlayer } from "../player/engine";
+import { usePlayerControls, usePlayerSelect } from "../player/engine";
 import { Sheet, SheetItem } from "../sheet";
 
 /** A song's ⋯ button: add to (or remove from) Up Next, add to a playlist, go to its album, and any `extra` items. */
@@ -22,11 +22,11 @@ export function SongMenuButton({
   extra?: (close: () => void) => React.ReactNode;
 }) {
   const router = useRouter();
-  const player = usePlayer();
+  const player = usePlayerControls();
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const ref = { itemType: "track", itemId: track.id } as const;
-  const queued = player.isWaiting(ref);
+  const queued = usePlayerSelect((s) => s.isWaiting(ref));
   const close = () => setOpen(false);
   const run =(fn: () => Promise<void>, done: string) => {
     close();

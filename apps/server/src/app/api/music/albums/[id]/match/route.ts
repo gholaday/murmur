@@ -1,7 +1,7 @@
 import { albumMatchApplySchema } from "@murmur/shared";
 import { requireAdmin } from "@/server/auth";
 import { getContext } from "@/server/context";
-import { json, readJson, route } from "@/server/http";
+import { json, queryText, readJson, route } from "@/server/http";
 import { applyAlbumMatch, removeAlbumMatch, searchAlbumMatches } from "@/server/music/match";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -12,8 +12,8 @@ export const GET = route<Ctx>(async (req, { params }) => {
   requireAdmin(ctx, req);
   const url = new URL(req.url);
   const result = await searchAlbumMatches(ctx, (await params).id, {
-    title: url.searchParams.get("title") ?? undefined,
-    artist: url.searchParams.get("artist") ?? undefined,
+    title: queryText(url, "title"),
+    artist: queryText(url, "artist"),
   });
   return json(result);
 });

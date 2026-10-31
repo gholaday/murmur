@@ -7,7 +7,7 @@ import { type AlbumDetail, albumInMusic, type AlbumSummary } from "@murmur/share
 import { useAdmin } from "../admin";
 import { api } from "../api";
 import { CardMenu, MenuItem, MenuSep } from "../card-menu";
-import { usePlayer } from "../player/engine";
+import { usePlayerControls } from "../player/engine";
 import { AlbumMatchDialog } from "./match";
 import { useMineChange } from "./mine";
 import { AddToPlaylistSheet } from "./song-menu";
@@ -31,7 +31,7 @@ export function AlbumMenuItems({
 }) {
   const router = useRouter();
   const { isAdmin } = useAdmin();
-  const p = usePlayer();
+  const p = usePlayerControls();
   const send = useMineChange();
   const inMusic = albumInMusic(album);
   return (

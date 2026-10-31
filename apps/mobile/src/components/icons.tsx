@@ -117,6 +117,12 @@ export const PlayNextAddIcon = ({ on, ...p }: IconProps & { on?: boolean }) => (
     {on ? <Path d="M9.5 10l2 2 3.5-3.5" /> : <Path d="M12 8v5M9.5 10.5h5" />}
   </Icon>
 );
+export const LockIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Rect x="5" y="11" width="14" height="10" rx="2" />
+    <Path d="M8 11V8a4 4 0 0 1 8 0v3" />
+  </Icon>
+);
 export const ProfileIcon = (p: IconProps) => (
   <Icon {...p}>
     <Circle cx="12" cy="8" r="4" />

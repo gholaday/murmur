@@ -1,5 +1,6 @@
 import http from "node:http";
 import {
+  addonSecretProblem,
   VIDEO_OWNER_HEADER,
   type VideoAddonHealth,
   videoDownloadStartSchema,
@@ -110,6 +111,12 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
 }
 
 if (!env.addonSecret) log.warn("ADDON_SECRET isn't set, so Murmur can't use the video add-on");
+// A short secret could be guessed, and this add-on reads the library and runs ffmpeg for whoever has it.
+const secretProblem = addonSecretProblem(env.addonSecret);
+if (secretProblem) {
+  log.error(secretProblem);
+  process.exit(1);
+}
 initStreams();
 initDownloads();
 

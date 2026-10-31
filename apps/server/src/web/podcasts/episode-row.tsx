@@ -7,7 +7,7 @@ import { apiPaths, duration, type EpisodeWithShow, errorText, pastStart, shortDa
 import { api } from "../api";
 import { Cover } from "../cover";
 import { AdsCheckedIcon, PauseIcon, PlayedIcon, PlayIcon, QueueAddIcon } from "../icons";
-import { episodeToPlayable, usePlayer, usePosition } from "../player/engine";
+import { episodeToPlayable, usePlayerControls, usePlayerSelect, usePosition } from "../player/engine";
 import { setFinished } from "../progress";
 
 export function EpisodeRow({
@@ -23,8 +23,12 @@ export function EpisodeRow({
   /** Called after played changes so the list can refresh. */
   onChanged?: () => void;
 }) {
-  const player = usePlayer();
-  const current = player.isCurrent("episode", episode.id);
+  const player = usePlayerControls();
+  const current = usePlayerSelect((s) => s.isCurrent("episode", episode.id));
+  const playing = usePlayerSelect((s) => current && s.playing);
+  const loading = usePlayerSelect((s) => current && s.loading);
+  const liveDur = usePlayerSelect((s) => (current ? s.item?.durationSec : null));
+  const queued = usePlayerSelect((s) => s.isWaiting({ itemType: "episode", itemId: episode.id }));
   const live = usePosition(current);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -44,11 +48,10 @@ export function EpisodeRow({
   const notes = fullNotes ?? episode.description;
 
   const played = !!episode.progress?.finished && !current;
-  const dur = (current ? player.item?.durationSec : null) || episode.durationSec || 0;
+  const dur = liveDur || episode.durationSec || 0;
   const position = current ? live : episode.progress && !episode.progress.finished ? episode.progress.positionSec : 0;
   const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
-  const queued = player.isWaiting({ itemType: "episode", itemId: episode.id });
-  const pausing = current && player.playing;
+  const pausing = playing;
   const showHref = `/podcasts/${episode.podcastId}`;
 
   const time = played ? "Played" : pastStart(position) && dur ? timeLeft(dur, position) : duration(dur);
@@ -130,7 +133,7 @@ export function EpisodeRow({
             className="episode-play"
             onClick={onPlay}
             aria-label={pausing ? "Pause" : played ? "Play again" : "Play"}
-            data-loading={(current && player.loading) || undefined}
+            data-loading={loading || undefined}
           >
             {pausing ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
             <span>{time}</span>

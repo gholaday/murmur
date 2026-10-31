@@ -16,6 +16,6 @@ export const POST = route(async (req) => {
   const ctx = await getContext();
   const user = requireUser(ctx, req);
   const body = await readJson(req, trackPlaySchema);
-  addTrackPlay(ctx, user.id, body.trackId, body.source ?? null);
+  addTrackPlay(ctx, user.id, body.trackId, body.source ?? null, { playId: body.playId ?? null, playedAt: body.playedAt ?? null });
   return json({ ok: true });
 });

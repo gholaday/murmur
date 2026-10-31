@@ -25,6 +25,8 @@ export interface ParsedFeed {
   description: string | null;
   link: string | null;
   imageUrl: string | null;
+  /** `<itunes:block>Yes</itunes:block>`: the feed asks directories not to list it. */
+  unlisted: boolean;
   episodes: ParsedEpisode[];
 }
 
@@ -181,6 +183,8 @@ export function parseFeed(xml: string): ParsedFeed {
     description: htmlToText(text(channel.description) ?? text(channel["itunes:summary"])),
     link: httpUrl(text(channel.link)),
     imageUrl: httpUrl(attr(channel["itunes:image"], "href") ?? text((channel.image as Node | undefined)?.url)),
+    // Asks directories not to list it, which private and members-only feeds almost always do.
+    unlisted: text(channel["itunes:block"])?.toLowerCase() === "yes",
     episodes,
   };
 }

@@ -17,7 +17,7 @@ import { HttpError } from "../http";
 const UNREACHABLE = "The video add-on isn't reachable. Start murmur-video, with the same ADDON_SECRET as Murmur.";
 
 async function call(path: string, init: RequestInit & { owner?: string } = {}): Promise<Response> {
-  if (!env.addonSecret) throw new HttpError(503, "Set ADDON_SECRET on Murmur and the video add-on to play movies and shows.");
+  if (!env.addonSecret) throw new HttpError(503, env.addonSecretProblem ?? "Set ADDON_SECRET on Murmur and the video add-on to play movies and shows.");
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${env.addonSecret}`);
   if (init.owner) headers.set(VIDEO_OWNER_HEADER, init.owner);
@@ -67,7 +67,7 @@ const ENCODER_NAME: Record<VideoAddonHealth["encoder"], string> = {
 
 /** Settings' Video row from the add-on's health (null when it can't be reached). */
 export function videoStatus(health: VideoAddonHealth | null): VideoStatus {
-  if (!env.addonSecret) return { problem: "Set ADDON_SECRET on Murmur and the video add-on to read movies and shows." };
+  if (!env.addonSecret) return { problem: env.addonSecretProblem ?? "Set ADDON_SECRET on Murmur and the video add-on to read movies and shows." };
   if (!health) return { problem: UNREACHABLE };
   if (!health.ffmpeg) return { problem: "ffmpeg isn't working in the video add-on, so movies and shows can't be read." };
   return { problem: null, working: `Working, converts video with ${ENCODER_NAME[health.encoder]}` };

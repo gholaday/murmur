@@ -170,6 +170,12 @@ export const trackPlaySchema = z.object({
   source: z
     .object({ kind: z.enum(["album", "artist", "songs", "playlist"]), refId: z.string().max(64).nullable() })
     .nullish(),
+  /**
+   * Sent by the app's outbox, which keeps plays made offline: an id for the play, so a retry
+   * counts once, and when it was played (ms). Without them the play is counted now.
+   */
+  playId: z.string().min(1).max(64).nullish(),
+  playedAt: z.number().int().positive().nullish(),
 });
 export const musicMineSchema = z
   .object({
@@ -433,6 +439,11 @@ export interface PodcastSummary {
   /** Your playback speed for this show. */
   speed: number;
   lastError: string | null;
+  /**
+   * A private feed (paid, members-only or someone's own), told by a key in its URL or by
+   * itunes:block. Marked on the show page, and its audio is never sent to the ad add-on.
+   */
+  privateFeed: boolean;
 }
 
 /** A podcast found by name in the public directory (Apple Podcasts search). */

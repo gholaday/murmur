@@ -31,7 +31,7 @@ import {
 import { api } from "../api";
 import { Cover } from "../cover";
 import { Mixer } from "../mixer";
-import { usePlayer } from "../player/engine";
+import { useNowPlaying } from "../player/engine";
 import { CustomizeIcon, DragIcon, FilterIcon, SearchIcon } from "../icons";
 import { EditBookDialog, type EditTab } from "../book/edit-dialog";
 import { Sheet, SheetItem } from "../sheet";
@@ -145,7 +145,6 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
   const shelfParam = params.get("shelf");
   const shelf = shelfParam && shelfParam in SHELF_TITLES ? (shelfParam as ShelfId) : null;
   const allBooks = shelfParam === "all";
-  const player = usePlayer();
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [sort, setSort] = useState<Sort>("added");
@@ -348,26 +347,7 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
       return continuing.length ? (
         <ScrollRow className="row-scroll">
           {continuing.slice(0, SHELF_SIZE).map((b) => (
-            <Link key={b.id} href={`/book/${b.id}`} className={`continue-card${player.isCurrent("book", b.id) ? " playing" : ""}`}>
-              <div className="card-cover">
-                <Cover
-                  src={b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 600) : null}
-                  color={b.coverColor}
-                  title={b.title}
-                  subtitle={b.author}
-                  large
-                />
-                {player.isCurrent("book", b.id) ? <Mixer playing={player.playing} /> : null}
-              </div>
-              <div className="bar thick">
-                <div style={{ width: `${progressPct(b)}%` }} />
-              </div>
-              <div className="continue-text">
-                <div className="card-title">{b.title}</div>
-                {b.author ? <div className="card-sub">{b.author}</div> : null}
-                <div className="card-sub">{timeLeft(b.durationSec, b.progress!.positionSec)}</div>
-              </div>
-            </Link>
+            <ContinueCard key={b.id} book={b} />
           ))}
         </ScrollRow>
       ) : null;
@@ -603,6 +583,33 @@ function BookSections({
         );
       })}
     </div>
+  );
+}
+
+/** A Continue listening card. Only this card re-renders when its book plays or pauses, not the page. */
+function ContinueCard({ book: b }: { book: BookSummary }) {
+  const { current, playing } = useNowPlaying((n) => n.type === "book" && n.id === b.id);
+  return (
+    <Link href={`/book/${b.id}`} className={`continue-card${current ? " playing" : ""}`}>
+      <div className="card-cover">
+        <Cover
+          src={b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 600) : null}
+          color={b.coverColor}
+          title={b.title}
+          subtitle={b.author}
+          large
+        />
+        {current ? <Mixer playing={playing} /> : null}
+      </div>
+      <div className="bar thick">
+        <div style={{ width: `${progressPct(b)}%` }} />
+      </div>
+      <div className="continue-text">
+        <div className="card-title">{b.title}</div>
+        {b.author ? <div className="card-sub">{b.author}</div> : null}
+        <div className="card-sub">{timeLeft(b.durationSec, b.progress!.positionSec)}</div>
+      </div>
+    </Link>
   );
 }
 

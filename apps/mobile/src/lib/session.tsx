@@ -1,13 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { LoginResponse, UserDto } from "@murmur/shared/client";
 import { flushProgress, forgetProgress, stop as stopPlayer } from "@/player/engine";
-import { api, clearEtags, configureApi, normalizeServerUrl, probeServer } from "./api";
+import { api, clearEtags, configureApi, normalizeServerUrl, probeServer, settleWrites } from "./api";
 import { APP_NAME } from "./platform";
 import { clearPersistedCache, queryClient } from "./query";
 import { getJson, removeKey, secrets, setJson } from "./storage";
 
 const SERVER_KEY = "murmur.server";
 const USER_KEY = "murmur.user";
+/** How long sign-out waits for the server to revoke the token; signing out on the phone is what matters. */
+const LOGOUT_WAIT_MS = 3000;
 
 interface Session {
   /** "loading" until the stored token has been read. */
@@ -92,9 +94,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     // What's playing saves its place, and anything listened to offline goes up, while the token still works.
     stopPlayer();
-    await flushProgress();
+    void flushProgress();
+    await settleWrites();
     try {
-      await api("/api/auth/logout", { method: "POST" });
+      // At most a few seconds: offline, waiting out the full request timeout would hold up signing out.
+      await Promise.race([
+        api("/api/auth/logout", { method: "POST" }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Logout timed out.")), LOGOUT_WAIT_MS)),
+      ]);
     } catch {
       // Signing out locally is what matters; the server token can be revoked later.
     }

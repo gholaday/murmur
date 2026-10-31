@@ -9,10 +9,11 @@ everything else in Murmur works as usual.
 
 ## Set up
 
-1. In your stack, set `ADDON_SECRET` on Murmur to a long random value (for example the output of
-   `openssl rand -hex 32`). One secret serves both add-ons.
+1. In `murmur.env` (copied from `murmur.env.example`), set `ADDON_SECRET` to a long random value
+   (the output of `openssl rand -hex 32`; **at least 32 characters**, or the add-on refuses to
+   start). One secret serves both add-ons.
 2. Uncomment the movie and show folders on Murmur, and the `murmur-video` service in
-   `docker-compose.yml` with the same secret.
+   `docker-compose.yml`, which reads the same file.
 3. Mount the movie and show folders at the **same** paths in both containers, read-only. Murmur
    names files by path, so a folder at another path can't be found.
 4. Optional: with an Intel or AMD GPU, uncomment `devices: - /dev/dri:/dev/dri`. The add-on
@@ -26,7 +27,7 @@ which Murmur alone shares. Never add ports, and point a proxy or tunnel at Murmu
 
 | Variable | Default | |
 | --- | --- | --- |
-| `ADDON_SECRET` | | Required; the same value as Murmur's |
+| `ADDON_SECRET` | | Required; the same value as Murmur's, at least 32 characters |
 | `WATCH_HW` | `auto` | GPU conversion: `auto` tries NVENC, Quick Sync, VAAPI and the rest, then the CPU; `off` keeps it on the CPU; or name one (`nvenc`, `qsv`, `vaapi`, `amf`, `videotoolbox`) |
 | `VAAPI_DEVICE` | `/dev/dri/renderD128` | The render node VAAPI uses |
 | `PUID` / `PGID` | `1000` | User and group that own the files in `/cache` |
@@ -57,4 +58,4 @@ docker build -t murmur-video -f addons/video/Dockerfile .
 ```
 
 From the repo root, since it uses `packages/shared`. How it works and why it was built this way:
-the Watch section of [docs/SPEC.md](../../docs/SPEC.md).
+[Watch](../../docs/spec/watch.md) in the spec.

@@ -21,7 +21,7 @@ import { Cover } from "../cover";
 import { Mixer } from "../mixer";
 import { DragIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
-import { type MusicSource, usePlayer } from "../player/engine";
+import { type MusicSource, usePlayerControls, usePlayerSelect } from "../player/engine";
 import { Sheet, SheetItem } from "../sheet";
 import { useSortable } from "../sortable";
 import { EmptyState } from "../ui";
@@ -51,15 +51,15 @@ export function PlaylistCover({ playlist, large }: { playlist: PlaylistSummary; 
 }
 
 export function PlaylistCard({ playlist }: { playlist: PlaylistSummary }) {
-  const player = usePlayer();
-  const current = player.isPlayingFrom("playlist", playlist.id);
+  const current = usePlayerSelect((s) => s.isPlayingFrom("playlist", playlist.id));
+  const playing = usePlayerSelect((s) => current && s.playing);
   return (
     <div className={`card${current ? " playing" : ""}`}>
       <div className="card-cover">
         <Link href={`/music/playlist/${playlist.id}`} aria-label={playlist.name} tabIndex={-1}>
           <PlaylistCover playlist={playlist} />
         </Link>
-        {current ? <Mixer playing={player.playing} /> : null}
+        {current ? <Mixer playing={playing} /> : null}
       </div>
       <Link href={`/music/playlist/${playlist.id}`} className="card-link">
         <div className="card-title">{playlist.name}</div>
@@ -127,7 +127,7 @@ function NameForm({ name, setName, busy, label, onSubmit }: { name: string; setN
 /** One playlist: play or shuffle it, drag songs to reorder, remove them, rename or delete it. */
 export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }) {
   const router = useRouter();
-  const player = usePlayer();
+  const player = usePlayerControls();
   const [playlist, setPlaylist] = useState(initial);
   const [menu, setMenu] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -135,7 +135,11 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
   const [busy, setBusy] = useState(false);
   const { tracks } = playlist;
   const source: MusicSource = { kind: "playlist", refId: playlist.id, title: playlist.name, tracks };
-  const from = player.isPlayingFrom("playlist", playlist.id);
+  const from = usePlayerSelect((s) => s.isPlayingFrom("playlist", playlist.id));
+  const nowId = usePlayerSelect((s) => (s.item?.type === "track" ? s.item.id : null));
+  const nowHere = nowId !== null && tracks.some((t) => t.id === nowId);
+  // Only while this playlist's song is loaded, so other music playing doesn't re-render the list.
+  const playing = usePlayerSelect((s) => (from || nowHere) && s.playing);
   // Starting the playlist opens the full player; pausing and resuming leave it as it is.
   const onPlay = () => {
     if (from) return player.toggle();
@@ -214,8 +218,8 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
         <>
           <div className="actions">
             <button type="button" className="btn btn-primary btn-big" onClick={onPlay}>
-              {from && player.playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
-              <span>{from ? (player.playing ? "Pause" : "Resume") : "Play"}</span>
+              {from && playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
+              <span>{from ? (playing ? "Pause" : "Resume") : "Play"}</span>
             </button>
             <ShuffleButton source={source} />
             <Link href={`/music/playlist/${playlist.id}/add`} className="btn-round" aria-label="Add songs">
@@ -227,11 +231,11 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
               {tracks.map((t, i) => {
                 const row = sortable.rowProps(i);
                 return (
-                  <div key={t.id} data-row className={`queue-row${player.isCurrent("track", t.id) ? " playing" : ""} ${row.className}`} style={row.style}>
+                  <div key={t.id} data-row className={`queue-row${nowId === t.id ? " playing" : ""} ${row.className}`} style={row.style}>
                     <button type="button" className="list-row-play" onClick={() => player.playMusic(source, i)}>
                       <span className="thumb-wrap">
                         <Cover src={albumCover(t.albumId, t.coverHash)} color={null} title={t.album} className="thumb" />
-                        {player.isCurrent("track", t.id) ? <Mixer playing={player.playing} thumb /> : null}
+                        {nowId === t.id ? <Mixer playing={playing} thumb /> : null}
                       </span>
                       <span className="list-row-main">
                         <span className="list-row-title">{t.title}</span>

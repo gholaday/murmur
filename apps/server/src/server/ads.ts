@@ -29,11 +29,18 @@ export function requireAddon(req: Request) {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new HttpError(401, "Wrong add-on secret.");
 }
 
+/** Queues a newly cached episode, unless its show is a private feed (setPrivateFeed). */
 export function queueScan(sqlite: Sqlite, fileId: number) {
   if (!adsEnabled()) return;
   sqlite
-    .prepare("INSERT OR IGNORE INTO ad_scans (file_id, status, updated_at) VALUES (?, 'queued', ?)")
-    .run(fileId, Date.now());
+    .prepare(
+      `INSERT OR IGNORE INTO ad_scans (file_id, status, updated_at)
+       SELECT f.id, 'queued', ? FROM episode_files f
+       JOIN episodes e ON e.id = f.episode_id
+       JOIN podcasts p ON p.id = e.podcast_id
+       WHERE f.id = ? AND p.private_feed = 0`,
+    )
+    .run(Date.now(), fileId);
 }
 
 /** Queues every cached episode that has never been scanned, for when the add-on is added later. */
@@ -42,9 +49,35 @@ export function queueUnscanned(sqlite: Sqlite) {
   sqlite
     .prepare(
       `INSERT OR IGNORE INTO ad_scans (file_id, status, updated_at)
-       SELECT id, 'queued', ? FROM episode_files WHERE status = 'ready'`,
+       SELECT f.id, 'queued', ? FROM episode_files f
+       JOIN episodes e ON e.id = f.episode_id
+       JOIN podcasts p ON p.id = e.podcast_id
+       WHERE f.status = 'ready' AND p.private_feed = 0`,
     )
     .run(Date.now());
+}
+
+/**
+ * Records whether a show is a private feed (podcasts/private-feed.ts), which keeps it away from the
+ * ad add-on. Becoming private drops the scans not yet done, including one the add-on is working
+ * on: its report then finds no scan and is refused. Ads already found stay. A show that turns out
+ * not to be private after all has its episodes queued again.
+ */
+export function setPrivateFeed(sqlite: Sqlite, podcastId: string, isPrivate: boolean) {
+  const row = sqlite.prepare("SELECT private_feed FROM podcasts WHERE id = ?").get(podcastId) as { private_feed: number } | undefined;
+  if (!row || row.private_feed === (isPrivate ? 1 : 0)) return;
+  sqlite.transaction(() => {
+    sqlite.prepare("UPDATE podcasts SET private_feed = ? WHERE id = ?").run(isPrivate ? 1 : 0, podcastId);
+    if (isPrivate) {
+      sqlite
+        .prepare(
+          `DELETE FROM ad_scans WHERE status != 'done' AND file_id IN
+             (SELECT f.id FROM episode_files f JOIN episodes e ON e.id = f.episode_id WHERE e.podcast_id = ?)`,
+        )
+        .run(podcastId);
+    }
+  })();
+  if (!isPrivate) queueUnscanned(sqlite);
 }
 
 interface ScanRow {
@@ -96,9 +129,9 @@ export function claimNext(sqlite: Sqlite): AddonJob | null {
          FROM ad_scans s
          JOIN episode_files f ON f.id = s.file_id AND f.status = 'ready'
          JOIN episodes e ON e.id = f.episode_id
-         JOIN podcasts p ON p.id = e.podcast_id
-         WHERE (s.status = 'queued' AND (s.not_before IS NULL OR s.not_before <= @now))
-            OR (s.status = 'scanning' AND s.lease_until < @now)
+         JOIN podcasts p ON p.id = e.podcast_id AND p.private_feed = 0
+         WHERE ((s.status = 'queued' AND (s.not_before IS NULL OR s.not_before <= @now))
+            OR (s.status = 'scanning' AND s.lease_until < @now))
          ORDER BY (s.wanted_at IS NOT NULL AND s.wanted_at > @wanted) DESC,
            e.id IN (${WAITING_EPISODES_SQL}) DESC,
            e.published_at DESC

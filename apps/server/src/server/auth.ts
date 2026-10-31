@@ -106,7 +106,7 @@ export function tokenFromRequest(req: Request): { token: string; viaCookie: bool
  * Cookie-authenticated writes must come from our own origin. Bearer tokens can't be
  * sent by another site's page, so they need no such check.
  */
-function assertSameOrigin(req: Request) {
+export function assertSameOrigin(req: Request) {
   if (req.method === "GET" || req.method === "HEAD") return;
   const origin = req.headers.get("origin");
   if (!origin) return;

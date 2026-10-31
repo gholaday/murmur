@@ -6,14 +6,14 @@ import { Cover } from "@/components/cover";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { EpisodeRow } from "@/components/episode-row";
 import { HeroBackdrop } from "@/components/hero";
-import { CloseIcon, FilterIcon, MoreIcon, SearchIcon } from "@/components/icons";
+import { CloseIcon, FilterIcon, LockIcon, MoreIcon, SearchIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BackRow, Empty, NestedFallback, useBottomPad, useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { StickyHeading, useStickyHeading } from "@/components/sticky-heading";
-import { Button, IconButton, Text } from "@/components/ui";
+import { Button, IconButton, Pill, Text } from "@/components/ui";
 import { api } from "@/lib/api";
 import { invalidateListening, keys, useEpisodes, useFirstEpisodes, usePodcast } from "@/lib/data";
 import { queryClient } from "@/lib/query";
@@ -117,6 +117,12 @@ export default function ShowScreen() {
               {show.title}
             </Text>
             {show.author ? <Text variant="small" numberOfLines={1}>{show.author}</Text> : null}
+            {/* A personal feed, so the server never sends it for ad detection. */}
+            {show.privateFeed ? (
+              <View style={{ flexDirection: "row", marginTop: 4 }}>
+                <Pill label="Private" icon={<LockIcon size={12} color={t.accent} />} />
+              </View>
+            ) : null}
           </View>
         </View>
 

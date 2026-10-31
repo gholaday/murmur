@@ -2,7 +2,7 @@ import type { MatchCandidate } from "@murmur/shared";
 import { stripNoise } from "../library/parse";
 
 // Deterministic scoring for Match: the same book and candidate always get the same score,
-// and every point can be explained. Weights follow docs/SPEC.md ("How matching stays consistent").
+// and every point can be explained. Weights follow docs/spec/metadata.md ("How matching stays consistent").
 
 /** Lowercase, accents folded, "&" as "and", punctuation dropped, spaces collapsed. */
 export function normalizeText(s: string): string {

@@ -1,0 +1,7 @@
+# The packages the ad add-on uses. requirements.txt is made from this file, with every dependency
+# pinned and hashed, inside the add-on's own base image (so the Linux wheels are the ones checked):
+#   docker run --rm -v "$PWD:/w" -w /w python:3.12-slim-bookworm sh -c \
+#     "pip install pip-tools && pip-compile --generate-hashes --allow-unsafe --strip-extras --no-header -o requirements.txt requirements.in"
+vosk==0.3.45
+google-genai==1.21.1
+tzdata==2025.2

@@ -46,7 +46,7 @@ export interface VideoSubtitleTrack {
   forced: boolean;
 }
 
-/** What a player needs to decide how to play a file (see Playback in the Watch section of docs/SPEC.md). */
+/** What a player needs to decide how to play a file (see Playback in docs/spec/watch.md). */
 export interface VideoFileInfo {
   /** ffprobe's format name, like "matroska,webm". */
   container: string;

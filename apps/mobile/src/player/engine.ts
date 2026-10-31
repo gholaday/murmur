@@ -700,10 +700,12 @@ function musicTick(it: Playable, pos: number, heard: number) {
     counted = true;
     // Where it was played from, for Jump back in.
     const source = state.upNext.source;
-    void api(apiPaths.trackPlays, {
-      method: "POST",
-      body: { trackId: it.id, source: source ? { kind: source.kind, refId: source.refId } : null },
-    }).catch(() => undefined);
+    queuePlay({
+      trackId: it.id,
+      source: source ? { kind: source.kind, refId: source.refId } : null,
+      playId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`,
+      playedAt: Date.now(),
+    });
   }
   if (casting || !(dur > 0 && dur - pos < PRELOAD_SEC)) return;
   const next = nextIndex(state.upNext, state.repeat, true);
@@ -947,6 +949,8 @@ let flushing = false;
 let flushAgain = false;
 let refreshAfterFlush = false;
 async function flush(refreshLists = false) {
+  // Waiting song plays go out on the same saves and reconnects.
+  void flushPlays();
   if (refreshLists) refreshAfterFlush = true;
   if (flushing) {
     // Saved while another save is in flight (e.g. marked finished): send it right after.
@@ -992,12 +996,68 @@ async function flush(refreshLists = false) {
   }
 }
 
-/** Sends what's waiting in the outbox now (before signing out, say); a failure leaves it there. */
-export const flushProgress = () => flush();
+// ---------- Song plays (kept in their own list, so plays made offline count later) ----------
 
-/** Drops unsent progress and listening minutes, on sign-out: they're this account's, not the next one's. */
+/** A counted play waiting to be sent. Its id makes a retry count once. */
+interface PlayEntry {
+  trackId: string;
+  source: { kind: UpNextSource["kind"]; refId: string | null } | null;
+  playId: string;
+  playedAt: number;
+}
+
+const PLAYS_KEY = "murmur.playOutbox";
+/** The most plays kept unsent; a phone offline for months drops the oldest. */
+const PLAYS_MAX = 500;
+
+function queuePlay(entry: PlayEntry) {
+  const plays = [...(getJson<PlayEntry[]>(PLAYS_KEY) ?? []), entry].slice(-PLAYS_MAX);
+  setJson(PLAYS_KEY, plays);
+  playsWaiting = true;
+  void flushPlays();
+}
+
+let sendingPlays: Promise<void> | null = null;
+/** Whether any plays are waiting, so most flushes skip reading the list; null until it's first read. */
+let playsWaiting: boolean | null = null;
+
+/**
+ * Sends waiting plays oldest first, each taken off once the server has it. One the server turns
+ * down (a song that's gone) is dropped; offline or a server error leaves the rest for next time.
+ */
+function flushPlays(): Promise<void> {
+  if (playsWaiting === false && !sendingPlays) return Promise.resolve();
+  sendingPlays ??= (async () => {
+    try {
+      for (;;) {
+        const next = getJson<PlayEntry[]>(PLAYS_KEY)?.[0];
+        if (!next) {
+          playsWaiting = false;
+          return;
+        }
+        try {
+          await api(apiPaths.trackPlays, { method: "POST", body: next });
+        } catch (err) {
+          const refused = err instanceof HttpError && err.status >= 400 && err.status < 500 && err.status !== 401 && err.status !== 429;
+          if (!refused) return;
+        }
+        setJson(PLAYS_KEY, (getJson<PlayEntry[]>(PLAYS_KEY) ?? []).filter((p) => p.playId !== next.playId));
+      }
+    } finally {
+      sendingPlays = null;
+    }
+  })();
+  return sendingPlays;
+}
+
+/** Sends what's waiting in the outbox now (before signing out, say); a failure leaves it there. */
+export const flushProgress = () => Promise.all([flush(), flushPlays()]).then(() => undefined);
+
+/** Drops unsent progress, plays and listening minutes, on sign-out: they're this account's, not the next one's. */
 export function forgetProgress() {
   removeKey(OUTBOX_KEY);
+  removeKey(PLAYS_KEY);
+  playsWaiting = false;
   listening.clear();
 }
 

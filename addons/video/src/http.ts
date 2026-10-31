@@ -34,7 +34,8 @@ export function sendError(res: ServerResponse, err: unknown) {
     const issue = err.issues[0];
     return sendJson(res, 400, { error: `${issue?.path.join(".") ?? ""}: ${issue?.message ?? "Invalid request."}` });
   }
-  sendJson(res, 500, { error: err instanceof Error ? err.message : "Something went wrong in the video add-on." });
+  // Anything else is logged by the caller; its text can name paths on the server.
+  sendJson(res, 500, { error: "Something went wrong in the video add-on." });
 }
 
 /** Docker's own health check, from inside the container. */

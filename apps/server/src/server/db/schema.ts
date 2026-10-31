@@ -317,6 +317,22 @@ export const trackPlays = sqliteTable(
 );
 
 /**
+ * Plays the app already sent, by the id it gave each one, so a play retried from the outbox
+ * counts once. Kept for a month, longer than a phone stays offline.
+ */
+export const trackPlayIds = sqliteTable(
+  "track_play_ids",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    playId: text("play_id").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.playId] }), index("track_play_ids_created_idx").on(t.createdAt)],
+);
+
+/**
  * The albums and playlists each person played from, for Jump back in. No foreign key, since
  * refId points at either table; rows for ones that are gone drop out when read.
  */
@@ -350,6 +366,11 @@ export const podcasts = sqliteTable("podcasts", {
   lastError: text("last_error"),
   failureCount: integer("failure_count").notNull().default(0),
   createdAt: integer("created_at").notNull(),
+  /**
+   * A private feed (podcasts/private-feed.ts), worked out from its URL and itunes:block on every
+   * check. Shown on the show page, and never sent to the ad add-on.
+   */
+  privateFeed: integer("private_feed", { mode: "boolean" }).notNull().default(false),
 });
 
 export const subscriptions = sqliteTable(

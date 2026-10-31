@@ -20,6 +20,7 @@ interface PodcastRow {
   unplayed_count: number;
   latest_published_at: number | null;
   speed: number;
+  private_feed: number;
 }
 
 // "New for you": published no more than a week before the user subscribed, not finished and
@@ -53,6 +54,7 @@ function toSummary(r: PodcastRow, colors: Map<string, string>): PodcastSummary {
     latestPublishedAt: r.latest_published_at,
     speed: r.speed,
     lastError: r.last_error,
+    privateFeed: r.private_feed === 1,
   };
 }
 

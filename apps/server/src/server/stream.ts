@@ -5,12 +5,29 @@ import { parseRange } from "@murmur/shared";
 import { HttpError } from "./http";
 import { safeFetch } from "./safe-fetch";
 
-/** Joins a stored relative path onto the library root, refusing anything that escapes it. */
+/**
+ * Joins a stored relative path onto the library root, refusing anything that escapes it, with
+ * symlinks followed: a link inside a library folder that points outside it is refused too. The
+ * folder itself may be a link.
+ */
 export function resolveInside(root: string, relPath: string): string {
   const full = path.resolve(/*turbopackIgnore: true*/ root, relPath);
+  if (!isInside(root, full)) throw new HttpError(400, "Invalid file path.");
+  let real: string;
+  let realRoot: string;
+  try {
+    real = fs.realpathSync.native(full);
+    realRoot = fs.realpathSync.native(root);
+  } catch {
+    throw new HttpError(404, "The file is missing on the server. A rescan will fix the library.");
+  }
+  if (!isInside(realRoot, real)) throw new HttpError(403, "This file links to a place outside the library folder.");
+  return real;
+}
+
+function isInside(root: string, full: string): boolean {
   const rel = path.relative(root, full);
-  if (rel.startsWith("..") || path.isAbsolute(rel)) throw new HttpError(400, "Invalid file path.");
-  return full;
+  return !rel.startsWith("..") && !path.isAbsolute(rel);
 }
 
 /**

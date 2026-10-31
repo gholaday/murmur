@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import {
   apiPaths,
@@ -366,6 +366,62 @@ export function usePlayer(): PlayerApi {
   const ctx = useContext(PlayerContext);
   if (!ctx) throw new Error("usePlayer must be used inside PlayerProvider");
   return ctx;
+}
+
+/** The latest player, read outside React's render: what usePlayerSelect and usePlayerControls use. */
+function createApiStore(initial: PlayerApi) {
+  let value = initial;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => value,
+    set(next: PlayerApi) {
+      value = next;
+    },
+    notify() {
+      for (const l of listeners) l();
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+  };
+}
+type ApiStore = ReturnType<typeof createApiStore>;
+const ApiStoreContext = createContext<ApiStore | null>(null);
+
+function useApiStore(): ApiStore {
+  const store = useContext(ApiStoreContext);
+  if (!store) throw new Error("player hooks must be used inside PlayerProvider");
+  return store;
+}
+
+/**
+ * One value from the player, like the app's usePlayerSelect: a row re-renders only when its own
+ * answer changes, not on every play, pause or Up Next change. `select` must return a plain value
+ * (a boolean, number or string), not a new object.
+ */
+export function usePlayerSelect<T>(select: (p: PlayerApi) => T): T {
+  const store = useApiStore();
+  const read = () => select(store.get());
+  return useSyncExternalStore(store.subscribe, read, read);
+}
+
+type PlayerControls = { [K in keyof PlayerApi as PlayerApi[K] extends (...args: never[]) => unknown ? K : never]: PlayerApi[K] };
+
+/** The player's actions, for click handlers. The object never changes, so using it never re-renders. */
+export function usePlayerControls(): PlayerControls {
+  const store = useApiStore();
+  return useMemo(
+    () =>
+      new Proxy({} as PlayerControls, {
+        // Only the player's functions; anything else (symbols, `then`, devtools probes) isn't there.
+        get: (_, key) =>
+          typeof key === "string" && typeof store.get()[key as keyof PlayerApi] === "function"
+            ? (...args: unknown[]) => (store.get()[key as keyof PlayerApi] as (...a: unknown[]) => unknown)(...args)
+            : undefined,
+      }),
+    [store],
+  );
 }
 
 /**
@@ -1358,27 +1414,35 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     // Only when casting starts or ends; `fire` reads the latest handlers through a ref.
   }, [castDevice, load]);
 
+  const [apiStore] = useState(() => createApiStore(value));
+  // Set during render on purpose: children rendering in this same pass read the new value, so
+  // nothing tears within a commit. Subscribers hear about it once it's committed, below.
+  apiStore.set(value);
+  useLayoutEffect(() => apiStore.notify(), [apiStore, value]);
+
   return (
     <PlayerContext.Provider value={value}>
-      {children}
-      {[0, 1].map((n) => (
-        <audio
-          key={n}
-          ref={(el) => {
-            players.current[n] = el;
-          }}
-          preload="metadata"
-          onLoadedMetadata={(e) => fire("loadedmetadata", e.currentTarget)}
-          onWaiting={(e) => fire("waiting", e.currentTarget)}
-          onPlaying={(e) => fire("playing", e.currentTarget)}
-          onTimeUpdate={(e) => fire("timeupdate", e.currentTarget)}
-          onPlay={(e) => fire("play", e.currentTarget)}
-          onPause={(e) => fire("pause", e.currentTarget)}
-          onSeeked={(e) => fire("seeked", e.currentTarget)}
-          onEnded={(e) => fire("ended", e.currentTarget)}
-          onError={(e) => fire("error", e.currentTarget)}
-        />
-      ))}
+      <ApiStoreContext.Provider value={apiStore}>
+        {children}
+        {[0, 1].map((n) => (
+          <audio
+            key={n}
+            ref={(el) => {
+              players.current[n] = el;
+            }}
+            preload="metadata"
+            onLoadedMetadata={(e) => fire("loadedmetadata", e.currentTarget)}
+            onWaiting={(e) => fire("waiting", e.currentTarget)}
+            onPlaying={(e) => fire("playing", e.currentTarget)}
+            onTimeUpdate={(e) => fire("timeupdate", e.currentTarget)}
+            onPlay={(e) => fire("play", e.currentTarget)}
+            onPause={(e) => fire("pause", e.currentTarget)}
+            onSeeked={(e) => fire("seeked", e.currentTarget)}
+            onEnded={(e) => fire("ended", e.currentTarget)}
+            onError={(e) => fire("error", e.currentTarget)}
+          />
+        ))}
+      </ApiStoreContext.Provider>
     </PlayerContext.Provider>
   );
 }

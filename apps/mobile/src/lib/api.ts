@@ -48,8 +48,37 @@ const TIMEOUT_MS = 15_000;
 const etags = new Map<string, { etag: string; data: unknown }>();
 const MAX_ETAGS = 100;
 
-export async function api<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+/** Writes (anything but GET and HEAD) still on their way to the server. */
+const writes = new Set<Promise<unknown>>();
+
+export function api<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
   const method = init?.method ?? "GET";
+  const sent = request<T>(path, method, init?.body);
+  if (method !== "GET" && method !== "HEAD") {
+    writes.add(sent);
+    const done = () => writes.delete(sent);
+    sent.then(done, done);
+  }
+  return sent;
+}
+
+/**
+ * Sign-out waits for any write sent through api() still on its way (progress, plays), up to 5 s, so
+ * the token is still good when it lands. A finished send can start a follow-up, so it waits
+ * again until none are left; offline or on a slow server it gives up at the timeout.
+ */
+export async function settleWrites(timeoutMs = 5000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    // A turn of the event loop, so a follow-up started as the last write settled is counted.
+    await new Promise((r) => setTimeout(r, 0));
+    const left = deadline - Date.now();
+    if (writes.size === 0 || left <= 0) return;
+    await Promise.race([Promise.allSettled([...writes]), new Promise((r) => setTimeout(r, left))]);
+  }
+}
+
+async function request<T>(path: string, method: string, body: unknown): Promise<T> {
   const cached = method === "GET" ? etags.get(path) : undefined;
   let res: Response;
   try {
@@ -58,10 +87,10 @@ export async function api<T>(path: string, init?: { method?: string; body?: unkn
       headers: {
         ...authHeaders(),
         Accept: "application/json",
-        ...(init?.body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         ...(cached ? { "If-None-Match": cached.etag } : {}),
       },
-      body: init?.body === undefined ? undefined : JSON.stringify(init.body),
+      body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch {

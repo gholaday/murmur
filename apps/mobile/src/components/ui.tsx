@@ -419,10 +419,11 @@ export function Pills({ labels }: { labels: string[] }) {
 }
 
 /** A small grey label, for an album's year, song count and length. */
-export function Pill({ label }: { label: string }) {
+export function Pill({ label, icon }: { label: string; /** Drawn before the label, like the Private pill's lock. */ icon?: React.ReactNode }) {
   const t = useTheme();
   return (
-    <View style={{ height: 24, maxWidth: "100%", paddingHorizontal: 9, borderRadius: 12, flexDirection: "row", alignItems: "center", backgroundColor: t.chip }}>
+    <View style={{ height: 24, maxWidth: "100%", paddingHorizontal: 9, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: t.chip }}>
+      {icon}
       <RNText numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 12, color: t.text2 }}>
         {label}
       </RNText>

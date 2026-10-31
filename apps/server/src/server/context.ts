@@ -256,6 +256,7 @@ async function boot(): Promise<AppContext> {
   void scanner.scan(); // initial scans run in the background; the server is usable meanwhile
   void musicScanner.scan();
   void watchScanner.scan();
+  if (env.addonSecretProblem) log.error(`${env.addonSecretProblem} Until then the add-ons are off.`);
   log.info("murmur started", {
     version: env.version,
     ms: Date.now() - started,

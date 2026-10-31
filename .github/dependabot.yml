@@ -1,5 +1,6 @@
-# Keeps the workflows' pinned actions current: a pull request each month moves the commit hashes
-# to the newest release, so pinning doesn't leave old versions behind.
+# Keeps pinned versions current, so pinning doesn't leave old versions behind: a pull request each
+# month moves the workflows' action hashes, the Dockerfiles' base image digests and the ad add-on's
+# hashed Python packages to the newest releases.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -8,4 +9,23 @@ updates:
       interval: monthly
     groups:
       actions:
+        patterns: ["*"]
+  - package-ecosystem: docker
+    directories: ["/", "/addons/adscan", "/addons/video"]
+    schedule:
+      interval: monthly
+    groups:
+      images:
+        patterns: ["*"]
+    # Alpine and Node move in step (the runtime stage copies node out of node:24-alpine), and
+    # Python's minor version is chosen, not drifted into; only digests and patch tags move.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - package-ecosystem: pip
+    directory: /addons/adscan
+    schedule:
+      interval: monthly
+    groups:
+      python:
         patterns: ["*"]

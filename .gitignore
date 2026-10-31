@@ -13,6 +13,8 @@ apps/server/data/
 
 .env
 .env.local
+# The compose stack's keys and secrets (murmur.env.example is the template).
+murmur.env
 .DS_Store
 Thumbs.db
 

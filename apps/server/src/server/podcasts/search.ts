@@ -4,6 +4,7 @@ import type { PodcastService } from "./service";
 import { env } from "../env";
 import { HttpError } from "../http";
 import { createLogger, errorMessage } from "../log";
+import { artworkLink } from "./artwork";
 import { SHORT_NOTES } from "./queries";
 
 const log = createLogger("podcast-search");
@@ -81,7 +82,12 @@ function followedFeeds(sqlite: Sqlite, userId: number) {
 export async function searchPodcasts(sqlite: Sqlite, userId: number, term: string): Promise<PodcastSearchResult[]> {
   const found = await searchApple(term);
   const followed = followedFeeds(sqlite, userId);
-  return found.map((f) => ({ ...f, subscribedId: followed.get(f.feedUrl) ?? null }));
+  return found.map((f) => ({
+    ...f,
+    artworkUrl: artworkLink(sqlite, f.artworkUrl),
+    thumbUrl: artworkLink(sqlite, f.thumbUrl),
+    subscribedId: followed.get(f.feedUrl) ?? null,
+  }));
 }
 
 const PREVIEW_EPISODES = 100;
@@ -103,7 +109,7 @@ export async function previewPodcast(
     author: feed.author,
     description: feed.description,
     link: feed.link,
-    artworkUrl: feed.imageUrl,
+    artworkUrl: artworkLink(sqlite, feed.imageUrl),
     episodeCount: episodes.length,
     latestPublishedAt: episodes[0]?.publishedAt ?? null,
     episodes: episodes.slice(0, PREVIEW_EPISODES).map((e) => ({

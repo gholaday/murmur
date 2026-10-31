@@ -13,3 +13,16 @@ const PROXY_HEADERS = ["forwarded", "via", "x-real-ip", "true-client-ip", "x-for
 export function cameThroughProxy(header: (name: string) => string | null | undefined): boolean {
   return PROXY_HEADERS.some((name) => !!header(name)) || header("x-forwarded-proto") === "https";
 }
+
+/**
+ * The shortest ADDON_SECRET Murmur and the add-ons accept: anyone who guesses it can use an
+ * add-on as Murmur would. `openssl rand -hex 32` gives 64 characters.
+ */
+export const ADDON_SECRET_MIN_LENGTH = 32;
+
+/** Why an ADDON_SECRET can't be used, or null when it's long enough (or not set at all). */
+export function addonSecretProblem(secret: string): string | null {
+  return secret && secret.length < ADDON_SECRET_MIN_LENGTH
+    ? `ADDON_SECRET is too short. Use at least ${ADDON_SECRET_MIN_LENGTH} characters, for example the output of openssl rand -hex 32, on Murmur and the add-ons.`
+    : null;
+}

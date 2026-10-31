@@ -15,13 +15,17 @@ services:
       - PGID=1000
       # Space for cached podcast episodes, in GB.
       - EPISODE_CACHE_MAX_GB=20
-      # Movies and shows (optional): a TMDB API key fills in posters and details.
-      # - TMDB_API_KEY=
-      # Match searches Google Books too. Optional free key so it isn't held to Google's shared quota.
-      # - GOOGLE_BOOKS_API_KEY=
-      # The add-ons below (ad detection, movies and shows): uncomment, set any long random value, and
-      # give the add-ons the same value. Leaving it out turns them off.
-      # - ADDON_SECRET=change-me-to-a-long-random-string
+    # Keys and the add-on secret go in murmur.env beside this file (copy murmur.env.example), so
+    # this file holds no secrets and can be shared when asking for help. Without it Murmur starts
+    # with none: no TMDB details, and the add-ons off.
+    env_file:
+      - path: ./murmur.env
+        required: false
+    # Murmur needs no special powers. It starts as root only to give /data and /cache to PUID:PGID,
+    # then runs as that user; these three capabilities are all that step uses.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID]
+    security_opt: ["no-new-privileges:true"]
     volumes:
       - /path/to/audiobooks:/audiobooks:ro
       # Music (optional): uncomment to turn on the Music tab.
@@ -44,9 +48,9 @@ services:
         max-size: '10m'
         max-file: '5'
 
-  # Optional ad detection add-on. Uncomment to use; needs ADDON_SECRET above and a Gemini API key
-  # from aistudio.google.com. Without it Murmur works the same, just without ad marks. It opens no
-  # ports: it only calls Murmur inside the stack, and Gemini and Groq.
+  # Optional ad detection add-on. Uncomment to use; needs ADDON_SECRET and a Gemini API key from
+  # aistudio.google.com in murmur.env. Without it Murmur works the same, just without ad marks. It
+  # opens no ports: it only calls Murmur inside the stack, and Gemini and Groq.
   # murmur-adscan:
   #   image: ghcr.io/gholaday/murmur-adscan:0.10.0
   #   container_name: murmur-adscan
@@ -58,10 +62,13 @@ services:
   #     - PUID=1000
   #     - PGID=1000
   #     - MURMUR_URL=http://murmur:3000
-  #     - ADDON_SECRET=change-me-to-a-long-random-string
-  #     - GEMINI_API_KEY=your-gemini-key
-  #     # Optional, much better transcripts; without it the add-on uses Vosk on this machine.
-  #     - GROQ_API_KEY=your-groq-key
+  #   # The same file as Murmur's: ADDON_SECRET, GEMINI_API_KEY and, optionally, GROQ_API_KEY.
+  #   env_file:
+  #     - path: ./murmur.env
+  #       required: false
+  #   cap_drop: [ALL]
+  #   cap_add: [CHOWN, SETUID, SETGID]
+  #   security_opt: ["no-new-privileges:true"]
   #   volumes:
   #     # The same folder as Murmur's /cache above, read-only.
   #     - /path/to/murmur/cache:/cache:ro
@@ -75,7 +82,7 @@ services:
   #       max-file: "3"
 
   # Optional movies and shows add-on: it reads the video files and streams them. Uncomment with the
-  # movie and show folders above; needs ADDON_SECRET above. Without it the Watch tab stays empty.
+  # movie and show folders above; needs ADDON_SECRET in murmur.env. Without it the Watch tab stays empty.
   # murmur-video:
   #   image: ghcr.io/gholaday/murmur-video:0.10.0
   #   container_name: murmur-video
@@ -83,9 +90,15 @@ services:
   #   environment:
   #     - PUID=1000
   #     - PGID=1000
-  #     - ADDON_SECRET=change-me-to-a-long-random-string
   #     # Video conversion on the GPU: auto finds one (uncomment devices below), off keeps it on the CPU.
   #     - WATCH_HW=auto
+  #   # The same file as Murmur's, for ADDON_SECRET.
+  #   env_file:
+  #     - path: ./murmur.env
+  #       required: false
+  #   cap_drop: [ALL]
+  #   cap_add: [CHOWN, SETUID, SETGID]
+  #   security_opt: ["no-new-privileges:true"]
   #   volumes:
   #     # The same folders, at the same paths, as Murmur's.
   #     - /path/to/movies:/movies:ro

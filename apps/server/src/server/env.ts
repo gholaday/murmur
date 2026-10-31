@@ -1,4 +1,5 @@
 import path from "node:path";
+import { addonSecretProblem } from "@murmur/shared";
 import pkg from "../../package.json";
 
 function intEnv(name: string, fallback: number): number {
@@ -10,6 +11,7 @@ function intEnv(name: string, fallback: number): number {
 }
 
 const dataDir = path.resolve(/*turbopackIgnore: true*/ process.env.DATA_DIR ?? "./data");
+const rawAddonSecret = process.env.ADDON_SECRET ?? "";
 
 export const env = {
   /** Set by the Docker image. Without it (pnpm dev), the version in package.json. */
@@ -57,8 +59,13 @@ export const env = {
   /** Where podcast episodes are kept; without a writable folder, episodes are relayed instead. */
   episodeCacheDir: path.resolve(/*turbopackIgnore: true*/ process.env.EPISODE_CACHE_DIR ?? "/cache"),
   episodeCacheMaxBytes: intEnv("EPISODE_CACHE_MAX_GB", 20) * 1024 ** 3,
-  /** Shared with the add-ons: ad detection's endpoints are off unless this is set, and the video add-on needs it. */
-  addonSecret: process.env.ADDON_SECRET ?? "",
+  /**
+   * Shared with the add-ons: ad detection's endpoints are off unless this is set, and the video
+   * add-on needs it. One that's too short counts as not set, so the add-ons are off, and
+   * addonSecretProblem says why; books, podcasts and music work either way.
+   */
+  addonSecret: addonSecretProblem(rawAddonSecret) ? "" : rawAddonSecret,
+  addonSecretProblem: addonSecretProblem(rawAddonSecret),
   /** Lets feeds, episodes and cover URLs point at private LAN addresses (a home server). The server's own addresses are always refused. */
   fetchAllowPrivate: process.env.FETCH_ALLOW_PRIVATE === "true",
 };

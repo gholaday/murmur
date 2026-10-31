@@ -90,7 +90,8 @@ const dto = (j: Job): VideoDownloadDto => ({
   status: j.status,
   progress: j.status === "ready" ? 1 : j.progress,
   size: j.status === "ready" ? (fs.statSync(j.file, { throwIfNoEntry: false })?.size ?? null) : null,
-  error: j.error,
+  // ffmpeg's own words can name paths on the server, so they stay in the log.
+  error: j.error === null ? null : "The video couldn't be converted for downloading.",
   fileUrl: apiPaths.videoDownloadFile(j.id),
 });
 
@@ -229,6 +230,7 @@ export function startDownload(owner: string, src: VideoSource): VideoDownloadDto
   void prepare(job, src).catch((err: unknown) => {
     job.status = "failed";
     job.error = errorMessage(err);
+    log.warn("download failed", { video: src.videoId, error: job.error });
   });
   return dto(job);
 }

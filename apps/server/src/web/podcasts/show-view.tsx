@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { apiPaths, type EpisodeDto, type EpisodeWithShow, errorText, matchesEpisode, plural, type PodcastDetail, shortDate } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { CheckIcon, FilterIcon, MoreIcon, SearchIcon } from "../icons";
+import { CheckIcon, FilterIcon, LockIcon, MoreIcon, SearchIcon } from "../icons";
 import { BackButton, EmptyState, SearchBox, SectionTitle } from "../ui";
 import { Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
@@ -105,6 +105,15 @@ export function ShowView({
               <span>{plural(podcast.episodeCount, "episode")}</span>
               {podcast.latestPublishedAt ? <span>Latest {shortDate(podcast.latestPublishedAt)}</span> : null}
             </div>
+            {/* Told by the feed itself (a key in its URL, or itunes:block); never sent for ad detection. */}
+            {podcast.privateFeed ? (
+              <div className="pills">
+                <span className="pill" title="A personal feed, so it isn't sent for ad detection">
+                  <LockIcon size={12} />
+                  Private
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
         <div className="show-actions" style={{ "--tint": podcast.coverColor ?? "#1b3532" } as React.CSSProperties}>

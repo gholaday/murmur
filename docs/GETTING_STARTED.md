@@ -39,7 +39,7 @@ Shows/
       A Knight of the Seven Kingdoms - S01E01.mkv
 ```
 
-A `poster.jpg` or `fanart.jpg` in the folder is used as the picture. Otherwise a free [TMDB](https://www.themoviedb.org/settings/api) key (`TMDB_API_KEY`) fills in posters, descriptions and episode names.
+A `poster.jpg` or `fanart.jpg` in the folder is used as the picture. Otherwise a free [TMDB](https://www.themoviedb.org/settings/api) key (`TMDB_API_KEY` in `murmur.env`, see step 2) fills in posters, descriptions and episode names.
 
 ## 2. Start the server
 
@@ -53,13 +53,19 @@ Copy [`docker-compose.yml`](../docker-compose.yml) to your server and change the
 | `/path/to/murmur/data` | Database, covers and nightly backups. Back this up |
 | `/path/to/murmur/cache` | Podcast episodes kept on the server. Safe to lose |
 
-Set `PUID` and `PGID` to your user's ids (run `id` on the server) so the files Murmur writes belong to you. Then:
+Set `PUID` and `PGID` to your user's ids (run `id` on the server) so the files Murmur writes belong to you.
+
+Keys and secrets go in a `murmur.env` file beside `docker-compose.yml`, not in the compose file itself, so you can share the compose file when asking for help. Copy [`murmur.env.example`](../murmur.env.example) to `murmur.env` and fill in what you use; everything in it is optional, and Murmur starts without the file. Skipping a missing file needs Docker Compose 2.24 or later (`docker compose version`); on an older one, create an empty `murmur.env` or remove the `env_file` lines.
+
+The compose file also drops every Linux capability except the three Murmur's start-up needs to give `/data` and `/cache` to your user (`CHOWN`, `SETUID`, `SETGID`). Keep those three if you trim it.
+
+Then:
 
 ```bash
 docker compose up -d
 ```
 
-**Using Portainer instead:** go to **Stacks > Add stack**, name it `murmur`, paste the contents of `docker-compose.yml` into the web editor, change the paths, and press **Deploy the stack**. To update later, open the stack, change the image tag (or tick **Re-pull image**), and press **Update the stack**. Portainer shows the container as healthy once Murmur's health check passes.
+**Using Portainer instead:** go to **Stacks > Add stack**, name it `murmur`, paste the contents of `docker-compose.yml` into the web editor, and change the paths. A stack made in the editor has no file beside it, so put the keys from `murmur.env.example` under **Environment variables** below the editor, and change each `./murmur.env` in the compose file to `stack.env`, which is where Portainer saves them. Then press **Deploy the stack**. To update later, open the stack, change the image tag (or tick **Re-pull image**), and press **Update the stack**. Portainer shows the container as healthy once Murmur's health check passes.
 
 Open `http://<server>:3333` and create an account. The first account becomes the admin, and a library scan starts right away; a large library takes a few minutes the first time.
 
@@ -118,8 +124,8 @@ Feeds are checked every 30 minutes, and the newest 3 episodes of each show are k
 
 The `murmur-adscan` add-on finds the ads in podcast episodes, so the players can mark them on the seek bar or skip them. It needs a free Gemini API key, and works best with a free Groq key too.
 
-1. Set `ADDON_SECRET` on Murmur to a long random value (`openssl rand -hex 32`).
-2. Uncomment the `murmur-adscan` service in `docker-compose.yml`. Give it the same secret, your keys, and the **same** cache folder as Murmur.
+1. Set `ADDON_SECRET` in `murmur.env` to a long random value: run `openssl rand -hex 32` and paste what it prints. It must be **at least 32 characters**. With a shorter one Murmur keeps the add-ons off (its log says why), and the add-ons refuse to start.
+2. Put your Gemini key (`GEMINI_API_KEY`), and a Groq key (`GROQ_API_KEY`) if you have one, in `murmur.env` too. Uncomment the `murmur-adscan` service in `docker-compose.yml`; it reads the same `murmur.env`, and it needs the **same** cache folder as Murmur.
 3. `docker compose up -d`. Within a minute, Settings shows "Ad detection: Working".
 
 Each device then chooses Off, Show or Auto-skip in its player's Ads button or in Settings. Details, costs and privacy notes are in the [add-on's README](../addons/adscan/README.md).
@@ -128,8 +134,8 @@ Each device then chooses Off, Show or Auto-skip in its player's Ads button or in
 
 The `murmur-video` add-on reads your video files and streams them; Murmur keeps the library and the players. Without it, the Watch tab stays empty and everything else works the same.
 
-1. Set `ADDON_SECRET` on Murmur, as in step 6 (one secret serves both add-ons).
-2. Uncomment the movie and show folders on Murmur, and the `murmur-video` service in `docker-compose.yml`. Give it the same secret, and the movie and show folders at the **same** paths as Murmur's.
+1. Set `ADDON_SECRET` in `murmur.env`, as in step 6: at least 32 characters, and one secret serves both add-ons.
+2. Uncomment the movie and show folders on Murmur, and the `murmur-video` service in `docker-compose.yml`. It reads the same `murmur.env`, and it needs the movie and show folders at the **same** paths as Murmur's.
 3. `docker compose up -d`. Movies and shows appear once the scan has read them; You > Library shows each folder's status.
 
 Most files play as they are. A file whose picture the device can't play (HEVC in some browsers, for example) is converted while you watch, and a small server's CPU may not keep up. With an Intel or AMD GPU, uncomment the `devices:` lines under `murmur-video` to pass `/dev/dri` in. The add-on finds the GPU on its own, and `/api/health` shows the encoder it picked under `watch.encoder`. If it still can't keep up, pick 720p in **You > Playback** or before pressing Play. The add-on can also run on another machine with a better GPU: mount the folders there at the same paths and point Murmur's `VIDEO_URL` at it. Settings and fixes are in the [add-on's README](../addons/video/README.md).
@@ -145,9 +151,12 @@ docker compose up -d
 
 In Portainer, use **Update the stack** as described in step 2. Database changes run on start, after a copy of the database is saved to `data/backups`.
 
+**Updating from 0.10 or earlier with add-ons:** `ADDON_SECRET` now has to be at least 32 characters. If yours is shorter, make a new one with `openssl rand -hex 32` and set it on Murmur and both add-ons before updating; otherwise the add-ons stop and Murmur keeps them off until it's fixed. Books, podcasts and music keep working either way.
+
 ## When something's wrong
 
 - **Books are missing:** check that the library folder is mounted and readable inside the container, and look at **You > Library**, which shows each folder's status. Network shares that don't report file changes need `WATCH_POLLING=true`.
+- **The add-ons stopped after an update:** check `ADDON_SECRET` is at least 32 characters and the same on Murmur and the add-ons. `docker logs murmur` says when it's too short.
 - **Watch is empty:** You > Library says when the video add-on can't be reached, or can't see a folder (it needs the same paths as Murmur), and shows each movie and show folder's status.
 - **The app can't connect:** open the same address in the phone's browser. If that works, check for a login gateway that needs the `/api/*` bypass.
 - **Casting doesn't play:** the Chromecast fetches from the same address your phone or browser uses, so it has to reach that address too: `localhost` or a VPN-only name won't work. Movies and shows that need converting cast best over an https address (your tunnel or proxy); files that play as they are work over your home network too.
@@ -155,4 +164,4 @@ In Portainer, use **Update the stack** as described in step 2. Database changes 
 - **Health check:** `http://<server>:3333/api/health` answers `ok` and the version; signed in, it also reports the database, library, scans and add-ons.
 - **Logs:** `docker logs murmur` (and `docker logs murmur-adscan` or `docker logs murmur-video` for the add-ons).
 
-All settings are listed in the [README](../README.md#settings). How Murmur works inside is in [SPEC.md](SPEC.md).
+All settings are listed in the [README](../README.md#settings). How Murmur works inside is in [the spec](spec/README.md).

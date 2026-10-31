@@ -23,7 +23,7 @@ import { ShuffleButton } from "./shuffle-button";
 import { MixerBars } from "../mixer";
 import { BackRow, SectionTitle } from "../ui";
 import { Sheet, SheetItem } from "../sheet";
-import { type MusicSource, usePlayer } from "../player/engine";
+import { type MusicSource, usePlayerControls, usePlayerSelect } from "../player/engine";
 import { MenuSheet } from "../card-menu";
 import { AlbumMenuItems, useAlbumMenuSheets } from "./album-menu";
 import { ArtistPhotoDialog } from "./match";
@@ -43,9 +43,13 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
   const menuSheets = useAlbumMenuSheets(album);
   const state = albumInMusic(album);
   const toAdd = album.trackCount - album.songsInMusic;
-  const p = usePlayer();
+  const p = usePlayerControls();
   const source: MusicSource = { kind: "album", refId: album.id, title: album.title, tracks: album.tracks };
-  const from = p.isPlayingFrom("album", album.id);
+  const from = usePlayerSelect((s) => s.isPlayingFrom("album", album.id));
+  const nowId = usePlayerSelect((s) => (s.item?.type === "track" ? s.item.id : null));
+  const nowHere = nowId !== null && album.tracks.some((t) => t.id === nowId);
+  // Only while this album's song is loaded, so other music playing doesn't re-render the list.
+  const playing = usePlayerSelect((s) => (from || nowHere) && s.playing);
   // Starting the album opens the full player; pausing and resuming leave it as it is.
   const onPlay = () => {
     if (from) return p.toggle();
@@ -87,8 +91,8 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
       {state === "all" ? (
         <div className="actions">
           <button type="button" className="btn btn-primary btn-big" onClick={onPlay}>
-            {from && p.playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
-            <span>{from ? (p.playing ? "Pause" : "Resume") : "Play"}</span>
+            {from && playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
+            <span>{from ? (playing ? "Pause" : "Resume") : "Play"}</span>
           </button>
           <ShuffleButton source={source} />
         </div>
@@ -102,10 +106,10 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
             <button
               type="button"
               className="btn-round"
-              aria-label={from && p.playing ? "Pause" : "Play"}
+              aria-label={from && playing ? "Pause" : "Play"}
               onClick={onPlay}
             >
-              {from && p.playing ? <PauseIcon /> : <PlayIcon />}
+              {from && playing ? <PauseIcon /> : <PlayIcon />}
             </button>
           </div>
           {state === "some" ? (
@@ -121,8 +125,8 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
           {d.disc !== null ? <h2 className="section-title">Disc {d.disc}</h2> : null}
           <ol className="track-list">
             {d.tracks.map((t, i) => (
-              <li key={t.id} className={p.isCurrent("track", t.id) ? "playing" : undefined}>
-                <span className="track-num">{p.isCurrent("track", t.id) ? <MixerBars playing={p.playing} /> : songNumber(t, i)}</span>
+              <li key={t.id} className={nowId === t.id ? "playing" : undefined}>
+                <span className="track-num">{nowId === t.id ? <MixerBars playing={playing} /> : songNumber(t, i)}</span>
                 <span className="track-main">
                   <button type="button" className="track-title" onClick={() => p.playMusic(source, album.tracks.indexOf(t))}>
                     {t.title}
@@ -156,7 +160,7 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
 export function ArtistView({ artist, isAdmin }: { artist: ArtistDetail; isAdmin: boolean }) {
   const router = useRouter();
   const send = useMineChange();
-  const p = usePlayer();
+  const p = usePlayerControls();
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
   const [photo, setPhoto] = useState(false);

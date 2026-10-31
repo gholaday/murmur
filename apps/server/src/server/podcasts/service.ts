@@ -5,7 +5,31 @@ import { storeCover } from "../library/covers";
 import { createLimiter } from "../library/probe";
 import { errorMessage, type Logger } from "../log";
 import { readCapped, safeFetch } from "../safe-fetch";
+import { setPrivateFeed } from "../ads";
 import { FeedParseError, parseFeed, type ParsedFeed } from "./feed";
+import { isPrivateFeed } from "./private-feed";
+
+/** A feed's server answered with an error status. */
+class FeedStatusError extends Error {
+  constructor(readonly status: number) {
+    super(`Feed server answered ${status}`);
+  }
+}
+
+/**
+ * Why a feed couldn't be loaded, in plain words for people to read. The raw error can name
+ * addresses on the server's own network or quote the parser, so it goes to the log only.
+ */
+export function feedProblem(err: unknown): string {
+  if (err instanceof FeedParseError || err instanceof HttpError) return err.message;
+  if (err instanceof FeedStatusError) {
+    if (err.status === 404 || err.status === 410) return "The feed isn't at that address any more.";
+    if (err.status === 401 || err.status === 403) return "The feed's server refused to send it.";
+    return "The feed's server answered with an error.";
+  }
+  if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) return "The feed's server took too long to answer.";
+  return "Couldn't reach the feed's server.";
+}
 
 interface Deps {
   sqlite: Sqlite;
@@ -64,7 +88,7 @@ export function createPodcastService(deps: Deps) {
     if (res.status === 304) return { kind: "not-modified" };
     if (!res.ok) {
       await res.body?.cancel().catch(() => undefined);
-      throw new Error(`Feed server answered ${res.status}`);
+      throw new FeedStatusError(res.status);
     }
     const xml = (await readCapped(res, MAX_FEED_BYTES, "The feed")).toString("utf8");
     return { kind: "ok", feed: parseFeed(xml), etag: res.headers.get("etag"), lastModified: res.headers.get("last-modified") };
@@ -137,6 +161,8 @@ export function createPodcastService(deps: Deps) {
         upsert.run({ id: newId(), podcastId, now, ...e });
       }
     })();
+    const row = getRow(podcastId);
+    if (row) setPrivateFeed(sqlite, podcastId, isPrivateFeed(row.feed_url, feed.unlisted));
     deps.onFeedSaved?.(podcastId);
   }
 
@@ -163,12 +189,12 @@ export function createPodcastService(deps: Deps) {
         }
       }
     } catch (err) {
-      const message = errorMessage(err);
+      // Everyone following the show sees last_error, so it gets plain words; the log keeps the detail.
       sqlite
         .prepare("UPDATE podcasts SET last_checked_at = ?, last_error = ?, failure_count = failure_count + 1 WHERE id = ?")
-        .run(Date.now(), message, podcastId);
+        .run(Date.now(), feedProblem(err), podcastId);
       // The host only: private feeds carry the subscriber's token in the URL, which doesn't belong in a log.
-      log.warn("feed check failed", { podcastId, host: feedHost(row.feed_url), error: message, failures: row.failure_count + 1 });
+      log.warn("feed check failed", { podcastId, host: feedHost(row.feed_url), error: errorMessage(err), failures: row.failure_count + 1 });
     }
   }
 
@@ -205,8 +231,7 @@ export function createPodcastService(deps: Deps) {
         try {
           result = await fetchFeed(url, null, null);
         } catch (err) {
-          const reason = err instanceof FeedParseError ? err.message : `Couldn't load the feed: ${errorMessage(err)}`;
-          throw new HttpError(400, reason);
+          throw new HttpError(400, feedProblem(err));
         }
       }
       if (result.kind !== "ok") throw new HttpError(400, "The feed returned no content.");
@@ -245,8 +270,7 @@ export function createPodcastService(deps: Deps) {
     try {
       result = await feedLimit(() => fetchFeed(url, null, null));
     } catch (err) {
-      const reason = err instanceof FeedParseError ? err.message : `Couldn't load the feed: ${errorMessage(err)}`;
-      throw new HttpError(400, reason);
+      throw new HttpError(400, feedProblem(err));
     }
     if (result.kind !== "ok") throw new HttpError(400, "The feed returned no content.");
     previews.set(url, { at: Date.now(), feed: result.feed });
