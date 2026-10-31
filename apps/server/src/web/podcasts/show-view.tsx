@@ -3,20 +3,31 @@
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { apiPaths, type EpisodeDto, type EpisodeWithShow, errorText, matchesEpisode, plural, type PodcastDetail, shortDate } from "@murmur/shared/client";
+import { apiPaths, type BookmarkDto, type EpisodeDto, type EpisodeWithShow, errorText, matchesEpisode, plural, type PodcastDetail, shortDate } from "@murmur/shared/client";
 import { api } from "../api";
+import { BookmarkRows } from "../bookmark-rows";
+import { usePodcastBookmarks } from "../bookmarks";
 import { Cover } from "../cover";
-import { CheckIcon, FilterIcon, LockIcon, MoreIcon, SearchIcon } from "../icons";
+import { BookmarkIcon, CheckIcon, FilterIcon, LockIcon, MoreIcon, SearchIcon } from "../icons";
+import { usePlayerControls } from "../player/engine";
 import { BackButton, EmptyState, SearchBox, SectionTitle } from "../ui";
 import { ConfirmSheet, Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
+function byEpisode(bookmarks: BookmarkDto[]) {
+  const groups = new Map<string, BookmarkDto[]>();
+  for (const b of bookmarks) groups.set(b.itemId, [...(groups.get(b.itemId) ?? []), b]);
+  return groups;
+}
+
 export function ShowView({
   podcast,
+  bookmarks: firstBookmarks,
   pageSize,
   firstPage,
 }: {
   podcast: PodcastDetail;
+  bookmarks: BookmarkDto[];
   /** Episodes shown per page; `firstPage` holds the newest page. */
   pageSize: number;
   firstPage: EpisodeDto[];
@@ -24,7 +35,15 @@ export function ShowView({
   const router = useRouter();
   const [oldestFirst, setOldestFirst] = useState(false);
   const [limit, setLimit] = useState(pageSize);
-  const [sheet, setSheet] = useState<null | "menu" | "unsubscribe" | "sort">(null);
+  const [sheet, setSheet] = useState<null | "menu" | "unsubscribe" | "sort" | "bookmarks">(null);
+  const player = usePlayerControls();
+  const bookmarks = usePodcastBookmarks(podcast.id, firstBookmarks);
+  // Grouped by episode, newest bookmark's episode first. Rows are in order within each.
+  const bookmarkGroups = useMemo(
+    () => [...byEpisode(bookmarks).values()].sort((a, b) => Math.max(...b.map((m) => m.createdAt)) - Math.max(...a.map((m) => m.createdAt))),
+    [bookmarks],
+  );
+  const firstByEpisode = useMemo(() => byEpisode(firstBookmarks), [firstBookmarks]);
   const [busy, setBusy] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -121,6 +140,13 @@ export function ShowView({
             <CheckIcon size={16} />
             Subscribed
           </button>
+          {bookmarks.length ? (
+            <button type="button" className="btn btn-tint" onClick={() => setSheet("bookmarks")}>
+              <BookmarkIcon size={16} />
+              Bookmarks
+              <span className="count-pill">{bookmarks.length}</span>
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -178,7 +204,7 @@ export function ShowView({
       ) : (
         <div>
           {visible.slice(0, limit).map((e) => (
-            <EpisodeRow key={e.id} episode={e} onChanged={changed} />
+            <EpisodeRow key={e.id} episode={e} firstBookmarks={firstByEpisode.get(e.id)} onChanged={changed} />
           ))}
           {(complete ? visible.length : podcast.episodeCount) > limit ? (
             <div style={{ textAlign: "center", padding: 16 }}>
@@ -239,6 +265,21 @@ export function ShowView({
         <SheetItem danger onClick={() => setSheet("unsubscribe")}>
           Unsubscribe
         </SheetItem>
+      </Sheet>
+
+      <Sheet open={sheet === "bookmarks"} onClose={() => setSheet(null)} title="Bookmarks" count={bookmarks.length}>
+        {bookmarkGroups.map((group) => (
+          <section key={group[0]!.itemId} className="bookmark-group">
+            <h3 className="list-row-title">{group[0]!.title}</h3>
+            <BookmarkRows
+              bookmarks={group}
+              onJump={(b) => {
+                setSheet(null);
+                void player.jumpTo({ itemType: "episode", itemId: b.itemId }, b.positionSec);
+              }}
+            />
+          </section>
+        ))}
       </Sheet>
 
       <ConfirmSheet

@@ -13,7 +13,7 @@ These are left out on purpose; each can be added later if it earns its place.
 
 ## Ideas for later
 
-- Bookmarks and clips with notes
+- Clips from a bookmark
 - A yearly listening recap
 - Subtitles for movies and shows: `.srt` and `.vtt` beside the file and text tracks inside it as WebVTT, picked in the player and remembered per show. Image subtitles (PGS, VobSub) would need burning into a converted picture
 - Faster far seeks in a stream, starting with a shorter first piece

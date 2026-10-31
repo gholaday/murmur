@@ -41,6 +41,7 @@ export function Button({
   kind = "primary",
   style,
   icon,
+  trail,
   small,
 }: {
   label: string;
@@ -52,6 +53,8 @@ export function Button({
   style?: StyleProp<ViewStyle>;
   /** Shown before the label, e.g. a check. */
   icon?: React.ReactNode;
+  /** Shown after the label, e.g. a count. */
+  trail?: React.ReactNode;
   /** The compact size for a page header's actions, like the web's show-actions buttons. */
   small?: boolean;
 }) {
@@ -86,6 +89,7 @@ export function Button({
           <RNText style={{ fontFamily: fonts.bold, fontSize: small ? 13 : 16, lineHeight: small ? 17 : 21, includeFontPadding: false, color: primary ? t.onAccent : t.text }}>
             {label}
           </RNText>
+          {trail}
         </>
       )}
     </Pressable>

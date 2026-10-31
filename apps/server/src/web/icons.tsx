@@ -111,11 +111,16 @@ export const QueueAddIcon = ({ queued, ...p }: IconProps & { queued?: boolean })
     {queued ? <path d="M14.5 17l2.5 2.5 4.5-5" /> : <path d="M18 13v8M14 17h8" />}
   </Icon>
 );
-/** A bookmark: plus to add a book to Play next, check once it's on the shelf. */
-export const BookmarkAddIcon = ({ added, ...p }: IconProps & { added?: boolean }) => (
+export const PencilIcon = (p: IconProps) => (
   <Icon {...p}>
-    <path d="M6 4h12v16l-6-4-6 4z" />
-    {added ? <path d="M9 10l2 2 4-4" /> : <path d="M12 7.5v5M9.5 10h5" />}
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+  </Icon>
+);
+/** A bookmark, filled when the spot playing has one. */
+export const BookmarkIcon = ({ filled, ...p }: IconProps & { filled?: boolean }) => (
+  <Icon {...p}>
+    <path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" fill={filled ? "currentColor" : "none"} />
   </Icon>
 );
 /** A circled plus to add a song to a playlist, or a filled check once it's in. */

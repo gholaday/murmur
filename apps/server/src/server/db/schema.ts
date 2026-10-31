@@ -765,6 +765,28 @@ export const tmdbEpisodes = sqliteTable(
   (t) => [primaryKey({ columns: [t.showId, t.season, t.episode] })],
 );
 
+/**
+ * Spots each person saved in a book or episode. No foreign key on the item, like progress, so a
+ * book that's unmounted or a podcast nobody follows any more keeps them for when it comes back.
+ */
+export const bookmarks = sqliteTable(
+  "bookmarks",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Made on the device, so a retry can't double up. */
+    id: text("id").notNull(),
+    itemType: text("item_type", { enum: ["book", "episode"] }).notNull(),
+    itemId: text("item_id").notNull(),
+    positionSec: real("position_sec").notNull(),
+    note: text("note"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.id] }), index("bookmarks_item_idx").on(t.userId, t.itemType, t.itemId)],
+);
+
 /** Raw provider responses, kept for 30 days so repeat lookups are instant and polite. */
 export const providerCache = sqliteTable("provider_cache", {
   url: text("url").primaryKey(),

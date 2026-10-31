@@ -2,15 +2,17 @@ import { memo, useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { apiPaths, duration, type EpisodeWithShow, pastStart, shortDate, timeLeft } from "@murmur/shared/client";
+import { useBookmarks } from "@/lib/bookmarks";
 import { useEpisodeNotes } from "@/lib/data";
 import { downloadEpisode, removeDownload, useDownload } from "@/lib/downloads";
 import { addToUpNext, episodeToPlayable, isCurrent, isWaiting, markCurrent, play, removeWaiting, setFinished, toggle, useItemPosition, usePlayerSelect } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
+import { BookmarkRows, openBookmark } from "./bookmarks";
 import { Cover } from "./cover";
-import { AdsCheckedIcon, DownloadIcon, PauseIcon, PlayedIcon, PlayIcon, QueueAddIcon } from "./icons";
+import { AdsCheckedIcon, BookmarkIcon, DownloadIcon, PauseIcon, PlayedIcon, PlayIcon, QueueAddIcon } from "./icons";
 import { RemoveDownloadSheet } from "./sheet";
 import { toast } from "./toast";
-import { IconButton, NumberBadge, Text } from "./ui";
+import { Caption, IconButton, NumberBadge, Text } from "./ui";
 
 /**
  * One episode: artwork, date and title, a line of description (tap the text for all of it),
@@ -36,6 +38,7 @@ export const EpisodeRow = memo(function EpisodeRow({
   const queued = usePlayerSelect((s) => isWaiting(s.upNext, { itemType: "episode", itemId: episode.id }));
   const live = useItemPosition("episode", episode.id) ?? 0;
   const dl = useDownload("podcast", episode.id);
+  const bookmarks = useBookmarks("episode", episode.id);
   const [open, setOpen] = useState(false);
   const notes = useEpisodeNotes(episode, open);
   const [busy, setBusy] = useState(false);
@@ -119,6 +122,11 @@ export const EpisodeRow = memo(function EpisodeRow({
                 <AdsCheckedIcon size={14} color={t.accent} />
               </View>
             ) : null}
+            {bookmarks.length ? (
+              <View accessible accessibilityLabel="Has bookmarks">
+                <BookmarkIcon size={14} color={t.accent} />
+              </View>
+            ) : null}
           </View>
           {newCount > 1 ? (
             <Pressable
@@ -148,6 +156,13 @@ export const EpisodeRow = memo(function EpisodeRow({
             </Text>
           ) : null}
         </Pressable>
+
+        {open && bookmarks.length ? (
+          <View style={{ paddingTop: 8 }}>
+            <Caption style={{ letterSpacing: 0.6 }}>Bookmarks</Caption>
+            <BookmarkRows bookmarks={bookmarks} onJump={openBookmark} />
+          </View>
+        ) : null}
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 }}>
           <Pressable

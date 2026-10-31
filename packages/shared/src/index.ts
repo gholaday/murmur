@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BOOKMARK_NOTE_MAX } from "./bookmarks";
 import { clampSpeed } from "./player";
 import type { TrackDto } from "./music";
 import type { VideoStatus } from "./video-addon";
@@ -44,8 +45,8 @@ export const progressItemSchema = z.object({
   /** "video" is a movie (by the movie's id) or a TV episode; GET /progress leaves those out, as Watch reads its own. */
   itemType: z.enum(["book", "episode", "video"]),
   itemId: z.string().min(1).max(64),
-  positionSec: z.number().min(0),
-  durationSec: z.number().min(0),
+  positionSec: z.number().finite().min(0),
+  durationSec: z.number().finite().min(0),
   finished: z.boolean(),
   /** Omit to keep the speed already saved (1× for a new item). */
   speed: speedSchema.optional(),
@@ -58,6 +59,32 @@ export const progressBatchSchema = z.object({
   items: z.array(progressItemSchema).min(1).max(500),
 });
 export type ProgressBatch = z.input<typeof progressBatchSchema>;
+
+export const bookmarkSchema = z.object({
+  /** Made on the device, so a retry can't double up. */
+  id: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
+  itemType: z.enum(["book", "episode"]),
+  itemId: z.string().min(1).max(64),
+  positionSec: z.number().finite().min(0),
+  note: z.string().trim().max(BOOKMARK_NOTE_MAX).nullable(),
+  createdAt: z.number().int().positive(),
+  /** Client timestamp of the change; the newest edit wins. */
+  updatedAt: z.number().int().positive(),
+});
+export type BookmarkItem = z.input<typeof bookmarkSchema>;
+
+export const bookmarkBatchSchema = z.object({
+  items: z.array(bookmarkSchema).min(1).max(500),
+});
+
+/** A bookmark as read back, with what its row shows. */
+export interface BookmarkDto extends BookmarkItem {
+  /** The chapter it's in, when there are chapters. */
+  chapter: string | null;
+  /** The episode's podcast and title; null for a book. */
+  podcastId: string | null;
+  title: string | null;
+}
 
 const daySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD.");
 
@@ -772,6 +799,7 @@ export interface EpisodeCacheStatusDto {
 
 export * from "./ads";
 export * from "./api-paths";
+export * from "./bookmarks";
 export * from "./cast";
 export * from "./changes";
 export * from "./format";

@@ -3,7 +3,7 @@ import type { AppContext } from "./context";
 import { dropStartedFromPlayNext } from "./play-next";
 
 /** Clients may not claim timestamps far in the future, or a wrong clock would win every conflict forever. */
-const MAX_CLOCK_SKEW_MS = 60_000;
+export const MAX_CLOCK_SKEW_MS = 60_000;
 
 /**
  * Saves a batch of progress updates. For each item the newest `updatedAt` wins,

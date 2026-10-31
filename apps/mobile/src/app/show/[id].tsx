@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { Animated, Linking, Pressable, TextInput, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { apiPaths, type EpisodeWithShow, errorText, matchesEpisode, plural, shortDate } from "@murmur/shared/client";
+import { apiPaths, type BookmarkDto, type EpisodeWithShow, errorText, matchesEpisode, plural, shortDate } from "@murmur/shared/client";
+import { BookmarkRows, openBookmark } from "@/components/bookmarks";
 import { Cover } from "@/components/cover";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { EpisodeRow } from "@/components/episode-row";
 import { HeroBackdrop } from "@/components/hero";
-import { CheckIcon, CloseIcon, FilterIcon, LockIcon, MoreIcon, SearchIcon } from "@/components/icons";
+import { BookmarkIcon, CheckIcon, CloseIcon, FilterIcon, LockIcon, MoreIcon, SearchIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BackRow, Empty, NestedFallback, useBottomPad, useTopInset } from "@/components/page";
 import { ConfirmSheet, Sheet, SheetItem } from "@/components/sheet";
@@ -14,14 +15,23 @@ import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { StickyHeading, useStickyHeading } from "@/components/sticky-heading";
-import { Button, IconButton, Pill, Text } from "@/components/ui";
+import { Button, CountPill, IconButton, Pill, Text } from "@/components/ui";
 import { api } from "@/lib/api";
+import { usePodcastBookmarks } from "@/lib/bookmarks";
 import { invalidateListening, keys, useEpisodes, useFirstEpisodes, usePodcast } from "@/lib/data";
 import { queryClient } from "@/lib/query";
 import { refreshUpNext } from "@/player/engine";
-import { fonts, useTheme } from "@/theme";
+import { fonts, mixColor, useTheme } from "@/theme";
 
 type Item = "top" | "heading" | "empty" | EpisodeWithShow;
+
+/** A podcast's bookmarks by episode, the most recently bookmarked first. */
+function byEpisode(bookmarks: BookmarkDto[]): BookmarkDto[][] {
+  const groups = new Map<string, BookmarkDto[]>();
+  for (const b of bookmarks) groups.set(b.itemId, [...(groups.get(b.itemId) ?? []), b]);
+  const newest = (group: BookmarkDto[]) => Math.max(...group.map((b) => b.createdAt));
+  return [...groups.values()].sort((a, b) => newest(b) - newest(a));
+}
 
 export default function ShowScreen() {
   const t = useTheme();
@@ -38,7 +48,9 @@ export default function ShowScreen() {
   // A saved full list is cut to its newest episodes (with no fetch time), so it only counts as complete once fetched.
   const complete = wantAll && !!full.data && (full.dataUpdatedAt > 0 || full.isError);
   const [oldestFirst, setOldestFirst] = useState(false);
-  const [sheet, setSheet] = useState<null | "menu" | "unsubscribe" | "sort">(null);
+  const [sheet, setSheet] = useState<null | "menu" | "unsubscribe" | "sort" | "bookmarks">(null);
+  const bookmarks = usePodcastBookmarks(id);
+  const bookmarkGroups = useMemo(() => byEpisode(bookmarks), [bookmarks]);
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
@@ -136,13 +148,20 @@ export default function ShowScreen() {
           </View>
         </View>
 
-        <Button
-          label="Subscribed"
-          icon={<CheckIcon size={16} color={t.onAccent} />}
-          small
-          onPress={() => setSheet("unsubscribe")}
-          style={{ alignSelf: "flex-start", marginTop: 18 }}
-        />
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 18 }}>
+          <Button label="Subscribed" icon={<CheckIcon size={16} color={t.onAccent} />} small onPress={() => setSheet("unsubscribe")} />
+          {bookmarks.length ? (
+            <Button
+              label="Bookmarks"
+              kind="secondary"
+              icon={<BookmarkIcon size={16} color={t.text} />}
+              trail={<CountPill count={bookmarks.length} />}
+              small
+              onPress={() => setSheet("bookmarks")}
+              style={{ backgroundColor: mixColor(show.coverColor ?? t.accent, t.surface2, 0.4) }}
+            />
+          ) : null}
+        </View>
 
         {show.lastError ? (
           <Text variant="small" style={{ color: t.danger, marginTop: 14 }}>
@@ -303,6 +322,34 @@ export default function ShowScreen() {
             }}
           />
         ))}
+      </Sheet>
+
+      <Sheet
+        open={sheet === "bookmarks"}
+        onClose={() => setSheet(null)}
+        head={
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text variant="heading">Bookmarks</Text>
+            <CountPill count={bookmarks.length} />
+          </View>
+        }
+      >
+        <View style={{ gap: 12 }}>
+          {bookmarkGroups.map((group) => (
+            <View key={group[0]!.itemId} style={{ gap: 2 }}>
+              <Text variant="bodyStrong" numberOfLines={2} style={{ paddingHorizontal: 12 }}>
+                {group[0]!.title}
+              </Text>
+              <BookmarkRows
+                bookmarks={group}
+                onJump={(b) => {
+                  setSheet(null);
+                  openBookmark(b);
+                }}
+              />
+            </View>
+          ))}
+        </View>
       </Sheet>
 
       <ConfirmSheet

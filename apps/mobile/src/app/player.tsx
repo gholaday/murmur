@@ -8,6 +8,9 @@ import { scheduleOnRN } from "react-native-worklets";
 import Slider from "@react-native-community/slider";
 import {
   bookFinished,
+  type BookmarkDto,
+  bookmarkNear,
+  bookmarkSpot,
   chapterAt,
   clampSpeed,
   clock,
@@ -19,13 +22,17 @@ import {
   showMarkPlayed,
   SPEED_STEP,
   speedText,
+  thirdTile,
   timeLeft,
 } from "@murmur/shared/client";
+import { BookmarkNoteSheet, BookmarkRows } from "@/components/bookmarks";
 import { Cover } from "@/components/cover";
 import { HeroBackdrop } from "@/components/hero";
 import { MarqueeText } from "@/components/marquee";
 import {
+  BookmarkIcon,
   CheckIcon,
+  CloseIcon,
   DownIcon,
   ListIcon,
   MinusIcon,
@@ -43,13 +50,14 @@ import {
   SkipBackIcon,
   SkipForwardIcon,
 } from "@/components/icons";
-import { useTopInset } from "@/components/page";
+import { Empty, useTopInset } from "@/components/page";
 import { CastButton, SkipButton, Tile } from "@/components/player-controls";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
 import { MixerBars } from "@/components/mixer";
 import { Caption, Chips, CountPill, IconButton, Text } from "@/components/ui";
 import { UpNextSheet } from "@/components/up-next";
+import { addBookmark, deleteBookmark, removeBookmarkWithUndo, useBookmarks } from "@/lib/bookmarks";
 import { useAlbumColor } from "@/lib/data";
 import { dragEndHaptic, selectHaptic, tapHaptic } from "@/lib/haptics";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdDetection, useAdPrefs, type AdMode } from "@/player/ad-prefs";
@@ -57,6 +65,8 @@ import { useCast } from "@/player/cast";
 import {
   chapterStep,
   cycleRepeat,
+  goBack,
+  jumpTo,
   markCurrent,
   play,
   type Playable,
@@ -64,6 +74,7 @@ import {
   setSleep,
   setSpeed,
   skipBy,
+  stayHere,
   stop,
   toggle,
   toggleShuffle,
@@ -93,7 +104,10 @@ export default function Player() {
   const position = usePosition();
   const adPrefs = useAdPrefs();
   const adDetection = useAdDetection();
-  const [sheet, setSheet] = useState<null | "speed" | "sleep" | "chapters" | "ads" | "more" | "upnext">(null);
+  const [sheet, setSheet] = useState<null | "speed" | "sleep" | "chapters" | "bookmarks" | "ads" | "more" | "upnext">(null);
+  const [chaptersTab, setChaptersTab] = useState<"chapters" | "bookmarks">("chapters");
+  const [editingBookmark, setEditingBookmark] = useState<BookmarkDto | null>(null);
+  const bookmarks = useBookmarks(p.item?.type, p.item?.id);
   const [scrub, setScrub] = useState<number | null>(null);
   const [speedDraft, setSpeedDraft] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -180,10 +194,23 @@ export default function Player() {
   const frac = (sec: number) => Math.min(Math.max(sec - span.start, 0), spanLen) / spanLen;
   const trackColor = t.isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)";
   const showOverride: AdMode | null = item.podcastId ? (adPrefs.shows[item.podcastId] ?? null) : null;
-  // An episode's third tile is Chapters when it has them, else Ads when the show is scanned, else
-  // nothing (the other tiles share the row); books always keep Chapters. Ads are also in More.
-  const slot = item.type === "book" || segmented ? "chapters" : showAds ? "ads" : null;
+  const slot = thirdTile(item.type, multiChapter);
   const adShort = AD_MODES.find((m) => m.id === adMode)?.short;
+  const nearBookmark = song ? null : bookmarkNear(bookmarks, pos);
+  const onBookmark = () => {
+    if (nearBookmark) return nearBookmark.note ? setEditingBookmark(nearBookmark) : removeBookmarkWithUndo(nearBookmark);
+    const b = addBookmark(item, bookmarkSpot(position, p.playing, p.speed));
+    toast.show(`Bookmarked ${clock(b.positionSec)}`, {
+      action: { label: "Add note", onPress: () => setEditingBookmark(b) },
+      cancel: { label: "Undo", onPress: () => deleteBookmark(b) },
+      duration: 5000,
+    });
+  };
+  const jumpToBookmark = (b: BookmarkDto) => {
+    setSheet(null);
+    void jumpTo(b, b.positionSec);
+  };
+  const noBookmarks = <Empty title="No bookmarks yet">Tap the bookmark beside the title to save a spot.</Empty>;
   const dragging = scrub !== null;
   const choose = (fn: () => void) => () => {
     fn();
@@ -265,9 +292,21 @@ export default function Player() {
           </View>
 
           <View style={{ gap: 4 }}>
-            {/* Fades into the page's tint where it sits, so it needs its place on the screen. */}
-            <View ref={titleRef} onLayout={() => titleRef.current?.measureInWindow((_x, y) => setTitleY(y))}>
-              <MarqueeText text={item.title} variant="title" style={{ fontSize: 22 }} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              {/* Fades into the page's tint where it sits, so it needs its place on the screen. */}
+              <View ref={titleRef} style={{ flex: 1, minWidth: 0 }} onLayout={() => titleRef.current?.measureInWindow((_x, y) => setTitleY(y))}>
+                <MarqueeText text={item.title} variant="title" style={{ fontSize: 22 }} />
+              </View>
+              {song ? null : (
+                <IconButton
+                  label={nearBookmark ? "Remove bookmark" : "Bookmark this spot"}
+                  accessibilityState={{ selected: !!nearBookmark }}
+                  onPress={onBookmark}
+                  style={{ marginTop: -5, marginBottom: -11, marginRight: -10 }}
+                >
+                  <BookmarkIcon filled={!!nearBookmark} color={nearBookmark ? t.accent : t.text} />
+                </IconButton>
+              )}
             </View>
             <Text variant="small" numberOfLines={1} style={{ fontSize: 14, color: soft }}>
               {multiChapter && !segmented && chapter ? chapter.title : item.subtitle}
@@ -286,6 +325,15 @@ export default function Player() {
               >
                 <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${frac(pos) * 100}%`, backgroundColor: t.text }} />
                 <AdMarks marks={marks} pos={pos} frac={frac} />
+              </View>
+            ) : null}
+            {bookmarks.length ? (
+              <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: 10, height: 12 }}>
+                {bookmarks
+                  .filter((b) => b.positionSec >= span.start && b.positionSec <= span.end)
+                  .map((b) => (
+                    <View key={b.id} style={{ position: "absolute", left: `${frac(b.positionSec) * 100}%`, marginLeft: -1, width: 3, height: 12, borderRadius: 2, backgroundColor: t.accent }} />
+                  ))}
               </View>
             ) : null}
             <Slider
@@ -427,12 +475,12 @@ export default function Player() {
             <MoonIcon size={20} color={p.sleep.mode !== "off" ? t.accent : t.text} />
           </Tile>
           {slot === "chapters" ? (
-            <Tile label="Chapters" onPress={() => setSheet("chapters")} disabled={!multiChapter}>
+            <Tile label="Chapters" onPress={() => setSheet("chapters")}>
               <ListIcon size={20} color={t.text} />
             </Tile>
-          ) : slot === "ads" ? (
-            <Tile label="Ads" onPress={() => setSheet("ads")}>
-              <Text style={{ fontFamily: fonts.extrabold, fontSize: 16, color: t.text }}>{adShort}</Text>
+          ) : slot === "bookmarks" ? (
+            <Tile label="Bookmarks" count={bookmarks.length} onPress={() => setSheet("bookmarks")}>
+              <BookmarkIcon size={20} color={t.text} />
             </Tile>
           ) : null}
           <Tile label="Queue" count={p.upNext.items.length - p.upNext.index - 1} onPress={() => setSheet("upnext")}>
@@ -440,6 +488,41 @@ export default function Player() {
           </Tile>
         </View>
       </ScrollView>
+
+      {/* Floats over the artwork, under the top bar, so nothing moves when it appears. Outside the
+          scroll so a short screen scrolled down to the tiles still shows it. */}
+      {p.goBackTo !== null ? (
+        <View pointerEvents="box-none" style={{ position: "absolute", top: top + 48, left: 16, right: 16, alignItems: "center" }}>
+          <Animated.View
+            entering={FadeIn.duration(150)}
+            style={{
+              width: "100%",
+              maxWidth: 376,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              paddingLeft: 20,
+              paddingRight: 2,
+              paddingVertical: 4,
+              borderRadius: 14,
+              backgroundColor: t.surface2,
+              elevation: 8,
+              shadowColor: "#000",
+              shadowOpacity: 0.25,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 4 },
+            }}
+          >
+            <Text style={{ flex: 1, fontFamily: fonts.medium, fontSize: 13, color: t.text }}>You were at {clock(p.goBackTo)}</Text>
+            <Pressable accessibilityRole="button" onPress={goBack} hitSlop={8} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.accent }}>Go back</Text>
+            </Pressable>
+            <IconButton label="Stay here" onPress={stayHere} style={{ width: 44, height: 44 }}>
+              <CloseIcon size={18} color={t.muted} />
+            </IconButton>
+          </Animated.View>
+        </View>
+      ) : null}
 
       <Sheet open={sheet === "speed"} onClose={() => setSheet(null)} title="Playback speed">
         <View style={{ paddingHorizontal: 12, paddingBottom: 8, gap: 12 }}>
@@ -495,15 +578,28 @@ export default function Player() {
         open={sheet === "chapters"}
         onClose={() => setSheet(null)}
         head={
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text variant="heading">Chapters</Text>
-            <CountPill count={item.chapters.length} />
+          <View style={{ gap: 12 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text variant="heading">{chaptersTab === "chapters" ? "Chapters" : "Bookmarks"}</Text>
+              {chaptersTab === "chapters" || bookmarks.length ? <CountPill count={chaptersTab === "chapters" ? item.chapters.length : bookmarks.length} /> : null}
+            </View>
+            <Chips
+              label="Chapters or bookmarks"
+              options={[
+                { id: "chapters" as const, label: "Chapters" },
+                { id: "bookmarks" as const, label: "Bookmarks" },
+              ]}
+              value={chaptersTab}
+              onPick={setChaptersTab}
+            />
           </View>
         }
-        keepInView={{ top: ci * CHAPTER_ROW, height: CHAPTER_ROW }}
+        keepInView={chaptersTab === "chapters" ? { top: ci * CHAPTER_ROW, height: CHAPTER_ROW } : undefined}
+        tall
         noScrollbar
       >
-        {item.chapters.map((c, i) => (
+        {chaptersTab === "bookmarks" ? (bookmarks.length ? <BookmarkRows bookmarks={bookmarks} onJump={jumpToBookmark} /> : noBookmarks) : null}
+        {chaptersTab === "chapters" ? item.chapters.map((c, i) => (
           <Pressable
             key={c.index}
             accessibilityRole="button"
@@ -534,8 +630,23 @@ export default function Player() {
               {duration(c.endSec - c.startSec)}
             </Text>
           </Pressable>
-        ))}
+        )) : null}
       </Sheet>
+
+      <Sheet
+        open={sheet === "bookmarks"}
+        onClose={() => setSheet(null)}
+        head={
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text variant="heading">Bookmarks</Text>
+            {bookmarks.length ? <CountPill count={bookmarks.length} /> : null}
+          </View>
+        }
+      >
+        {bookmarks.length ? <BookmarkRows bookmarks={bookmarks} onJump={jumpToBookmark} /> : noBookmarks}
+      </Sheet>
+
+      <BookmarkNoteSheet bookmark={editingBookmark} onClose={() => setEditingBookmark(null)} />
 
       <Sheet open={sheet === "ads"} onClose={() => setSheet(null)} title="Ads">
         <Text variant="small" style={{ paddingHorizontal: 12, marginTop: -4, marginBottom: 4 }}>

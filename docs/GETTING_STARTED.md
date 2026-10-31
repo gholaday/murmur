@@ -130,7 +130,7 @@ The `murmur-adscan` add-on finds the ads in podcast episodes, so the players can
 2. Put your Gemini key (`GEMINI_API_KEY`), and a Groq key (`GROQ_API_KEY`) if you have one, in `murmur.env` too. Uncomment the `murmur-adscan` service in `docker-compose.yml`; it reads the same `murmur.env`, and it needs the **same** cache folder as Murmur.
 3. `docker compose up -d`. Within a minute, Settings shows "Ad detection: Working".
 
-Each device then chooses Off, Show or Auto-skip in its player's Ads button or in Settings. Details, costs and privacy notes are in the [add-on's README](../addons/adscan/README.md).
+Each device then chooses Off, Show or Auto-skip in the player's ⋯ menu or in Settings. A bookmark is a time, so it can land in a slightly different spot if a feed changes an episode's ads. Details, costs and privacy notes are in the [add-on's README](../addons/adscan/README.md).
 
 ## 7. Optional: movies and shows
 

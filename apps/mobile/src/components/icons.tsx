@@ -110,17 +110,22 @@ export const QueueIcon = (p: IconProps) => (
     <Path d="M4 6h16M4 12h16M4 18h10" />
   </Icon>
 );
-/** A bookmark with a plus, or a check once the book is on Play next. */
-export const PlayNextAddIcon = ({ on, ...p }: IconProps & { on?: boolean }) => (
-  <Icon {...p}>
-    <Path d="M6 4h12v16l-6-4-6 4z" />
-    {on ? <Path d="M9.5 10l2 2 3.5-3.5" /> : <Path d="M12 8v5M9.5 10.5h5" />}
-  </Icon>
-);
 export const LockIcon = (p: IconProps) => (
   <Icon {...p}>
     <Rect x="5" y="11" width="14" height="10" rx="2" />
     <Path d="M8 11V8a4 4 0 0 1 8 0v3" />
+  </Icon>
+);
+/** Filled once this spot is bookmarked. */
+export const BookmarkIcon = ({ filled, ...p }: IconProps & { filled?: boolean }) => (
+  <Icon {...p}>
+    <Path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" fill={filled ? p.color : "none"} />
+  </Icon>
+);
+export const PencilIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Path d="M12 20h9" />
+    <Path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
   </Icon>
 );
 export const ProfileIcon = (p: IconProps) => (

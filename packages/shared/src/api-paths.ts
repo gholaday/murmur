@@ -16,6 +16,10 @@ export const apiPaths = {
   episodeNeighbor: (episodeId: string, dir: 1 | -1) => `/api/episodes/${episodeId}/neighbor?dir=${dir}`,
   /** GET your settings, PUT the ones that changed. */
   prefs: "/api/me/prefs",
+  /** GET BookmarkDto[], all of yours in order; PUT { items } saves new and edited ones. */
+  bookmarks: "/api/bookmarks",
+  /** DELETE removes it. */
+  bookmark: (bookmarkId: string) => `/api/bookmarks/${bookmarkId}`,
   /** POST adds the book to the end of your Play next shelf, DELETE takes it off. */
   bookPlayNext: (bookId: string) => `/api/books/${bookId}/play-next`,
   /** PUT { bookIds } sets the shelf's order. */

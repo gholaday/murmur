@@ -43,7 +43,10 @@ import {
   fitChapters,
   clampSpeed,
   DEFAULT_SKIP,
+  holdEnded,
+  type JumpHold,
   NOW_PLAYING_KEY,
+  offersGoBack,
   parseSkip,
   SAVE_EVERY_MS,
   SKIP_KEY,
@@ -51,6 +54,7 @@ import {
   type SleepTimer,
 } from "@murmur/shared/client";
 import { api } from "../api";
+import { useBookmarkSync } from "../bookmarks";
 import { CAST_FAILED, CastMedia, MEDIA_EVENTS, type MediaEventName, stopCasting, useCast } from "../cast/cast";
 import { adModeFor, adPrefsStore, adToSkip, playedThrough } from "./ad-prefs";
 import { effectiveVolume, volumeStore } from "./volume";
@@ -289,6 +293,14 @@ interface PlayerApi {
   toggle: () => void;
   pause: () => void;
   seek: (sec: number) => void;
+  /** Goes to a bookmark, in this item or another, offering a way back to your real place. */
+  jumpTo: (ref: PlayRef, sec: number) => Promise<void>;
+  /** Your real place while you listen somewhere else after a jump; progress isn't saved meanwhile. */
+  goBackTo: number | null;
+  /** Returns to that place. */
+  goBack: () => void;
+  /** Stays here: this spot becomes your place. */
+  stayHere: () => void;
   skipBy: (delta: number) => void;
   chapterStep: (dir: -1 | 1) => void;
   setSpeed: (speed: number) => void;
@@ -469,6 +481,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const speedRef = useRef(1);
   const lastSaved = useRef(0);
   const unsaved = useRef<ProgressItem | null>(null);
+  /** Set while Go back is on offer; save() leaves progress alone until it's gone. */
+  const holdRef = useRef<JumpHold | null>(null);
+  const [goBackTo, setGoBackTo] = useState<number | null>(null);
+  const endHold = useCallback(() => {
+    holdRef.current = null;
+    setGoBackTo(null);
+  }, []);
+  useBookmarkSync();
 
   // The elements keep their volume across sources, so it's set once and on every change.
   useEffect(() => {
@@ -554,8 +574,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     (finished = false) => {
       const it = itemRef.current;
       if (!it) return;
-      // Songs keep no position; only their listening time goes up.
-      if (it.type === "track") {
+      // Reaching the end counts whatever the jump was.
+      if (finished) endHold();
+      // Songs keep no position, and a held place stands; only the listening time goes up.
+      if (it.type === "track" || holdRef.current) {
         lastSaved.current = Date.now();
         listening().persist();
         return flush();
@@ -574,7 +596,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       listening().persist();
       return flush();
     },
-    [flush],
+    [endHold, flush],
   );
 
   // ---------- Loading and seeking ----------
@@ -612,6 +634,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const t = Math.min(Math.max(0, sec), Math.max(0, dur - 0.5));
       const idx = fileAt(it, t);
       const paused = el.paused;
+      // "End of chapter" means the chapter you land in.
+      const chapter = it.chapters[chapterAt(it.chapters, t)];
+      if (sleepRef.current.mode === "chapter" && it.chapters.length > 1 && chapter) {
+        sleepRef.current = { mode: "chapter", endSec: chapter.endSec };
+        setSleepState(sleepRef.current);
+      }
       if (idx === fileIndex.current && el.src && pendingSeek.current === null) {
         el.currentTime = t - (it.files[idx]?.startSec ?? 0);
         positionRef.current = t;
@@ -685,6 +713,51 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     },
     [load, putRefs, save, seek, setList],
   );
+
+  const jumpTo = useCallback(
+    async (ref: PlayRef, sec: number) => {
+      const hold = (type: JumpHold["type"], id: string, returnTo: number) => {
+        if (holdRef.current) holdRef.current = { ...holdRef.current, from: sec, heard: 0 };
+        else if (offersGoBack(returnTo, sec)) {
+          holdRef.current = { type, id, returnTo, from: sec, heard: 0 };
+          setGoBackTo(returnTo);
+        }
+      };
+      const current = itemRef.current;
+      if (current?.type === ref.itemType && current.id === ref.itemId) {
+        // First, so a seek while paused doesn't save the new spot.
+        hold(current.type, current.id, positionRef.current);
+        seek(sec);
+        void audio.current?.play().catch(() => setPlaying(false));
+        // Go back lives in the full player.
+        setExpanded(true);
+        return;
+      }
+      try {
+        const it = await loadPlayable(ref);
+        play(it, sec);
+        setExpanded(true);
+        endHold();
+        hold(it.type, it.id, it.startAt);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Couldn't load that.");
+      }
+    },
+    [endHold, play, seek],
+  );
+
+  const goBack = useCallback(() => {
+    const to = holdRef.current?.returnTo;
+    if (to === undefined) return;
+    endHold();
+    seek(to);
+  }, [endHold, seek]);
+
+  const stayHere = useCallback(() => {
+    if (!holdRef.current) return;
+    endHold();
+    save();
+  }, [endHold, save]);
 
   /** The spare player starts loading `track`, so it can take over the moment the current song ends. */
   const preload = useCallback((track: TrackDto) => {
@@ -947,6 +1020,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const markCurrent = useCallback(
     async (finished: boolean) => {
+      endHold();
       let saved: Promise<void> | undefined;
       if (finished) {
         // A finished item leaves the player, like reaching its end.
@@ -961,8 +1035,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       await saved;
       router.refresh();
     },
-    [save, seek, unload, router],
+    [endHold, save, seek, unload, router],
   );
+
+  // Go back belongs to one item. Leaving it saves nothing: the real place is already on the server.
+  useEffect(() => {
+    const hold = holdRef.current;
+    if (hold && (hold.type !== item?.type || hold.id !== item.id)) endHold();
+  }, [item, endHold]);
 
   // ---------- Startup: settings, queue, and whatever was playing last ----------
 
@@ -1232,6 +1312,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       toggle,
       pause,
       seek,
+      jumpTo,
+      goBackTo,
+      goBack,
+      stayHere,
       skipBy,
       chapterStep,
       setSpeed,
@@ -1275,6 +1359,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       toggle,
       pause,
       seek,
+      jumpTo,
+      goBackTo,
+      goBack,
+      stayHere,
       skipBy,
       chapterStep,
       setSpeed,
@@ -1331,6 +1419,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       positionRef.current = pos;
       setPosition(pos);
       updatePositionState(pos);
+      const hold = holdRef.current;
+      if (hold) {
+        // Time played, not time passed, so a phone left paused overnight doesn't end it.
+        if (!el.paused) hold.heard += Math.min(elapsedSec, 5);
+        if (holdEnded(hold, pos)) stayHere();
+      }
       if (!el.paused && Date.now() - lastSaved.current > SAVE_EVERY_MS) save();
       const s = sleepRef.current;
       if (s.mode === "chapter" && pos >= s.endSec - 0.3) {

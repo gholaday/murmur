@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
-import { apiPaths, duration, type EpisodeWithShow, errorText, pastStart, shortDate, timeLeft } from "@murmur/shared/client";
+import { apiPaths, type BookmarkDto, duration, type EpisodeWithShow, errorText, pastStart, shortDate, timeLeft } from "@murmur/shared/client";
 import { api } from "../api";
+import { BookmarkRows } from "../bookmark-rows";
+import { useBookmarks } from "../bookmarks";
 import { Cover } from "../cover";
-import { AdsCheckedIcon, PauseIcon, PlayedIcon, PlayIcon, QueueAddIcon } from "../icons";
+import { AdsCheckedIcon, BookmarkIcon, PauseIcon, PlayedIcon, PlayIcon, QueueAddIcon } from "../icons";
 import { episodeToPlayable, usePlayerControls, usePlayerSelect, usePosition } from "../player/engine";
 import { setFinished } from "../progress";
 
@@ -14,10 +16,13 @@ export function EpisodeRow({
   episode,
   showThumb = false,
   newCount = 0,
+  firstBookmarks,
   onChanged,
 }: {
   episode: EpisodeWithShow;
   showThumb?: boolean;
+  /** The server's copy, on the podcast's page, so badges don't pop in. */
+  firstBookmarks?: BookmarkDto[];
   /** When this row stands for a show's new episodes, how many there are; links to the show. */
   newCount?: number;
   /** Called after played changes so the list can refresh. */
@@ -30,6 +35,7 @@ export function EpisodeRow({
   const liveDur = usePlayerSelect((s) => (current ? s.item?.durationSec : null));
   const queued = usePlayerSelect((s) => s.isWaiting({ itemType: "episode", itemId: episode.id }));
   const live = usePosition(current);
+  const bookmarks = useBookmarks("episode", episode.id, firstBookmarks);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   // Lists carry only the start of long notes; the rest loads when the row is expanded.
@@ -120,12 +126,23 @@ export function EpisodeRow({
                 <AdsCheckedIcon size={14} />
               </span>
             ) : null}
+            {bookmarks.length ? (
+              <span className="ads-checked" data-tip="Has bookmarks" aria-label="Has bookmarks">
+                <BookmarkIcon size={14} />
+              </span>
+            ) : null}
           </span>
           {/* The title and description expand the notes in place. */}
           <button type="button" className="episode-text" onClick={toggleNotes} aria-expanded={open}>
             <span className="episode-title">{episode.title}</span>
             {notes ? <span className="episode-desc">{notes}</span> : null}
           </button>
+          {open && bookmarks.length ? (
+            <div className="episode-bookmarks">
+              <div className="eyebrow">Bookmarks</div>
+              <BookmarkRows bookmarks={bookmarks} onJump={(b) => void player.jumpTo({ itemType: "episode", itemId: episode.id }, b.positionSec)} />
+            </div>
+          ) : null}
         </div>
         <div className="episode-actions">
           <button

@@ -56,10 +56,10 @@ index 6c81fce3dd518d3b82e3280940a001c7be84dd0a..21724ab33cc62ec2c5b2c8f2de4cf97b
        GlobalScope.launch(Dispatchers.Main) {
          audioSessionActivityKeepers.clear()
 diff --git a/android/src/main/java/expo/modules/audio/AudioPlayer.kt b/android/src/main/java/expo/modules/audio/AudioPlayer.kt
-index fb2d0b57fb8718df04e5c073b70837b2658f2c16..ae056b33c4bd059842c1b0b880d51b1217666b2d 100644
+index fb2d0b57fb8718df04e5c073b70837b2658f2c16..5213ca338383fb6b08be629b2e66a3716374e65e 100644
 --- a/android/src/main/java/expo/modules/audio/AudioPlayer.kt
 +++ b/android/src/main/java/expo/modules/audio/AudioPlayer.kt
-@@ -72,6 +72,19 @@ class AudioPlayer(
+@@ -72,6 +72,24 @@ class AudioPlayer(
    override val isLive: Boolean
      get() = ref.isCurrentMediaItemLive
  
@@ -76,9 +76,41 @@ index fb2d0b57fb8718df04e5c073b70837b2658f2c16..ae056b33c4bd059842c1b0b880d51b12
 +    emit("remoteTrack", mapOf("direction" to -1))
 +  }
 +
++  // Murmur: the notification's bookmark button; JS knows the position and saves it.
++  override fun bookmark() {
++    emit("remoteBookmark")
++  }
++
    val currentOffsetFromLive: Double?
      get() {
        val offset = ref.currentLiveOffset
+diff --git a/android/src/main/java/expo/modules/audio/AudioRecords.kt b/android/src/main/java/expo/modules/audio/AudioRecords.kt
+index c3d0bd9af676cabe35153803723e997a4690a361..96ec251ea9eeb019511f38b54d81a6cb634d0dcc 100644
+--- a/android/src/main/java/expo/modules/audio/AudioRecords.kt
++++ b/android/src/main/java/expo/modules/audio/AudioRecords.kt
+@@ -114,7 +114,8 @@ class AudioLockScreenOptions(
+   @Field val showSeekBackward: Boolean,
+   @Field val showNextTrack: Boolean = false,
+   @Field val showPreviousTrack: Boolean = false,
+-  @Field val isLiveStream: Boolean? = null
++  @Field val isLiveStream: Boolean? = null,
++  @Field val showBookmark: Boolean = false
+ ) : Record
+ 
+ enum class InterruptionMode(val value: String) : Enumerable {
+diff --git a/android/src/main/java/expo/modules/audio/LockScreenPlayable.kt b/android/src/main/java/expo/modules/audio/LockScreenPlayable.kt
+index 7ac4a57d9501e1b5451529e6ecb430de499ce56c..84ab391cff06eccf313fe5146135c412963eebe8 100644
+--- a/android/src/main/java/expo/modules/audio/LockScreenPlayable.kt
++++ b/android/src/main/java/expo/modules/audio/LockScreenPlayable.kt
+@@ -26,6 +26,8 @@ interface LockScreenPlayable : Playable {
+ 
+   fun previousTrack() = Unit
+ 
++  fun bookmark() = Unit
++
+   fun setActiveForLockScreen(
+     active: Boolean,
+     metadata: Metadata? = null,
 diff --git a/android/src/main/java/expo/modules/audio/service/ArtworkProvider.kt b/android/src/main/java/expo/modules/audio/service/ArtworkProvider.kt
 new file mode 100644
 index 0000000000000000000000000000000000000000..a30229cbdfdca0e5bd9edb0a4d46a0df3aa891cc
@@ -136,7 +168,7 @@ index 0000000000000000000000000000000000000000..a30229cbdfdca0e5bd9edb0a4d46a0df
 +  }
 +}
 diff --git a/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt b/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt
-index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..652007a5c9eec205206519f017d1b10c1cfdc131 100644
+index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..82df5ee24a702b273e3ba5f039132f44239c85bd 100644
 --- a/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt
 +++ b/android/src/main/java/expo/modules/audio/service/AudioControlsService.kt
 @@ -19,8 +19,10 @@ import androidx.media3.common.ForwardingPlayer
@@ -151,7 +183,7 @@ index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..652007a5c9eec205206519f017d1b10c
  import androidx.media3.session.MediaStyleNotificationHelper
  import androidx.media3.session.SessionCommand
  import expo.modules.audio.AudioLockScreenOptions
-@@ -39,10 +41,15 @@ import java.lang.ref.WeakReference
+@@ -39,14 +41,29 @@ import java.lang.ref.WeakReference
  import java.net.URL
  
  @OptIn(UnstableApi::class)
@@ -169,7 +201,29 @@ index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..652007a5c9eec205206519f017d1b10c
    private var sessionMetadataPlayer: MetadataInjectingPlayer? = null
    private var currentMetadata: Metadata? = null
    private var currentPlayable: LockScreenPlayable? = null
-@@ -134,6 +141,20 @@ class AudioControlsService : MediaSessionService() {
+   private var currentOptions: AudioLockScreenOptions? = null
++
++  // Murmur: the bookmark button fills for a moment after a tap, the only sign of a save from the shade.
++  private var bookmarkFilled = false
++  private val bookmarkHandler by lazy { android.os.Handler(mainLooper) }
++  private val unfillBookmark = Runnable {
++    bookmarkFilled = false
++    if (currentPlayable == null) return@Runnable
++    updateSessionCustomLayout(currentPlayable?.player?.isPlaying == true)
++    postOrStartForegroundNotification(startInForeground = false)
++  }
+   private val scope = CoroutineScope(Dispatchers.IO)
+   private var currentArtworkUrl: URL? = null
+   private var currentArtwork: Bitmap? = null
+@@ -94,6 +111,7 @@ class AudioControlsService : MediaSessionService() {
+         ACTION_SEEK_BACKWARD -> seekBackward()
+         ACTION_NEXT_TRACK -> nextTrack()
+         ACTION_PREVIOUS_TRACK -> previousTrack()
++        ACTION_BOOKMARK -> bookmark()
+       }
+     }
+ 
+@@ -134,6 +152,20 @@ class AudioControlsService : MediaSessionService() {
      super.onCreate()
      audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
      createNotificationChannelIfNeeded()
@@ -190,7 +244,7 @@ index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..652007a5c9eec205206519f017d1b10c
    }
  
    private fun shouldPlayInSilentMode(): Boolean {
-@@ -176,6 +197,8 @@ class AudioControlsService : MediaSessionService() {
+@@ -176,6 +208,8 @@ class AudioControlsService : MediaSessionService() {
    }
  
    private fun buildNotification(): Notification? {
@@ -199,7 +253,43 @@ index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..652007a5c9eec205206519f017d1b10c
      val session = mediaSession ?: return null
  
      val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-@@ -383,7 +406,35 @@ class AudioControlsService : MediaSessionService() {
+@@ -262,6 +296,17 @@ class AudioControlsService : MediaSessionService() {
+         compactViewIndices.add(currentIndex)
+       }
+ 
++      // Not in the compact view, which keeps to the three transport buttons.
++      if (currentOptions?.showBookmark == true) {
++        builder.addAction(
++          NotificationCompat.Action(
++            CommandButton.getIconResIdForIconConstant(bookmarkIcon()),
++            "Bookmark",
++            buildActionPendingIntent(ACTION_BOOKMARK)
++          )
++        )
++      }
++
+       style.setShowActionsInCompactView(*compactViewIndices.toIntArray())
+     }
+ 
+@@ -336,6 +381,17 @@ class AudioControlsService : MediaSessionService() {
+       )
+     }
+ 
++    if (currentOptions?.showBookmark == true) {
++      mediaButtons.add(
++        CommandButton.Builder(bookmarkIcon())
++          .setDisplayName("Bookmark")
++          .setEnabled(true)
++          .setSessionCommand(SessionCommand(ACTION_BOOKMARK, Bundle.EMPTY))
++          .setSlots(CommandButton.SLOT_FORWARD_SECONDARY, CommandButton.SLOT_OVERFLOW)
++          .build()
++      )
++    }
++
+     session.setCustomLayout(mediaButtons)
+     session.setMediaButtonPreferences(mediaButtons)
+   }
+@@ -383,7 +439,35 @@ class AudioControlsService : MediaSessionService() {
    }
  
    private fun resolveSessionPlayer(playable: LockScreenPlayable, options: AudioLockScreenOptions?): Player {
@@ -236,7 +326,7 @@ index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..652007a5c9eec205206519f017d1b10c
      val isLive = options?.isLiveStream ?: playable.isLive
      if (!isLive) {
        return player
-@@ -415,29 +466,18 @@ class AudioControlsService : MediaSessionService() {
+@@ -415,29 +499,18 @@ class AudioControlsService : MediaSessionService() {
      playable?.isActiveForLockScreen = true
  
      if (playable != null) {
@@ -272,7 +362,7 @@ index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..652007a5c9eec205206519f017d1b10c
  
          updateSessionCustomLayout(playable.player.isPlaying)
  
-@@ -467,22 +507,56 @@ class AudioControlsService : MediaSessionService() {
+@@ -467,22 +540,57 @@ class AudioControlsService : MediaSessionService() {
      playable?.isActiveForLockScreen = false
      removePlayerListener()
      currentMetadata = null
@@ -291,6 +381,7 @@ index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..652007a5c9eec205206519f017d1b10c
 +    }
      playable?.assignBasicMediaSession()
      currentPlayable = null
++    cancelBookmarkFill()
      stopForeground(STOP_FOREGROUND_REMOVE)
    }
  
@@ -336,7 +427,7 @@ index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..652007a5c9eec205206519f017d1b10c
    }
  
    fun setPlayableMetadata(playable: LockScreenPlayable, metadata: Metadata?) {
-@@ -499,24 +573,16 @@ class AudioControlsService : MediaSessionService() {
+@@ -499,24 +607,16 @@ class AudioControlsService : MediaSessionService() {
        currentOptions = options
        updateArtwork(metadata, postUpdate = false)
  
@@ -366,7 +457,32 @@ index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..652007a5c9eec205206519f017d1b10c
  
          updateSessionCustomLayout(playable.player.isPlaying)
          postOrStartForegroundNotification(startInForeground = false)
-@@ -593,11 +659,15 @@ class AudioControlsService : MediaSessionService() {
+@@ -550,6 +650,24 @@ class AudioControlsService : MediaSessionService() {
+     currentPlayable?.takeIf { it.supportsPreviousTrack }?.previousTrack()
+   }
+ 
++  private fun cancelBookmarkFill() {
++    bookmarkHandler.removeCallbacks(unfillBookmark)
++    bookmarkFilled = false
++  }
++
++  private fun bookmarkIcon() = if (bookmarkFilled) CommandButton.ICON_BOOKMARK_FILLED else CommandButton.ICON_BOOKMARK_UNFILLED
++
++  /** Tells JS to save this spot, and fills the button for a moment to say so. */
++  fun bookmark() {
++    if (currentOptions?.showBookmark != true) return
++    currentPlayable?.bookmark()
++    bookmarkFilled = true
++    updateSessionCustomLayout(currentPlayable?.player?.isPlaying == true)
++    postOrStartForegroundNotification(startInForeground = false)
++    bookmarkHandler.removeCallbacks(unfillBookmark)
++    bookmarkHandler.postDelayed(unfillBookmark, BOOKMARK_FILLED_MS)
++  }
++
+   fun supportsNextTrack(): Boolean {
+     return currentPlayable?.supportsNextTrack == true
+   }
+@@ -593,11 +711,15 @@ class AudioControlsService : MediaSessionService() {
  
      loadArtworkFromUrl(artworkUrl) { bitmap ->
        currentArtwork = bitmap
@@ -382,7 +498,11 @@ index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..652007a5c9eec205206519f017d1b10c
      artworkLoadJob?.cancel()
      artworkLoadJob = null
      currentArtworkUrl = null
-@@ -616,6 +686,7 @@ class AudioControlsService : MediaSessionService() {
+@@ -613,9 +735,11 @@ class AudioControlsService : MediaSessionService() {
+   override fun onDestroy() {
+     super.onDestroy()
+ 
++    cancelBookmarkFill()
      removePlayerListener()
      clearArtwork()
      scope.cancel()
@@ -390,18 +510,20 @@ index 255baad7cac7aaf28efd5d6a17b3b57537d4b8d8..652007a5c9eec205206519f017d1b10c
      mediaSession?.release()
      mediaSession = null
      sessionMetadataPlayer = null
-@@ -662,5 +733,9 @@ class AudioControlsService : MediaSessionService() {
+@@ -662,5 +786,11 @@ class AudioControlsService : MediaSessionService() {
      const val ACTION_PREVIOUS_TRACK = "expo.modules.audio.action.PREVIOUS_TRACK"
  
      const val SEEK_INTERVAL_MS = 10000L
 +
 +    /** The action the app's own connection binds with (AudioPlaybackServiceConnection). */
 +    const val ACTION_BIND = "expo.modules.audio.action.BIND"
++    const val ACTION_BOOKMARK = "expo.modules.audio.action.BOOKMARK"
++    private const val BOOKMARK_FILLED_MS = 3000L
 +    private const val SESSION_ID = "MurmurLibrarySession"
    }
  }
 diff --git a/android/src/main/java/expo/modules/audio/service/AudioMediaSessionCallback.kt b/android/src/main/java/expo/modules/audio/service/AudioMediaSessionCallback.kt
-index ee83be1fa02e01f15d9040e6f5fedb3c7e1ac34a..51ce61e00008769ca3b9807c3bed9e4f9b4a8069 100644
+index ee83be1fa02e01f15d9040e6f5fedb3c7e1ac34a..df7be778634cfac77fa2c1893ba97ca537ccef7e 100644
 --- a/android/src/main/java/expo/modules/audio/service/AudioMediaSessionCallback.kt
 +++ b/android/src/main/java/expo/modules/audio/service/AudioMediaSessionCallback.kt
 @@ -2,18 +2,119 @@ package expo.modules.audio.service
@@ -525,7 +647,7 @@ index ee83be1fa02e01f15d9040e6f5fedb3c7e1ac34a..51ce61e00008769ca3b9807c3bed9e4f
    override fun onConnect(
      session: MediaSession,
      controller: MediaSession.ControllerInfo
-@@ -23,29 +124,19 @@ class AudioMediaSessionCallback(
+@@ -23,29 +124,20 @@ class AudioMediaSessionCallback(
          .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
          .add(Player.COMMAND_SEEK_FORWARD)
          .add(Player.COMMAND_SEEK_BACK)
@@ -561,10 +683,18 @@ index ee83be1fa02e01f15d9040e6f5fedb3c7e1ac34a..51ce61e00008769ca3b9807c3bed9e4f
 -        }
 +        .add(SessionCommand(AudioControlsService.ACTION_PREVIOUS_TRACK, Bundle.EMPTY))
 +        .add(SessionCommand(AudioControlsService.ACTION_NEXT_TRACK, Bundle.EMPTY))
++        .add(SessionCommand(AudioControlsService.ACTION_BOOKMARK, Bundle.EMPTY))
          .build()
  
        return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
-@@ -83,4 +174,15 @@ class AudioMediaSessionCallback(
+@@ -80,7 +172,22 @@ class AudioMediaSessionCallback(
+         service.previousTrack()
+         Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+       }
++      AudioControlsService.ACTION_BOOKMARK -> {
++        service.bookmark()
++        Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
++      }
        else -> super.onCustomCommand(session, controller, command, args)
      }
    }
@@ -892,10 +1022,10 @@ index 0000000000000000000000000000000000000000..6b7ccfaed7c040b0264decc061c95cb1
 +  }
 +}
 diff --git a/build/AudioConstants.d.ts b/build/AudioConstants.d.ts
-index 57ffc218d6a2be787e5c579c4c55ac25866b3377..00278affd1ab3b248157b07f6806857402054e09 100644
+index 57ffc218d6a2be787e5c579c4c55ac25866b3377..01c800154ebc349c3b9bf3e8b3a27c981a8ec4f5 100644
 --- a/build/AudioConstants.d.ts
 +++ b/build/AudioConstants.d.ts
-@@ -23,4 +23,12 @@ export type AudioLockScreenOptions = {
+@@ -23,4 +23,16 @@ export type AudioLockScreenOptions = {
       * and scrub bar, and disable seek controls.
       */
      isLiveStream?: boolean;
@@ -907,6 +1037,10 @@ index 57ffc218d6a2be787e5c579c4c55ac25866b3377..00278affd1ab3b248157b07f68068574
 +     * iOS only: seconds the lock screen's seek backward button jumps. Defaults to 10.
 +     */
 +    seekBackwardInterval?: number;
++    /**
++     * Android only: a bookmark button on the notification, which sends "remoteBookmark".
++     */
++    showBookmark?: boolean;
  };
 diff --git a/ios/AudioRecords.swift b/ios/AudioRecords.swift
 index d331e804fab76a53c24eae7b22417935404aa765..f684a4a63c8b912329db0bc6a535cc1dd42ec81e 100644
@@ -944,10 +1078,10 @@ index 1f7ca7ea4ec041e4111ab96ffa15b939f6e4d896..164c8a2900101af25ee1db18c2106f75
        guard let playable = self?.activePlayable,
        let event = event as? MPSkipIntervalCommandEvent else {
 diff --git a/src/AudioConstants.ts b/src/AudioConstants.ts
-index f08580640577a4a5edd9083448e36aab190906ac..aefc449b80d33ffce3bc966097cb79e5b8f2167b 100644
+index f08580640577a4a5edd9083448e36aab190906ac..9930883f8a1c6e12f0c018b3c09e80279aae4782 100644
 --- a/src/AudioConstants.ts
 +++ b/src/AudioConstants.ts
-@@ -24,4 +24,12 @@ export type AudioLockScreenOptions = {
+@@ -24,4 +24,16 @@ export type AudioLockScreenOptions = {
     * and scrub bar, and disable seek controls.
     */
    isLiveStream?: boolean;
@@ -959,4 +1093,8 @@ index f08580640577a4a5edd9083448e36aab190906ac..aefc449b80d33ffce3bc966097cb79e5
 +   * iOS only: seconds the lock screen's seek backward button jumps. Defaults to 10.
 +   */
 +  seekBackwardInterval?: number;
++  /**
++   * Android only: a bookmark button on the notification, which sends "remoteBookmark".
++   */
++  showBookmark?: boolean;
  };

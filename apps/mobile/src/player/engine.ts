@@ -8,6 +8,8 @@ import {
   albumCover,
   apiPaths,
   type BookDetail,
+  bookmarkNear,
+  bookmarkSpot,
   chapterAt,
   type ChapterDto,
   clampSpeed,
@@ -15,12 +17,15 @@ import {
   type EpisodeWithShow,
   EMPTY_UP_NEXT,
   fitChapters,
+  holdEnded,
+  type JumpHold,
   type ListeningStore,
   ListeningTracker,
   moveItem as moveListItem,
   nextIndex,
   nextRepeatMode,
   NOW_PLAYING_KEY,
+  offersGoBack,
   parseSkip,
   PLAY_COUNTS_AFTER_SEC,
   type PlayType,
@@ -45,6 +50,7 @@ import {
   type UserPrefs,
 } from "@murmur/shared/client";
 import { absolute, api, authHeaders, HttpError } from "@/lib/api";
+import { addBookmark, bookmarksFor, flushBookmarks, forgetBookmarks, refreshBookmarks } from "@/lib/bookmarks";
 import { fetchBook, fetchEpisode, invalidateListening, keys } from "@/lib/data";
 import { downloadTypeOf, getDownload, localTrackUri, localUri, savedArt, savedTrack, saveDownloadAds } from "@/lib/downloads";
 import { tapHaptic } from "@/lib/haptics";
@@ -221,6 +227,8 @@ export interface PlayerState {
   /** Your shuffle and repeat settings for music, kept on the server so every device shares them. */
   shuffle: boolean;
   repeat: RepeatMode;
+  /** The real place while a jump to a bookmark is on hold, for the Go back card; else null. */
+  goBackTo: number | null;
 }
 
 /** Where music plays from, as the album, artist and Songs screens hand it to the player. */
@@ -247,14 +255,24 @@ let state: PlayerState = {
   ads: null,
   shuffle: false,
   repeat: "off",
+  goBackTo: null,
 };
 let position = 0;
 const stateListeners = new Set<() => void>();
 const positionListeners = new Set<() => void>();
 
+/** A jump to a bookmark not yet taken as your place: until it ends, saves leave the real place alone. */
+let hold: JumpHold | null = null;
+let holdTickAt = 0;
+
 function set(change: Partial<PlayerState>) {
   state = { ...state, ...change };
   if ("item" in change) {
+    // Go back belongs to one item. Leaving it saves nothing: the real place is already saved.
+    if (hold && !isCurrent(state, hold.type, hold.id)) {
+      hold = null;
+      state = { ...state, goBackTo: null };
+    }
     watchAds();
     watchChapters();
   }
@@ -488,7 +506,7 @@ let lockScreenMetadata: AudioMetadata | undefined;
 const lockScreenOptions = (): AudioLockScreenOptions =>
   state.item?.type === "track"
     ? { showSeekBackward: false, showSeekForward: false, showPreviousTrack: true, showNextTrack: true }
-    : { showSeekBackward: true, showSeekForward: true, seekBackwardInterval: state.skip.back, seekForwardInterval: state.skip.forward };
+    : { showSeekBackward: true, showSeekForward: true, seekBackwardInterval: state.skip.back, seekForwardInterval: state.skip.forward, showBookmark: true };
 
 const fileAt = (it: Playable, sec: number) => Math.max(0, it.files.findLastIndex((f) => f.startSec <= sec));
 
@@ -586,16 +604,31 @@ onCastDevice((device) => {
   }
 });
 
-// The patched expo-audio sends the notification's previous and next taps as "remoteTrack".
-type RemoteTrackEmitter = { addListener(event: "remoteTrack", fn: (e: { direction: number }) => void): unknown };
+// The patched expo-audio sends the notification's previous and next taps as "remoteTrack", and its
+// bookmark button as "remoteBookmark".
+type RemoteEmitter = {
+  addListener(event: "remoteTrack", fn: (e: { direction: number }) => void): unknown;
+  addListener(event: "remoteBookmark", fn: () => void): unknown;
+};
 
 for (const p of players) {
   p.addListener("playbackStatusUpdate", (s: AudioStatus) => {
     if (p === player && !casting) onStatus(s);
   });
-  (p as unknown as RemoteTrackEmitter).addListener("remoteTrack", ({ direction }) => {
+  const remote = p as unknown as RemoteEmitter;
+  remote.addListener("remoteTrack", ({ direction }) => {
     if (p === player) trackStep(direction < 0 ? -1 : 1);
   });
+  remote.addListener("remoteBookmark", () => {
+    if (p === player) bookmarkHere();
+  });
+}
+
+/** The notification's bookmark button: saves this spot, unless it already has one. */
+function bookmarkHere() {
+  const it = state.item;
+  if (!it || it.type === "track" || bookmarkNear(bookmarksFor(it.type, it.id), position)) return;
+  addBookmark(it, bookmarkSpot(position, state.playing, state.speed));
 }
 
 function onStatus(s: AudioStatus) {
@@ -656,12 +689,22 @@ function tick(it: Playable, pos: number, playing: boolean) {
     lastTickAt = 0;
     lastListenAt = 0;
   }
+  if (hold) holdTick(pos, playing);
   if (playing && Date.now() - lastSaved > SAVE_EVERY_MS) save();
   const sl = state.sleep;
   if (sl.mode === "chapter" && pos >= sl.endSec - 0.3) {
     media.pause();
     set({ sleep: { mode: "off" } });
   }
+}
+
+/** Counts time played, not time passed, so a phone left paused overnight doesn't end a hold. */
+function holdTick(pos: number, playing: boolean) {
+  if (!hold) return;
+  const now = Date.now();
+  if (playing && holdTickAt) hold.heard += Math.min((now - holdTickAt) / 1000, 5);
+  holdTickAt = playing ? now : 0;
+  if (holdEnded(hold, pos)) stayHere();
 }
 
 /** The loaded file played to its end: a book's next file, else what follows the item. */
@@ -909,8 +952,9 @@ type Outbox = Record<string, ProgressItem>;
 function save(finished = false, refreshLists = finished || !state.playing) {
   const it = state.item;
   if (!it) return;
-  if (it.type === "track") {
-    // Songs keep no position; only the listening time goes to the server.
+  if (finished) endHold();
+  if (it.type === "track" || hold) {
+    // Songs keep no position, and a hold leaves the real place alone; only the listening time goes to the server.
     lastSaved = Date.now();
     listening.persist();
     void flush();
@@ -1026,7 +1070,9 @@ let playsWaiting: boolean | null = null;
  * down (a song that's gone) is dropped; offline or a server error leaves the rest for next time.
  */
 function flushPlays(): Promise<void> {
-  if (playsWaiting === false && !sendingPlays) return Promise.resolve();
+  // Before the block below: with nothing to send it would finish at once and leave `sendingPlays` set for good.
+  playsWaiting ??= !!getJson<PlayEntry[]>(PLAYS_KEY)?.length;
+  if (!playsWaiting) return sendingPlays ?? Promise.resolve();
   sendingPlays ??= (async () => {
     try {
       for (;;) {
@@ -1051,21 +1097,26 @@ function flushPlays(): Promise<void> {
 }
 
 /** Sends what's waiting in the outbox now (before signing out, say); a failure leaves it there. */
-export const flushProgress = () => Promise.all([flush(), flushPlays()]).then(() => undefined);
+export const flushProgress = () => Promise.all([flush(), flushPlays(), flushBookmarks()]).then(() => undefined);
 
-/** Drops unsent progress, plays and listening minutes, on sign-out: they're this account's, not the next one's. */
+/** Drops unsent progress, plays, bookmarks and listening minutes, on sign-out: they're this account's, not the next one's. */
 export function forgetProgress() {
   removeKey(OUTBOX_KEY);
   removeKey(PLAYS_KEY);
   playsWaiting = false;
   listening.clear();
+  forgetBookmarks();
 }
 
 onlineManager.subscribe((online) => {
-  if (online) void flush(true);
+  if (!online) return;
+  void flush(true);
+  void refreshBookmarks();
 });
 AppState.addEventListener("change", (s) => {
-  if (s === "active") void flush(true);
+  if (s !== "active") return;
+  void flush(true);
+  void refreshBookmarks();
 });
 
 // ---------- Up Next ----------
@@ -1177,6 +1228,56 @@ export async function playRef(ref: PlayRef, startAt?: number) {
   }
 }
 
+/** Sets the hold for a jump to `sec`, away from `returnTo`. A jump from a held spot keeps the real place. */
+function startHold(type: PlayType, id: string, returnTo: number, sec: number) {
+  if (hold) hold = { ...hold, from: sec, heard: 0 };
+  else if (offersGoBack(returnTo, sec)) {
+    hold = { type, id, returnTo, from: sec, heard: 0 };
+    set({ goBackTo: returnTo });
+  }
+  holdTickAt = 0;
+}
+
+function endHold() {
+  hold = null;
+  if (state.goBackTo !== null) set({ goBackTo: null });
+}
+
+/** Plays a bookmark. Your real place stays saved until it's clear you've moved on, and the Go back card can return to it. */
+export async function jumpTo(ref: PlayRef, sec: number) {
+  const cur = state.item;
+  if (cur && isCurrent(state, ref.itemType, ref.itemId)) {
+    // First, so a seek while paused doesn't save the new spot.
+    startHold(cur.type, cur.id, position, sec);
+    seek(sec);
+    media.play();
+    return;
+  }
+  try {
+    const it = await loadPlayable(ref);
+    play(it, sec);
+    // Leaving a held item ended its hold, so this one starts fresh against its own saved place.
+    startHold(it.type, it.id, it.startAt, sec);
+  } catch (err) {
+    set({ error: err instanceof Error ? err.message : "Couldn't load that." });
+  }
+}
+
+/** The Go back card: back to the real place. */
+export function goBack() {
+  const to = hold?.returnTo;
+  if (to === undefined) return;
+  endHold();
+  seek(to);
+}
+
+/** The card's X, and how a hold runs out: this spot is your place now. */
+export function stayHere() {
+  if (!hold) return;
+  endHold();
+  save();
+}
+
 export function toggle() {
   if (!state.item) return;
   tapHaptic();
@@ -1205,6 +1306,9 @@ export function seek(sec: number) {
   } else {
     load(it, t, media.playing);
   }
+  // "End of chapter" follows you to the chapter you land in.
+  const chapter = it.chapters[chapterAt(it.chapters, t)];
+  if (state.sleep.mode === "chapter" && it.chapters.length > 1 && chapter) set({ sleep: { mode: "chapter", endSec: chapter.endSec } });
   // While playing, progress saves every few seconds anyway; paused, nothing else would keep it.
   // A scrub doesn't change any list enough to reload them all.
   if (!state.playing) save(false, false);
@@ -1285,6 +1389,7 @@ export function setFinished(itemType: "book" | "episode", itemId: string, durati
 }
 
 export function markCurrent(finished: boolean) {
+  endHold();
   if (finished) {
     // Finishing clears it from the player, like the web player.
     save(true);
@@ -1319,6 +1424,7 @@ function clear() {
 /** Called once signed in: loads Up Next and puts back whatever was playing last, paused. */
 export async function restorePlayer() {
   void flush();
+  void refreshBookmarks();
   // Up Next comes back from the server with its place, so next and previous work after a restart.
   void refreshUpNext();
   // Older servers have no shuffle or repeat; those stay off.

@@ -8,6 +8,9 @@ import { Marquee } from "../marquee";
 import { MixerBars } from "../mixer";
 import {
   bookFinished,
+  type BookmarkDto,
+  bookmarkNear,
+  bookmarkSpot,
   chapterAt,
   clampSpeed,
   clock,
@@ -19,10 +22,15 @@ import {
   sleepLabel,
   SPEED_STEP,
   speedText,
+  thirdTile,
   timeLeft,
 } from "@murmur/shared/client";
+import { BookmarkNoteSheet, BookmarkRows } from "../bookmark-rows";
+import { addBookmark, BOOKMARK_TOAST_MS, deleteBookmark, removeBookmarkWithUndo, useBookmarks } from "../bookmarks";
 import {
+  BookmarkIcon,
   CheckIcon,
+  CloseIcon,
   ChevronIcon,
   DownIcon,
   ListIcon,
@@ -42,7 +50,7 @@ import {
   SkipForwardIcon,
 } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
-import { Chip, Chips } from "../ui";
+import { Chip, Chips, EmptyState } from "../ui";
 import { UpNextSheet } from "../up-next";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } from "./ad-prefs";
 import { CastButton } from "../cast/cast-button";
@@ -111,7 +119,10 @@ export function usePullToClose(onClose: () => void) {
 export function FullPlayer() {
   const p = usePlayer();
   const castDevice = useCast().device;
-  const [sheet, setSheet] = useState<null | "sleep" | "chapters" | "more" | "ads" | "upnext">(null);
+  const [sheet, setSheet] = useState<null | "sleep" | "chapters" | "bookmarks" | "more" | "ads" | "upnext">(null);
+  const [chaptersTab, setChaptersTab] = useState<"chapters" | "bookmarks">("chapters");
+  const [editingBookmark, setEditingBookmark] = useState<BookmarkDto | null>(null);
+  const bookmarks = useBookmarks(p.item?.type, p.item?.id);
   const adPrefs = useAdPrefs();
   const [speedOpen, setSpeedOpen] = useState(false);
   /** Slider value while dragging; saved once you let go. */
@@ -179,12 +190,26 @@ export function FullPlayer() {
     fn();
     setSheet(null);
   };
-  // Ads only ever exist for episodes. An episode's third tile is Chapters when it has them, else
-  // Ads when the show is scanned, else nothing; books always keep Chapters. Ads are also in More.
+  // Ads only ever exist for episodes, and their setting lives in More.
   const showAds = item.type === "episode" && p.adsEnabled;
-  const slot = item.type === "book" || segmented ? "chapters" : showAds ? "ads" : null;
+  const slot = thirdTile(item.type, multiChapter);
   // Songs: previous and next instead of skips and chapters, no speed, no position kept.
   const song = item.type === "track";
+  const nearBookmark = song ? null : bookmarkNear(bookmarks, pos);
+  const onBookmark = () => {
+    if (nearBookmark) return nearBookmark.note ? setEditingBookmark(nearBookmark) : removeBookmarkWithUndo(nearBookmark);
+    const b = addBookmark(item, bookmarkSpot(position, p.playing, p.speed));
+    toast(`Bookmarked ${clock(b.positionSec)}`, {
+      duration: BOOKMARK_TOAST_MS,
+      action: { label: "Add note", onClick: () => setEditingBookmark(b) },
+      cancel: { label: "Undo", onClick: () => deleteBookmark(b) },
+    });
+  };
+  const jumpToBookmark = (b: BookmarkDto) => {
+    setSheet(null);
+    void p.jumpTo({ itemType: b.itemType, itemId: b.itemId }, b.positionSec);
+  };
+  const noBookmarks = <EmptyState title="No bookmarks yet">Tap the bookmark beside the title to save a spot.</EmptyState>;
   const waiting = p.upNext.items.length - p.upNext.index - 1;
   const adMode = adModeFor(adPrefs, item.podcastId);
   const marks = showAds && adMode !== "off" ? p.ads : [];
@@ -234,6 +259,17 @@ export function FullPlayer() {
           </button>
         </div>
       </div>
+      {p.goBackTo !== null ? (
+        <div className="float-card" role="status">
+          <span>You were at {clock(p.goBackTo)}</span>
+          <button type="button" className="more-link" onClick={p.goBack}>
+            Go back
+          </button>
+          <button type="button" className="icon-btn dim" aria-label="Stay here" onClick={p.stayHere}>
+            <CloseIcon size={18} />
+          </button>
+        </div>
+      ) : null}
 
       <div className="player-main">
         {/* Skip ad and Mark played sit on the cover so they never move the controls. */}
@@ -272,6 +308,11 @@ export function FullPlayer() {
             </h1>
             <div className="player-sub">{multiChapter && !segmented && chapter ? chapter.title : item.subtitle}</div>
           </div>
+          {song ? null : (
+            <button type="button" className={`icon-btn${nearBookmark ? " on" : ""}`} aria-label={nearBookmark ? "Remove bookmark" : "Bookmark this spot"} aria-pressed={!!nearBookmark} onClick={onBookmark}>
+              <BookmarkIcon filled={!!nearBookmark} />
+            </button>
+          )}
         </div>
 
         <div className={`player-scrub${segmented ? " chaptered" : ""}`}>
@@ -324,6 +365,15 @@ export function FullPlayer() {
                 ))}
               </div>
             ) : null}
+          {bookmarks.length ? (
+            <div className="scrub-bookmarks" aria-hidden="true">
+              {bookmarks
+                .filter((b) => b.positionSec >= span.start && b.positionSec <= span.end)
+                .map((b) => (
+                  <span key={b.id} style={{ left: pct(b.positionSec) }} />
+                ))}
+            </div>
+          ) : null}
           <input
             type="range"
             className={`scrubber${marks.length || segmented ? " over-track" : ""}`}
@@ -443,7 +493,7 @@ export function FullPlayer() {
         {p.error ? <p className="error player-error">{p.error}</p> : null}
       </div>
 
-      <div className={`player-tiles${item.type === "episode" && !slot ? " fill" : ""}`}>
+      <div className="player-tiles">
         <div className="speed-wrap" hidden={song}>
           {speedOpen ? (
             <>
@@ -509,14 +559,17 @@ export function FullPlayer() {
           <span>{sleepLabel(p.sleep, Date.now())}</span>
         </button>
         {slot === "chapters" ? (
-          <button type="button" className="tile" onClick={() => setSheet("chapters")} disabled={!multiChapter}>
+          <button type="button" className="tile" onClick={() => setSheet("chapters")}>
             <ListIcon size={20} />
             <span>Chapters</span>
           </button>
-        ) : slot === "ads" ? (
-          <button type="button" className="tile" onClick={() => setSheet("ads")}>
-            <strong>{AD_MODES.find((m) => m.id === adMode)?.short}</strong>
-            <span>Ads</span>
+        ) : slot === "bookmarks" ? (
+          <button type="button" className="tile" onClick={() => setSheet("bookmarks")}>
+            <BookmarkIcon size={20} />
+            <span>
+              Bookmarks
+              {bookmarks.length ? <span className="count-pill">{bookmarks.length}</span> : null}
+            </span>
           </button>
         ) : null}
         <button type="button" className="tile" onClick={() => setSheet("upnext")}>
@@ -550,24 +603,51 @@ export function FullPlayer() {
         </SheetItem>
       </Sheet>
 
-      <Sheet open={sheet === "chapters"} onClose={() => setSheet(null)} title="Chapters" count={item.chapters.length}>
-        <ol className="chapter-list">
-          {item.chapters.map((c, i) => (
-            <li key={c.index}>
-              <button
-                type="button"
-                className={i < ci ? "done" : undefined}
-                aria-current={i === ci || undefined}
-                onClick={choose(() => p.seek(c.startSec))}
-              >
-                <span className="chapter-num">{i === ci ? <MixerBars playing={p.playing} /> : i + 1}</span>
-                <span className="chapter-title">{c.title}</span>
-                <span className="muted small">{duration(c.endSec - c.startSec)}</span>
-              </button>
-            </li>
-          ))}
-        </ol>
+      <Sheet
+        open={sheet === "chapters"}
+        onClose={() => setSheet(null)}
+        title={chaptersTab === "chapters" ? "Chapters" : "Bookmarks"}
+        count={chaptersTab === "chapters" ? item.chapters.length : bookmarks.length}
+      >
+        <Chips kind="tabs" label="Chapters or bookmarks">
+          <Chip selected={chaptersTab === "chapters"} onClick={() => setChaptersTab("chapters")}>
+            Chapters
+          </Chip>
+          <Chip selected={chaptersTab === "bookmarks"} onClick={() => setChaptersTab("bookmarks")}>
+            Bookmarks
+          </Chip>
+        </Chips>
+        {chaptersTab === "bookmarks" ? (
+          bookmarks.length ? (
+            <BookmarkRows bookmarks={bookmarks} onJump={jumpToBookmark} />
+          ) : (
+            noBookmarks
+          )
+        ) : (
+          <ol className="chapter-list">
+            {item.chapters.map((c, i) => (
+              <li key={c.index}>
+                <button
+                  type="button"
+                  className={i < ci ? "done" : undefined}
+                  aria-current={i === ci || undefined}
+                  onClick={choose(() => p.seek(c.startSec))}
+                >
+                  <span className="chapter-num">{i === ci ? <MixerBars playing={p.playing} /> : i + 1}</span>
+                  <span className="chapter-title">{c.title}</span>
+                  <span className="muted small">{duration(c.endSec - c.startSec)}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        )}
       </Sheet>
+
+      <Sheet open={sheet === "bookmarks"} onClose={() => setSheet(null)} title="Bookmarks" count={bookmarks.length}>
+        {bookmarks.length ? <BookmarkRows bookmarks={bookmarks} onJump={jumpToBookmark} /> : noBookmarks}
+      </Sheet>
+
+      <BookmarkNoteSheet bookmark={editingBookmark} onClose={() => setEditingBookmark(null)} />
 
       <Sheet open={sheet === "ads"} onClose={() => setSheet(null)} title="Ads">
         <p className="sheet-note">This device only</p>

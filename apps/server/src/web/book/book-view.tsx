@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useState } from "react";
 import { toast } from "sonner";
-import { apiPaths, type BookDetail, bookStarted, type ChapterDto, chapterAt, duration, errorText, pastStart, plural, timeLeft } from "@murmur/shared/client";
+import { apiPaths, type BookDetail, type BookmarkDto, bookStarted, type ChapterDto, chapterAt, duration, errorText, pastStart, plural, timeLeft } from "@murmur/shared/client";
+import { BookmarkRows } from "../bookmark-rows";
+import { useBookmarks } from "../bookmarks";
 import { MenuSheet } from "../card-menu";
 import { Cover } from "../cover";
-import { BookmarkAddIcon, CheckIcon, MoreIcon, PauseIcon, PlayIcon } from "../icons";
+import { CheckIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "../icons";
 import { bookToPlayable, usePlayer, usePosition } from "../player/engine";
 import { setFinished } from "../progress";
 import { BookMenuItems } from "../library/book-card";
@@ -15,9 +17,10 @@ import { BackButton, SectionTitle } from "../ui";
 import { EditBookDialog, type EditTab } from "./edit-dialog";
 import { setPlayNext } from "./play-next";
 
-export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean }) {
+export function BookView({ book, bookmarks: firstBookmarks, isAdmin }: { book: BookDetail; bookmarks: BookmarkDto[]; isAdmin: boolean }) {
   const router = useRouter();
   const player = usePlayer();
+  const bookmarks = useBookmarks("book", book.id, firstBookmarks);
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState<EditTab | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -141,7 +144,7 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
             aria-pressed={onPlayNext}
             onClick={togglePlayNext}
           >
-            <BookmarkAddIcon added={onPlayNext} />
+            <QueueAddIcon queued={onPlayNext} />
           </button>
         ) : null}
         <button
@@ -169,6 +172,15 @@ export function BookView({ book, isAdmin }: { book: BookDetail; isAdmin: boolean
             </button>
           ) : null}
         </>
+      ) : null}
+
+      {bookmarks.length ? (
+        <section className="section">
+          <div className="section-head">
+            <SectionTitle title="Bookmarks" count={bookmarks.length} noun="bookmark" />
+          </div>
+          <BookmarkRows bookmarks={bookmarks} onJump={(b) => void player.jumpTo({ itemType: "book", itemId: book.id }, b.positionSec)} />
+        </section>
       ) : null}
 
       {book.chapters.length > 1 ? (

@@ -2,10 +2,11 @@ import { memo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { apiPaths, type BookDetail, chapterAt, duration, pastStart, plural, timeLeft } from "@murmur/shared/client";
+import { BookmarkRows, openBookmark } from "@/components/bookmarks";
 import { Cover } from "@/components/cover";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { HeroBackdrop } from "@/components/hero";
-import { CheckIcon, DownloadIcon, MoreIcon, PauseIcon, PlayIcon, PlayNextAddIcon } from "@/components/icons";
+import { CheckIcon, DownloadIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "@/components/icons";
 import { openGroup, PAD } from "@/components/library";
 import { BackRow, Empty, NestedFallback, useBottomPad, SectionTitle, useTopInset } from "@/components/page";
 import { BookActions } from "@/components/book-card";
@@ -13,6 +14,7 @@ import { RemoveDownloadSheet } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { Bar, IconButton, RoundButton, Text } from "@/components/ui";
+import { useBookmarks } from "@/lib/bookmarks";
 import { setPlayNext, useBook } from "@/lib/data";
 import { downloadBook, getDownload, removeDownload, useDownload, type Download } from "@/lib/downloads";
 import {
@@ -56,6 +58,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
   const bottomPad = useBottomPad();
   const player = usePlayer();
   const live = useItemPosition("book", book.id) ?? 0;
+  const bookmarks = useBookmarks("book", book.id);
   const [menu, setMenu] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -196,7 +199,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
                 filled={onPlayNext}
                 onPress={() => void setPlayNext(book.id, !onPlayNext)}
               >
-                <PlayNextAddIcon size={22} on={onPlayNext} color={onPlayNext ? t.onAccent : t.text} />
+                <QueueAddIcon size={22} queued={onPlayNext} color={onPlayNext ? t.onAccent : t.text} />
               </RoundButton>
             ) : null}
             <RoundButton label={downloadLabel} active={download?.status === "done"} onPress={toggleDownload}>
@@ -229,6 +232,13 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
                 </Text>
               ) : null}
             </Pressable>
+          ) : null}
+
+          {bookmarks.length ? (
+            <>
+              <SectionTitle title="Bookmarks" count={bookmarks.length} />
+              <BookmarkRows bookmarks={bookmarks} onJump={openBookmark} />
+            </>
           ) : null}
 
           {book.chapters.length > 1 ? <ChapterList book={book} currentChapter={currentChapter} /> : null}

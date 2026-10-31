@@ -169,6 +169,13 @@
       "when": 1793408518644,
       "tag": "0023_play_ids_and_private_feeds",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1793462374305,
+      "tag": "0024_lowly_nomad",
+      "breakpoints": true
     }
   ]
 }
