@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
+import { noteBackupFailed } from "./backup-status";
 import { backupDatabase, openDatabase, type Db, type Sqlite } from "./db";
 import { env } from "./env";
-import { ensureDefaultFolder, ensureMountedFolder, listFolders, saveFolders, type LibraryFolder } from "./library/folders";
+import { listFolders, syncFolders, type LibraryFolder } from "./library/folders";
 import { createWatchScanner, type WatchScanner } from "./watch/scanner";
 import { createWatchMatcher, type WatchMatcher } from "./watch/match";
 import { createTmdb, type Tmdb } from "./watch/tmdb";
@@ -28,22 +29,16 @@ export interface AppContext {
   watcher: LibraryWatcher;
   library: {
     folders: () => LibraryFolder[];
-    /** Replaces the folder list, restarts the watcher and starts a rescan. */
-    saveFolders: (paths: string[]) => Promise<LibraryFolder[]>;
   };
   music: {
     scanner: MusicScanner;
     state: ScanState;
     folders: () => LibraryFolder[];
-    /** Replaces the music folder list, restarts its watcher and starts a rescan. */
-    saveFolders: (paths: string[]) => Promise<LibraryFolder[]>;
   };
   watch: {
     scanner: WatchScanner;
     state: ScanState;
     folders: () => { movies: LibraryFolder[]; shows: LibraryFolder[] };
-    /** Replaces the movies or shows folder list, restarts their watcher and starts a rescan. */
-    saveFolders: (kind: "movies" | "shows", paths: string[]) => Promise<void>;
     /** TMDB matching; null without a TMDB key. */
     matcher: WatchMatcher | null;
     /** TMDB itself, for Edit's pictures; null without a TMDB key. */
@@ -89,7 +84,11 @@ async function boot(): Promise<AppContext> {
     log: createLogger("db"),
   });
 
-  ensureDefaultFolder(db, env.libraryDir);
+  // Folders come from what's mounted, checked on every start.
+  await syncFolders(db, "books", env.libraryDir);
+  await syncFolders(db, "music", env.musicDir);
+  await syncFolders(db, "movies", env.moviesDir);
+  await syncFolders(db, "shows", env.showsDir);
   const scanState = createScanState();
   const scanner = createScanner({
     db,
@@ -112,7 +111,7 @@ async function boot(): Promise<AppContext> {
       onChange: (paths) => void (paths ? scanner.scanChanged(paths) : scanner.scan()),
       log: watchLog,
     });
-  let currentWatcher = startWatch();
+  const currentWatcher = startWatch();
   const watcher: LibraryWatcher = {
     mode: () => currentWatcher.mode(),
     // Closes the music watcher too, which is set up below.
@@ -124,16 +123,8 @@ async function boot(): Promise<AppContext> {
   };
   const library: AppContext["library"] = {
     folders: () => listFolders(db),
-    saveFolders: async (paths) => {
-      const saved = saveFolders(db, paths);
-      await currentWatcher.close();
-      currentWatcher = startWatch();
-      void scanner.scan();
-      return saved;
-    },
   };
 
-  await ensureMountedFolder(db, sqlite, "music", env.musicDir);
   const musicState = createScanState();
   const musicScanner = createMusicScanner({
     sqlite,
@@ -158,22 +149,13 @@ async function boot(): Promise<AppContext> {
       onChange: () => void musicScanner.scan(),
       log: watchLog,
     });
-  let musicWatcher = startMusicWatch();
+  const musicWatcher = startMusicWatch();
   const music: AppContext["music"] = {
     scanner: musicScanner,
     state: musicState,
     folders: () => listFolders(db, "music"),
-    saveFolders: async (paths) => {
-      const saved = saveFolders(db, paths, "music");
-      await musicWatcher.close();
-      musicWatcher = startMusicWatch();
-      void musicScanner.scan();
-      return saved;
-    },
   };
 
-  await ensureMountedFolder(db, sqlite, "movies", env.moviesDir);
-  await ensureMountedFolder(db, sqlite, "shows", env.showsDir);
   const watchState = createScanState();
   const watchFolders = () => ({ movies: listFolders(db, "movies"), shows: listFolders(db, "shows") });
   // Online details only with a TMDB key; without one Watch runs on local files.
@@ -203,19 +185,13 @@ async function boot(): Promise<AppContext> {
       log: watchLog,
     });
   };
-  let videoWatcher = startVideoWatch();
+  const videoWatcher = startVideoWatch();
   const watch: AppContext["watch"] = {
     scanner: watchScanner,
     state: watchState,
     folders: watchFolders,
     matcher,
     tmdb,
-    saveFolders: async (kind, paths) => {
-      saveFolders(db, paths, kind);
-      await videoWatcher.close();
-      videoWatcher = startVideoWatch();
-      void watchScanner.scan();
-    },
   };
 
   const podcastLog = createLogger("podcasts");
@@ -293,6 +269,7 @@ function scheduleNightlyBackup(sqlite: Sqlite) {
       await backupDatabase(sqlite, env.backupsDir, env.backupKeep, backupLog);
     } catch (err) {
       backupLog.error("nightly backup failed", { error: errorMessage(err) });
+      noteBackupFailed();
     }
     scheduleNightlyBackup(sqlite);
   }, next.getTime() - Date.now());

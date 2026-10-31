@@ -1,5 +1,6 @@
 import type { ServerVersionDto } from "@murmur/shared";
 import { requireUser } from "@/server/auth";
+import { backupStatus } from "@/server/backup-status";
 import { getContext } from "@/server/context";
 import { env } from "@/server/env";
 import { json, route } from "@/server/http";
@@ -13,6 +14,7 @@ export const GET = route(async (req) => {
     version: env.version,
     devBuild: env.devBuild,
     updates: user.isAdmin ? updateStatus() : null,
+    backup: user.isAdmin ? backupStatus() : null,
   };
   return json(body);
 });

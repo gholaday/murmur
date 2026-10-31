@@ -206,12 +206,7 @@ function NoMusic({ isAdmin }: { isAdmin: boolean }) {
         <MusicIcon size={34} />
       </span>
       <h2>No music yet</h2>
-      <p>{isAdmin ? "Add a music folder and your albums show up here." : "Albums show up here once a music folder is added."}</p>
-      {isAdmin ? (
-        <Link href="/you/library" className="btn btn-primary btn-big">
-          Add a folder
-        </Link>
-      ) : null}
+      <p>{isAdmin ? "Mount your music at /music, and your albums show up here." : "Albums show up here once they're added."}</p>
     </div>
   );
 }

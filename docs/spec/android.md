@@ -13,7 +13,7 @@ The layout follows the familiar podcast-app pattern: bottom tabs, a persistent m
 | Book, show, album, artist or playlist page | Header with cover and colour band, description, chapters, episodes or songs, download and play buttons |
 | Full-screen player | Large cover, chapter or song name, scrubber, speed, sleep timer, skip buttons, chapter list, and an Up Next tile with what's still to come that opens the running list (what played, what's playing and what's next; drag to reorder, remove, Clear) |
 
-Podcasts, Music and Watch are turned on and off under You > Tabs, and that alone decides whether they show; Music and Watch start off. Books and You are always there. A shown tab with no folder set up has an empty state, with Add a folder for admins.
+Podcasts, Music and Watch are turned on and off under You > Tabs, and that alone decides whether they show; Music and Watch start off. Books and You are always there. A shown tab with no folder set up has an empty state that, for admins, names the folder to mount.
 
 **Look and feel:** dark theme by default with a light option; periwinkle accent (#8E9BFF on dark, #4F5BD5 on light); the player background takes its colour from the cover; large touch targets.
 

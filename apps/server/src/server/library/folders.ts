@@ -1,16 +1,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { LibraryFolderDto } from "@murmur/shared";
 import type { Db, Sqlite } from "../db";
 import { books, libraryFolders } from "../db/schema";
-import { readState, writeState } from "../settings";
-import { isIgnoredName } from "./parse";
 
 // The folders the library is read from, books, music, movies and shows each with their own list.
-// An admin manages them in Settings; on first start the book list is seeded with LIBRARY_DIR so
-// existing setups keep working unchanged, and the others with MUSIC_DIR, MOVIES_DIR and SHOWS_DIR
-// once those are mounted.
+// They come from what's mounted: on every start each kind picks up its folder (LIBRARY_DIR,
+// MUSIC_DIR, MOVIES_DIR, SHOWS_DIR) and any beside it named like it, so /audiobooks-2 is a second
+// book folder. Nothing is set up in Settings.
 
 export type FolderKind = "books" | "music" | "movies" | "shows";
 
@@ -28,93 +26,51 @@ export function listFolders(db: Db, kind: FolderKind = "books"): LibraryFolder[]
     .all();
 }
 
-/** Every folder of every kind, for overlap checks: no folder may be scanned twice. */
-export function allFolderPaths(db: Db): Array<{ path: string; kind: FolderKind }> {
-  return db.select({ path: libraryFolders.path, kind: libraryFolders.kind }).from(libraryFolders).all();
-}
-
-/** Seeds the book folder list with LIBRARY_DIR when it's empty, and files existing books under it. */
-export function ensureDefaultFolder(db: Db, defaultDir: string) {
-  if (listFolders(db).length > 0) return;
-  db.transaction((tx) => {
-    const row = tx.insert(libraryFolders).values({ path: defaultDir, createdAt: Date.now() }).returning({ id: libraryFolders.id }).get();
-    tx.update(books).set({ libraryFolderId: row.id }).where(isNull(books.libraryFolderId)).run();
-  });
+/** A kind's folder and the ones beside it named like it, a dash and anything: /audiobooks, /audiobooks-2. */
+export function isMountName(name: string, base: string): boolean {
+  return name === base || name.startsWith(`${base}-`);
 }
 
 /**
- * Adds MUSIC_DIR (/music by default) as the first music folder once it's mounted, and the same for
- * MOVIES_DIR and SHOWS_DIR. Each is added only once, so a folder an admin removes stays removed;
- * with nothing mounted there, that kind stays off.
+ * A folder as the disk has it, so one directory compares equal however its path was spelled (the
+ * case on Windows and macOS, a symlink), and whether it's gone. Only a path that no longer exists
+ * counts as gone: one the server can't read right now (permissions, a flaky share) stays, and the
+ * scan reports it.
  */
-export async function ensureMountedFolder(db: Db, sqlite: Sqlite, kind: Exclude<FolderKind, "books">, dir: string) {
-  const seeded = `${kind}FolderSeeded`;
-  if (readState<boolean>(sqlite, seeded)) return;
-  if (listFolders(db, kind).length === 0) {
-    const mounted = await fs.stat(dir).then((s) => s.isDirectory(), () => false);
-    if (!mounted) return;
-    if (allFolderPaths(db).some((f) => f.path === dir)) return;
-    db.insert(libraryFolders).values({ path: dir, kind, createdAt: Date.now() }).run();
-  }
-  writeState(sqlite, seeded, true);
-}
-
-/** Normalises what an admin typed: absolute, no trailing slash. */
-export function normalizeFolder(input: string): string {
-  const trimmed = input.trim();
-  const resolved = path.resolve(trimmed);
-  return resolved.length > 1 ? resolved.replace(/[\\/]+$/, "") : resolved;
-}
-
-const isInside = (child: string, parent: string) => {
-  const rel = path.relative(parent, child);
-  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
-};
-
-export interface FolderCheck {
-  path: string;
-  ok: boolean;
-  /** Why it can't be used, or a warning worth showing even when it can. */
-  message: string;
-  /** Subfolders directly inside, as a hint that it's the right place. */
-  subfolders: number;
-}
-
-/** Checks that a folder exists, can be read, and doesn't overlap the other folders. */
-export async function checkFolder(input: string, others: string[]): Promise<FolderCheck> {
-  const p = normalizeFolder(input);
-  if (!path.isAbsolute(input.trim())) return { path: p, ok: false, message: "Use a full path, starting with /.", subfolders: 0 };
-  const overlap = others.find((o) => isInside(p, o) || isInside(o, p));
-  if (overlap) {
-    return {
-      path: p,
-      ok: false,
-      message: p === overlap ? "That folder is already in the list." : `Overlaps ${overlap}; books would be found twice.`,
-      subfolders: 0,
-    };
-  }
-  let entries;
+async function onDisk(p: string): Promise<{ real: string; gone: boolean }> {
   try {
-    const st = await fs.stat(p);
-    if (!st.isDirectory()) return { path: p, ok: false, message: "That's a file, not a folder.", subfolders: 0 };
-    entries = await fs.readdir(p, { withFileTypes: true });
+    return { real: await fs.realpath(p), gone: false };
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
-    const message =
-      code === "ENOENT"
-        ? "The server can't find that folder. In Docker, mount it into the container first."
-        : code === "EACCES" || code === "EPERM"
-          ? "The server isn't allowed to read that folder."
-          : "The server can't open that folder.";
-    return { path: p, ok: false, message, subfolders: 0 };
+    return { real: p, gone: code === "ENOENT" || code === "ENOTDIR" };
   }
-  const subfolders = entries.filter((e) => e.isDirectory() && !isIgnoredName(e.name)).length;
-  return {
-    path: p,
-    ok: true,
-    message: subfolders === 0 ? "Readable, but it has no subfolders yet." : `Readable, ${subfolders} ${subfolders === 1 ? "folder" : "folders"} inside.`,
-    subfolders,
-  };
+}
+
+/**
+ * Makes a kind's folder list match what's mounted: folders named like `dir` are added, and a folder
+ * whose path is gone (taken out of the compose file) is dropped. One that's there but empty, like a
+ * network share that hasn't come up, stays. A path another kind already reads is left to that kind.
+ */
+export async function syncFolders(db: Db, kind: FolderKind, dir: string): Promise<void> {
+  const parent = path.dirname(dir);
+  const entries = await fs.readdir(parent, { withFileTypes: true }).catch(() => []);
+  const mounted = entries
+    .filter((e) => (e.isDirectory() || e.isSymbolicLink()) && isMountName(e.name, path.basename(dir)))
+    .map((e) => path.join(parent, e.name))
+    .sort();
+  const all = db.select({ path: libraryFolders.path, kind: libraryFolders.kind }).from(libraryFolders).all();
+  const taken = new Set(await Promise.all(all.filter((f) => f.kind !== kind).map(async (f) => (await onDisk(f.path)).real)));
+  const current = await Promise.all(listFolders(db, kind).map(async (f) => ({ path: f.path, ...(await onDisk(f.path)) })));
+  const kept = current.filter((f) => !f.gone);
+  const have = new Set(kept.map((f) => f.real));
+  const added: string[] = [];
+  for (const p of mounted) {
+    const { real } = await onDisk(p);
+    if (have.has(real) || taken.has(real)) continue;
+    have.add(real);
+    added.push(p);
+  }
+  if (added.length || kept.length !== current.length) saveFolders(db, [...kept.map((f) => f.path), ...added], kind);
 }
 
 /** The folders with their book (or album) counts and whether the server can open them, for Settings. */
@@ -137,29 +93,11 @@ export async function folderList(db: Db, sqlite: Sqlite, kind: FolderKind = "boo
   );
 }
 
-export interface BrowseResult {
-  path: string;
-  parent: string | null;
-  folders: string[];
-}
-
-/** Lists the subfolders of a folder so an admin can pick one instead of typing a path. */
-export async function browseFolder(input: string): Promise<BrowseResult> {
-  const p = normalizeFolder(input || "/");
-  const entries = await fs.readdir(p, { withFileTypes: true });
-  const folders = entries
-    .filter((e) => e.isDirectory() && !isIgnoredName(e.name))
-    .map((e) => e.name)
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
-  const parent = path.dirname(p);
-  return { path: p, parent: parent === p ? null : parent, folders };
-}
-
 /**
  * Replaces the folder list. Books in a removed folder lose their folder; the next scan
  * either finds them in another folder (keeping their progress) or removes them.
  */
-export function saveFolders(db: Db, paths: string[], kind: FolderKind = "books"): LibraryFolder[] {
+function saveFolders(db: Db, paths: string[], kind: FolderKind) {
   const wanted = new Set(paths);
   db.transaction((tx) => {
     const current = tx
@@ -178,5 +116,4 @@ export function saveFolders(db: Db, paths: string[], kind: FolderKind = "books")
       if (!have.has(p)) tx.insert(libraryFolders).values({ path: p, kind, createdAt: Date.now() }).run();
     }
   });
-  return listFolders(db, kind);
 }

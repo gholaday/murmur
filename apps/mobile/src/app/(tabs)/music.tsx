@@ -410,8 +410,8 @@ function MusicNote({ title, children, actions }: { title: string; children: stri
 function NoMusic() {
   const admin = !!useSession().user?.isAdmin;
   return (
-    <MusicNote title="No music yet" actions={admin ? <Button label="Add a folder" onPress={() => router.push("/library")} /> : undefined}>
-      {admin ? "Add a music folder and your albums show up here." : "Albums show up here once a music folder is added."}
+    <MusicNote title="No music yet">
+      {admin ? "Mount your music at /music, and your albums show up here." : "Albums show up here once they're added."}
     </MusicNote>
   );
 }

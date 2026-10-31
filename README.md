@@ -50,7 +50,7 @@ Run `docker compose up -d`, open `http://<host>:3333`, and create the first acco
 
 **Android app:** download `murmur-<version>.apk` from the [latest release](https://github.com/gholaday/murmur/releases/latest), or add this repository to [Obtainium](https://github.com/ImranR98/Obtainium) to get updates automatically.
 
-[Getting started](docs/GETTING_STARTED.md) covers the rest: folder layout, remote access, installing the Android app, adding the web player to a phone's home screen, ad detection, movies and shows, and updating. The full example stack is [`docker-compose.yml`](docker-compose.yml).
+[Getting started](docs/GETTING_STARTED.md) covers the rest: folder layout, remote access, installing the Android app, adding the web player to a phone's home screen, ad detection, movies and shows, updating, and backups and restoring. The full example stack is [`docker-compose.yml`](docker-compose.yml).
 
 ## How it works
 
@@ -65,9 +65,9 @@ All optional. With the example compose file, keys and secrets go in `murmur.env`
 | `PUID` / `PGID` | `1000` | User and group that own the files in `/data` and `/cache` |
 | `TZ` | `UTC` | Time zone, for the nightly backup hour |
 | `DATA_DIR` | `/data` | Database, covers and backups |
-| `LIBRARY_DIR` | `/audiobooks` | Development only; in Docker the volume mounted at `/audiobooks` is the first library folder. More can be added under You > Library |
-| `MUSIC_DIR` | `/music` | Development only; in Docker the volume mounted at `/music` is the first music folder, added once something is there. Without one, Music is empty |
-| `MOVIES_DIR` / `SHOWS_DIR` | `/movies` / `/shows` | Development only; in Docker the volumes mounted at `/movies` and `/shows` are the first movie and show folders, added once something is there. Without them, Watch is empty |
+| `LIBRARY_DIR` | `/audiobooks` | Development only; in Docker the volume mounted at `/audiobooks` is the book folder, and any mounted beside it as `/audiobooks-<name>` are more (the same goes for music, movies and shows) |
+| `MUSIC_DIR` | `/music` | Development only; in Docker the volume mounted at `/music` is the music folder. Without one, Music is empty |
+| `MOVIES_DIR` / `SHOWS_DIR` | `/movies` / `/shows` | Development only; in Docker the volumes mounted at `/movies` and `/shows` are the movie and show folders. Without them, Watch is empty |
 | `AUDIBLE_REGION` | `us` | Store used by Match: `us`, `uk`, `ca`, `au`, `de`, `fr`, `it`, `es`, `in`, `jp` |
 | `GOOGLE_BOOKS_API_KEY` | | Optional, free from the [Google Cloud console](https://console.cloud.google.com/apis/library/books.googleapis.com) (enable the Books API, then create an API key). Without one, Match shares Google's small per-address quota and may be told to wait |
 | `FEED_CHECK_MINUTES` | `30` | How often each podcast feed is checked; new episodes are downloaded right after |

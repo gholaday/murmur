@@ -7,13 +7,11 @@ import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, wi
 import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
 import {
   adScanStatus,
+  backupLine,
   type EpisodeCacheStatusDto,
   errorText,
-  type FolderBrowseDto,
-  type FolderCheckDto,
   gigabytes,
   type HealthDto,
-  joinPath,
   KEEP_PER_SHOW_OPTIONS,
   type LibraryAdminDto,
   type LibraryFolderDto,
@@ -29,7 +27,7 @@ import { selectHaptic } from "@/lib/haptics";
 import { APP_NAME } from "@/lib/platform";
 import { queryClient } from "@/lib/query";
 import { fonts, useTheme } from "@/theme";
-import { BackIcon, CheckIcon, ChevronIcon, FolderIcon, RefreshIcon } from "./icons";
+import { CheckIcon, ChevronIcon, RefreshIcon } from "./icons";
 import { ConfirmSheet, Sheet } from "./sheet";
 import { Bone, FadeIn, Skeleton } from "./skeleton";
 import { toast } from "./toast";
@@ -294,6 +292,8 @@ export function ServerSection() {
   const v = query.data;
   const status = v ? versionStatus(v) : null;
   const update = v?.updates?.update;
+  // Admins only: the server leaves it null for everyone else.
+  const backup = v?.backup ? backupLine(v.backup) : null;
   return (
     <Card>
       {v && status ? (
@@ -307,6 +307,7 @@ export function ServerSection() {
           <RowBone />
         </Skeleton>
       )}
+      {backup ? <Row title="Backups" sub={backup.sub} dot={backup.dot === "warn" ? WARN_DOT : OK_DOT} subDanger={!!v?.backup?.failed} /> : null}
       <Row title={APP_NAME} sub={`Version ${Constants.expoConfig?.version ?? "unknown"}`} last />
     </Card>
   );
@@ -454,28 +455,15 @@ export function EpisodeCacheSection() {
 
 /** The kinds of folder the server reads, as the web lists them under You > Library. */
 const FOLDER_KINDS = {
-  books: { url: "/api/library/folders", item: "book", things: "books", title: "Add a library folder", min: 1, refresh: [["books"]] },
-  music: { url: "/api/music/folders", item: "album", things: "albums", title: "Add a music folder", min: 0, refresh: [["music"], ["albums"]] },
-  movies: { url: "/api/watch/folders/movies", item: "movie", things: "movies", title: "Add a movie folder", min: 0, refresh: [["watch"]] },
-  shows: { url: "/api/watch/folders/shows", item: "show", things: "shows", title: "Add a show folder", min: 0, refresh: [["watch"]] },
+  books: { url: "/api/library/folders", item: "book", things: "books" },
+  music: { url: "/api/music/folders", item: "album", things: "albums" },
+  movies: { url: "/api/watch/folders/movies", item: "movie", things: "movies" },
+  shows: { url: "/api/watch/folders/shows", item: "show", things: "shows" },
 } as const;
 type FolderKind = keyof typeof FOLDER_KINDS;
-const KIND_LIST = Object.keys(FOLDER_KINDS) as FolderKind[];
 
 const folderKey = (kind: FolderKind) => [...libraryKeys.folders, kind];
 const useFolders = (kind: FolderKind) => useQuery({ queryKey: folderKey(kind), queryFn: () => api<LibraryFolderDto[]>(FOLDER_KINDS[kind].url) });
-
-/** After a change: the counts now, and again once the scan it starts has had a moment. */
-function refreshSoon(kind: FolderKind) {
-  const run = () => {
-    void queryClient.invalidateQueries({ queryKey: libraryKeys.health });
-    void queryClient.invalidateQueries({ queryKey: libraryKeys.admin });
-    void queryClient.invalidateQueries({ queryKey: libraryKeys.folders });
-    for (const key of FOLDER_KINDS[kind].refresh) void queryClient.invalidateQueries({ queryKey: key });
-  };
-  run();
-  setTimeout(run, 3000);
-}
 
 export const useLibraryAdmin = () =>
   useQuery({
@@ -503,8 +491,6 @@ export function LibrarySection() {
     movies: useFolders("movies").data,
     shows: useFolders("shows").data,
   };
-  // Every other kind's folders, which a new folder may not overlap.
-  const besides = (kind: FolderKind) => KIND_LIST.filter((k) => k !== kind).flatMap((k) => (lists[k] ?? []).map((f) => f.path));
   const a = admin.data;
   const video = health.data?.watch?.status;
 
@@ -540,7 +526,7 @@ export function LibrarySection() {
           <LinkRow title="Not matched" value={plural(a.books.unmatched, "book")} href={{ pathname: "/library-list", params: { list: "unmatched" } }} last />
         </>
       ))}
-      <FoldersCard kind="books" list={lists.books} otherPaths={besides("books")} />
+      <FoldersCard kind="books" list={lists.books} />
 
       <Text variant="heading" style={{ marginTop: 14 }}>
         Music
@@ -551,8 +537,7 @@ export function LibrarySection() {
           <LinkRow title="Not matched" value={plural(a.music.unmatched, "album")} href={{ pathname: "/library-list", params: { list: "albums" } }} last />
         </>
       ))}
-      {lists.music?.length === 0 ? <Text variant="small">Albums come from the songs&apos; tags, or from Artist/Album folders when there are none.</Text> : null}
-      <FoldersCard kind="music" list={lists.music} otherPaths={besides("music")} />
+      {lists.music?.length === 0 ? <Text variant="small">Mount your music at /music.</Text> : <FoldersCard kind="music" list={lists.music} />}
 
       <Text variant="heading" style={{ marginTop: 14 }}>
         Movies and shows
@@ -564,10 +549,10 @@ export function LibrarySection() {
         </>
       ))}
       {lists.movies?.length === 0 && lists.shows?.length === 0 ? (
-        <Text variant="small">Movies go in &quot;Title (Year)&quot; folders, and shows in Show/Season folders.</Text>
+        <Text variant="small">Mount your movies at /movies and shows at /shows.</Text>
       ) : null}
-      <FoldersCard kind="movies" list={lists.movies} otherPaths={besides("movies")} />
-      <FoldersCard kind="shows" list={lists.shows} otherPaths={besides("shows")} />
+      {lists.movies?.length ? <FoldersCard kind="movies" list={lists.movies} /> : null}
+      {lists.shows?.length ? <FoldersCard kind="shows" list={lists.shows} /> : null}
     </View>
   );
 }
@@ -663,180 +648,29 @@ export function LinkRow({ title, value, dot, href, last }: { title: string; valu
   );
 }
 
-/** One kind's folders: each with its count, Remove, and Add a folder. */
-function FoldersCard({ kind, list, otherPaths }: { kind: FolderKind; list: LibraryFolderDto[] | undefined; otherPaths: string[] }) {
+/** One kind's folders, each with its count. They come from the compose file, so there's nothing to change here. */
+function FoldersCard({ kind, list }: { kind: FolderKind; list: LibraryFolderDto[] | undefined }) {
   const k = FOLDER_KINDS[kind];
-  const [busy, setBusy] = useState(false);
-  const [removing, setRemoving] = useState<LibraryFolderDto | null>(null);
-  const [adding, setAdding] = useState(false);
-  const folders = list ?? [];
-
-  const save = async (paths: string[], done: string) => {
-    setBusy(true);
-    try {
-      await api<LibraryFolderDto[]>(k.url, { method: "PUT", body: { paths } });
-      toast.show(done);
-      refreshSoon(kind);
-      return true;
-    } catch (err) {
-      toast.error(errorText(err));
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
-    <>
-      <Card>
-        {list === undefined ? (
-          <Skeleton>
-            <RowBone />
-          </Skeleton>
-        ) : (
-          <FadeIn>
-            {folders.map((f) => (
-              <Row
-                key={f.id}
-                title={f.path}
-                sub={f.reachable ? `${f.books} ${f.books === 1 ? k.item : k.things}` : "The server can't open this folder."}
-                subDanger={!f.reachable}
-              >
-                {folders.length > k.min ? <SmallButton label="Remove" danger onPress={() => setRemoving(f)} /> : null}
-              </Row>
-            ))}
-          </FadeIn>
-        )}
-        <Row title={k.title} last>
-          <SmallButton label="Add" onPress={() => setAdding(true)} />
-        </Row>
-      </Card>
-
-      <ConfirmSheet
-        open={removing !== null}
-        title="Remove this folder?"
-        message={`${removing?.path ?? ""} is removed from the library, and its ${k.things} leave after the rescan. The files themselves aren't touched.`}
-        confirmLabel="Remove"
-        onConfirm={() => {
-          if (removing) void save(folders.filter((o) => o.id !== removing.id).map((o) => o.path), `Folder removed. Its ${k.things} leave after the rescan.`);
-        }}
-        onClose={() => setRemoving(null)}
-      />
-      <Sheet open={adding} onClose={() => setAdding(false)} title={k.title}>
-        {adding ? (
-          <AddFolder
-            others={[...folders.map((f) => f.path), ...otherPaths]}
-            start={folders[0]?.path ?? otherPaths[0] ?? ""}
-            busy={busy}
-            onAdd={async (path) => {
-              if (await save([...folders.map((f) => f.path), path], "Folder added. Scanning it now.")) setAdding(false);
-            }}
-          />
-        ) : null}
-      </Sheet>
-    </>
-  );
-}
-
-/** Type a path or browse the server's folders; the path is checked as you go. */
-function AddFolder({ others, start, busy, onAdd }: { others: string[]; start: string; busy: boolean; onAdd: (path: string) => void }) {
-  const t = useTheme();
-  const [path, setPathState] = useState("");
-  const [check, setCheck] = useState<FolderCheckDto | null>(null);
-  const setPath = (next: string) => {
-    setPathState(next);
-    setCheck(null);
-  };
-  const [browse, setBrowse] = useState<FolderBrowseDto | null>(null);
-  const othersKey = others.join("\n");
-
-  useEffect(() => {
-    if (!path.trim()) return;
-    let live = true;
-    const timer = setTimeout(async () => {
-      try {
-        const result = await api<FolderCheckDto>("/api/library/folders/check", {
-          method: "POST",
-          body: { path, others: othersKey ? othersKey.split("\n") : [] },
-        });
-        if (live) setCheck(result);
-      } catch (err) {
-        if (live) setCheck({ path, ok: false, message: errorText(err), subfolders: 0 });
-      }
-    }, 350);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [path, othersKey]);
-
-  const open = async (dir: string) => {
-    try {
-      setBrowse(await api<FolderBrowseDto>(`/api/library/browse?path=${encodeURIComponent(dir)}`));
-    } catch (err) {
-      toast.error(errorText(err));
-    }
-  };
-  // Start next to the existing folder, where new ones usually live.
-  useEffect(() => {
-    void api<FolderBrowseDto>(`/api/library/browse?path=${encodeURIComponent(start)}`)
-      .then((b) => (b.parent ? api<FolderBrowseDto>(`/api/library/browse?path=${encodeURIComponent(b.parent)}`) : b))
-      .then(setBrowse, () => undefined);
-  }, [start]);
-
-  return (
-    <View style={{ paddingHorizontal: 12, gap: 12, paddingBottom: 8 }}>
-      <Field label="Folder path" value={path} onChangeText={setPath} placeholder="/audiobooks" autoCapitalize="none" autoCorrect={false} spellCheck={false} />
-      {check || path.trim() ? (
-        <Text variant="small" style={check ? { color: check.ok ? t.accent : t.danger } : undefined}>
-          {check ? check.message : "Checking…"}
-        </Text>
-      ) : null}
-      {browse ? (
-        <View style={{ backgroundColor: t.surface2, borderRadius: 12, overflow: "hidden" }}>
-          {browse.parent ? <FolderLine icon="back" label={browse.parent} onPress={() => void open(browse.parent!)} /> : null}
-          {browse.folders.map((name) => {
-            const full = joinPath(browse.path, name);
-            return (
-              <FolderLine
-                key={name}
-                icon="folder"
-                label={name}
-                selected={path === full}
-                onPress={() => {
-                  setPath(full);
-                  void open(full);
-                }}
-              />
-            );
-          })}
-          {browse.folders.length === 0 ? (
-            <Text variant="small" style={{ padding: 12 }}>
-              No folders inside {browse.path}
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
-      <Button label="Add folder" onPress={() => check?.ok && onAdd(check.path)} busy={busy} disabled={!check?.ok} />
-    </View>
-  );
-}
-
-function FolderLine({ icon, label, selected, onPress }: { icon: "back" | "folder"; label: string; selected?: boolean; onPress: () => void }) {
-  const t = useTheme();
-  const color = selected ? t.accent : t.text;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, minHeight: 44, backgroundColor: pressed ? t.chip : "transparent" })}
-    >
-      {icon === "back" ? <BackIcon size={18} color={t.muted} /> : <FolderIcon size={18} color={color} />}
-      <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.medium, fontSize: 14, color: icon === "back" ? t.muted : color }}>
-        {label}
-      </Text>
-    </Pressable>
+    <Card>
+      {list === undefined ? (
+        <Skeleton>
+          <RowBone last />
+        </Skeleton>
+      ) : (
+        <FadeIn>
+          {list.map((f, i) => (
+            <Row
+              key={f.id}
+              title={f.path}
+              sub={f.reachable ? `${f.books} ${f.books === 1 ? k.item : k.things}` : "The server can't open this folder."}
+              subDanger={!f.reachable}
+              last={i === list.length - 1}
+            />
+          ))}
+        </FadeIn>
+      )}
+    </Card>
   );
 }
 

@@ -10,7 +10,7 @@
 - Book page: cover, author, narrator, series and position, description, duration, chapter list
 - Single-file `.m4b` and multi-file books, played as one continuous timeline
 - Automatic rescan when files are added, moved or removed
-- One or more library folders, managed by the admin under You > Library (seeded on first start with whatever is mounted at `/audiobooks`), each checked before it's saved
+- One or more library folders, set up in the compose file only: `/audiobooks`, and any mounted beside it as `/audiobooks-<name>`, picked up on every start. You > Library lists them with their counts
 - Mark finished, reset progress
 - Metadata Match and editing for admins (see [Metadata](metadata.md))
 
@@ -26,7 +26,7 @@
 
 Optional. More in [Music](music.md).
 
-- Music folders managed by the admin under You > Library (`/music` is added on its own once it's mounted); with none, the Music tab (if you've turned it on) shows an empty state
+- Music folders mounted at `/music` (and `/music-<name>`); with none, the Music tab (if you've turned it on) shows an empty state
 - Albums, artists and songs from the tags, with covers from the folder or the files
 - Your music: each person adds the albums or songs they want, and Browse has the rest
 - Play or shuffle an album, an artist's songs, your songs or a playlist, with the next song loaded early so albums play without a gap
@@ -38,7 +38,7 @@ Optional. More in [Music](music.md).
 
 Optional. More in [Watch](watch.md).
 
-- Movie and show folders managed by the admin under You > Library; with none, the Watch tab (if you've turned it on) shows an empty state. A Video row there says whether the video add-on works and what converts video (`watch.status` in `/api/health`, worded by the server for the web and the app)
+- Movie and show folders mounted at `/movies` and `/shows` (and `/movies-<name>`, `/shows-<name>`); with none, the Watch tab (if you've turned it on) shows an empty state. A Video row there says whether the video add-on works and what converts video (`watch.status` in `/api/health`, worded by the server for the web and the app)
 - TMDB's logo and notice under You > Server while Watch is on, as TMDB's terms ask
 - Posters, descriptions and episode names from TMDB when a key is set, matched on their own like Plex, with Match to fix a wrong one
 - Edit for admins: title, year, description, and the poster and background (an image, a link, or one of TMDB's). What you save is kept over TMDB, like an .nfo; Remove takes a chosen picture off again, bringing back the files' or TMDB's

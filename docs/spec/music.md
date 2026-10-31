@@ -1,6 +1,6 @@
 # Music
 
-Music is optional. It comes from one or more music folders, managed by the admin under You > Library, next to the book folders. The first is whatever is mounted at `/music`, added once something is there, and only once, so a folder the admin removes stays removed. No folder may sit inside another of either kind, so nothing is scanned twice. With no music folder, nothing about music shows anywhere.
+Music is optional. It comes from one or more music folders, set up like the book folders in the compose file: `/music`, and any mounted beside it as `/music-<name>`, picked up on every start. A folder whose mount is gone is dropped. A path another kind already reads is left to it, so nothing is scanned twice. With no music folder, nothing about music shows anywhere.
 
 ## Scanning
 

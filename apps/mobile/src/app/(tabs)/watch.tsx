@@ -1,13 +1,12 @@
 import { useMemo, useState } from "react";
 import { FlatList, TextInput, View } from "react-native";
-import { router } from "expo-router";
 import { type MovieSummary, percentDone, type ShowSummary, sortWatch, type WatchCard, type WatchPoster, WATCH_SORTS } from "@murmur/shared/client";
 import { CloseIcon, FilterIcon, SearchIcon } from "@/components/icons";
 import { GAP, gridRows, PAD, Shelf, useGridWidth, useShelfWidth } from "@/components/library";
 import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, Skeleton } from "@/components/skeleton";
-import { Button, Chips, IconButton } from "@/components/ui";
+import { Chips, IconButton } from "@/components/ui";
 import { type PosterItem, PosterCard, StillCard, useWatchSort, WatchSortSheet } from "@/components/watch";
 import { useDownloads } from "@/lib/downloads";
 import { useOnline } from "@/lib/query";
@@ -161,12 +160,9 @@ export default function Watch() {
   );
 
   const empty = noFolder ? (
-    <View style={{ alignItems: "center" }}>
-      <Empty title="Nothing to watch yet">
-        {admin ? "Add a movies or shows folder and they show up here." : "Movies and shows show up here once a folder is added."}
-      </Empty>
-      {admin ? <Button label="Add a folder" onPress={() => router.push("/library")} style={{ marginTop: -36 }} /> : null}
-    </View>
+    <Empty title="Nothing to watch yet">
+      {admin ? "Mount your movies at /movies and shows at /shows, and they show up here." : "Movies and shows show up here once they're added."}
+    </Empty>
   ) : loading ? (
     <Skeleton>
       <CoverGridBones count={6} />

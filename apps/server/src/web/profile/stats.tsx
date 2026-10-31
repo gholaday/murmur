@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from "react";
 import {
-  apiPaths,
   duration,
   localDay,
-  plural,
   STATS_KIND_LABEL,
   STATS_PERIOD_CHOICES,
   STATS_TOP_LABEL,
+  statsBarsLabel,
   statsChange,
   statsCurrentKey,
   type StatsDto,
@@ -17,30 +16,23 @@ import {
   type StatsTop,
   statsSum,
   statsTiles,
+  statsTopCover,
+  statsTopItems,
   statsTopKind,
+  statsTopTarget,
+  statsTotalLabel,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { Chip, Chips, StatTile } from "../ui";
 
 // The wording and rules are shared with the app; only the colours are the web's.
-const PERIODS = STATS_PERIOD_CHOICES;
-const KINDS: Record<StatsKind, { label: string; color: string }> = {
-  book: { label: STATS_KIND_LABEL.book, color: "var(--accent)" },
-  episode: { label: STATS_KIND_LABEL.episode, color: "var(--stat-2)" },
-  music: { label: STATS_KIND_LABEL.music, color: "var(--stat-3)" },
-  watch: { label: STATS_KIND_LABEL.watch, color: "var(--stat-4)" },
-};
-const TOP_LABEL = STATS_TOP_LABEL;
-const change = statsChange;
-const currentKey = statsCurrentKey;
-const sumOf = statsSum;
-const tiles = statsTiles;
+const COLOR: Record<StatsKind, string> = { book: "var(--accent)", episode: "var(--stat-2)", music: "var(--stat-3)", watch: "var(--stat-4)" };
 
 /**
  * Stats on the You page: the time for a period with a chart stacked by kind, a legend that picks
- * one kind, tiles and the top items. `kinds` are the ones shown: a hidden tab, or a server with no
- * music or videos, leaves its kind out everywhere, the total included.
+ * one kind, tiles and the top items. `kinds` are the ones shown: a hidden tab leaves its kind out
+ * everywhere, the total included.
  */
 export function ListeningStats({ kinds }: { kinds: StatsKind[] }) {
   const [period, setPeriod] = useState<StatsPeriod>("week");
@@ -65,16 +57,17 @@ export function ListeningStats({ kinds }: { kinds: StatsKind[] }) {
     };
   }, [period]);
 
-  const p = PERIODS.find((x) => x.id === period)!;
+  const p = STATS_PERIOD_CHOICES.find((x) => x.id === period)!;
   // A kind picked and then hidden falls back to all of them.
   const picked = focus && kinds.includes(focus) ? focus : null;
   const shown = picked ? [picked] : kinds;
-  const pickable = kinds.length > 1;
+  const total = stats ? statsSum(stats.split, shown) : 0;
+  const compared = stats ? statsChange(total, stats.previousSplit ? statsSum(stats.previousSplit, shown) : null, p.last) : null;
 
   return (
     <section className="section">
       <Chips kind="radio" label="Period">
-        {PERIODS.map((x) => (
+        {STATS_PERIOD_CHOICES.map((x) => (
           <Chip key={x.id} selected={period === x.id} onClick={() => setPeriod(x.id)}>
             {x.label}
           </Chip>
@@ -87,11 +80,9 @@ export function ListeningStats({ kinds }: { kinds: StatsKind[] }) {
           <div className="card-box stats-card">
             <div className="stats-head">
               <div className="stats-head-text">
-                <span className="eyebrow">{picked ? `${KINDS[picked].label} ${p.this.toLowerCase()}` : p.this}</span>
-                <span className="stats-total">{duration(sumOf(stats.split, shown)) || "0m"}</span>
-                {change(sumOf(stats.split, shown), stats.previousSplit ? sumOf(stats.previousSplit, shown) : null, p.last) ? (
-                  <span className="muted small">{change(sumOf(stats.split, shown), stats.previousSplit ? sumOf(stats.previousSplit, shown) : null, p.last)}</span>
-                ) : null}
+                <span className="eyebrow">{statsTotalLabel(picked, period)}</span>
+                <span className="stats-total">{duration(total) || "0m"}</span>
+                {compared ? <span className="muted small">{compared}</span> : null}
               </div>
               {picked ? (
                 <button type="button" className="btn btn-small" onClick={() => setFocus(null)}>
@@ -99,20 +90,20 @@ export function ListeningStats({ kinds }: { kinds: StatsKind[] }) {
                 </button>
               ) : null}
             </div>
-            <Bars stats={stats} kinds={shown} now={currentKey(period, today)} />
-            {pickable ? (
+            <Bars stats={stats} kinds={shown} now={statsCurrentKey(period, today)} />
+            {kinds.length > 1 ? (
               <div className="stats-legend">
                 {kinds.map((k) => (
                   <button
                     key={k}
                     type="button"
                     className={`stats-legend-item${picked === k ? " on" : picked ? " dim" : ""}`}
-                    style={{ "--kind": KINDS[k].color } as React.CSSProperties}
+                    style={{ "--kind": COLOR[k] } as React.CSSProperties}
                     aria-pressed={picked === k}
                     onClick={() => setFocus(picked === k ? null : k)}
                   >
                     <span className="stats-dot" />
-                    <span className="stats-legend-label">{KINDS[k].label}</span>
+                    <span className="stats-legend-label">{STATS_KIND_LABEL[k]}</span>
                     <span className="stats-legend-time">{duration(stats.split[k]) || "0m"}</span>
                   </button>
                 ))}
@@ -121,14 +112,14 @@ export function ListeningStats({ kinds }: { kinds: StatsKind[] }) {
           </div>
 
           <div className="stats-tiles">
-            {tiles(stats, picked, kinds, today).map((t) => (
+            {statsTiles(stats, picked, kinds, today).map((t) => (
               <StatTile
                 key={t.key}
                 value={t.value}
                 label={
                   t.kind ? (
                     <span className="stats-tile-label">
-                      <span className="stats-dot small" style={{ background: KINDS[t.kind].color }} />
+                      <span className="stats-dot small" style={{ background: COLOR[t.kind] }} />
                       {t.label}
                     </span>
                   ) : (
@@ -139,7 +130,7 @@ export function ListeningStats({ kinds }: { kinds: StatsKind[] }) {
             ))}
           </div>
 
-          <TopItems stats={stats} picked={picked} kinds={kinds} title={picked === "watch" ? "Most watched" : picked ? "Most played" : "Top"} period={p.this} />
+          <TopItems stats={stats} picked={picked} kinds={kinds} />
         </>
       ) : null}
     </section>
@@ -148,21 +139,20 @@ export function ListeningStats({ kinds }: { kinds: StatsKind[] }) {
 
 /** One bar per day (per month for a year, per year for all time), stacked by kind. */
 function Bars({ stats, kinds, now }: { stats: StatsDto; kinds: StatsKind[]; now: string }) {
-  const max = Math.max(1, ...stats.bars.map((b) => sumOf(b.split, kinds)));
+  const max = Math.max(1, ...stats.bars.map((b) => statsSum(b.split, kinds)));
   // A month has too many days to label each bar; every seventh keeps it readable.
   const labelEvery = stats.bars.length > 12 ? 7 : 1;
-  const per = stats.period === "year" ? "month" : stats.period === "all" ? "year" : "day";
   return (
-    <div className="stats-bars" role="img" aria-label={`Time per ${per}`} style={{ gridTemplateColumns: `repeat(${stats.bars.length}, minmax(0, 1fr))` }}>
+    <div className="stats-bars" role="img" aria-label={statsBarsLabel(stats.period)} style={{ gridTemplateColumns: `repeat(${stats.bars.length}, minmax(0, 1fr))` }}>
       {stats.bars.map((b, i) => {
-        const total = sumOf(b.split, kinds);
+        const total = statsSum(b.split, kinds);
         return (
           <div key={b.key} className="stats-bar" title={`${b.label}: ${duration(total) || "none"}`}>
             <div className="stats-bar-stack">
               {total > 0 ? (
                 kinds
                   .filter((k) => b.split[k] > 0)
-                  .map((k) => <div key={k} style={{ height: `${Math.max(3, (b.split[k] / max) * 112)}px`, background: KINDS[k].color }} />)
+                  .map((k) => <div key={k} style={{ height: `${Math.max(3, (b.split[k] / max) * 112)}px`, background: COLOR[k] }} />)
               ) : (
                 <div className="stats-bar-empty" />
               )}
@@ -176,32 +166,22 @@ function Bars({ stats, kinds, now }: { stats: StatsDto; kinds: StatsKind[]; now:
 }
 
 /** All kinds: the top item of each. One kind: its top items. */
-function TopItems({ stats, picked, kinds, title, period }: { stats: StatsDto; picked: StatsKind | null; kinds: StatsKind[]; title: string; period: string }) {
-  const mine = stats.top.filter((t) => kinds.includes(statsTopKind(t)));
-  const song = mine.find((t) => t.kind === "song");
-  const items = picked
-    ? mine.filter((t) => statsTopKind(t) === picked)
-    : // One card per kind; the album card names the top song.
-      kinds.flatMap((k) => mine.find((t) => statsTopKind(t) === k && t.kind !== "song") ?? []);
+function TopItems({ stats, picked, kinds }: { stats: StatsDto; picked: StatsKind | null; kinds: StatsKind[] }) {
+  const { title, items } = statsTopItems(stats, picked, kinds);
   if (!items.length) return null;
-  const sub = (t: StatsTop) => {
-    if (t.kind === "song") return t.plays ? plural(t.plays, "play") : duration(t.sec);
-    if (t.kind === "album" && !picked && song) return song.plays ? `${song.title}, ${plural(song.plays, "play")}` : song.title;
-    return duration(t.sec);
-  };
   return (
     <section className="section">
-      <h2 className="section-title">{`${title} ${period === "All time" ? "of all time" : period.toLowerCase()}`}</h2>
+      <h2 className="section-title">{title}</h2>
       <div className="stats-top-grid">
-        {items.map((t) => (
+        {items.map(({ top: t, sub }) => (
           <a key={`${t.kind}:${t.id}`} className="stats-top-card" href={topHref(t)}>
-            <Cover src={topCover(t)} color={null} title={t.title} className="stats-top-cover" />
+            <Cover src={statsTopCover(t)} color={null} title={t.title} className="stats-top-cover" />
             <span className="stats-top-kind">
-              <span className="stats-dot small" style={{ background: KINDS[statsTopKind(t)].color }} />
-              {TOP_LABEL[t.kind]}
+              <span className="stats-dot small" style={{ background: COLOR[statsTopKind(t)] }} />
+              {STATS_TOP_LABEL[t.kind]}
             </span>
             <span className="stats-top-title">{t.title}</span>
-            <span className="muted small stats-top-sub">{sub(t)}</span>
+            <span className="muted small stats-top-sub">{sub}</span>
           </a>
         ))}
       </div>
@@ -210,18 +190,10 @@ function TopItems({ stats, picked, kinds, title, period }: { stats: StatsDto; pi
 }
 
 function topHref(t: StatsTop): string {
-  if (t.kind === "book") return `/book/${t.id}`;
-  if (t.kind === "podcast") return `/podcasts/${t.id}`;
-  if (t.kind === "movie") return `/watch/movie/${t.id}`;
-  if (t.kind === "tvshow") return `/watch/show/${t.id}`;
-  return `/music/album/${t.kind === "song" ? t.albumId : t.id}`;
-}
-
-function topCover(t: StatsTop): string | null {
-  if (!t.coverHash) return null;
-  if (t.kind === "book") return apiPaths.coverUrl(t.id, t.coverHash, 600);
-  if (t.kind === "podcast") return apiPaths.podcastCoverUrl(t.id, t.coverHash, 600);
-  if (t.kind === "movie") return apiPaths.movieArtUrl(t.id, "poster", t.coverHash, "small");
-  if (t.kind === "tvshow") return apiPaths.showArtUrl(t.id, "poster", t.coverHash, "small");
-  return apiPaths.albumCoverUrl(t.kind === "song" ? t.albumId! : t.id, t.coverHash, 600);
+  const { kind, id } = statsTopTarget(t);
+  if (kind === "book") return `/book/${id}`;
+  if (kind === "podcast") return `/podcasts/${id}`;
+  if (kind === "movie") return `/watch/movie/${id}`;
+  if (kind === "tvshow") return `/watch/show/${id}`;
+  return `/music/album/${id}`;
 }

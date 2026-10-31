@@ -1,6 +1,7 @@
 import type { UserDto } from "@murmur/shared";
 import type { ProfileView } from "@/web/profile/profile-view";
 import { adsEnabled } from "./ads";
+import { backupStatus } from "./backup-status";
 import type { AppContext } from "./context";
 import { env } from "./env";
 import { folderList } from "./library/folders";
@@ -48,6 +49,7 @@ export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<Rea
       version: env.version,
       devBuild: env.devBuild,
       updates: user.isAdmin ? updateStatus() : null,
+      backup: user.isAdmin ? backupStatus() : null,
       books: bookCount,
       watcher: ctx.watcher.mode(),
     },

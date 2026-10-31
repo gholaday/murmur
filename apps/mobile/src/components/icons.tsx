@@ -217,11 +217,6 @@ export const NextChapterIcon = (p: IconProps) => (
     <Path d="M6 6l9 6-9 6z" />
   </Icon>
 );
-export const FolderIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <Path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-  </Icon>
-);
 export const EyeIcon = (p: IconProps) => (
   <Icon {...p}>
     <Path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />

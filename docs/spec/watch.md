@@ -1,6 +1,6 @@
 # Watch
 
-Movies and TV shows are optional, and fail on their own. They come from movie and show folders, managed by the admin under You > Library beside books and music. The first of each is whatever is mounted at `/movies` and `/shows`, added once something is there, and only once. Keeping the two kinds apart, as Plex does, means the scanner never guesses whether a file is a movie or an episode. With no video folder, Watch is empty; without the video add-on it stays empty and Settings says why. Books, podcasts and music carry on either way.
+Movies and TV shows are optional, and fail on their own. They come from movie and show folders, set up like the book and music folders in the compose file: `/movies` and `/shows`, and any mounted beside them as `/movies-<name>` and `/shows-<name>`. Keeping the two kinds apart, as Plex does, means the scanner never guesses whether a file is a movie or an episode. With no video folder, Watch is empty; without the video add-on it stays empty and Settings says why. Books, podcasts and music carry on either way.
 
 ## The video add-on
 

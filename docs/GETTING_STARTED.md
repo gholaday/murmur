@@ -53,6 +53,8 @@ Copy [`docker-compose.yml`](../docker-compose.yml) to your server and change the
 | `/path/to/murmur/data` | Database, covers and nightly backups. Back this up |
 | `/path/to/murmur/cache` | Podcast episodes kept on the server. Safe to lose |
 
+The compose file is the only place folders are set up; Settings just shows them. Books in more than one place? Mount each beside the first with a dash and any name after it, like `/audiobooks-kids` or `/music-vinyl`, and each becomes another folder of that kind when Murmur starts. Take a mount out and its folder goes too, along with what was in it, after the next scan.
+
 Set `PUID` and `PGID` to your user's ids (run `id` on the server) so the files Murmur writes belong to you.
 
 Keys and secrets go in a `murmur.env` file beside `docker-compose.yml`, not in the compose file itself, so you can share the compose file when asking for help. Copy [`murmur.env.example`](../murmur.env.example) to `murmur.env` and fill in what you use; everything in it is optional, and Murmur starts without the file. Skipping a missing file needs Docker Compose 2.24 or later (`docker compose version`); on an older one, create an empty `murmur.env` or remove the `env_file` lines.
@@ -152,6 +154,21 @@ docker compose up -d
 In Portainer, use **Update the stack** as described in step 2. Database changes run on start, after a copy of the database is saved to `data/backups`.
 
 **Updating from 0.10 or earlier with add-ons:** `ADDON_SECRET` now has to be at least 32 characters. If yours is shorter, make a new one with `openssl rand -hex 32` and set it on Murmur and both add-ons before updating; otherwise the add-ons stop and Murmur keeps them off until it's fixed. Books, podcasts and music keep working either way.
+
+## Backups and restoring
+
+Every night at 3:00 (`BACKUP_HOUR`, in the `TZ` time zone) Murmur copies its database to `data/backups/nightly-<date>.db` and keeps the last 7 (`BACKUP_KEEP`). Before an update changes the database, it also saves `pre-migration-<date>.db` there. **You > Server** shows when the last nightly backup ran, and marks it if one failed or none has run for two days. The database holds accounts, progress, podcasts, playlists and stats; covers and your library files aren't in it.
+
+To keep a copy somewhere else, back up the whole `data` folder with your usual tool. The files in `data/backups` are complete on their own, so they're the safest ones to copy.
+
+To restore a backup:
+
+1. Stop Murmur: `docker compose stop murmur`.
+2. In the data folder, move `murmur.db` aside, and delete `murmur.db-wal` and `murmur.db-shm` if they're there.
+3. Copy the backup you want to `murmur.db`, for example `cp backups/nightly-2026-10-29T03-00-00-000Z.db murmur.db`.
+4. Start it again: `docker compose start murmur`.
+
+Anything since the backup is lost: progress, new podcasts and new accounts. A backup from an older version is updated on start, as after any update. To go back to an older version of Murmur after a bad update, set its image tag and restore the `pre-migration` backup made just before.
 
 ## When something's wrong
 

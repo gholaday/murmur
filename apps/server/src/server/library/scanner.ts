@@ -331,7 +331,7 @@ export function createScanner(deps: ScannerDeps) {
   async function runOnce(scopes?: ScanScopes): Promise<{ stats: ScanStats; problems: string[] }> {
     const now = Date.now();
     const allFolders = deps.folders();
-    if (allFolders.length === 0) throw new LibraryUnavailableError("No library folders are set. Add one in Settings.");
+    if (allFolders.length === 0) throw new LibraryUnavailableError("No book folder is mounted. Mount your books at /audiobooks.");
     const folders = scopes ? allFolders.filter((f) => scopes.has(f.id)) : allFolders;
 
     const allExisting = db

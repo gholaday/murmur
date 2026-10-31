@@ -76,7 +76,7 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | Progress | `GET /progress?since=`, `PUT /progress` (batched, newest update wins) |
 | Up Next | `GET /up-next`, `PUT /up-next` (the whole list), `PATCH /up-next` (where it's at), `POST /up-next` (add one item, or several in order) |
 | Play next | `POST/DELETE /books/:id/play-next`, `PUT /play-next` (order) |
-| Admin | `GET/POST/DELETE /users`, `GET /library/admin` (You > Library's counts and scans), `GET/PUT /library/folders`, `POST /library/folders/check`, `GET /library/browse?path=` |
+| Admin | `GET/POST/DELETE /users`, `GET /library/admin` (You > Library's counts and scans), `GET /library/folders` |
 | Video editing (admin) | `PATCH /watch/{movies,shows}/:id` (title, year, description), `POST /watch/{movies,shows}/:id/{poster,backdrop}` (upload, `{ url }` or `{ tmdbPath }`), `DELETE` the same to remove a chosen one, `GET .../{poster,backdrop}/options` (TMDB's pictures) |
 | Episode cache, chapters and ads | `GET /episodes/:id/chapters`, `GET /episodes/:id/ads`; admin: `GET/PUT /server/cache`, `POST /server/ads/retry` |
 | Add-on (shared secret) | `POST /addon/ads/next`, `POST /addon/ads/:fileId`, `POST /addon/status` |
@@ -120,9 +120,9 @@ The bar is high: every screen opens instantly, playback starts in about a second
 ### Safeguards
 
 - **Never lose progress.** Progress rows are never deleted when a book disappears; if the book comes back, so does your place.
-- **Survive a storage hiccup.** If a library folder is empty or unreachable, the scanner leaves its books alone and reports the problem in Settings; the other folders still scan. Missing books are marked missing and only hidden after 7 days. Removing a folder in Settings removes its books on the next scan, unless they turn up in another folder, which keeps their progress.
+- **Survive a storage hiccup.** If a library folder is empty or unreachable, the scanner leaves its books alone and reports the problem in Settings; the other folders still scan. Missing books are marked missing and only hidden after 7 days. A folder whose mount is taken out of the compose file is dropped on the next start, and its books go on the next scan, unless they turn up in another folder, which keeps their progress.
 - **Safe updates.** Migrations run in a transaction after copying the database to `/data/backups`; a failed migration rolls back and the old image still works.
-- **Nightly backup** of the database to `/data/backups`, keeping the last 7.
+- **Nightly backup** of the database to `/data/backups`, keeping the last 7. You > Server shows admins when the newest one was written, read from the folder so it survives a restart, and warns when the last try failed or none has run for two days. A test upgrades a 0.7 database, with data in it, through every migration since. Restoring is in [Getting started](../GETTING_STARTED.md#backups-and-restoring).
 - **Health check.** `/api/health` answers `ok` and the version to anyone, for Docker's health check; the library, scan and add-on details are only for someone signed in, since scan errors name folders. A fatal error exits the process so the restart policy brings it back.
 - **Addresses people give Murmur** (feeds, their audio and artwork, a cover URL) go through `safeFetch` (`server/safe-fetch.ts`): the host is looked up and refused when it points at the server itself (loopback, link-local) or, unless `FETCH_ALLOW_PRIVATE` is set, its LAN; every redirect is checked the same way; bodies are read up to a cap. Feed enclosure types are kept only from a list of audio types, so nothing a feed says is ever served as a page, and every response carries `nosniff`. Sign-in failures are limited per name and per address, and a session unused for over a year ends on the server too.
 - **Files stay in their folders.** A stored path is joined onto its library folder and resolved with symlinks followed (`resolveInside`); a link inside a library folder that points outside it is refused. Search boxes sent to Match are capped at 200 characters.

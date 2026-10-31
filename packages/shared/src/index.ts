@@ -103,15 +103,6 @@ export const changePasswordSchema = z.object({
 });
 export type ChangePasswordInput = z.input<typeof changePasswordSchema>;
 
-const folderPathSchema = z.string().trim().min(1).max(1024);
-/** Replaces the library folder list (admin). */
-export const libraryFoldersSchema = z.object({
-  paths: z.array(folderPathSchema).min(1, "Keep at least one library folder.").max(20),
-});
-/** Replaces the music folder list (admin). An empty list turns music off. */
-export const musicFoldersSchema = z.object({
-  paths: z.array(folderPathSchema).max(20),
-});
 export const albumSortSchema = z.enum(["added", "name", "artist", "year"]).catch("added");
 /** Match for a movie or show: the TMDB title picked. */
 export const watchMatchSchema = z.object({ tmdbId: z.number().int().positive() });
@@ -201,12 +192,6 @@ export const playlistUpdateSchema = z.object({ name: playlistNameSchema.optional
 export const playlistAddSchema = z.object({ trackIds: trackIdsSchema.min(1) });
 /** A photo picked from the options, or null for the newest album's cover. */
 export const artistPhotoSchema = z.object({ providerId: z.string().min(1).max(64).nullable() });
-
-export const folderCheckSchema = z.object({
-  path: folderPathSchema,
-  /** The other folders in the list, to catch overlaps before saving. */
-  others: z.array(folderPathSchema).max(20).default([]),
-});
 
 /** Up Next holds episodes and songs; books line up on the Play next shelf instead. */
 export const queueRefSchema = z.object({
@@ -682,19 +667,6 @@ export interface LibraryFolderDto {
   reachable: boolean;
 }
 
-export interface FolderCheckDto {
-  path: string;
-  ok: boolean;
-  message: string;
-  subfolders: number;
-}
-
-export interface FolderBrowseDto {
-  path: string;
-  parent: string | null;
-  folders: string[];
-}
-
 /** The running version and, for admins, whether a newer release is out. */
 export interface ServerVersionDto {
   version: string;
@@ -702,6 +674,17 @@ export interface ServerVersionDto {
   devBuild: boolean;
   /** For admins only: whether GitHub has been asked yet, and any newer release it has. */
   updates: { checked: boolean; update: { latest: string; url: string } | null } | null;
+  /** For admins only: the nightly database backup. */
+  backup: BackupStatusDto | null;
+}
+
+export interface BackupStatusDto {
+  /** When the newest nightly backup was written; null before the first. */
+  at: number | null;
+  /** The last try since the server started failed, after the newest backup. */
+  failed: boolean;
+  /** The hour backups run, in the server's time zone. */
+  hour: number;
 }
 
 /** What `GET /api/health` tells anyone: enough for Docker's check and to recognise a Murmur server. */

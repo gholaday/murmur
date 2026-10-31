@@ -3,22 +3,26 @@ import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
-  apiPaths,
   duration,
   localDay,
-  plural,
   STATS_KIND_LABEL,
   STATS_PERIOD_CHOICES,
   STATS_TOP_LABEL,
+  statsBarsLabel,
   statsChange,
   statsCurrentKey,
   type StatsDto,
   type StatsKind,
+  statsKindsShown,
   type StatsPeriod,
   statsSum,
   statsTiles,
   type StatsTop,
+  statsTopCover,
+  statsTopItems,
   statsTopKind,
+  statsTopTarget,
+  statsTotalLabel,
 } from "@murmur/shared/client";
 import { api } from "@/lib/api";
 import { useBooks, useMusicSummary, usePodcasts, useTabPrefs } from "@/lib/data";
@@ -71,13 +75,7 @@ function useStats(period: StatsPeriod) {
 
 /** The kinds the stats show: a hidden tab leaves its kind out. */
 function useStatsKinds(): StatsKind[] {
-  const tabs = useTabPrefs();
-  return [
-    "book",
-    ...(tabs.podcasts ? (["episode"] as const) : []),
-    ...(tabs.music ? (["music"] as const) : []),
-    ...(tabs.watch ? (["watch"] as const) : []),
-  ];
+  return statsKindsShown(useTabPrefs());
 }
 
 /**
@@ -108,7 +106,7 @@ export function ListeningStats() {
           <>
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
               <View style={{ flex: 1, gap: 2 }}>
-                <Caption>{picked ? `${STATS_KIND_LABEL[picked]} ${p.this.toLowerCase()}` : p.this}</Caption>
+                <Caption>{statsTotalLabel(picked, period)}</Caption>
                 <Text style={{ fontFamily: fonts.extrabold, fontSize: 34, lineHeight: 44, letterSpacing: -0.8, color: t.text }}>{duration(total) || "0m"}</Text>
                 {compared ? <Text variant="small">{compared}</Text> : null}
               </View>
@@ -145,7 +143,7 @@ export function ListeningStats() {
         </Grid>
       ) : null}
 
-      {s ? <TopItems stats={s} picked={picked} kinds={kinds} period={p.this} /> : null}
+      {s ? <TopItems stats={s} picked={picked} kinds={kinds} /> : null}
     </View>
   );
 }
@@ -160,7 +158,7 @@ function Bars({ stats, kinds, now }: { stats: StatsDto; kinds: StatsKind[]; now:
     <View
       accessible
       accessibilityRole="image"
-      accessibilityLabel={`Time per ${stats.period === "year" ? "month" : stats.period === "all" ? "year" : "day"}`}
+      accessibilityLabel={statsBarsLabel(stats.period)}
       style={{ flexDirection: "row", alignItems: "flex-end", gap: dense ? 2 : months ? 4 : 8, height: BARS_HEIGHT + 22 }}
     >
       {stats.bars.map((b, i) => {
@@ -234,28 +232,17 @@ function Legend({ split, kinds, picked, onPick }: { split: StatsDto["split"]; ki
 }
 
 /** All kinds: the top item of each. One kind: its top items. */
-function TopItems({ stats, picked, kinds, period }: { stats: StatsDto; picked: StatsKind | null; kinds: StatsKind[]; period: string }) {
+function TopItems({ stats, picked, kinds }: { stats: StatsDto; picked: StatsKind | null; kinds: StatsKind[] }) {
   const t = useTheme();
-  const mine = stats.top.filter((x) => kinds.includes(statsTopKind(x)));
-  const song = mine.find((x) => x.kind === "song");
-  const items = picked
-    ? mine.filter((x) => statsTopKind(x) === picked)
-    : // One card per kind; the album card names the top song.
-      kinds.flatMap((k) => mine.find((x) => statsTopKind(x) === k && x.kind !== "song") ?? []);
+  const { title, items } = statsTopItems(stats, picked, kinds);
   if (!items.length) return null;
-  const title = picked === "watch" ? "Most watched" : picked ? "Most played" : "Top";
-  const sub = (x: StatsTop) => {
-    if (x.kind === "song") return x.plays ? plural(x.plays, "play") : duration(x.sec);
-    if (x.kind === "album" && !picked && song) return song.plays ? `${song.title}, ${plural(song.plays, "play")}` : song.title;
-    return duration(x.sec);
-  };
   return (
     <View>
-      <SectionTitle title={`${title} ${period === "All time" ? "of all time" : period.toLowerCase()}`} />
+      <SectionTitle title={title} />
       <Grid columns={2} gap={12} rowGap={16}>
-        {items.map((x) => (
+        {items.map(({ top: x, sub }) => (
           <Pressable key={`${x.kind}:${x.id}`} accessibilityRole="button" accessibilityLabel={x.title} onPress={() => router.push(topHref(x))} style={{ gap: 2 }}>
-            <Cover path={topCover(x)} title={x.title} radius={8} style={{ marginBottom: 6 }} />
+            <Cover path={statsTopCover(x)} title={x.title} radius={8} style={{ marginBottom: 6 }} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Dot color={kindColor(t, statsTopKind(x))} size={8} />
               <Text style={{ fontFamily: fonts.bold, fontSize: 11, lineHeight: 16, letterSpacing: 0.6, textTransform: "uppercase", color: t.muted }}>{STATS_TOP_LABEL[x.kind]}</Text>
@@ -264,7 +251,7 @@ function TopItems({ stats, picked, kinds, period }: { stats: StatsDto; picked: S
               {x.title}
             </Text>
             <Text variant="small" numberOfLines={1}>
-              {sub(x)}
+              {sub}
             </Text>
           </Pressable>
         ))}
@@ -275,21 +262,19 @@ function TopItems({ stats, picked, kinds, period }: { stats: StatsDto; picked: S
 
 /** A song opens its album. */
 function topHref(x: StatsTop): `/book/${string}` | `/show/${string}` | `/album/${string}` | `/movie/${string}` | `/tv/${string}` {
-  if (x.kind === "book") return `/book/${x.id}`;
-  if (x.kind === "podcast") return `/show/${x.id}`;
-  if (x.kind === "movie") return `/movie/${x.id}`;
-  if (x.kind === "tvshow") return `/tv/${x.id}`;
-  return `/album/${(x.kind === "song" ? x.albumId : x.id) ?? x.id}`;
-}
-
-/** A song shows its album's cover; a movie or show its poster. */
-function topCover(x: StatsTop): string | null {
-  if (!x.coverHash) return null;
-  if (x.kind === "book") return apiPaths.coverUrl(x.id, x.coverHash, 600);
-  if (x.kind === "podcast") return apiPaths.podcastCoverUrl(x.id, x.coverHash, 600);
-  if (x.kind === "movie") return apiPaths.movieArtUrl(x.id, "poster", x.coverHash, "small");
-  if (x.kind === "tvshow") return apiPaths.showArtUrl(x.id, "poster", x.coverHash, "small");
-  return apiPaths.albumCoverUrl((x.kind === "song" ? x.albumId : x.id) ?? x.id, x.coverHash, 600);
+  const { kind, id } = statsTopTarget(x);
+  switch (kind) {
+    case "book":
+      return `/book/${id}`;
+    case "podcast":
+      return `/show/${id}`;
+    case "movie":
+      return `/movie/${id}`;
+    case "tvshow":
+      return `/tv/${id}`;
+    case "album":
+      return `/album/${id}`;
+  }
 }
 
 function Dot({ color, size = 10 }: { color: string; size?: number }) {

@@ -1117,14 +1117,6 @@ a.episode-show:hover { color: var(--accent); }
 .status-dot { width: 8px; height: 8px; border-radius: 4px; background: #5ccf8a; display: inline-block; margin-right: 6px; }
 .status-dot.warn { background: #f0b45a; }
 .folder-path { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
-.folder-browse { border: 1px solid var(--line); border-radius: 12px; max-height: 260px; overflow-y: auto; }
-.folder-browse button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 0 12px; text-align: left; font-size: 14px; border-bottom: 1px solid var(--line); }
-.folder-browse button:last-child { border-bottom: 0; }
-.folder-browse button:hover { background: var(--chip); }
-.folder-browse .empty { padding: 12px; font-size: 13px; color: var(--muted); }
-.folder-check { margin: 0; font-size: 13px; color: var(--muted); }
-.folder-check.ok { color: #5ccf8a; }
-.folder-check.bad { color: var(--danger); }
 
 .login { max-width: 360px; margin: 14vh auto; padding: 0 20px; display: flex; flex-direction: column; gap: 12px; }
 .login h1 { font-size: 28px; font-weight: 800; margin-bottom: 8px; }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   type MovieSummary,
@@ -141,12 +140,7 @@ export function WatchView({
           <h1 className="page-title">Watch</h1>
         </div>
         <EmptyState title="Nothing to watch yet">
-          {isAdmin ? "Add a movies or shows folder and they show up here." : "Movies and shows show up here once a folder is added."}
-          {isAdmin ? (
-            <Link href="/you/library" className="btn btn-primary" style={{ marginTop: 12 }}>
-              Add a folder
-            </Link>
-          ) : null}
+          {isAdmin ? "Mount your movies at /movies and shows at /shows, and they show up here." : "Movies and shows show up here once they're added."}
         </EmptyState>
       </>
     );

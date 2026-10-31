@@ -1,3 +1,4 @@
+import { apiPaths } from "./api-paths";
 import { duration, plural } from "./format";
 import type { StatsType } from "./index";
 
@@ -181,14 +182,6 @@ export const dailyAverage = (sec: number, stats: Pick<StatsDto, "from" | "to">, 
 export const statsTopKind = (t: StatsTop): StatsKind =>
   t.kind === "book" ? "book" : t.kind === "podcast" ? "episode" : t.kind === "album" || t.kind === "song" ? "music" : "watch";
 
-/** The line under a Most played row: "Most played book", or "Most played song, 12 plays". */
-export function statsTopLabel(t: StatsTop): string {
-  if (t.kind === "movie") return "Most watched movie";
-  if (t.kind === "tvshow") return "Most watched show";
-  const noun = { book: "book", podcast: "show", album: "album", song: "song" }[t.kind];
-  return t.plays ? `Most played ${noun}, ${t.plays === 1 ? "1 play" : `${t.plays} plays`}` : `Most played ${noun}`;
-}
-
 export interface StatsDto {
   period: StatsPeriod;
   from: string;
@@ -249,6 +242,51 @@ export function statsCurrentKey(period: StatsPeriod, today: string): string {
   if (period === "year") return today.slice(0, 7);
   if (period === "all") return today.slice(0, 4);
   return today;
+}
+
+/** The kinds the stats show: a hidden tab leaves its kind out, the total included. */
+export function statsKindsShown(tabs: { podcasts: boolean; music?: boolean; watch?: boolean }): StatsKind[] {
+  return ["book", ...(tabs.podcasts ? (["episode"] as const) : []), ...(tabs.music ? (["music"] as const) : []), ...(tabs.watch ? (["watch"] as const) : [])];
+}
+
+/** The small heading over the total: "This week", or "Music this week" with one kind picked. */
+export const statsTotalLabel = (picked: StatsKind | null, period: StatsPeriod): string => {
+  const p = STATS_PERIOD_CHOICES.find((x) => x.id === period)!;
+  return picked ? `${STATS_KIND_LABEL[picked]} ${p.this.toLowerCase()}` : p.this;
+};
+
+/** The chart's label for screen readers: one bar per day, per month for a year, per year for all time. */
+export const statsBarsLabel = (period: StatsPeriod): string => `Time per ${period === "year" ? "month" : period === "all" ? "year" : "day"}`;
+
+/** All kinds: the top item of each, the album card naming the top song. One kind: its top items. */
+export function statsTopItems(s: StatsDto, picked: StatsKind | null, kinds: StatsKind[]): { title: string; items: Array<{ top: StatsTop; sub: string }> } {
+  const mine = s.top.filter((t) => kinds.includes(statsTopKind(t)));
+  const song = mine.find((t) => t.kind === "song");
+  const items = picked ? mine.filter((t) => statsTopKind(t) === picked) : kinds.flatMap((k) => mine.find((t) => statsTopKind(t) === k && t.kind !== "song") ?? []);
+  const sub = (t: StatsTop) => {
+    if (t.kind === "song") return t.plays ? plural(t.plays, "play") : duration(t.sec);
+    if (t.kind === "album" && !picked && song) return song.plays ? `${song.title}, ${plural(song.plays, "play")}` : song.title;
+    return duration(t.sec);
+  };
+  const p = STATS_PERIOD_CHOICES.find((x) => x.id === s.period)!;
+  const what = picked === "watch" ? "Most watched" : picked ? "Most played" : "Top";
+  return { title: `${what} ${s.period === "all" ? "of all time" : p.this.toLowerCase()}`, items: items.map((top) => ({ top, sub: sub(top) })) };
+}
+
+/** What a top item opens: a song opens its album. */
+export function statsTopTarget(t: StatsTop): { kind: Exclude<StatsTop["kind"], "song">; id: string } {
+  return t.kind === "song" ? { kind: "album", id: t.albumId ?? t.id } : { kind: t.kind, id: t.id };
+}
+
+/** A top item's cover: a song shows its album's, a movie or show its poster. */
+export function statsTopCover(t: StatsTop): string | null {
+  if (!t.coverHash) return null;
+  const { kind, id } = statsTopTarget(t);
+  if (kind === "book") return apiPaths.coverUrl(id, t.coverHash, 600);
+  if (kind === "podcast") return apiPaths.podcastCoverUrl(id, t.coverHash, 600);
+  if (kind === "movie") return apiPaths.movieArtUrl(id, "poster", t.coverHash, "small");
+  if (kind === "tvshow") return apiPaths.showArtUrl(id, "poster", t.coverHash, "small");
+  return apiPaths.albumCoverUrl(id, t.coverHash, 600);
 }
 
 export interface StatsTile {

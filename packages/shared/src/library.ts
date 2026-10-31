@@ -66,12 +66,6 @@ export function emptyLibraryReason(scan: { running: boolean; lastError: string |
   return scan.lastError ?? "Check that the library folder is mounted, then rescan from You > Library.";
 }
 
-/** A library folder path plus a folder name, with the separator the path already uses. */
-export function joinPath(dir: string, name: string): string {
-  const sep = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";
-  return dir.endsWith(sep) ? dir + name : dir + sep + name;
-}
-
 export const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 /** "The Martian" files under M. */

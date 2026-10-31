@@ -8,7 +8,6 @@ import {
   adScanStatus,
   errorText,
   gigabytes,
-  joinPath,
   KEEP_PER_SHOW_OPTIONS,
   scanStatusText,
   type LibraryAdminDto,
@@ -17,9 +16,9 @@ import {
   SKIP_FORWARD_OPTIONS,
   THEME_CHOICES,
   type EpisodeCacheStatusDto,
-  type FolderBrowseDto,
-  type FolderCheckDto,
   type LibraryFolderDto,
+  type BackupStatusDto,
+  backupLine,
   type ServerVersionDto,
   type ThemeChoice,
   versionStatus,
@@ -28,24 +27,20 @@ import {
   type VideoStatus,
   type MusicSummaryDto,
   type WatchSummaryDto,
-  type StatsKind,
+  statsKindsShown,
   plural,
 } from "@murmur/shared/client";
 import { api } from "../api";
-import { BackIcon, FolderIcon, PlusIcon, RefreshIcon } from "../icons";
+import { PlusIcon, RefreshIcon } from "../icons";
 import { AD_MODES, adPrefsStore, useAdPrefs } from "../player/ad-prefs";
 import { usePlayer } from "../player/engine";
 import { Sheet } from "../sheet";
 import { applyTheme, currentTheme } from "../theme";
-import { BackRow, Chip, Chips, ConfirmRemove, EmptyState, Segmented, Setting, SettingLink, SettingsCard, SettingSub, StatTile, SwitchRow } from "../ui";
+import { BackRow, Chip, Chips, ConfirmRemove, Segmented, Setting, SettingLink, SettingsCard, SettingSub, StatTile, SwitchRow } from "../ui";
 import { SECTIONS, type SettingsSection } from "./sections";
 import { ListeningStats } from "./stats";
 
-interface ServerInfo {
-  version: string;
-  devBuild: boolean;
-  /** For admins: whether GitHub has been asked yet, and any newer release it has. */
-  updates: { checked: boolean; update: { latest: string; url: string } | null } | null;
+interface ServerInfo extends ServerVersionDto {
   books: number;
   watcher: "events" | "polling" | "periodic-only";
 }
@@ -132,6 +127,7 @@ export function ProfileView({
           ) : section === "server" ? (
             <>
               <VersionCard version={server.version} devBuild={server.devBuild} updates={server.updates} />
+              {server.backup ? <BackupCard backup={server.backup} /> : null}
               {watch.enabled ? <TmdbCredit /> : null}
             </>
           ) : section === "library" && libraryAdmin ? (
@@ -142,7 +138,7 @@ export function ProfileView({
                 <SettingLink title="Needs attention" dot={libraryAdmin.books.attention ? "warn" : undefined} value={plural(libraryAdmin.books.attention, "book")} href="/you/library/attention" />
                 <SettingLink title="Not matched" value={plural(libraryAdmin.books.unmatched, "book")} href="/you/library/unmatched" />
               </SettingsCard>
-              <FoldersCard folders={folders} otherPaths={pathsBesides(musicFolders, movieFolders, showFolders)} onSaved={refresh} />
+              <FoldersCard folders={folders} />
               <h2 className="section-title">Music</h2>
               <SettingsCard>
                 <ScanRow title={plural(libraryAdmin.music.albums, "album")} scan={libraryAdmin.music.scan} url="/api/music/scan" kind="music" />
@@ -150,10 +146,11 @@ export function ProfileView({
               </SettingsCard>
               {musicFolders.length === 0 ? (
                 <p className="muted small" style={{ margin: 0 }}>
-                  Albums come from the songs' tags, or from Artist/Album folders when there are none.
+                  Mount your music at /music.
                 </p>
-              ) : null}
-              <FoldersCard kind="music" folders={musicFolders} otherPaths={pathsBesides(folders, movieFolders, showFolders)} onSaved={refresh} />
+              ) : (
+                <FoldersCard kind="music" folders={musicFolders} />
+              )}
               <h2 className="section-title">Movies and shows</h2>
               <SettingsCard>
                 <ScanRow
@@ -172,11 +169,11 @@ export function ProfileView({
               </SettingsCard>
               {movieFolders.length + showFolders.length === 0 ? (
                 <p className="muted small" style={{ margin: 0 }}>
-                  Movies go in &quot;Title (Year)&quot; folders, and shows in Show/Season folders.
+                  Mount your movies at /movies and shows at /shows.
                 </p>
               ) : null}
-              <FoldersCard kind="movies" folders={movieFolders} otherPaths={pathsBesides(folders, musicFolders, showFolders)} onSaved={refresh} />
-              <FoldersCard kind="shows" folders={showFolders} otherPaths={pathsBesides(folders, musicFolders, movieFolders)} onSaved={refresh} />
+              {movieFolders.length ? <FoldersCard kind="movies" folders={movieFolders} /> : null}
+              {showFolders.length ? <FoldersCard kind="shows" folders={showFolders} /> : null}
             </>
           ) : section === "podcasts" ? (
             <>
@@ -199,13 +196,7 @@ export function ProfileView({
     );
   }
 
-  // The kinds the stats show: a hidden tab leaves its kind out.
-  const statsKinds: StatsKind[] = [
-    "book",
-    ...(tabs.podcasts ? (["episode"] as const) : []),
-    ...(tabs.music ? (["music"] as const) : []),
-    ...(tabs.watch ? (["watch"] as const) : []),
-  ];
+  const statsKinds = statsKindsShown(tabs);
 
   const values: Partial<Record<SettingsSection, string | null>> = {
     account: user.username,
@@ -478,9 +469,9 @@ function PasswordForm({ username, isAdmin }: { username: string; isAdmin: boolea
   );
 }
 
-function VersionCard({ version, devBuild, updates }: ServerVersionDto) {
+function VersionCard({ version, devBuild, updates }: Omit<ServerVersionDto, "backup">) {
   const update = updates?.update;
-  const { sub, dot } = versionStatus({ version, devBuild, updates });
+  const { sub, dot } = versionStatus({ devBuild, updates });
   return (
     <SettingsCard>
       <Setting title={`Murmur ${version}`} dot={dot ? (dot === "warn" ? "warn" : "ok") : undefined} sub={sub ? <SettingSub>{sub}</SettingSub> : null}>
@@ -490,6 +481,16 @@ function VersionCard({ version, devBuild, updates }: ServerVersionDto) {
           </a>
         ) : null}
       </Setting>
+    </SettingsCard>
+  );
+}
+
+/** The nightly database backup, for admins. Getting started explains restoring one. */
+function BackupCard({ backup }: { backup: BackupStatusDto }) {
+  const { sub, dot } = backupLine(backup);
+  return (
+    <SettingsCard>
+      <Setting title="Backups" dot={dot} sub={<SettingSub error={backup.failed}>{sub}</SettingSub>} />
     </SettingsCard>
   );
 }
@@ -621,47 +622,15 @@ function EpisodeCacheCard({ cache, onChanged }: { cache: EpisodeCacheStatusDto; 
 }
 
 const FOLDER_KINDS = {
-  books: { url: "/api/library/folders", item: "book", things: "books", title: "Add a library folder", min: 1 },
-  music: { url: "/api/music/folders", item: "album", things: "albums", title: "Add a music folder", min: 0 },
-  movies: { url: "/api/watch/folders/movies", item: "movie", things: "movies", title: "Add a movie folder", min: 0 },
-  shows: { url: "/api/watch/folders/shows", item: "show", things: "shows", title: "Add a show folder", min: 0 },
+  books: { item: "book", things: "books" },
+  music: { item: "album", things: "albums" },
+  movies: { item: "movie", things: "movies" },
+  shows: { item: "show", things: "shows" },
 };
 
-/** Every path in the other kinds' folders, which a folder may not overlap. */
-const pathsBesides = (...lists: LibraryFolderDto[][]) => lists.flat().map((f) => f.path);
-
-function FoldersCard({
-  kind = "books",
-  folders,
-  otherPaths,
-  onSaved,
-}: {
-  kind?: keyof typeof FOLDER_KINDS;
-  folders: LibraryFolderDto[];
-  /** The other kind's folders, which these may not overlap. */
-  otherPaths: string[];
-  onSaved: () => void;
-}) {
+/** A kind's folders with their counts. They come from what's mounted, so there's nothing to edit here. */
+function FoldersCard({ kind = "books", folders }: { kind?: keyof typeof FOLDER_KINDS; folders: LibraryFolderDto[] }) {
   const k = FOLDER_KINDS[kind];
-  const [busy, setBusy] = useState(false);
-  const [adding, setAdding] = useState(false);
-
-  const save = async (paths: string[], done: string) => {
-    setBusy(true);
-    try {
-      await api<LibraryFolderDto[]>(k.url, { method: "PUT", body: { paths } });
-      toast(done);
-      onSaved();
-      setTimeout(onSaved, 3000);
-      return true;
-    } catch (err) {
-      toast.error(errorText(err));
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <SettingsCard>
       {folders.map((f) => (
@@ -672,144 +641,9 @@ function FoldersCard({
               {f.reachable ? `${f.books} ${f.books === 1 ? k.item : k.things}` : "The server can't open this folder."}
             </SettingSub>
           </span>
-          {folders.length > k.min ? (
-            <ConfirmRemove
-              busy={busy}
-              onConfirm={() =>
-                save(
-                  folders.filter((o) => o.id !== f.id).map((o) => o.path),
-                  `Folder removed. Its ${k.things} leave the library after the rescan.`,
-                )
-              }
-            />
-          ) : null}
         </div>
       ))}
-      <div className="setting">
-        <button type="button" className="btn" onClick={() => setAdding(true)}>
-          <PlusIcon size={18} />
-          Add folder
-        </button>
-      </div>
-      <Sheet open={adding} onClose={() => setAdding(false)} title={k.title}>
-        {adding ? (
-          <AddFolderForm
-            others={[...folders.map((f) => f.path), ...otherPaths]}
-            start={folders[0]?.path ?? otherPaths[0] ?? ""}
-            busy={busy}
-            onAdd={async (path) => {
-              if (await save([...folders.map((f) => f.path), path], "Folder added. Scanning it now.")) setAdding(false);
-            }}
-          />
-        ) : null}
-      </Sheet>
     </SettingsCard>
-  );
-}
-
-function AddFolderForm({
-  others,
-  start,
-  busy,
-  onAdd,
-}: {
-  others: string[];
-  start: string;
-  busy: boolean;
-  onAdd: (path: string) => void;
-}) {
-  const [path, setPath] = useState("");
-  const [check, setCheck] = useState<FolderCheckDto | null>(null);
-  const [browse, setBrowse] = useState<FolderBrowseDto | null>(null);
-  const othersKey = others.join("\n");
-
-  // Checks what's typed after a short pause, so the result follows along without a button.
-  useEffect(() => {
-    setCheck(null);
-    if (!path.trim()) return;
-    let live = true;
-    const timer = setTimeout(async () => {
-      try {
-        const body = { path, others: othersKey ? othersKey.split("\n") : [] };
-        const result = await api<FolderCheckDto>("/api/library/folders/check", { method: "POST", body });
-        if (live) setCheck(result);
-      } catch (err) {
-        if (live) setCheck({ path, ok: false, message: errorText(err), subfolders: 0 });
-      }
-    }, 350);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [path, othersKey]);
-
-  const open = async (dir: string) => {
-    try {
-      setBrowse(await api<FolderBrowseDto>(`/api/library/browse?path=${encodeURIComponent(dir)}`));
-    } catch (err) {
-      toast.error(errorText(err));
-    }
-  };
-  // Start browsing next to the existing folder, where new ones usually live.
-  useEffect(() => {
-    void api<FolderBrowseDto>(`/api/library/browse?path=${encodeURIComponent(start)}`)
-      .then((b) => (b.parent ? api<FolderBrowseDto>(`/api/library/browse?path=${encodeURIComponent(b.parent)}`) : b))
-      .then(setBrowse, () => undefined);
-  }, [start]);
-
-  return (
-    <form
-      className="form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (check?.ok) onAdd(check.path);
-      }}
-    >
-      <input
-        className="input folder-path"
-        value={path}
-        onChange={(e) => setPath(e.target.value)}
-        placeholder="/audiobooks"
-        aria-label="Folder path"
-        autoComplete="off"
-        spellCheck={false}
-        autoFocus
-      />
-      <p className={`folder-check ${check ? (check.ok ? "ok" : "bad") : ""}`} role="status">
-        {check ? check.message : path.trim() ? "Checking…" : "Type a path or pick a folder below."}
-      </p>
-      {browse ? (
-        <div className="folder-browse">
-          {browse.parent ? (
-            <button type="button" onClick={() => void open(browse.parent!)}>
-              <BackIcon size={18} />
-              <span className="folder-path">{browse.parent}</span>
-            </button>
-          ) : null}
-          {browse.folders.map((name) => {
-            const full = joinPath(browse.path, name);
-            return (
-              <button
-                key={name}
-                type="button"
-                aria-pressed={path === full}
-                onClick={() => {
-                  setPath(full);
-                  void open(full);
-                }}
-              >
-                <FolderIcon size={18} />
-                {name}
-              </button>
-            );
-          })}
-          {browse.folders.length === 0 ? <EmptyState>No folders inside {browse.path}</EmptyState> : null}
-        </div>
-      ) : null}
-      <button type="submit" className="btn btn-primary" disabled={busy || !check?.ok}>
-        Add folder
-      </button>
-    </form>
   );
 }
 

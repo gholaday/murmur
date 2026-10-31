@@ -6,11 +6,11 @@ One Docker Compose stack; see `docker-compose.yml` in the repo root and [Getting
 
 | Mount | Purpose | Notes |
 | --- | --- | --- |
-| `/audiobooks` | The audiobook library, the first library folder | Read-only: Murmur never writes to or renames your files. Mount more folders and add them under You > Library |
-| `/music` | Optional music folder, the first one, added once it's mounted | Read-only, like the audiobooks. Leave it out and Music is empty |
+| `/audiobooks` | The audiobook library | Read-only: Murmur never writes to or renames your files. More book folders are mounted beside it as `/audiobooks-<name>`, and music, movies and shows work the same way (`/music-<name>`) |
+| `/music` | Optional music folder | Read-only, like the audiobooks. Leave it out and Music is empty |
 | `/data` | SQLite database, cover cache and backups | The only thing to back up |
 | `/cache` | Cached podcast episodes | Without it episodes are relayed. Not worth backing up. The ad add-on mounts it read-only |
-| `/movies`, `/shows` | Optional movie and show folders, the first of each, added once they're mounted | Read-only, mounted at the same paths in Murmur and the video add-on. The add-on has its own `/cache` for stream pieces and downloads being made |
+| `/movies`, `/shows` | Optional movie and show folders | Read-only, mounted at the same paths in Murmur and the video add-on. The add-on has its own `/cache` for stream pieces and downloads being made |
 
 **Images:** a GitHub Actions workflow builds multi-arch images (amd64 and arm64) for Murmur and both add-ons and pushes them to GitHub Container Registry on each `v*` tag, each with a build provenance attestation (as is the APK), so `gh attestation verify` can confirm where a download came from.
 
@@ -24,7 +24,7 @@ One Docker Compose stack; see `docker-compose.yml` in the repo root and [Getting
 
 ## Local development
 
-Run `pnpm install` once, then `pnpm dev` and open http://localhost:3000. `pnpm dev` also runs the video add-on on port 3001 (with `tsx watch`), which needs ffmpeg on the path and `ADDON_SECRET` in `apps/server/.env.local`. `apps/server/.env.development` points the database and covers at the repo's git-ignored `data/` folder, and the first book, movie and show folders at `data/audiobooks`, `data/videos/movies` and `data/videos/shows` with `LIBRARY_DIR`, `MOVIES_DIR` and `SHOWS_DIR` (`MUSIC_DIR` works the same way). These are for development only; in Docker the mount points are the folders. Docker is only used for the production image: on Windows a bind-mounted source folder delivers no file-change events, so hot reload inside a container is unreliable.
+Run `pnpm install` once, then `pnpm dev` and open http://localhost:3000. `pnpm dev` also runs the video add-on on port 3001 (with `tsx watch`), which needs ffmpeg on the path and `ADDON_SECRET` in `apps/server/.env.local`. `apps/server/.env.development` points the database and covers at the repo's git-ignored `data/` folder, and the book, music, movie and show folders at `data/audiobooks`, `data/music`, `data/videos/movies` and `data/videos/shows` with `LIBRARY_DIR`, `MUSIC_DIR`, `MOVIES_DIR` and `SHOWS_DIR`. These are for development only; in Docker the mount points are the folders. Docker is only used for the production image: on Windows a bind-mounted source folder delivers no file-change events, so hot reload inside a container is unreliable.
 
 ---
 
