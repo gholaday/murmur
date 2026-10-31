@@ -43,7 +43,7 @@ export const addSongsToUpNext = (tracks: TrackDto[]) =>
     tracks.map((tr) => ({ itemType: "track", itemId: tr.id })),
     "next",
   ).then(
-    () => toast.show("Added to Up Next"),
+    () => toast.show("Added to queue"),
     (err: unknown) => toast.error(err instanceof Error ? err.message : "Couldn't do that."),
   );
 export const openArtist = (id: string) => router.push(`/artist/${id}`);
@@ -77,7 +77,7 @@ export function AlbumActions({ album, open, onClose, onIdle }: { album: AlbumSum
             router.push("/player");
           })}
         />
-        <SheetItem label="Add to Up Next" disabled={!tracks} onPress={then(() => tracks && void addSongsToUpNext(tracks))} />
+        <SheetItem label="Add to queue" disabled={!tracks} onPress={then(() => tracks && void addSongsToUpNext(tracks))} />
         <SheetItem label="Add to playlist…" disabled={!tracks} onPress={then(() => setAdding(true))} />
         <SheetItem label={`Go to ${album.artist}`} onPress={then(() => openArtist(album.artistId))} />
         <SheetItem
@@ -344,9 +344,9 @@ function SongSheetItems({ track, onClose, hideAlbum, onAddToPlaylist }: { track:
   return (
     <>
       {queued ? (
-        <SheetItem label="Remove from Up Next" onPress={run(async () => removeWaiting(ref), "Removed from Up Next")} />
+        <SheetItem label="Remove from queue" onPress={run(async () => removeWaiting(ref), "Removed from queue")} />
       ) : (
-        <SheetItem label="Add to Up Next" onPress={run(() => addToUpNext(ref, "next"), "Added to Up Next")} />
+        <SheetItem label="Add to queue" onPress={run(() => addToUpNext(ref, "next"), "Added to queue")} />
       )}
       <SheetItem label="Add to playlist…" onPress={onAddToPlaylist} />
       {hideAlbum ? null : <SheetItem label="Go to album" onPress={close(() => openAlbum(track.albumId))} />}
@@ -492,7 +492,7 @@ export function TrackRow({
   );
 }
 
-/** An album you haven't fully added, as a search result: cover, title, "Album, year" and a + button. */
+/** An album you haven't fully added, as a search result: cover, title, "Album, artist" and a + button. */
 export function AlbumAddRow({ album }: { album: AlbumSummary }) {
   const t = useTheme();
   return (
@@ -508,7 +508,7 @@ export function AlbumAddRow({ album }: { album: AlbumSummary }) {
             {album.title}
           </Text>
           <Text variant="small" numberOfLines={1}>
-            {album.year ? `Album, ${album.year}` : "Album"}
+            {`Album, ${album.artist}`}
           </Text>
         </View>
       </Pressable>

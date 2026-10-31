@@ -507,8 +507,8 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--tex
 .artist-card-empty { background: var(--surface-2); color: var(--muted); display: flex; align-items: center; justify-content: center; }
 /* New playlist, first in the Playlists grid: a cover-sized dashed tile with an accent plus. */
 .new-tile { display: flex; flex-direction: column; gap: 6px; text-align: left; color: inherit; }
-.new-tile-art { aspect-ratio: 1 / 1; width: 100%; border-radius: 8px; border: 1.5px dashed color-mix(in srgb, var(--muted) 40%, transparent); background: var(--surface); color: var(--accent); display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
-.new-tile:hover .new-tile-art { background: var(--surface-2); }
+.new-tile-art { aspect-ratio: 1 / 1; width: 100%; border-radius: 8px; background: var(--surface-2); color: var(--accent); display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.new-tile:hover .new-tile-art { background: color-mix(in srgb, var(--surface-2), var(--text) 7%); }
 /* The film whose page this is, in its own collection shelf. */
 .card-current .card-title { color: var(--accent); }
 
@@ -1037,7 +1037,8 @@ a.episode-show:hover { color: var(--accent); }
 .edit-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .edit-label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--text-2); white-space: nowrap; }
 .edit-label label { overflow: hidden; text-overflow: ellipsis; }
-.edited-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); cursor: help; }
+.edited-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--accent); }
+.edited-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .link-btn { margin-left: auto; color: var(--accent); font-size: 12px; font-weight: 700; }
 .edit-hint { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
 /* Suggestions under a field (the series field): a menu that floats over the fields below. */
@@ -1120,6 +1121,10 @@ a.episode-show:hover { color: var(--accent); }
 
 .login { max-width: 360px; margin: 14vh auto; padding: 0 20px; display: flex; flex-direction: column; gap: 12px; }
 .login h1 { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+/* An input with an icon button inside its right end, like Show password. */
+.input-with-button { position: relative; display: block; }
+.input-with-button .input { width: 100%; padding-right: 48px; box-sizing: border-box; }
+.input-with-button .icon-btn { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); color: var(--muted); }
 
 /* ---------- Match ---------- */
 

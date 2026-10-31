@@ -43,9 +43,9 @@ export function gigabytes(bytes: number): string {
   return `${(bytes / 1024 ** 3).toFixed(bytes < 10 * 1024 ** 3 ? 1 : 0)} GB`;
 }
 
-/** An error's message for showing to the user, with a fallback for anything else thrown. */
-export function errorText(err: unknown): string {
-  return err instanceof Error ? err.message : "Something went wrong.";
+/** An error's message for showing to the user, with a fallback for anything else thrown: say what failed, like "Couldn't save the playlist." */
+export function errorText(err: unknown, fallback = "Something went wrong."): string {
+  return err instanceof Error && err.message ? err.message : fallback;
 }
 
 export function plural(n: number, word: string): string {

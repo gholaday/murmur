@@ -16,6 +16,7 @@ export function ConfirmSheet({
   title,
   message,
   confirmLabel,
+  danger,
   onConfirm,
   onClose,
 }: {
@@ -23,6 +24,8 @@ export function ConfirmSheet({
   title: string;
   message: string;
   confirmLabel: string;
+  /** The confirm button in the danger colour, for deleting something saved on the server. */
+  danger?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }) {
@@ -34,6 +37,7 @@ export function ConfirmSheet({
           <Button label="Cancel" kind="secondary" onPress={onClose} style={{ flex: 1 }} />
           <Button
             label={confirmLabel}
+            kind={danger ? "danger" : "primary"}
             onPress={() => {
               onClose();
               onConfirm();

@@ -1,10 +1,10 @@
 import { EpisodeCacheSection } from "@/components/settings";
 import { SettingsPage } from "@/components/settings-page";
 
-/** Admin: how many episodes the server keeps ready per show, and ad detection. */
-export default function EpisodeCacheSettings() {
+/** Admin: You > Podcasts, how many episodes the server keeps ready per podcast, and ad detection. */
+export default function PodcastSettings() {
   return (
-    <SettingsPage title="Episode cache">
+    <SettingsPage title="Podcasts">
       <EpisodeCacheSection />
     </SettingsPage>
   );

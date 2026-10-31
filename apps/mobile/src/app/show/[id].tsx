@@ -1,16 +1,17 @@
 import { useMemo, useState } from "react";
 import { Animated, Linking, Pressable, TextInput, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { apiPaths, type EpisodeWithShow, matchesEpisode } from "@murmur/shared/client";
+import { apiPaths, type EpisodeWithShow, errorText, matchesEpisode, plural, shortDate } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { EpisodeRow } from "@/components/episode-row";
 import { HeroBackdrop } from "@/components/hero";
-import { CloseIcon, FilterIcon, LockIcon, MoreIcon, SearchIcon } from "@/components/icons";
+import { CheckIcon, CloseIcon, FilterIcon, LockIcon, MoreIcon, SearchIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BackRow, Empty, NestedFallback, useBottomPad, useTopInset } from "@/components/page";
-import { Sheet, SheetItem } from "@/components/sheet";
+import { ConfirmSheet, Sheet, SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
+import { toast } from "@/components/toast";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { StickyHeading, useStickyHeading } from "@/components/sticky-heading";
 import { Button, IconButton, Pill, Text } from "@/components/ui";
@@ -41,7 +42,6 @@ export default function ShowScreen() {
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   // Only what had to wait fades in; anything already cached shows at once.
   const [showWaited] = useState(!podcast.data);
@@ -85,13 +85,13 @@ export default function ShowScreen() {
     );
   }
 
-  const run = async (fn: () => Promise<unknown>) => {
+  // Like the web's: what fails says so in a toast, `failed` in place of the server's words.
+  const run = async (fn: () => Promise<unknown>, failed?: string) => {
     setBusy(true);
-    setError(null);
     try {
       await fn();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      toast.error(failed ?? errorText(err));
     } finally {
       setBusy(false);
     }
@@ -117,6 +117,16 @@ export default function ShowScreen() {
               {show.title}
             </Text>
             {show.author ? <Text variant="small" numberOfLines={1}>{show.author}</Text> : null}
+            <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 14, rowGap: 2 }}>
+              <Text variant="small" style={{ color: t.muted }}>
+                {plural(show.episodeCount, "episode")}
+              </Text>
+              {show.latestPublishedAt ? (
+                <Text variant="small" style={{ color: t.muted }}>
+                  Latest {shortDate(show.latestPublishedAt)}
+                </Text>
+              ) : null}
+            </View>
             {/* A personal feed, so the server never sends it for ad detection. */}
             {show.privateFeed ? (
               <View style={{ flexDirection: "row", marginTop: 4 }}>
@@ -126,14 +136,17 @@ export default function ShowScreen() {
           </View>
         </View>
 
+        <Button
+          label="Subscribed"
+          icon={<CheckIcon size={16} color={t.onAccent} />}
+          small
+          onPress={() => setSheet("unsubscribe")}
+          style={{ alignSelf: "flex-start", marginTop: 18 }}
+        />
+
         {show.lastError ? (
           <Text variant="small" style={{ color: t.danger, marginTop: 14 }}>
             Last feed check failed: {show.lastError}
-          </Text>
-        ) : null}
-        {error ? (
-          <Text variant="small" style={{ color: t.danger, marginTop: 14 }}>
-            {error}
           </Text>
         ) : null}
 
@@ -192,7 +205,7 @@ export default function ShowScreen() {
               autoFocus
               value={query}
               onChangeText={setQuery}
-              placeholder="Title or notes"
+              placeholder="Search episodes"
               placeholderTextColor={t.faint}
               selectionColor={t.accent}
               style={{ flex: 1, color: t.text, fontFamily: fonts.medium, fontSize: 15 }}
@@ -261,6 +274,7 @@ export default function ShowScreen() {
               await api(`/api/podcasts/${show.id}/refresh`, { method: "POST" });
               invalidateListening();
               void queryClient.invalidateQueries({ queryKey: keys.podcast(show.id) });
+              toast.show("Checked for new episodes");
             });
           }}
         />
@@ -291,30 +305,25 @@ export default function ShowScreen() {
         ))}
       </Sheet>
 
-      <Sheet open={sheet === "unsubscribe"} onClose={() => setSheet(null)} title={`Unsubscribe from ${show.title}?`}>
-        <View style={{ paddingHorizontal: 12, gap: 14, paddingBottom: 8 }}>
-          <Text>Your listening history for this podcast is removed from your lists.</Text>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <Button label="Cancel" kind="secondary" onPress={() => setSheet(null)} style={{ flex: 1 }} />
-            <Button
-              label="Unsubscribe"
-              busy={busy}
-              style={{ flex: 1 }}
-              onPress={() =>
-                void run(async () => {
-                  await api(`/api/podcasts/${show.id}`, { method: "DELETE" });
-                  setSheet(null);
-                  void queryClient.invalidateQueries({ queryKey: keys.podcasts });
-                  void queryClient.invalidateQueries({ queryKey: keys.newEpisodes });
-                  void queryClient.invalidateQueries({ queryKey: keys.continueEpisodes });
-                  void refreshUpNext();
-                  router.back();
-                })
-              }
-            />
-          </View>
-        </View>
-      </Sheet>
+      <ConfirmSheet
+        open={sheet === "unsubscribe"}
+        title={`Unsubscribe from ${show.title}?`}
+        message="Your listening history for this podcast is removed from your lists."
+        confirmLabel="Unsubscribe"
+        danger
+        onConfirm={() =>
+          void run(async () => {
+            await api(`/api/podcasts/${show.id}`, { method: "DELETE" });
+            void queryClient.invalidateQueries({ queryKey: keys.podcasts });
+            void queryClient.invalidateQueries({ queryKey: keys.newEpisodes });
+            void queryClient.invalidateQueries({ queryKey: keys.continueEpisodes });
+            void refreshUpNext();
+            router.back();
+            toast.show(`Unsubscribed from ${show.title}`);
+          }, "Couldn't unsubscribe.")
+        }
+        onClose={() => setSheet(null)}
+      />
     </View>
   );
 }

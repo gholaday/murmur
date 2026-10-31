@@ -69,6 +69,7 @@ export function TvShowView({ show }: { show: ShowDetail }) {
   const params = useSearchParams();
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState<WatchEditTab | null>(null);
+  const [expanded, setExpanded] = useState(false);
   /** A converted-video quality picked for this viewing; null means your setting. */
   const [quality, setQuality] = useState<VideoQuality | null>(null);
   const all = show.seasonList.flatMap((s) => s.episodes);
@@ -162,7 +163,16 @@ export function TvShowView({ show }: { show: ShowDetail }) {
         </button>
       </div>
 
-      {show.description ? <p className="description clamped">{show.description}</p> : null}
+      {show.description ? (
+        <>
+          <p className={`description ${expanded ? "" : "clamped"}`}>{show.description}</p>
+          {show.description.length > 220 ? (
+            <button type="button" className="more-link" onClick={() => setExpanded((e) => !e)}>
+              {expanded ? "Less" : "More"}
+            </button>
+          ) : null}
+        </>
+      ) : null}
 
       <section className="section">
         {show.seasonList.length > 1 ? (

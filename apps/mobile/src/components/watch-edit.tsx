@@ -13,7 +13,7 @@ import { useHealth } from "./settings";
 import { Sheet, SheetDivider, SheetItem, useMenuIdle } from "./sheet";
 import { Bone, Skeleton } from "./skeleton";
 import { toast } from "./toast";
-import { Button, Chips, Field, Text } from "./ui";
+import { Button, Chips, EditFoot, Field, Text } from "./ui";
 
 export type WatchEditTab = "details" | "artwork" | "match";
 
@@ -152,7 +152,7 @@ function WatchEdit({ kind, item, startTab, open, onClose }: { kind: "movie" | "s
       onClose={onClose}
       head={<SheetHead title="Edit" sub={item.title} />}
       tall
-      foot={tab === "details" ? <Button label="Save" busy={busy} disabled={!dirty || !form.title.trim()} onPress={() => void save()} /> : null}
+      foot={tab === "details" ? <EditFoot dirty={dirty} busy={busy} disabled={!dirty || !form.title.trim()} onSave={() => void save()} onClose={onClose} /> : null}
     >
       <View style={{ paddingHorizontal: 12, gap: 14, paddingBottom: 8 }}>
         <Chips

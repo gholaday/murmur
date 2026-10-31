@@ -359,11 +359,11 @@ const libraryKeys = { health: ["health"], admin: ["library-admin"], folders: ["l
 // Shared by the sections and the You tab's rows, which show a short value from them.
 export const useServerVersion = () => useQuery({ queryKey: ["server-version"], queryFn: () => api<ServerVersionDto>("/api/server/version") });
 export const useHealth = (enabled = true) => useQuery({ queryKey: libraryKeys.health, queryFn: () => api<HealthDto>("/api/health"), enabled });
-export const useEpisodeCache = (enabled = true) =>
+const useEpisodeCache = (enabled = true) =>
   useQuery({ queryKey: libraryKeys.cache, queryFn: () => api<EpisodeCacheStatusDto>("/api/server/cache"), enabled });
 export const useUsers = (enabled = true) => useQuery({ queryKey: libraryKeys.users, queryFn: () => api<UserDto[]>("/api/users"), enabled });
 
-/** Admin: how many recent episodes the server keeps ready per show, and how ad detection is doing. */
+/** Admin: how many recent episodes the server keeps ready per podcast, and how ad detection is doing. */
 export function EpisodeCacheSection() {
   const t = useTheme();
   const cache = useEpisodeCache();
@@ -388,7 +388,7 @@ export function EpisodeCacheSection() {
     return (
       <Card>
         {cache.isError ? (
-          <Row title="Episodes kept ready per show" sub={cache.error.message} subDanger last />
+          <Row title="Episodes kept ready per podcast" sub={cache.error.message} subDanger last />
         ) : (
           <Skeleton>
             <RowBone last />
@@ -405,7 +405,7 @@ export function EpisodeCacheSection() {
     <FadeIn>
       <Card>
         <Row
-          title="Episodes kept ready per show"
+          title="Episodes kept ready per podcast"
           sub={c.available ? `${gigabytes(c.usedBytes)} of ${gigabytes(c.maxBytes)} used` : c.error}
           subDanger={!c.available}
           stacked
@@ -748,8 +748,9 @@ export function UsersSection({ me }: { me: UserDto }) {
       <ConfirmSheet
         open={removing !== null}
         title={`Remove ${removing?.username ?? ""}?`}
-        message="Their account, listening progress and Up Next are deleted from the server."
+        message="Their account, listening progress and queue are deleted from the server."
         confirmLabel="Remove"
+        danger
         onConfirm={() => removing && void remove(removing)}
         onClose={() => setRemoving(null)}
       />

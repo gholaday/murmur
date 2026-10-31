@@ -85,7 +85,7 @@ export default function ArtistScreen() {
           <View style={{ marginTop: 16 }}>
             <Grid>
               {a.albums.map((al) => (
-                <AlbumCard key={al.id} album={al} width={width} sub={al.year} badge />
+                <AlbumCard key={al.id} album={al} width={width} sub={al.year ?? plural(al.trackCount, "song")} badge />
               ))}
             </Grid>
           </View>

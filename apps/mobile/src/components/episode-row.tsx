@@ -72,8 +72,8 @@ export const EpisodeRow = memo(function EpisodeRow({
 
   const toggleQueue = () =>
     queued
-      ? run(async () => removeWaiting(ref), "Removed from Up Next")
-      : run(() => addToUpNext(ref, "last"), "Added to Up Next");
+      ? run(async () => removeWaiting(ref), "Removed from queue")
+      : run(() => addToUpNext(ref, "last"), "Added to queue");
 
   const togglePlayed = () =>
     run(
@@ -182,7 +182,7 @@ export const EpisodeRow = memo(function EpisodeRow({
               <View style={{ width: `${pct}%`, height: "100%", backgroundColor: t.accent }} />
             </View>
           ) : null}
-          <ActionIcon label={queued ? "Remove from Up Next" : "Add to Up Next"} selected={queued} disabled={busy || current} onPress={() => void toggleQueue()}>
+          <ActionIcon label={queued ? "Remove from queue" : "Add to queue"} selected={queued} disabled={busy || current} onPress={() => void toggleQueue()}>
             <QueueAddIcon size={20} queued={queued} color={queued ? t.accent : t.text2} />
           </ActionIcon>
           <ActionIcon label={finished ? "Mark unplayed" : "Mark played"} selected={finished} disabled={busy} onPress={() => void togglePlayed()}>

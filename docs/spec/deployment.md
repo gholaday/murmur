@@ -20,7 +20,7 @@ One Docker Compose stack; see `docker-compose.yml` in the repo root and [Getting
 
 **Add-ons stay inside:** the proxy or tunnel points at Murmur only. murmur-video has no ports and is only on the `addons` network (`internal: true`), shared with Murmur and nothing else, so neither the tunnel nor the internet can reach it, and it can't reach out. The ad add-on opens no ports and only calls Murmur inside the stack. As an extra layer, both sides answer 404 to anything that came through a proxy, whichever proxy it is (`cameThroughProxy` in `packages/shared`): `x-forwarded-proto: https` (calls inside the stack are plain HTTP, so a proxy took the TLS), or any of `forwarded`, `via`, `x-real-ip`, `true-client-ip`, `x-forwarded-server`, `cdn-loop` and Cloudflare's `cf-*`. Murmur can't go by `x-forwarded-for`, `-host` or `-port`, because Next fills those in itself when they're missing; the video add-on has no Next in front, so it refuses any `x-forwarded-*` too. A proxy that adds none of these over plain HTTP gets past this check, which is why it's only an extra: the secret is what lets an add-on in. The secret only ever goes to `VIDEO_URL` and `MURMUR_URL`, which are set in the compose file, never taken from a request. Docker's health check asks the video add-on's `/health` from inside its own container without the secret; every other request needs it.
 
-**Updates:** change the image tag and redeploy. Database migrations run automatically on startup, and a copy of the database is saved to `/data/backups` before each migration.
+**Updates:** the example compose file uses the `latest` images, so an update is pulling them and redeploying (a version tag pins one). Database migrations run automatically on startup, and a copy of the database is saved to `/data/backups` before each migration.
 
 ## Local development
 
@@ -28,5 +28,5 @@ Run `pnpm install` once, then `pnpm dev` and open http://localhost:3000. `pnpm d
 
 ---
 
-| [← Podcasts and ad detection](podcasts.md) | [Contents](README.md) | [Non-goals and later ideas →](later.md) |
+| [← Podcasts and ad detection](podcasts.md) | [Contents](README.md) | [Versions and upgrades →](versions.md) |
 | :--- | :---: | ---: |

@@ -101,7 +101,7 @@ export default function Browse() {
           ) : albums.isError ? (
             <Empty title="Couldn't load the albums">{albums.error.message}</Empty>
           ) : (
-            <Empty>{q ? `Nothing matches "${query.trim()}".` : filter === "new" ? "No new albums lately." : "You've added everything."}</Empty>
+            <Empty>{q ? `Nothing matches "${query.trim()}".` : filter === "new" ? "No new albums in the last two weeks." : "Every album is in your music."}</Empty>
           )
         }
         ItemSeparatorComponent={RowGap}
@@ -110,7 +110,7 @@ export default function Browse() {
         renderItem={({ item }) => (
           <View style={{ flexDirection: "row", columnGap: GAP }}>
             {item.map((a) => (
-              <AlbumCard key={a.id} album={a} width={width} badge sub={isNewAlbum(a) ? `${a.artist}, new` : a.artist} />
+              <AlbumCard key={a.id} album={a} width={width} badge sub={a.artist} />
             ))}
           </View>
         )}

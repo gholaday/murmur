@@ -21,7 +21,7 @@ import { PROVIDER_NAME, SheetHead, useBookMatch } from "./match";
 import { Sheet } from "./sheet";
 import { Bone, Skeleton } from "./skeleton";
 import { toast } from "./toast";
-import { Button, Caption, Chips, IconButton, Text } from "./ui";
+import { Button, Caption, Chips, EditFoot, IconButton, Text } from "./ui";
 
 // A book's Edit for admins, like the web's: details, cover, chapters, match and files. Details and
 // chapters are saved with Save; cover, match and file actions apply at once.
@@ -193,7 +193,7 @@ function BookEdit({ bookId, title, startTab, open, onClose }: { bookId: string; 
   );
   const foot =
     tab === "match" ? match.foot : tab === "details" || tab === "chapters" ? (
-      <Button label="Save" busy={busy} disabled={!(detailsDirty || chaptersDirty)} onPress={() => void save()} />
+      <EditFoot dirty={detailsDirty || chaptersDirty} busy={busy} disabled={!(detailsDirty || chaptersDirty)} onSave={() => void save()} onClose={onClose} />
     ) : null;
 
   return (
@@ -532,7 +532,7 @@ function FilesTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Button label="Keep edits" kind="secondary" onPress={() => setConfirmUndo(false)} style={{ flex: 1, paddingHorizontal: 12 }} />
             <Button
-              label="Undo every edit"
+              label="Undo every edit and match"
               disabled={busy}
               onPress={() =>
                 void act(async () => {

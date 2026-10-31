@@ -67,11 +67,11 @@ Then:
 docker compose up -d
 ```
 
-**Using Portainer instead:** go to **Stacks > Add stack**, name it `murmur`, paste the contents of `docker-compose.yml` into the web editor, and change the paths. A stack made in the editor has no file beside it, so put the keys from `murmur.env.example` under **Environment variables** below the editor, and change each `./murmur.env` in the compose file to `stack.env`, which is where Portainer saves them. Then press **Deploy the stack**. To update later, open the stack, change the image tag (or tick **Re-pull image**), and press **Update the stack**. Portainer shows the container as healthy once Murmur's health check passes.
+**Using Portainer instead:** go to **Stacks > Add stack**, name it `murmur`, paste the contents of `docker-compose.yml` into the web editor, and change the paths. A stack made in the editor has no file beside it, so put the keys from `murmur.env.example` under **Environment variables** below the editor, and change each `./murmur.env` in the compose file to `stack.env`, which is where Portainer saves them. Then press **Deploy the stack**. To update later, open the stack, tick **Re-pull image**, and press **Update the stack**. Portainer shows the container as healthy once Murmur's health check passes.
 
 Open `http://<server>:3333` and create an account. The first account becomes the admin, and a library scan starts right away; a large library takes a few minutes the first time.
 
-Other users can be added in **You > Users**. Each has their own progress, podcasts, music and Up Next.
+Other users can be added in **You > Users**. Each has their own progress, podcasts, music and queue.
 
 ## 3. Reach it from outside your network
 
@@ -120,7 +120,7 @@ Chrome only offers a full-screen install when Murmur is served over HTTPS, so se
 
 In **Podcasts**, search by name or paste an RSS feed URL. To bring your shows over from another podcast app, use **Import OPML** in the same place.
 
-Feeds are checked every 30 minutes, and the newest 3 episodes of each show are kept on the server so they start instantly. Admins can change the 3 in **You > Podcasts**.
+Feeds are checked every 30 minutes, and the newest 3 episodes of each podcast are kept on the server so they start instantly. Admins can change the 3 in **You > Podcasts**.
 
 ## 6. Optional: ad detection
 
@@ -144,7 +144,7 @@ Most files play as they are. A file whose picture the device can't play (HEVC in
 
 ## Updating
 
-Change the image tag in `docker-compose.yml` (or use `latest`) and run:
+The example compose file uses the `latest` images, so updating is pulling them again (to stay on one version, set a tag like `0.11.0` instead):
 
 ```bash
 docker compose pull

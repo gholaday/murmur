@@ -78,8 +78,8 @@ export function EpisodeRow({
 
   const toggleQueue = () =>
     queued
-      ? run(async () => player.removeWaiting({ itemType: "episode", itemId: episode.id }), "Removed from Up Next")
-      : run(() => player.addToUpNext({ itemType: "episode", itemId: episode.id }, "last"), "Added to Up Next");
+      ? run(async () => player.removeWaiting({ itemType: "episode", itemId: episode.id }), "Removed from queue")
+      : run(() => player.addToUpNext({ itemType: "episode", itemId: episode.id }, "last"), "Added to queue");
 
   const togglePlayed = () =>
     run(async () => {
@@ -146,7 +146,7 @@ export function EpisodeRow({
           <button
             type="button"
             className="episode-icon"
-            aria-label={queued ? "Remove from Up Next" : "Add to Up Next"}
+            aria-label={queued ? "Remove from queue" : "Add to queue"}
             aria-pressed={queued}
             disabled={busy || current}
             onClick={() => void toggleQueue()}

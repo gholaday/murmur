@@ -6,7 +6,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import { fonts, useTheme } from "@/theme";
 import { Text } from "./ui";
 
-// Short confirmations ("Added to Up Next") at the top centre, just below the top action row,
+// Short confirmations ("Added to queue") at the top centre, just below the top action row,
 // like the web player's toasts. One can carry an action such as Undo.
 
 type ToastAction = { label: string; onPress: () => void };

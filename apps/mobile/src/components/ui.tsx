@@ -40,16 +40,23 @@ export function Button({
   disabled,
   kind = "primary",
   style,
+  icon,
+  small,
 }: {
   label: string;
   onPress: () => void;
   busy?: boolean;
   disabled?: boolean;
-  kind?: "primary" | "secondary";
+  /** "danger" is for confirming something that deletes: the danger colour in place of the accent. */
+  kind?: "primary" | "secondary" | "danger";
   style?: StyleProp<ViewStyle>;
+  /** Shown before the label, e.g. a check. */
+  icon?: React.ReactNode;
+  /** The compact size for a page header's actions, like the web's show-actions buttons. */
+  small?: boolean;
 }) {
   const t = useTheme();
-  const primary = kind === "primary";
+  const primary = kind !== "secondary";
   return (
     <Pressable
       accessibilityRole="button"
@@ -57,12 +64,14 @@ export function Button({
       disabled={disabled || busy}
       style={({ pressed }) => [
         {
-          height: 52,
-          borderRadius: 26,
+          height: small ? 36 : 52,
+          borderRadius: small ? 18 : 26,
+          flexDirection: "row",
           alignItems: "center",
           justifyContent: "center",
-          paddingHorizontal: 24,
-          backgroundColor: primary ? t.accent : t.surface2,
+          gap: small ? 6 : 8,
+          paddingHorizontal: small ? 16 : 24,
+          backgroundColor: kind === "danger" ? t.danger : primary ? t.accent : t.surface2,
           opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
         },
         style,
@@ -71,9 +80,28 @@ export function Button({
       {busy ? (
         <ActivityIndicator color={primary ? t.onAccent : t.text} />
       ) : (
-        <RNText style={{ fontFamily: fonts.bold, fontSize: 16, color: primary ? t.onAccent : t.text }}>{label}</RNText>
+        <>
+          {icon}
+          {/* Without Android's font padding the label centres on the icon beside it. */}
+          <RNText style={{ fontFamily: fonts.bold, fontSize: small ? 13 : 16, lineHeight: small ? 17 : 21, includeFontPadding: false, color: primary ? t.onAccent : t.text }}>
+            {label}
+          </RNText>
+        </>
       )}
     </Pressable>
+  );
+}
+
+/** An edit sheet's footer, like the web's: Save, and with edits made, "Unsaved changes" and Close beside it. */
+export function EditFoot({ dirty, busy, disabled, onSave, onClose }: { dirty: boolean; busy: boolean; disabled: boolean; onSave: () => void; onClose: () => void }) {
+  const t = useTheme();
+  if (!dirty) return <Button label="Save" busy={busy} disabled={disabled} onPress={onSave} />;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <RNText style={{ flex: 1, fontFamily: fonts.medium, fontSize: 13, color: t.muted }}>Unsaved changes</RNText>
+      <Button label="Close" kind="secondary" onPress={onClose} />
+      <Button label="Save" busy={busy} disabled={disabled} onPress={onSave} />
+    </View>
   );
 }
 
@@ -234,7 +262,7 @@ export function Chips<T extends string | number | boolean | null>({
   value: T;
   onPick: (id: T) => void;
   kind?: "tabs" | "radio";
-  /** Read out for the group, e.g. "Ads for this show". */
+  /** Read out for the group, e.g. "Ads for this podcast". */
   label?: string;
   gap?: number;
   wrap?: boolean;

@@ -52,15 +52,16 @@ export function AlbumMenuItems({
             a.tracks.map((t) => ({ itemType: "track", itemId: t.id })),
             "next",
           );
-          toast("Added to Up Next");
+          toast("Added to queue");
         })}
       >
-        Add to Up Next
+        Add to queue
       </MenuItem>
       <MenuItem onClick={choose(async () => onAddToPlaylist((await loadAlbum(album.id)).tracks.map((t) => t.id)))}>Add to playlist…</MenuItem>
       <MenuItem onClick={choose(() => router.push(`/music/artist/${album.artistId}`))}>Go to {album.artist}</MenuItem>
-      <MenuItem danger={inMusic !== "none"} onClick={choose(() => send(inMusic === "none", { albumIds: [album.id] }))}>
-        {inMusic === "none" ? "Add to your music" : "Remove from your music"}
+      {/* A partly added album offers to add the rest; only a whole one offers to come out. */}
+      <MenuItem danger={inMusic === "all"} onClick={choose(() => send(inMusic !== "all", { albumIds: [album.id] }))}>
+        {inMusic === "all" ? "Remove from your music" : "Add to your music"}
       </MenuItem>
       {isAdmin ? (
         <>

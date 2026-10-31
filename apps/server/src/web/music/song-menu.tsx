@@ -32,7 +32,7 @@ export function SongMenuButton({
     close();
     fn().then(
       () => toast(done),
-      (err: unknown) => toast.error(errorText(err)),
+      (err: unknown) => toast.error(errorText(err, "Couldn't do that.")),
     );
   };
 
@@ -43,9 +43,9 @@ export function SongMenuButton({
       </button>
       <Sheet open={open} onClose={close} title={track.title}>
         {queued ? (
-          <SheetItem onClick={() => run(async () => player.removeWaiting(ref), "Removed from Up Next")}>Remove from Up Next</SheetItem>
+          <SheetItem onClick={() => run(async () => player.removeWaiting(ref), "Removed from queue")}>Remove from queue</SheetItem>
         ) : (
-          <SheetItem onClick={() => run(() => player.addToUpNext(ref, "next"), "Added to Up Next")}>Add to Up Next</SheetItem>
+          <SheetItem onClick={() => run(() => player.addToUpNext(ref, "next"), "Added to queue")}>Add to queue</SheetItem>
         )}
         <SheetItem
           onClick={() => {
@@ -101,7 +101,7 @@ export function AddToPlaylistSheet({ open, onClose, title, trackIds }: { open: b
     try {
       done(await api<PlaylistDetail>(apiPaths.playlistTracks(p.id), { method: "POST", body: { trackIds } }), "Added to");
     } catch (err) {
-      toast.error(errorText(err));
+      toast.error(errorText(err, "Couldn't add that."));
     } finally {
       setBusy(false);
     }
@@ -112,7 +112,7 @@ export function AddToPlaylistSheet({ open, onClose, title, trackIds }: { open: b
     try {
       done(await api<PlaylistDetail>(apiPaths.playlists, { method: "POST", body: { name: name.trim(), trackIds } }), "Made");
     } catch (err) {
-      toast.error(errorText(err));
+      toast.error(errorText(err, "Couldn't make that playlist."));
     } finally {
       setBusy(false);
     }
@@ -143,7 +143,8 @@ export function AddToPlaylistSheet({ open, onClose, title, trackIds }: { open: b
           ) : (
             lists.map((p) => (
               <SheetItem key={p.id} disabled={busy} onClick={() => void add(p)}>
-                {p.name}
+                <span style={{ flex: 1, minWidth: 0 }}>{p.name}</span>
+                <span className="muted small">{plural(p.trackCount, "song")}</span>
               </SheetItem>
             ))
           )}

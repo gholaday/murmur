@@ -8,7 +8,7 @@ import { api } from "../api";
 import { Cover } from "../cover";
 import { CheckIcon, FilterIcon, LockIcon, MoreIcon, SearchIcon } from "../icons";
 import { BackButton, EmptyState, SearchBox, SectionTitle } from "../ui";
-import { Sheet, SheetItem } from "../sheet";
+import { ConfirmSheet, Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
 export function ShowView({
@@ -87,7 +87,7 @@ export function ShowView({
       <div className="hero" style={{ "--tint": podcast.coverColor ?? "#1b3532" } as React.CSSProperties}>
         <div className="hero-bar">
           <BackButton fallback="/podcasts" />
-          <button type="button" className="icon-btn" aria-label="Podcast options" onClick={() => setSheet("menu")}>
+          <button type="button" className="icon-btn" aria-label="More options" onClick={() => setSheet("menu")}>
             <MoreIcon />
           </button>
         </div>
@@ -241,37 +241,27 @@ export function ShowView({
         </SheetItem>
       </Sheet>
 
-      <Sheet open={sheet === "unsubscribe"} onClose={() => setSheet(null)} title={`Unsubscribe from ${podcast.title}?`}>
-        <p className="muted" style={{ margin: 0 }}>
-          Your listening history for this podcast is removed from your lists.
-        </p>
-        <div className="form-row">
-          <button type="button" className="btn" style={{ flex: 1 }} onClick={() => setSheet(null)}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            style={{ flex: 1 }}
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await api(`/api/podcasts/${podcast.id}`, { method: "DELETE" });
-                toast(`Unsubscribed from ${podcast.title}`);
-                router.push("/podcasts");
-                router.refresh();
-              } catch (err) {
-                toast.error(err instanceof Error ? err.message : "Couldn't unsubscribe.");
-                setBusy(false);
-                setSheet(null);
-              }
-            }}
-          >
-            Unsubscribe
-          </button>
-        </div>
-      </Sheet>
+      <ConfirmSheet
+        open={sheet === "unsubscribe"}
+        title={`Unsubscribe from ${podcast.title}?`}
+        message="Your listening history for this podcast is removed from your lists."
+        confirmLabel="Unsubscribe"
+        busy={busy}
+        onConfirm={async () => {
+          setBusy(true);
+          try {
+            await api(`/api/podcasts/${podcast.id}`, { method: "DELETE" });
+            toast(`Unsubscribed from ${podcast.title}`);
+            router.push("/podcasts");
+            router.refresh();
+          } catch (err) {
+            toast.error(errorText(err, "Couldn't unsubscribe."));
+            setBusy(false);
+            setSheet(null);
+          }
+        }}
+        onClose={() => setSheet(null)}
+      />
     </>
   );
 }

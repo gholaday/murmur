@@ -19,8 +19,9 @@ Murmur is a self-hosted audiobook, podcast and music server with a web player an
 ## Commits and releases
 
 - Commit only when asked. Release only when asked.
-- To release: bump the version in `README.md`, `docker-compose.yml` (all three images), `apps/server/package.json` and `addons/video/package.json`, commit as "Release x.y.z", tag `vX.Y.Z`, and push main and the tag.
+- To release: bump the version in `apps/server/package.json` and `addons/video/package.json`, commit as "Release x.y.z", tag `vX.Y.Z`, and push main and the tag. `README.md` and `docker-compose.yml` use the `latest` images, so they don't change.
 - The release commit's body becomes the GitHub release notes, which Settings shows as What's new. Write it in plain words.
+- From 1.0, follow [Versions and upgrades](docs/spec/versions.md): within a major version the API only grows, and anything that would break an older app or need a manual step waits for the next major.
 
 ## UI
 

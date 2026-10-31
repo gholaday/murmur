@@ -1083,7 +1083,8 @@ function setList(l: UpNextDto, save: "list" | "index" | false) {
   set({ upNext: l, upNextLoaded: true });
   queryClient.setQueryData(keys.upNext, l);
   if (save === "index") void api(apiPaths.upNext, { method: "PATCH", body: { index: l.index } }).catch(() => undefined);
-  if (save === "list") void api(apiPaths.upNext, { method: "PUT", body: toRefs(l) }).catch(() => undefined);
+  // A change you made (not just moving along the list) says so when it didn't save.
+  if (save === "list") void api(apiPaths.upNext, { method: "PUT", body: toRefs(l) }).catch(() => toast.error("Couldn't save the queue."));
 }
 
 export async function refreshUpNext() {

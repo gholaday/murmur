@@ -375,7 +375,7 @@ function BrowseRow({ notAdded, fresh }: { notAdded: number; fresh: number }) {
     <CardLink
       icon={<BrowseIcon size={22} color={t.accent} />}
       title="Browse"
-      sub={notAdded > 0 ? `${plural(notAdded, "album")} you haven't added` : "Everything is in your music"}
+      sub={notAdded > 0 ? `${plural(notAdded, "album")} you haven't added` : "Everything's in your music"}
       label={fresh ? `Browse, ${fresh} new` : "Browse"}
       onPress={() => router.push("/browse")}
       badge={

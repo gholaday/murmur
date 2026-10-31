@@ -25,5 +25,5 @@ These are left out on purpose; each can be added later if it earns its place.
 
 ---
 
-| [← Deployment and development](deployment.md) | [Contents](README.md) |   |
+| [← Versions and upgrades](versions.md) | [Contents](README.md) |   |
 | :--- | :---: | ---: |

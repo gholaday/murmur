@@ -30,7 +30,7 @@ export default function Login() {
     try {
       await session.signIn(server, username.trim(), password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-in failed.");
+      setError(err instanceof Error ? err.message : "Couldn't sign in. Try again.");
       setBusy(false);
     }
   }
@@ -50,7 +50,7 @@ export default function Login() {
       >
         <View style={{ alignItems: "center", gap: 14 }}>
           <Logo color={t.accent} />
-          <Text variant="title">Murmur</Text>
+          <Text variant="title">Sign in to Murmur</Text>
         </View>
 
         <View style={{ gap: 16 }}>

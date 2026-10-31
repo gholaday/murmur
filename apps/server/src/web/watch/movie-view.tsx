@@ -154,9 +154,9 @@ export function MovieView({ movie }: { movie: MovieDetail }) {
       {movie.description ? (
         <>
           <p className={`description ${expanded ? "" : "clamped"}`}>{movie.description}</p>
-          {!expanded && movie.description.length > 220 ? (
-            <button type="button" className="more-link" onClick={() => setExpanded(true)}>
-              More
+          {movie.description.length > 220 ? (
+            <button type="button" className="more-link" onClick={() => setExpanded((e) => !e)}>
+              {expanded ? "Less" : "More"}
             </button>
           ) : null}
         </>

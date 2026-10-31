@@ -74,6 +74,43 @@ export function useBackdropClose(onClose: () => void) {
 }
 
 /** A full-width row button inside a sheet. */
+/** Asks before something can't be undone: a title, one line on what happens, then Cancel and the action, as in the app. */
+export function ConfirmSheet({
+  open,
+  title,
+  message,
+  confirmLabel,
+  danger = true,
+  busy,
+  onConfirm,
+  onClose,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  danger?: boolean;
+  busy?: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet open={open} onClose={onClose} title={title}>
+      <p className="muted" style={{ margin: 0 }}>
+        {message}
+      </p>
+      <div className="form-row">
+        <button type="button" className="btn" style={{ flex: 1 }} onClick={onClose}>
+          Cancel
+        </button>
+        <button type="button" className={`btn ${danger ? "btn-danger" : "btn-primary"}`} style={{ flex: 1 }} disabled={busy} onClick={onConfirm}>
+          {confirmLabel}
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
 export function SheetItem({
   children,
   onClick,

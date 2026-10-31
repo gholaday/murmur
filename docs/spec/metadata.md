@@ -59,7 +59,7 @@ _Admin only, web._
 
 Every card has an options menu, the same way for books, albums, movies and shows: a long press in the app, the ⋯ or a right-click on the web. The ⋯ on the item's own page opens the same items, for everyone, with admin items last:
 - **Book:** Play, Add to Play next (books not yet started), Mark as finished; for admins Edit…, Match…, Mark as matched. Rescanning is You > Library's Rescan, or one book from Edit's Files tab.
-- **Album:** Play, Add to Up Next, Add to playlist…, Go to the artist, Add to or Remove from your music; for admins Match….
+- **Album:** Play, Add to queue, Add to playlist…, Go to the artist, Add to or Remove from your music; for admins Match….
 - **Movie or show:** Play or Resume, Mark as watched; for admins Edit… and Match… (with TMDB). The edit dialog has five tabs:
 
 | Tab | What it does |
@@ -72,7 +72,7 @@ Every card has an options menu, the same way for books, albums, movies and shows
 
 Edits are stored in the same override row as a match, so a rescan keeps them and the files are never touched.
 
-**You > Library** (admins) holds the library's upkeep, so the tabs stay clean for everyone. A section per kind (Books, Music, Movies and shows) shows its count and last scan with a Rescan button, then its lists and folders: **Needs attention** (books with no cover, no author or missing files), **Not matched** for books and for albums, each with Match all. `GET /api/library/admin` gives the web and the app the same counts.
+**You > Library** (admins only) holds the library's upkeep, so the tabs stay clean for everyone. A section per kind (Books, Music, Movies and shows) shows its count and last scan with a Rescan button, then its lists and folders: **Needs attention** (books with no cover, no author or missing files), **Not matched** for books and for albums, each with Match all. `GET /api/library/admin` gives the web and the app the same counts. **You > Podcasts** is its own row: the episode cache for admins, and on the web, OPML export for everyone (import is in the Podcasts tab's Add sheet). On the web it's hidden with the Podcasts tab for anyone who isn't an admin; in the app, which has no OPML export, it's for admins only.
 
 **Podcasts:** show and episode titles, artwork, descriptions and durations come from the RSS feed itself.
 

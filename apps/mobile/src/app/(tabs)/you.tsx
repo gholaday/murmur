@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { router } from "expo-router";
-import { plural, THEME_CHOICES } from "@murmur/shared/client";
+import { THEME_CHOICES } from "@murmur/shared/client";
 import { DownloadIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { PageTitle, useTopInset } from "@/components/page";
-import { Card, useEpisodeCache, useHealth, useServerVersion, useUsers } from "@/components/settings";
+import { Card, useServerVersion, useUsers } from "@/components/settings";
 import { NavRow } from "@/components/settings-page";
 import { LibraryTiles, ListeningStats, StatsBoundary } from "@/components/stats";
 import { CardLink, Segmented } from "@/components/ui";
@@ -74,11 +74,8 @@ function DownloadsRow() {
 function SettingsRows({ admin, username }: { admin: boolean; username?: string }) {
   const mode = useThemeMode();
   const version = useServerVersion().data;
-  // Admin-only values; listeners can't read these.
-  const health = useHealth(admin).data;
-  const cache = useEpisodeCache(admin).data;
+  // Admin-only; listeners can't read it.
   const users = useUsers(admin).data;
-  const perShow = cache?.settings.episodesPerShow;
 
   return (
     <Card>
@@ -88,8 +85,8 @@ function SettingsRows({ admin, username }: { admin: boolean; username?: string }
       <NavRow title="Server" value={version ? `Murmur ${version.version}` : null} href="/server" />
       {admin ? (
         <>
-          <NavRow title="Library" value={health ? plural(health.library.books, "book") : null} href="/library" />
-          <NavRow title="Episode cache" value={perShow === undefined ? null : perShow === 0 ? "Off" : `${perShow} per show`} href="/episode-cache" />
+          <NavRow title="Library" href="/library" />
+          <NavRow title="Podcasts" href="/episode-cache" />
           <NavRow title="Users" value={users ? String(users.length) : null} href="/users" />
         </>
       ) : null}

@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { EyeIcon, EyeOffIcon } from "@/web/icons";
 
 export function LoginForm({ setup }: { setup: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [shown, setShown] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -34,14 +36,19 @@ export function LoginForm({ setup }: { setup: boolean }) {
       </label>
       <label className="label">
         Password
-        <input
-          className="input"
-          name="password"
-          type="password"
-          autoComplete={setup ? "new-password" : "current-password"}
-          minLength={setup ? 8 : 1}
-          required
-        />
+        <span className="input-with-button">
+          <input
+            className="input"
+            name="password"
+            type={shown ? "text" : "password"}
+            autoComplete={setup ? "new-password" : "current-password"}
+            minLength={setup ? 8 : 1}
+            required
+          />
+          <button type="button" className="icon-btn" aria-label={shown ? "Hide password" : "Show password"} onClick={() => setShown((s) => !s)}>
+            {shown ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
+          </button>
+        </span>
       </label>
       {error ? <p className="error" role="alert">{error}</p> : null}
       <button className="btn btn-primary btn-big" type="submit" disabled={busy}>

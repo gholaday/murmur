@@ -562,9 +562,11 @@ function ContinueCard({ book, width }: { book: BookSummary; width: number }) {
         <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14, color: now ? t.accent : t.text }}>
           {book.title}
         </Text>
-        <Text variant="small" numberOfLines={1}>
-          {book.author ?? "Unknown author"}
-        </Text>
+        {book.author ? (
+          <Text variant="small" numberOfLines={1}>
+            {book.author}
+          </Text>
+        ) : null}
         <Text variant="small">{timeLeft(book.durationSec, book.progress!.positionSec)}</Text>
       </View>
     </Pressable>

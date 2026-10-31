@@ -64,14 +64,14 @@ export function UpNextSheet({ open, onClose }: { open: boolean; onClose: () => v
   const clear = () => {
     const before = upNext;
     player.clearUpNext();
-    toast("Up Next cleared", { action: { label: "Undo", onClick: () => player.restoreUpNext(before) } });
+    toast("Queue cleared", { action: { label: "Undo", onClick: () => player.restoreUpNext(before) } });
   };
 
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      title="Up Next"
+      title="Queue"
       count={Math.max(0, waiting)}
       sub={upNext.source ? `From ${upNext.source.title}` : null}
       action={
@@ -86,7 +86,7 @@ export function UpNextSheet({ open, onClose }: { open: boolean; onClose: () => v
       {!player.upNextLoaded ? (
         <QueueRowsSkeleton />
       ) : items.length === 0 ? (
-        item?.type === "book" ? null : <EmptyState title="Up Next is empty" />
+        item?.type === "book" ? null : <EmptyState title="The queue is empty" />
       ) : (
         <div ref={sortable.listRef} className={`list ${sortable.sorting ? "sorting" : ""}`}>
           {items.map((e, i) => (

@@ -341,49 +341,6 @@ export function SwitchRow({
   );
 }
 
-/**
- * A danger button that asks once in place: the first click turns it into Keep and the
- * confirm button, so nothing saved is deleted by a stray click.
- */
-export function ConfirmRemove({
-  label = "Remove",
-  confirmLabel = label,
-  busy,
-  onConfirm,
-}: {
-  label?: string;
-  confirmLabel?: string;
-  busy?: boolean;
-  onConfirm: () => Promise<unknown> | void;
-}) {
-  const [asking, setAsking] = useState(false);
-  if (!asking) {
-    return (
-      <button type="button" className="btn btn-danger" style={{ flexShrink: 0 }} onClick={() => setAsking(true)}>
-        {label}
-      </button>
-    );
-  }
-  return (
-    <span style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-      <button type="button" className="btn" onClick={() => setAsking(false)}>
-        Keep
-      </button>
-      <button
-        type="button"
-        className="btn btn-danger"
-        disabled={busy}
-        onClick={async () => {
-          await onConfirm();
-          setAsking(false);
-        }}
-      >
-        {confirmLabel}
-      </button>
-    </span>
-  );
-}
-
 /** Full-width tabs for switching a whole screen between two or three views, like Stats and Settings on You. */
 export function Segmented<T extends string>({
   options,

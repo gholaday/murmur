@@ -155,7 +155,7 @@ export default function PlaylistScreen() {
           <Sheet open={more} onClose={() => setMore(false)} title={p.name}>
             {p.tracks.length ? (
               <SheetItem
-                label="Add to Up Next"
+                label="Add to queue"
                 onPress={() => {
                   setMore(false);
                   void addSongsToUpNext(p.tracks);
@@ -194,6 +194,7 @@ export default function PlaylistScreen() {
             title={`Delete ${p.name}?`}
             message="The playlist goes for good. Its songs stay in your music."
             confirmLabel="Delete"
+            danger
             onConfirm={() => {
               deletePlaylist(p.id).then(
                 () => {

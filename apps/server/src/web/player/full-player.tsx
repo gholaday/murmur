@@ -397,7 +397,7 @@ export function FullPlayer() {
             type="button"
             className="play-btn"
             onClick={p.toggle}
-            aria-label={p.playing ? "Pause" : "Play"}
+            aria-label={bookFinished(item.type, item.durationSec, pos, p.playing || p.loading) ? "Play from the start" : p.playing ? "Pause" : "Play"}
             data-loading={p.loading || undefined}
           >
             {p.playing ? <PauseIcon size={32} /> : <PlayIcon size={32} />}
@@ -522,7 +522,7 @@ export function FullPlayer() {
         <button type="button" className="tile" onClick={() => setSheet("upnext")}>
           <QueueIcon size={20} />
           <span>
-            Up Next
+            Queue
             {waiting ? <span className="count-pill">{waiting}</span> : null}
           </span>
         </button>
@@ -581,8 +581,8 @@ export function FullPlayer() {
         ))}
         {item.podcastId ? (
           <div className="sheet-group">
-            <div className="sheet-group-title">{item.subtitle ?? "This show"}</div>
-            <Chips kind="radio" label="Ads for this show">
+            <div className="sheet-group-title">{item.subtitle ?? "This podcast"}</div>
+            <Chips kind="radio" label="Ads for this podcast">
               {[{ id: null, label: "Default" }, ...AD_MODES].map((m) => (
                 <Chip
                   key={m.id ?? "default"}

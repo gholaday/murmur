@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   apiPaths,
   type EpisodeWithShow,
+  errorText,
   NEW_EPISODES_PAGE,
   newByShow,
   PODCAST_LIST_TITLES,
@@ -287,7 +288,7 @@ function PodcastSearch({ initialQuery, onAdded }: { initialQuery: string; onAdde
       toast(`Subscribed to ${podcast.title}`);
       onAdded(podcast.id);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't subscribe.");
+      toast.error(errorText(err, "Couldn't add that podcast."));
     } finally {
       setAdding(null);
     }
@@ -404,7 +405,7 @@ function AddPodcastSheet({
             className="input"
             type="url"
             inputMode="url"
-            placeholder="https://feeds.example.com/show.xml"
+            placeholder="https://example.com/feed.xml"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             required

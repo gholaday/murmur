@@ -15,8 +15,8 @@ Murmur reads your audiobook folders (the Audiobookshelf layout, `Author/[Series]
 Murmur is inspired by [Audiobookshelf](https://www.audiobookshelf.org/) and [Plex](https://www.plex.tv/). It reads Audiobookshelf's book layout and Plex's movie and show layout, so an existing library works without moving anything, and streams video the way Plex does: as it is where the device can play it, and converted on the server where it can't. It aims for a smaller feature set that's simple to run.
 
 - **Audiobooks:** single-file `.m4b` and multi-file books, chapters, series, home shelves (including More like your last book and Short listens), a Play next shelf you put in order, and optional metadata matching from Audible (always confirmed by you).
-- **Podcasts:** search or add by RSS URL, OPML import and export, Up Next, and the newest episodes kept on the server.
-- **Music (optional):** albums, artists and songs read from their tags, your own music and playlists for each person, a Home with Jump back in, On repeat and New albums, songs in Up Next, and album matching from MusicBrainz and Deezer.
+- **Podcasts:** search or add by RSS URL, OPML import and export, a queue, and the newest episodes kept on the server.
+- **Music (optional):** albums, artists and songs read from their tags, your own music and playlists for each person, a Home with Jump back in, On repeat and New albums, songs in the queue, and album matching from MusicBrainz and Deezer.
 - **Movies and shows (optional):** a Watch tab with Continue watching, Next episodes, Next in the collection and More like, from `Title (Year)` movie folders and `Show/Season` folders. Posters, descriptions and episode names come from TMDB. Files play as they are where the device can, and otherwise are converted on the server, on its GPU where it has one, with a choice of audio track, a 720p option for slow connections, the next episode lined up, and downloads to the phone. A separate add-on, `murmur-video`, does the video work; set up in [addons/video](addons/video/README.md).
 - **Stats:** time spent on books, podcasts, music and video by week, month, year or all time, your streak, and what you played most.
 - **Players:** a web player and an Android app with background playback, offline downloads, speed control and a sleep timer, and for video, picture in picture and a landscape player. On an iPhone, the web player can be added to the home screen to open like an app.
@@ -28,11 +28,11 @@ Murmur is inspired by [Audiobookshelf](https://www.audiobookshelf.org/) and [Ple
 ```yaml
 services:
   murmur:
-    image: ghcr.io/gholaday/murmur:0.11.0
+    image: ghcr.io/gholaday/murmur:latest
     container_name: murmur
     restart: unless-stopped
     ports:
-      - "3333:3000"
+      - '3333:3000'
     environment:
       - PUID=1000
       - PGID=1000
@@ -60,31 +60,31 @@ The [spec](docs/spec/README.md) explains how Murmur works and why, one page per 
 
 All optional. With the example compose file, keys and secrets go in `murmur.env` beside it (copy [`murmur.env.example`](murmur.env.example)), and the rest in its `environment:` list.
 
-| Variable | Default | |
-| --- | --- | --- |
-| `PUID` / `PGID` | `1000` | User and group that own the files in `/data` and `/cache` |
-| `TZ` | `UTC` | Time zone, for the nightly backup hour |
-| `DATA_DIR` | `/data` | Database, covers and backups |
-| `LIBRARY_DIR` | `/audiobooks` | Development only; in Docker the volume mounted at `/audiobooks` is the book folder, and any mounted beside it as `/audiobooks-<name>` are more (the same goes for music, movies and shows) |
-| `MUSIC_DIR` | `/music` | Development only; in Docker the volume mounted at `/music` is the music folder. Without one, Music is empty |
-| `MOVIES_DIR` / `SHOWS_DIR` | `/movies` / `/shows` | Development only; in Docker the volumes mounted at `/movies` and `/shows` are the movie and show folders. Without them, Watch is empty |
-| `AUDIBLE_REGION` | `us` | Store used by Match: `us`, `uk`, `ca`, `au`, `de`, `fr`, `it`, `es`, `in`, `jp` |
-| `GOOGLE_BOOKS_API_KEY` | | Optional, free from the [Google Cloud console](https://console.cloud.google.com/apis/library/books.googleapis.com) (enable the Books API, then create an API key). Without one, Match shares Google's small per-address quota and may be told to wait |
-| `FEED_CHECK_MINUTES` | `30` | How often each podcast feed is checked; new episodes are downloaded right after |
-| `FETCH_ALLOW_PRIVATE` | `false` | Set `true` when podcast feeds or cover URLs live on your own LAN (a home server). The server's own addresses are always refused |
-| `WATCH_POLLING` | `false` | Set `true` for network mounts that don't report file changes |
-| `WATCH_DEBOUNCE_SECONDS` | `30` | Wait after the last file change before rescanning |
-| `PERIODIC_SCAN_MINUTES` | `360` | Safety-net rescan interval |
-| `MISSING_GRACE_DAYS` | `7` | Books whose files disappear are hidden after this long |
-| `BACKUP_HOUR` / `BACKUP_KEEP` | `3` / `7` | Nightly database backup hour and how many to keep |
-| `PROBE_CONCURRENCY` | `2` | Files read at once during a scan |
-| `EPISODE_CACHE_DIR` | `/cache` | Where podcast episodes are kept |
-| `EPISODE_CACHE_MAX_GB` | `20` | Space for cached episodes |
-| `TMDB_API_KEY` | | Optional, free from [themoviedb.org](https://www.themoviedb.org/settings/api) (the v3 key). Fills in posters, descriptions and episode names for movies and shows |
-| `TMDB_LANGUAGE` | `en-US` | Language for those details |
-| `VIDEO_URL` | `http://murmur-video:3001` | Where the video add-on is |
-| `UPDATE_CHECK` | `true` | Ask GitHub every 6 hours for the newest release, so Settings tells admins when an update is out. `false` turns it off |
-| `ADDON_SECRET` | | Turns on the add-ons. **At least 32 characters** (`openssl rand -hex 32`): with a shorter one Murmur keeps the add-ons off, and the add-ons refuse to start. The same value goes on `murmur-adscan` ([addons/adscan](addons/adscan/README.md)) and `murmur-video` ([addons/video](addons/video/README.md)) |
+| Variable                      | Default                    |                                                                                                                                                                                                                                                                                                            |
+| ----------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUID` / `PGID`               | `1000`                     | User and group that own the files in `/data` and `/cache`                                                                                                                                                                                                                                                  |
+| `TZ`                          | `UTC`                      | Time zone, for the nightly backup hour                                                                                                                                                                                                                                                                     |
+| `DATA_DIR`                    | `/data`                    | Database, covers and backups                                                                                                                                                                                                                                                                               |
+| `LIBRARY_DIR`                 | `/audiobooks`              | Development only; in Docker the volume mounted at `/audiobooks` is the book folder, and any mounted beside it as `/audiobooks-<name>` are more (the same goes for music, movies and shows)                                                                                                                 |
+| `MUSIC_DIR`                   | `/music`                   | Development only; in Docker the volume mounted at `/music` is the music folder. Without one, Music is empty                                                                                                                                                                                                |
+| `MOVIES_DIR` / `SHOWS_DIR`    | `/movies` / `/shows`       | Development only; in Docker the volumes mounted at `/movies` and `/shows` are the movie and show folders. Without them, Watch is empty                                                                                                                                                                     |
+| `AUDIBLE_REGION`              | `us`                       | Store used by Match: `us`, `uk`, `ca`, `au`, `de`, `fr`, `it`, `es`, `in`, `jp`                                                                                                                                                                                                                            |
+| `GOOGLE_BOOKS_API_KEY`        |                            | Optional, free from the [Google Cloud console](https://console.cloud.google.com/apis/library/books.googleapis.com) (enable the Books API, then create an API key). Without one, Match shares Google's small per-address quota and may be told to wait                                                      |
+| `FEED_CHECK_MINUTES`          | `30`                       | How often each podcast feed is checked; new episodes are downloaded right after                                                                                                                                                                                                                            |
+| `FETCH_ALLOW_PRIVATE`         | `false`                    | Set `true` when podcast feeds or cover URLs live on your own LAN (a home server). The server's own addresses are always refused                                                                                                                                                                            |
+| `WATCH_POLLING`               | `false`                    | Set `true` for network mounts that don't report file changes                                                                                                                                                                                                                                               |
+| `WATCH_DEBOUNCE_SECONDS`      | `30`                       | Wait after the last file change before rescanning                                                                                                                                                                                                                                                          |
+| `PERIODIC_SCAN_MINUTES`       | `360`                      | Safety-net rescan interval                                                                                                                                                                                                                                                                                 |
+| `MISSING_GRACE_DAYS`          | `7`                        | Books whose files disappear are hidden after this long                                                                                                                                                                                                                                                     |
+| `BACKUP_HOUR` / `BACKUP_KEEP` | `3` / `7`                  | Nightly database backup hour and how many to keep                                                                                                                                                                                                                                                          |
+| `PROBE_CONCURRENCY`           | `2`                        | Files read at once during a scan                                                                                                                                                                                                                                                                           |
+| `EPISODE_CACHE_DIR`           | `/cache`                   | Where podcast episodes are kept                                                                                                                                                                                                                                                                            |
+| `EPISODE_CACHE_MAX_GB`        | `20`                       | Space for cached episodes                                                                                                                                                                                                                                                                                  |
+| `TMDB_API_KEY`                |                            | Optional, free from [themoviedb.org](https://www.themoviedb.org/settings/api) (the v3 key). Fills in posters, descriptions and episode names for movies and shows                                                                                                                                          |
+| `TMDB_LANGUAGE`               | `en-US`                    | Language for those details                                                                                                                                                                                                                                                                                 |
+| `VIDEO_URL`                   | `http://murmur-video:3001` | Where the video add-on is                                                                                                                                                                                                                                                                                  |
+| `UPDATE_CHECK`                | `true`                     | Ask GitHub every 6 hours for the newest release, so Settings tells admins when an update is out. `false` turns it off                                                                                                                                                                                      |
+| `ADDON_SECRET`                |                            | Turns on the add-ons. **At least 32 characters** (`openssl rand -hex 32`): with a shorter one Murmur keeps the add-ons off, and the add-ons refuse to start. The same value goes on `murmur-adscan` ([addons/adscan](addons/adscan/README.md)) and `murmur-video` ([addons/video](addons/video/README.md)) |
 
 The video add-on's settings (GPU, cache and the rest) are in [its README](addons/video/README.md). The movie and show folders go into both containers at the same paths.
 
@@ -106,15 +106,15 @@ pnpm typecheck
 pnpm test
 ```
 
-| Folder | |
-| --- | --- |
-| `apps/server` | Next.js server, API and web player |
-| `apps/mobile` | Expo Android app |
-| `packages/shared` | Types and schemas shared by server and app |
-| `addons/adscan` | Optional ad detection add-on (Python) |
-| `addons/video` | Optional video add-on: ffmpeg, streams and downloads for movies and shows |
-| [`docs/spec`](docs/spec/README.md) | How Murmur works and why, one page per area |
-| [`docs/DESIGN.md`](docs/DESIGN.md) | Colours, type, components and wording |
+| Folder                             |                                                                           |
+| ---------------------------------- | ------------------------------------------------------------------------- |
+| `apps/server`                      | Next.js server, API and web player                                        |
+| `apps/mobile`                      | Expo Android app                                                          |
+| `packages/shared`                  | Types and schemas shared by server and app                                |
+| `addons/adscan`                    | Optional ad detection add-on (Python)                                     |
+| `addons/video`                     | Optional video add-on: ffmpeg, streams and downloads for movies and shows |
+| [`docs/spec`](docs/spec/README.md) | How Murmur works and why, one page per area                               |
+| [`docs/DESIGN.md`](docs/DESIGN.md) | Colours, type, components and wording                                     |
 
 **Releasing:** push a tag like `v0.3.0` and GitHub Actions publishes the Murmur and add-on images, and attaches the signed Android APK to a GitHub release (the tag sets the app's version). The release notes, which Settings' What's new opens, are the tagged commit's message minus its title line, so describe the changes there in plain words. The APK is built with no secrets, then a separate job signs it. Signing needs the `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` repository secrets; the signing job runs in the `release` environment, which only `v*` tags can use. Actions are pinned to commit hashes, base images to digests, the ad add-on's Python packages to hashes (`addons/adscan/requirements.in` says how to remake them) and pnpm to its hash, and Dependabot moves them on monthly. pnpm also refuses npm versions less than seven days old.
 

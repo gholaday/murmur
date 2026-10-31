@@ -177,6 +177,7 @@ function AddPodcastSheet({
     try {
       const show = await api<PodcastSummary>("/api/podcasts", { method: "POST", body: { feedUrl: url.trim() } });
       setUrl("");
+      toast.show(`Subscribed to ${show.title}`);
       opened(show.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't add that feed.");

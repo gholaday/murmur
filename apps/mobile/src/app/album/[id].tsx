@@ -127,7 +127,7 @@ export default function AlbumScreen() {
       refreshControl={refresh}
       right={
         a ? (
-          <IconButton label="More for this album" onPress={() => setMore(true)}>
+          <IconButton label="More options" onPress={() => setMore(true)}>
             <MoreIcon size={22} color={t.text} />
           </IconButton>
         ) : null

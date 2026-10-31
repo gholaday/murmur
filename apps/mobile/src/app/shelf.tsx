@@ -61,7 +61,7 @@ function PlayNextList() {
         <BackRow />
         <PageTitle title={SHELF_TITLES.playnext} count={list.length} />
         {list.length === 0 ? (
-          books.isPending ? null : <Empty>Nothing here right now.</Empty>
+          books.isPending ? null : <Empty title="Nothing lined up">Add books from their menu, with Add to Play next.</Empty>
         ) : (
           <View style={{ marginTop: 8 }}>
             <SortableList

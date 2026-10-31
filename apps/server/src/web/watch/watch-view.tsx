@@ -163,7 +163,7 @@ export function WatchView({
             {searching ? <CloseIcon /> : <SearchIcon />}
           </button>
           {tab !== "home" ? (
-            <button type="button" className="icon-btn" aria-label="Sort" onClick={() => setSortOpen(true)}>
+            <button type="button" className="icon-btn" aria-label={`Sort, ${WATCH_SORTS.find((s) => s.id === sort)?.label}`} onClick={() => setSortOpen(true)}>
               <FilterIcon />
             </button>
           ) : null}
@@ -204,6 +204,9 @@ export function WatchView({
         )
       ) : tab === "home" ? (
         <>
+          {!home.continueWatching.length && !home.nextEpisodes.length && !nextInCollection.length && !moreLike?.items.length && !recentMovies.length && !recentShows.length ? (
+            <EmptyState>Nothing here yet.</EmptyState>
+          ) : null}
           {home.continueWatching.length ? (
             <section className="section">
               <SectionTitle title="Continue watching" />

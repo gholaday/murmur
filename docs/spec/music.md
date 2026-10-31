@@ -23,21 +23,21 @@ Music is optional. It comes from one or more music folders, set up like the book
   - New albums: found in the last 14 days, with the add button.
   The two More like shelves cover the whole server, not just your music, so album cards carry the add button. With none of them, Home says to play something.
 - Playlists: the New playlist tile comes first in the grid, the size of a playlist cover, and opens the name sheet.
-- Jump back in reads `recent_sources` (person, album or playlist, last played). A counted play sends its Up Next source with it (optional, so older apps still count plays); from an artist it records the song's album, and Your songs records nothing. Song plays from before any source was recorded fill in by album. Rows for deleted albums and playlists drop out when read.
+- Jump back in reads `recent_sources` (person, album or playlist, last played). A counted play sends its queue source with it (optional, so older apps still count plays); from an artist it records the song's album, and Your songs records nothing. Song plays from before any source was recorded fill in by album. Rows for deleted albums and playlists drop out when read.
 - Lists take `scope=mine` or `scope=all`; the server defaults to `all`.
 - There's no following of artists, so songs the server gets later aren't added for you.
 
 ## Playback
 
 - A song always plays from the start at 1×, keeps no position and is never marked finished. It counts as played after 30 seconds or half its length, whichever is shorter (`track_plays`, kept per person with no foreign key, like progress). The app keeps each counted play in a small outbox of its own and sends it when it can, so plays made offline still reach Jump back in and Stats: each carries an id, so a retry counts once (`track_play_ids`, kept for 30 days), and the time it was played, which the server caps at its own clock and never lets move a song's last play backwards.
-- Playing an album, an artist's songs, your songs or a playlist fills Up Next with its songs (see Up Next below) and remembers where they came from and their own order, for Shuffle.
+- Playing an album, an artist's songs, your songs or a playlist fills the queue with its songs (see Queue below) and remembers where they came from and their own order, for Shuffle.
 - While that music is playing, its Play button turns into Pause and Resume, like a book's.
 - Starting something new from a book's, album's or playlist's Play, an episode's play button or Downloads opens the full player. Pausing and resuming stay on the page, and tapping a song row doesn't open it.
 - Shuffle and Repeat work like Spotify's and are kept in your settings (`shuffle`, `repeat` in `users.prefs`), so they stay on between sessions and devices. The player for songs shows Repeat left of Previous and Shuffle right of Next, in the accent colour when on. The round Shuffle beside Play lights up while Shuffle is on; it turns Shuffle on and plays, or just toggles it when on or when that music is already playing.
   - With Shuffle on, Play starts on any song, and tapping a song plays it first and then the rest shuffled.
   - Turning Shuffle on mid-play moves the item playing to the top, with nothing above it, and shuffles all the album's other songs after it, in a new order each time. Songs you added that are still to come and waiting episodes keep their places. Turning it off puts the whole album back in its own order around the song playing: the songs before it go above it and the ones after it are still to come.
-  - Repeat goes off, all, one. Repeat one replays a song that ends by itself; pressing Next moves on and switches to Repeat all. Repeat all starts Up Next over from the top.
-- Previous restarts the song after 3 seconds. Otherwise it goes back one item in Up Next, and on Repeat all the first goes round to the last.
+  - Repeat goes off, all, one. Repeat one replays a song that ends by itself; pressing Next moves on and switches to Repeat all. Repeat all starts the queue over from the top.
+- Previous restarts the song after 3 seconds. Otherwise it goes back one item in the queue, and on Repeat all the first goes round to the last.
 - Two players take turns: the spare one loads the next song 10 seconds before the end and takes over at once.
 - Previous and next step through songs in the player, the media session and the notification. Speed is hidden. Shuffle and Repeat are only in the player, not the app's notification or Android Auto (both read the same media session).
 - Song time counts in the listening stats as Music.
@@ -46,19 +46,19 @@ Music is optional. It comes from one or more music folders, set up like the book
 
 - Playlists are each person's own (`playlists`, `playlist_tracks`). A playlist plays as its own context, and its songs can be reordered by dragging, removed, renamed or deleted. `.m3u` files in the music folders are not read.
 - A playlist's + button (and Add songs on an empty one) opens Add songs: search your songs, what you played recently (`GET /music/plays`) or Browse, and tap + to add a song to the end or its check to take it out, with Undo. Songs from Browse join the playlist without being added to your music.
-- Every song has a menu: Add to Up Next (Remove from Up Next while it's waiting there), Add to playlist, Go to album. An album's menu and a playlist's also have Add to Up Next, which adds all their songs in order.
+- Every song has a menu: Add to queue (Remove from queue while it's waiting there), Add to playlist, Go to album. An album's menu and a playlist's also have Add to queue, which adds all their songs in order.
 
-## Up Next
+## Queue
 
 One running list of songs and episodes, like YouTube Music's (`up_next`, one row per person: the items in order, which one is playing, and where the songs came from). The rules are shared (`packages/shared/src/up-next.ts`).
 
 - What played stays above the item playing and what's next follows it. The sheet opens on the item playing.
 - Tapping a row plays it; tapping the one playing pauses and resumes. Any row, played or not, can be dragged to a new place or taken out. Taking out the one playing starts the one after it.
 - Starting an album, artist, your songs or a playlist replaces the list with its songs. Starting an episode from its show, or a book, does the same with nothing but that episode. Either way, episodes you added that haven't played yet stay, after the new songs.
-- Add to Up Next on a song puts it right after the item playing and anything you added just before; an episode goes at the end. Something already waiting moves instead of doubling up.
+- Add to queue on a song puts it right after the item playing and anything you added just before; an episode goes at the end. Something already waiting moves instead of doubling up.
 - When an item ends, the next one plays. Books are never in the list: one playing sits above it, and when it ends, playback stops.
 - Clear empties what's still to come, with Undo.
-- Lists from before 0.5 (the album in `play_context` and the queue in `queue_items`) carry over the first time each person opens Up Next.
+- Lists from before 0.5 (the album in `play_context` and the queue in `queue_items`) carry over the first time each person opens the queue.
 
 **Downloads (app):** a whole album or one song. Downloaded has a Music section, and downloaded music plays offline.
 

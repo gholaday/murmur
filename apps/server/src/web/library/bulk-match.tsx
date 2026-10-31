@@ -314,7 +314,7 @@ function BulkRow({
         ) : (
           <div className="bulk-row-actions">
             <button type="button" className="btn btn-small" onClick={onSearch}>
-              {item.status === "none" ? "Search" : "Change"}
+              {item.status === "none" ? "Search" : "Search again"}
             </button>
             {item.status === "review" ? (
               <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={onApply}>

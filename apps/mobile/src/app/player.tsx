@@ -435,7 +435,7 @@ export default function Player() {
               <Text style={{ fontFamily: fonts.extrabold, fontSize: 16, color: t.text }}>{adShort}</Text>
             </Tile>
           ) : null}
-          <Tile label="Up Next" count={p.upNext.items.length - p.upNext.index - 1} onPress={() => setSheet("upnext")}>
+          <Tile label="Queue" count={p.upNext.items.length - p.upNext.index - 1} onPress={() => setSheet("upnext")}>
             <QueueIcon size={20} color={t.text} />
           </Tile>
         </View>
@@ -547,11 +547,11 @@ export default function Player() {
         {item.podcastId ? (
           <View style={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8, gap: 10 }}>
             <Text variant="bodyStrong" numberOfLines={1}>
-              {item.subtitle ?? "This show"}
+              {item.subtitle ?? "This podcast"}
             </Text>
             <Chips
               kind="radio"
-              label="Ads for this show"
+              label="Ads for this podcast"
               gap={8}
               wrap
               options={[{ id: null as AdMode | null, label: "Default" }, ...AD_MODES]}

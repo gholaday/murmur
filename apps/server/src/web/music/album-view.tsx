@@ -16,6 +16,7 @@ import {
   plural,
   songLength,
   songNumber,
+  songSub,
 } from "@murmur/shared/client";
 import { Cover } from "../cover";
 import { MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
@@ -66,7 +67,7 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
   return (
     <>
       <MusicBackRow>
-        <button type="button" className="icon-btn" aria-label="Album options" onClick={() => setMenu(true)}>
+        <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMenu(true)}>
           <MoreIcon />
         </button>
       </MusicBackRow>
@@ -166,6 +167,7 @@ export function ArtistView({ artist, isAdmin }: { artist: ArtistDetail; isAdmin:
   const [photo, setPhoto] = useState(false);
   const notFull = artist.albums.filter((a) => albumInMusic(a) !== "all");
   const anyAdded = artist.albums.some((a) => albumInMusic(a) !== "none");
+  const addedCount = artist.albums.length - notFull.length;
 
   return (
     <>
@@ -180,7 +182,7 @@ export function ArtistView({ artist, isAdmin }: { artist: ArtistDetail; isAdmin:
         <Cover className="artist-photo" src={artistImage(artist, 600)} color={null} title={artist.name} />
         <div style={{ minWidth: 0 }}>
           <h1 className="page-title">{artist.name}</h1>
-          <div className="page-sub">{artistSub(artist)}</div>
+          <div className="page-sub">{addedCount ? `${artistSub(artist)}, ${addedCount} in your music` : artistSub(artist)}</div>
         </div>
       </div>
       <Sheet open={menu} onClose={() => setMenu(false)} title={artist.name}>
@@ -206,7 +208,7 @@ export function ArtistView({ artist, isAdmin }: { artist: ArtistDetail; isAdmin:
           }}
         >
           <PlusIcon size={18} />
-          {anyAdded ? `Add the other ${plural(notFull.length, "album")}` : `Add all ${plural(notFull.length, "album")}`}
+          {anyAdded ? `Add the other ${plural(notFull.length, "album")}` : notFull.length === 1 ? "Add the album" : `Add all ${plural(notFull.length, "album")}`}
         </button>
       ) : null}
       {artist.albums.length ? (
@@ -224,7 +226,7 @@ export function ArtistView({ artist, isAdmin }: { artist: ArtistDetail; isAdmin:
               <SongRow
                 key={t.id}
                 track={t}
-                sub={t.album}
+                sub={songSub(t)}
                 toggle
                 onPlay={() => p.playMusic({ kind: "artist", refId: artist.id, title: artist.name, tracks: artist.appearsOn }, artist.appearsOn.indexOf(t))}
               />

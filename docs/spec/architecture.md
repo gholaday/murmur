@@ -60,7 +60,7 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | `podcasts` | Feed URL, title, author, artwork, last checked |
 | `episodes` | GUID, title, publish date, duration, audio URL, chapters file URL and the chapters found (unset until looked up, empty when there are none) |
 | `progress` | Per user and item: position, finished flag, last updated, speed |
-| `up_next` | Per user: Up Next as one running list of episodes and songs, with the one playing |
+| `up_next` | Per user: the queue as one running list of episodes and songs, with the one playing |
 | `play_next` | Per user: the ordered Play next books |
 | `episode_files`, `episode_ads`, `ad_scans` | The episode cache and ad times (see [Podcasts and ad detection](podcasts.md)) |
 
@@ -74,7 +74,7 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | Streaming | `GET /stream/book/:id/:fileIndex`, `GET /stream/episode/:id` (range requests) |
 | Podcasts | `GET/POST /podcasts`, `GET /podcasts/search?q=` (directory search, marks podcasts you follow), `GET /podcasts/preview?feedUrl=` (reads a feed without subscribing), `DELETE /podcasts/:id`, `GET /podcasts/:id/episodes`, `POST /podcasts/:id/refresh`, OPML import and export |
 | Progress | `GET /progress?since=`, `PUT /progress` (batched, newest update wins) |
-| Up Next | `GET /up-next`, `PUT /up-next` (the whole list), `PATCH /up-next` (where it's at), `POST /up-next` (add one item, or several in order) |
+| Queue | `GET /up-next`, `PUT /up-next` (the whole list), `PATCH /up-next` (where it's at), `POST /up-next` (add one item, or several in order) |
 | Play next | `POST/DELETE /books/:id/play-next`, `PUT /play-next` (order) |
 | Admin | `GET/POST/DELETE /users`, `GET /library/admin` (You > Library's counts and scans), `GET /library/folders` |
 | Video editing (admin) | `PATCH /watch/{movies,shows}/:id` (title, year, description), `POST /watch/{movies,shows}/:id/{poster,backdrop}` (upload, `{ url }` or `{ tmdbPath }`), `DELETE` the same to remove a chosen one, `GET .../{poster,backdrop}/options` (TMDB's pictures) |

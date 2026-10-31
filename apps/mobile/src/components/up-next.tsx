@@ -56,14 +56,14 @@ export function UpNextSheet({ open, onClose }: { open: boolean; onClose: () => v
   const clear = () => {
     const before = upNext;
     clearUpNext();
-    toast.show("Up Next cleared", { action: { label: "Undo", onPress: () => restoreUpNext(before) }, duration: 5000 });
+    toast.show("Queue cleared", { action: { label: "Undo", onPress: () => restoreUpNext(before) }, duration: 5000 });
   };
 
   const head = (
     <View>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 40 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Text variant="heading">Up Next</Text>
+          <Text variant="heading">Queue</Text>
           {waiting ? <CountPill count={waiting} /> : null}
         </View>
         {waiting ? (
@@ -95,7 +95,7 @@ export function UpNextSheet({ open, onClose }: { open: boolean; onClose: () => v
             ))}
           </Skeleton>
         ) : items.length === 0 ? (
-          book ? null : <Empty title="Up Next is empty" />
+          book ? null : <Empty title="The queue is empty" />
         ) : (
           <SortableList
             items={items.map((e, i) => ({ e, key: keys[i]! }))}

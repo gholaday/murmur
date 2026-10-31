@@ -48,7 +48,7 @@ function Head({ title }: { title: string }) {
 /** Up Next queue rows: thumb, three text lines, then the play, remove and drag buttons. */
 export function QueueRowsSkeleton({ count = 5 }: { count?: number }) {
   return (
-    <div className="list" aria-busy="true" aria-label="Loading Up Next">
+    <div className="list" aria-busy="true" aria-label="Loading the queue">
       {Array.from({ length: count }, (_, i) => (
         <div key={i} className="queue-row">
           <div className="skel thumb" />

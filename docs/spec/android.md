@@ -11,7 +11,7 @@ The layout follows the familiar podcast-app pattern: bottom tabs, a persistent m
 | Music | Your albums, artists, songs and playlists, with Browse for the rest |
 | You | Downloaded at the top in the app (what's saved on the phone, with its size), then Stats and Settings tabs: Stats has the listening stats and your library counts, Settings has account, appearance, playback, server, tabs, and admin settings |
 | Book, show, album, artist or playlist page | Header with cover and colour band, description, chapters, episodes or songs, download and play buttons |
-| Full-screen player | Large cover, chapter or song name, scrubber, speed, sleep timer, skip buttons, chapter list, and an Up Next tile with what's still to come that opens the running list (what played, what's playing and what's next; drag to reorder, remove, Clear) |
+| Full-screen player | Large cover, chapter or song name, scrubber, speed, sleep timer, skip buttons, chapter list, and a Queue tile with what's still to come that opens the running list (what played, what's playing and what's next; drag to reorder, remove, Clear) |
 
 Podcasts, Music and Watch are turned on and off under You > Tabs, and that alone decides whether they show; Music and Watch start off. Books and You are always there. A shown tab with no folder set up has an empty state that, for admins, names the folder to mount.
 

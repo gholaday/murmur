@@ -299,7 +299,8 @@ interface PlayerApi {
   setExpanded: (open: boolean) => void;
   /** Marks the current item finished (or not) and saves it; resolves once saved. */
   markCurrent: (finished: boolean) => Promise<void>;
-  stop: () => void;
+  /** Saves where it was and unloads; resolves once that save is done (signing out waits for it). */
+  stop: () => Promise<void>;
 }
 
 const PlayerContext = createContext<PlayerApi | null>(null);
@@ -511,7 +512,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setUpNextState(l);
     if (save === "index") void api(apiPaths.upNext, { method: "PATCH", body: { index: l.index } }).catch(() => undefined);
     // A change you made (not just moving along the list) says so when it didn't save.
-    if (save === "list") void api(apiPaths.upNext, { method: "PUT", body: toRefs(l) }).catch(() => toast.error("Couldn't save Up Next."));
+    if (save === "list") void api(apiPaths.upNext, { method: "PUT", body: toRefs(l) }).catch(() => toast.error("Couldn't save the queue."));
   }, []);
 
   const [shuffle, setShuffleState] = useState(false);
@@ -913,9 +914,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const stop = useCallback(() => {
-    if (audio.current && !audio.current.paused) save();
+    const saving = audio.current && !audio.current.paused ? save() : flush();
     unload();
-  }, [save, unload]);
+    return saving ?? Promise.resolve();
+  }, [flush, save, unload]);
 
   const removeAt = useCallback(
     (index: number) => {

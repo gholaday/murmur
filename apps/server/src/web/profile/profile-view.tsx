@@ -31,12 +31,12 @@ import {
   plural,
 } from "@murmur/shared/client";
 import { api } from "../api";
-import { PlusIcon, RefreshIcon } from "../icons";
+import { RefreshIcon } from "../icons";
 import { AD_MODES, adPrefsStore, useAdPrefs } from "../player/ad-prefs";
 import { usePlayer } from "../player/engine";
-import { Sheet } from "../sheet";
+import { ConfirmSheet, Sheet } from "../sheet";
 import { applyTheme, currentTheme } from "../theme";
-import { BackRow, Chip, Chips, ConfirmRemove, Segmented, Setting, SettingLink, SettingsCard, SettingSub, StatTile, SwitchRow } from "../ui";
+import { BackRow, Chip, Chips, Segmented, Setting, SettingLink, SettingsCard, SettingSub, StatTile, SwitchRow } from "../ui";
 import { SECTIONS, type SettingsSection } from "./sections";
 import { ListeningStats } from "./stats";
 
@@ -108,17 +108,7 @@ export function ProfileView({
           {section === "account" ? (
             <>
               <PasswordForm username={user.username} isAdmin={user.isAdmin} />
-              <button
-                type="button"
-                className="btn"
-                onClick={async () => {
-                  player.stop();
-                  await fetch("/api/auth/logout", { method: "POST" });
-                  window.location.href = "/login";
-                }}
-              >
-                Sign out
-              </button>
+              <SignOut onSignOut={player.stop} />
             </>
           ) : section === "appearance" ? (
             <ThemePicker />
@@ -130,50 +120,9 @@ export function ProfileView({
               {server.backup ? <BackupCard backup={server.backup} /> : null}
               {watch.enabled ? <TmdbCredit /> : null}
             </>
-          ) : section === "library" && libraryAdmin ? (
+          ) : section === "library" ? (
             <>
-              <h2 className="section-title">Books</h2>
-              <SettingsCard>
-                <ScanRow title={plural(libraryAdmin.books.total, "book")} scan={libraryAdmin.books.scan} url="/api/library/scan" kind="books" />
-                <SettingLink title="Needs attention" dot={libraryAdmin.books.attention ? "warn" : undefined} value={plural(libraryAdmin.books.attention, "book")} href="/you/library/attention" />
-                <SettingLink title="Not matched" value={plural(libraryAdmin.books.unmatched, "book")} href="/you/library/unmatched" />
-              </SettingsCard>
-              <FoldersCard folders={folders} />
-              <h2 className="section-title">Music</h2>
-              <SettingsCard>
-                <ScanRow title={plural(libraryAdmin.music.albums, "album")} scan={libraryAdmin.music.scan} url="/api/music/scan" kind="music" />
-                <SettingLink title="Not matched" value={plural(libraryAdmin.music.unmatched, "album")} href="/you/library/albums" />
-              </SettingsCard>
-              {musicFolders.length === 0 ? (
-                <p className="muted small" style={{ margin: 0 }}>
-                  Mount your music at /music.
-                </p>
-              ) : (
-                <FoldersCard kind="music" folders={musicFolders} />
-              )}
-              <h2 className="section-title">Movies and shows</h2>
-              <SettingsCard>
-                <ScanRow
-                  title={`${plural(libraryAdmin.watch.movies, "movie")} and ${plural(libraryAdmin.watch.shows, "show")}`}
-                  scan={libraryAdmin.watch.scan}
-                  url="/api/watch/scan"
-                  kind="watch"
-                />
-                {video ? (
-                  <Setting
-                    title="Video"
-                    dot={video.problem ? "warn" : "ok"}
-                    sub={<SettingSub error={!!video.problem}>{video.problem ?? video.working}</SettingSub>}
-                  />
-                ) : null}
-              </SettingsCard>
-              {movieFolders.length + showFolders.length === 0 ? (
-                <p className="muted small" style={{ margin: 0 }}>
-                  Mount your movies at /movies and shows at /shows.
-                </p>
-              ) : null}
-              {movieFolders.length ? <FoldersCard kind="movies" folders={movieFolders} /> : null}
-              {showFolders.length ? <FoldersCard kind="shows" folders={showFolders} /> : null}
+              {libraryAdmin ? <LibraryAdmin libraryAdmin={libraryAdmin} folders={folders} musicFolders={musicFolders} movieFolders={movieFolders} showFolders={showFolders} video={video} /> : null}
             </>
           ) : section === "podcasts" ? (
             <>
@@ -195,15 +144,12 @@ export function ProfileView({
       </>
     );
   }
-
   const statsKinds = statsKindsShown(tabs);
 
   const values: Partial<Record<SettingsSection, string | null>> = {
     account: user.username,
     appearance: THEME_CHOICES.find((t) => t.id === theme)?.label,
     server: `Murmur ${server.version}`,
-    library: plural(server.books, "book"),
-    podcasts: plural(shows, "show"),
     users: String(users.length),
   };
 
@@ -230,17 +176,18 @@ export function ProfileView({
           <section className="section">
             <h2 className="section-title">Your library</h2>
             <div className="stats-tiles library-tiles">
-              <StatTile value={server.books} label="Books" />
-              {statsKinds.includes("episode") ? <StatTile value={shows} label="Podcasts" /> : null}
-              {statsKinds.includes("music") ? <StatTile value={music.mine.albums} label="Albums" /> : null}
-              {statsKinds.includes("watch") && watch.movies ? <StatTile value={watch.movies} label="Movies" /> : null}
-              {statsKinds.includes("watch") && watch.shows ? <StatTile value={watch.shows} label="Shows" /> : null}
+              <StatTile value={server.books} label={server.books === 1 ? "Book" : "Books"} />
+              {statsKinds.includes("episode") ? <StatTile value={shows} label={shows === 1 ? "Podcast" : "Podcasts"} /> : null}
+              {statsKinds.includes("music") ? <StatTile value={music.mine.albums} label={music.mine.albums === 1 ? "Album" : "Albums"} /> : null}
+              {statsKinds.includes("watch") && watch.movies ? <StatTile value={watch.movies} label={watch.movies === 1 ? "Movie" : "Movies"} /> : null}
+              {statsKinds.includes("watch") && watch.shows ? <StatTile value={watch.shows} label={watch.shows === 1 ? "Show" : "Shows"} /> : null}
             </div>
           </section>
         </>
       ) : (
         <section className="section">
           <SettingsCard>
+            {/* Library holds only Podcasts for everyone but admins, so it goes when that tab is hidden. */}
             {SECTIONS.filter((s) => (user.isAdmin || !s.admin) && (s.id !== "podcasts" || tabs.podcasts || user.isAdmin)).map((s) => (
               <SettingLink key={s.id} title={s.title} value={values[s.id]} href={`/you/${s.id}`} />
             ))}
@@ -315,7 +262,7 @@ function PlaybackCard({
       ) : null}
       {watch ? <SwitchRow title="Play next episode" label="Play next episode" checked={nextOn} onChange={toggleNext} /> : null}
       {adsEnabled ? (
-        <Setting title="Ads" sub={<SettingSub>This device only</SettingSub>} wrap>
+        <Setting title="Ads" sub={<SettingSub>{`This device only. ${AD_MODES.find((m) => m.id === adPrefs.mode)?.hint}.`}</SettingSub>} wrap>
           <Chips kind="radio" label="Ads">
             {AD_MODES.map((m) => (
               <Chip key={m.id} selected={adPrefs.mode === m.id} onClick={() => adPrefsStore.set({ ...adPrefs, mode: m.id })}>
@@ -453,7 +400,7 @@ function PasswordForm({ username, isAdmin }: { username: string; isAdmin: boolea
           {/* Tells password managers whose password this is, so they don't suggest emails. */}
           <input className="sr-only" type="text" name="username" autoComplete="username" value={username} readOnly tabIndex={-1} aria-hidden="true" />
           <input className="input" name="currentPassword" type="password" autoComplete="current-password" placeholder="Current password" aria-label="Current password" required />
-          <input className="input" name="newPassword" type="password" autoComplete="new-password" placeholder="New password (8+ characters)" aria-label="New password" minLength={8} required />
+          <input className="input" name="newPassword" type="password" autoComplete="new-password" placeholder="8 or more characters" aria-label="New password" minLength={8} required />
           <input className="input" name="confirm" type="password" autoComplete="new-password" placeholder="Repeat new password" aria-label="Repeat new password" minLength={8} required />
           <button type="submit" className="btn btn-primary" disabled={busy}>
             Change password
@@ -555,11 +502,11 @@ function EpisodeCacheCard({ cache, onChanged }: { cache: EpisodeCacheStatusDto; 
   return (
     <SettingsCard>
       <Setting
-        title="Episodes kept ready per show"
+        title="Episodes kept ready per podcast"
         sub={<SettingSub error={!cache.available}>{cache.available ? `${gigabytes(cache.usedBytes)} of ${gigabytes(cache.maxBytes)} used` : cache.error}</SettingSub>}
         wrap
       >
-        <Chips kind="radio" label="Episodes kept ready per show">
+        <Chips kind="radio" label="Episodes kept ready per podcast">
           {KEEP_PER_SHOW_OPTIONS.map((n) => (
             <Chip
               key={n}
@@ -621,6 +568,66 @@ function EpisodeCacheCard({ cache, onChanged }: { cache: EpisodeCacheStatusDto; 
   );
 }
 
+/** You > Library for admins: each kind's count, scan and lists, then its folders. */
+function LibraryAdmin({
+  libraryAdmin,
+  folders,
+  musicFolders,
+  movieFolders,
+  showFolders,
+  video,
+}: {
+  libraryAdmin: LibraryAdminDto;
+  folders: LibraryFolderDto[];
+  musicFolders: LibraryFolderDto[];
+  movieFolders: LibraryFolderDto[];
+  showFolders: LibraryFolderDto[];
+  video: VideoStatus | null;
+}) {
+  return (
+    <>
+      <h2 className="section-title">Books</h2>
+      <SettingsCard>
+        <ScanRow title={plural(libraryAdmin.books.total, "book")} scan={libraryAdmin.books.scan} url="/api/library/scan" kind="books" />
+        <SettingLink title="Needs attention" dot={libraryAdmin.books.attention ? "warn" : undefined} value={plural(libraryAdmin.books.attention, "book")} href="/you/library/attention" />
+        <SettingLink title="Not matched" value={plural(libraryAdmin.books.unmatched, "book")} href="/you/library/unmatched" />
+      </SettingsCard>
+      <FoldersCard folders={folders} />
+      <h2 className="section-title">Music</h2>
+      <SettingsCard>
+        <ScanRow title={plural(libraryAdmin.music.albums, "album")} scan={libraryAdmin.music.scan} url="/api/music/scan" kind="music" />
+        <SettingLink title="Not matched" value={plural(libraryAdmin.music.unmatched, "album")} href="/you/library/albums" />
+      </SettingsCard>
+      {musicFolders.length === 0 ? (
+        <p className="muted small" style={{ margin: 0 }}>
+          Mount your music at /music.
+        </p>
+      ) : (
+        <FoldersCard kind="music" folders={musicFolders} />
+      )}
+      <h2 className="section-title">Movies and shows</h2>
+      <SettingsCard>
+        <ScanRow
+          title={`${plural(libraryAdmin.watch.movies, "movie")} and ${plural(libraryAdmin.watch.shows, "show")}`}
+          scan={libraryAdmin.watch.scan}
+          url="/api/watch/scan"
+          kind="watch"
+        />
+        {video ? (
+          <Setting title="Video" dot={video.problem ? "warn" : "ok"} sub={<SettingSub error={!!video.problem}>{video.problem ?? video.working}</SettingSub>} />
+        ) : null}
+      </SettingsCard>
+      {movieFolders.length + showFolders.length === 0 ? (
+        <p className="muted small" style={{ margin: 0 }}>
+          Mount your movies at /movies and shows at /shows.
+        </p>
+      ) : null}
+      {movieFolders.length ? <FoldersCard kind="movies" folders={movieFolders} /> : null}
+      {showFolders.length ? <FoldersCard kind="shows" folders={showFolders} /> : null}
+    </>
+  );
+}
+
 const FOLDER_KINDS = {
   books: { item: "book", things: "books" },
   music: { item: "album", things: "albums" },
@@ -647,42 +654,81 @@ function FoldersCard({ kind = "books", folders }: { kind?: keyof typeof FOLDER_K
   );
 }
 
+/** Sign out, after asking, as in the app. */
+function SignOut({ onSignOut }: { onSignOut: () => Promise<void> }) {
+  const [asking, setAsking] = useState(false);
+  return (
+    <>
+      <SettingsCard>
+        <Setting title="Sign out">
+          <button type="button" className="btn btn-danger" onClick={() => setAsking(true)}>
+            Sign out
+          </button>
+        </Setting>
+      </SettingsCard>
+      <ConfirmSheet
+        open={asking}
+        title="Sign out?"
+        message="Your progress is saved on the server."
+        confirmLabel="Sign out"
+        danger={false}
+        onConfirm={async () => {
+          // The last progress save has to land before the token goes.
+          await onSignOut();
+          await fetch("/api/auth/logout", { method: "POST" });
+          window.location.href = "/login";
+        }}
+        onClose={() => setAsking(false)}
+      />
+    </>
+  );
+}
+
 function UsersCard({ me, users, onChanged }: { me: UserDto; users: UserDto[]; onChanged: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [removing, setRemoving] = useState<UserDto | null>(null);
+
+  const remove = async (u: UserDto) => {
+    setBusy(true);
+    try {
+      await api(`/api/users/${u.id}`, { method: "DELETE" });
+      toast(`Removed ${u.username}`);
+      onChanged();
+    } catch (err) {
+      toast.error(errorText(err, `Couldn't remove ${u.username}.`));
+    } finally {
+      setBusy(false);
+      setRemoving(null);
+    }
+  };
 
   return (
     <SettingsCard>
       {users.map((u) => (
         <Setting key={u.id} title={`${u.username}${u.id === me.id ? " (you)" : ""}`} sub={<SettingSub>{u.isAdmin ? "Admin" : "Listener"}</SettingSub>}>
           {u.id !== me.id ? (
-            <ConfirmRemove
-              confirmLabel="Delete"
-              busy={busy}
-              onConfirm={async () => {
-                setBusy(true);
-                setError(null);
-                try {
-                  await api(`/api/users/${u.id}`, { method: "DELETE" });
-                  toast(`Removed ${u.username}`);
-                  onChanged();
-                } catch (err) {
-                  toast.error(errorText(err));
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            />
+            <button type="button" className="btn btn-danger" onClick={() => setRemoving(u)}>
+              Remove
+            </button>
           ) : null}
         </Setting>
       ))}
-      <div className="setting">
+      <Setting title="Add a user">
         <button type="button" className="btn" onClick={() => setAdding(true)}>
-          <PlusIcon size={18} />
-          Add user
+          Add
         </button>
-      </div>
+      </Setting>
+      <ConfirmSheet
+        open={removing !== null}
+        title={`Remove ${removing?.username ?? ""}?`}
+        message="Their account, listening progress and queue are deleted from the server."
+        confirmLabel="Remove"
+        busy={busy}
+        onConfirm={() => removing && void remove(removing)}
+        onClose={() => setRemoving(null)}
+      />
       {error && !adding ? <p className="error small">{error}</p> : null}
       <Sheet open={adding} onClose={() => setAdding(false)} title="Add a user">
         <form
@@ -714,7 +760,7 @@ function UsersCard({ me, users, onChanged }: { me: UserDto; users: UserDto[]; on
             className="input"
             name="password"
             type="password"
-            placeholder="Password (8+ characters)"
+            placeholder="8 or more characters"
             aria-label="New user's password"
             autoComplete="new-password"
             minLength={8}

@@ -22,7 +22,7 @@ import { Mixer } from "../mixer";
 import { DragIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
 import { type MusicSource, usePlayerControls, usePlayerSelect } from "../player/engine";
-import { Sheet, SheetItem } from "../sheet";
+import { ConfirmSheet, Sheet, SheetItem } from "../sheet";
 import { useSortable } from "../sortable";
 import { EmptyState } from "../ui";
 import { MusicBackRow } from "./album-view";
@@ -81,7 +81,7 @@ export function NewPlaylistButton() {
       const p = await api<PlaylistDetail>(apiPaths.playlists, { method: "POST", body: { name: name.trim() } });
       router.push(`/music/playlist/${p.id}`);
     } catch (err) {
-      toast.error(errorText(err));
+      toast.error(errorText(err, "Couldn't make that playlist."));
       setBusy(false);
     }
   };
@@ -118,7 +118,7 @@ function NameForm({ name, setName, busy, label, onSubmit }: { name: string; setN
     >
       <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Playlist name" aria-label="Playlist name" autoFocus />
       <button type="submit" className="btn btn-primary btn-big" disabled={busy || !name.trim()}>
-        {label}
+        {busy ? "Saving…" : label}
       </button>
     </form>
   );
@@ -133,6 +133,7 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(initial.name);
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { tracks } = playlist;
   const source: MusicSource = { kind: "playlist", refId: playlist.id, title: playlist.name, tracks };
   const from = usePlayerSelect((s) => s.isPlayingFrom("playlist", playlist.id));
@@ -154,7 +155,7 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
       if (done) toast(done);
       return true;
     } catch (err) {
-      toast.error(errorText(err));
+      toast.error(errorText(err, "Couldn't save the playlist."));
       return false;
     } finally {
       setBusy(false);
@@ -184,14 +185,16 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
   };
 
   const del = async () => {
-    setMenu(false);
+    setBusy(true);
     try {
       await api(apiPaths.playlist(playlist.id), { method: "DELETE" });
       toast(`Deleted ${playlist.name}`);
       router.push("/music?tab=playlists");
       router.refresh();
     } catch (err) {
-      toast.error(errorText(err));
+      toast.error(errorText(err, "Couldn't delete the playlist."));
+      setBusy(false);
+      setDeleting(false);
     }
   };
 
@@ -299,12 +302,12 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
                 tracks.map((t) => ({ itemType: "track", itemId: t.id })),
                 "next",
               ).then(
-                () => toast("Added to Up Next"),
+                () => toast("Added to queue"),
                 (err: unknown) => toast.error(errorText(err)),
               );
             }}
           >
-            Add to Up Next
+            Add to queue
           </SheetItem>
         ) : null}
         <SheetItem
@@ -316,10 +319,25 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
         >
           Rename…
         </SheetItem>
-        <SheetItem danger onClick={() => void del()}>
+        <SheetItem
+          danger
+          onClick={() => {
+            setMenu(false);
+            setDeleting(true);
+          }}
+        >
           Delete playlist
         </SheetItem>
       </Sheet>
+      <ConfirmSheet
+        open={deleting}
+        title={`Delete ${playlist.name}?`}
+        message="The playlist goes for good. Its songs stay in your music."
+        confirmLabel="Delete"
+        busy={busy}
+        onConfirm={() => void del()}
+        onClose={() => setDeleting(false)}
+      />
       <Sheet open={renaming} onClose={() => setRenaming(false)} title="Rename playlist">
         <NameForm
           name={name}

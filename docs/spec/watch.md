@@ -43,7 +43,7 @@ Unlike books and music, Watch matches on its own, the way Plex does, since rips 
 - **Audio tracks:** with more than one, an Audio tile lists each track's language, codec and channels. The pick is remembered per movie or show, by language, on each device. Video always plays at normal speed.
 - **Progress and stats:** saved like a book's, with `itemType: "video"`; past 92% counts as watched, and a season's or show's watched state is worked out from its episodes. Watch time goes in `listening_days` as its own kind, with its own total and colour on You, and counts towards the streak.
 - **Next episode:** 30 seconds before an episode ends, a card counts down to the next one. Play next episode (`autoplayNext`) off, it just reads "Next episode".
-- Starting a video stops any audio, saving its place, and playing audio ends the video the same way. Video doesn't go in Up Next.
+- Starting a video stops any audio, saving its place, and playing audio ends the video the same way. Video doesn't go in the queue.
 
 **The player** (web and app, the audio player's layout)
 

@@ -327,7 +327,7 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
             ))}
             {standalone.length ? (
               <section className="section">
-                {groups.length ? <h2 className="section-title">Standalone</h2> : null}
+                {groups.length ? <SectionTitle title="Standalone" count={standalone.length} noun="book" /> : null}
                 <ScrollRow>
                   {sortBooks(standalone, "title").map((b) => (
                     <BookCard key={b.id} book={b} sub={null} />

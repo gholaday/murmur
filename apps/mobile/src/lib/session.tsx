@@ -79,7 +79,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         throw new Error("Couldn't reach the server.");
       }
       const body = (await res.json().catch(() => null)) as (LoginResponse & { error?: string }) | null;
-      if (!res.ok || !body?.token) throw new Error(body?.error ?? "Sign-in failed.");
+      if (!res.ok || !body?.token) throw new Error(body?.error ?? "Couldn't sign in. Try again.");
       await secrets.setToken(body.token);
       setJson(SERVER_KEY, url);
       setJson(USER_KEY, body.user);

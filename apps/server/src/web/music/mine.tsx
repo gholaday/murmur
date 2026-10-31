@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { apiPaths, type MusicMineChange, type MusicSummaryDto } from "@murmur/shared/client";
+import { apiPaths, errorText, type MusicMineChange, type MusicSummaryDto } from "@murmur/shared/client";
 import { api } from "../api";
 import { CheckIcon, PlusIcon } from "../icons";
 
@@ -19,7 +19,7 @@ export function useMineChange(): (add: boolean, change: MusicMineChange) => Prom
       router.refresh();
       return true;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't change your music.");
+      toast.error(errorText(err, add ? "Couldn't add that." : "Couldn't remove that."));
       return false;
     }
   };

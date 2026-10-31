@@ -3,7 +3,7 @@
 services:
   murmur:
     # Published by .github/workflows/release.yml when a v* tag is pushed.
-    image: ghcr.io/gholaday/murmur:0.11.0
+    image: ghcr.io/gholaday/murmur:latest
     container_name: murmur
     restart: unless-stopped
     ports:
@@ -25,7 +25,7 @@ services:
     # then runs as that user; these three capabilities are all that step uses.
     cap_drop: [ALL]
     cap_add: [CHOWN, SETUID, SETGID]
-    security_opt: ["no-new-privileges:true"]
+    security_opt: ['no-new-privileges:true']
     volumes:
       - /path/to/audiobooks:/audiobooks:ro
       # Music (optional): uncomment to turn on the Music tab.
@@ -52,7 +52,7 @@ services:
   # aistudio.google.com in murmur.env. Without it Murmur works the same, just without ad marks. It
   # opens no ports: it only calls Murmur inside the stack, and Gemini and Groq.
   # murmur-adscan:
-  #   image: ghcr.io/gholaday/murmur-adscan:0.11.0
+  #   image: ghcr.io/gholaday/murmur-adscan:latest
   #   container_name: murmur-adscan
   #   restart: unless-stopped
   #   depends_on:
@@ -84,7 +84,7 @@ services:
   # Optional movies and shows add-on: it reads the video files and streams them. Uncomment with the
   # movie and show folders above; needs ADDON_SECRET in murmur.env. Without it the Watch tab stays empty.
   # murmur-video:
-  #   image: ghcr.io/gholaday/murmur-video:0.11.0
+  #   image: ghcr.io/gholaday/murmur-video:latest
   #   container_name: murmur-video
   #   restart: unless-stopped
   #   environment:

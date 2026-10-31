@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { type AlbumSummary, albumInMusic, albumMatches, isNewAlbum, type MusicSummaryDto, plural, sortAlbums } from "@murmur/shared/client";
+import { ALBUM_SORTS, type AlbumSummary, albumInMusic, albumMatches, isNewAlbum, type MusicSummaryDto, plural, sortAlbums } from "@murmur/shared/client";
 import { CloseIcon, FilterIcon, SearchIcon } from "../icons";
-import { Chip, Chips, CountPill, EmptyState, SearchBox } from "../ui";
+import { Chip, Chips, EmptyState, SearchBox } from "../ui";
 import { MusicBackRow } from "./album-view";
 import { AlbumCard, AlbumSortSheet, useAlbumSort } from "./music-view";
 
@@ -39,7 +39,7 @@ export function BrowseView({ summary, albums }: { summary: MusicSummaryDto; albu
   ) : (
     <EmptyState>
       {q
-        ? `No album matches "${query.trim()}".`
+        ? `Nothing matches "${query.trim()}".`
         : filter === "new"
           ? "No new albums in the last two weeks."
           : "Every album is in your music."}
@@ -66,7 +66,7 @@ export function BrowseView({ summary, albums }: { summary: MusicSummaryDto; albu
           >
             {searching ? <CloseIcon /> : <SearchIcon />}
           </button>
-          <button type="button" className="icon-btn" aria-label="Sort" onClick={() => setSortOpen(true)}>
+          <button type="button" className="icon-btn" aria-label={`Sort albums, ${ALBUM_SORTS.find((s) => s.id === sort)?.label}`} onClick={() => setSortOpen(true)}>
             <FilterIcon />
           </button>
         </div>
@@ -80,7 +80,6 @@ export function BrowseView({ summary, albums }: { summary: MusicSummaryDto; albu
         {FILTERS.map((f) => (
           <Chip key={f.id} selected={filter === f.id} onClick={() => setFilter(f.id)}>
             {f.label}
-            {f.id === "new" && summary.newAlbums > 0 ? <CountPill count={summary.newAlbums} /> : null}
           </Chip>
         ))}
       </Chips>

@@ -80,7 +80,7 @@ export const PlaylistCard = memo(function PlaylistCard({ playlist, width }: { pl
   );
 });
 
-/** New playlist, first in the Playlists grid: a cover-sized dashed tile with an accent plus. */
+/** New playlist, first in the Playlists grid: a cover-sized tile in the cover placeholder's colour, with an accent plus. */
 export function NewPlaylistTile({ width, onPress }: { width: number; onPress: () => void }) {
   const t = useTheme();
   return (
@@ -90,10 +90,7 @@ export function NewPlaylistTile({ width, onPress }: { width: number; onPress: ()
           width,
           aspectRatio: 1,
           borderRadius: 10,
-          borderWidth: 1.5,
-          borderStyle: "dashed",
-          borderColor: t.faint,
-          backgroundColor: t.surface,
+          backgroundColor: t.surface2,
           alignItems: "center",
           justifyContent: "center",
         }}

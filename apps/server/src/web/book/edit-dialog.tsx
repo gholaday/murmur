@@ -300,7 +300,12 @@ function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; s
       <div className={`edit-field ${opts.wide ? "wide" : ""}`}>
         <div className="edit-label">
           <label htmlFor={id}>{FIELD_LABELS[f]}</label>
-          {changed ? <span className="edited-dot" role="img" aria-label="Edited" title="Edited, differs from the files" /> : null}
+          {changed ? (
+            <span className="edited-tag">
+              <span className="edited-dot" aria-hidden="true" />
+              Edited
+            </span>
+          ) : null}
           {unsaved ? (
             <button type="button" className="link-btn" onClick={() => setForm({ ...form, [f]: saved })}>
               Undo

@@ -129,7 +129,7 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
         {show.description ? (
           <Pressable onPress={() => setExpanded((e) => !e)} style={{ marginTop: 18, gap: 4 }}>
             <Text numberOfLines={expanded ? undefined : 3}>{show.description}</Text>
-            {show.description.length > 160 ? (
+            {show.description.length > 220 ? (
               <Text variant="small" style={{ color: t.accent, fontFamily: fonts.bold }}>
                 {expanded ? "Less" : "More"}
               </Text>

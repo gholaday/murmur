@@ -6,7 +6,7 @@
 - Home shelves: Continue listening, Play next, Next in series, More like, Short listens, Recently added and Not started, each opening a full list. Users can reorder and hide them, saved on the server so web and app match
 - More like *book*: unstarted books like the last one you finished that has genres (or at least an author), not on Play next. Short listens: unstarted books under 5 hours with a known length, shortest first, leaving out Play next and Next in series books. Both rules live in `packages/shared` (`shelves.ts`, `similar.ts`), and a shelf whose rule fails shows nothing instead of breaking the tab
 - Ranking (`rankSimilar`): book genres are Audible's ladders ("A > B > C"), saved in `book_overrides.genres` when a book is matched on Audible, whatever fields were ticked. Every prefix two or more levels deep is a key, weighted by depth (two levels 1, three 2, and so on) times its rarity in the library (`1 / log(1 + n)`), so deep, rare matches count most and a shared root counts for nothing. Ties go to shared authors, then narrators (comma-split, spaces and dots ignored), then title. Books matched on Audible before genres were kept are filled once each after a scan, a second apart; '[]' marks one fetched with none. Audible names genres in each store's language, so books matched on different regions don't match each other
-- Play next: books you haven't started, added from a book's menu and dragged into order in the full list (`play_next`, per person). A book leaves it once it's started, since it's in Continue listening from then on. A book on Play next isn't repeated in Next in series or Not started. Books never go in Up Next, and when a book ends, playback stops
+- Play next: books you haven't started, added from a book's menu and dragged into order in the full list (`play_next`, per person). A book leaves it once it's started, since it's in Continue listening from then on. A book on Play next isn't repeated in Next in series or Not started. Books never go in the queue, and when a book ends, playback stops
 - Book page: cover, author, narrator, series and position, description, duration, chapter list
 - Single-file `.m4b` and multi-file books, played as one continuous timeline
 - Automatic rescan when files are added, moved or removed
@@ -19,7 +19,7 @@
 - Find podcasts by name (Apple's public podcast search, no API key needed) or paste an RSS feed URL; OPML import and export
 - Feeds are checked on a schedule (default every 30 minutes, and once at startup)
 - Episodes stream through the server, which keeps the newest episodes of each followed show on disk (see [Podcasts and ad detection](podcasts.md)); the phone can download any episode
-- Up Next queue, and played, unplayed and archived states per episode
+- A queue, and played, unplayed and archived states per episode
 - Optional ad detection: ads marked on the seek bar, Skip ad, or Auto-skip with Undo
 
 ## Music
@@ -30,7 +30,7 @@ Optional. More in [Music](music.md).
 - Albums, artists and songs from the tags, with covers from the folder or the files
 - Your music: each person adds the albums or songs they want, and Browse has the rest
 - Play or shuffle an album, an artist's songs, your songs or a playlist, with the next song loaded early so albums play without a gap
-- Playlists of your own, and single songs in Up Next
+- Playlists of your own, and single songs in the queue
 - Download albums or songs to the phone
 - Album Match and artist photos for admins
 
@@ -55,7 +55,7 @@ Optional. More in [Watch](watch.md).
 ## Player
 
 - Mini player, expanding to a full-screen player tinted from the cover
-- Skip back and forward (configurable, defaults 10 s and 30 s), chapter skip. On an episode without chapters, previous and next (in the player, media keys and the notification) go to the item before or after it in Up Next, and past either end to the episode above or below it in its show's list (`GET /episodes/:id/neighbor`). Previous restarts the episode first once it's more than 3 s in
+- Skip back and forward (configurable, defaults 10 s and 30 s), chapter skip. On an episode without chapters, previous and next (in the player, media keys and the notification) go to the item before or after it in the queue, and past either end to the episode above or below it in its show's list (`GET /episodes/:id/neighbor`). Previous restarts the episode first once it's more than 3 s in
 - Playback speed 0.5× to 3× (2× on Android), remembered per book and per show
 - Sleep timer: minutes or end of chapter
 - Episode chapters, when the show publishes them: the scrubber splits into one segment per chapter over the whole episode, with the playing chapter's title between the elapsed and remaining times in place of the time left (tap for the list), and dragging (or, on the web, hovering with a mouse) shows the title of the chapter you'd land in there, in the accent colour. A book's bar spans its current chapter instead

@@ -235,7 +235,7 @@ function EmptyMusic({ total }: { total: number }) {
         Browse
       </Link>
       <button type="button" className="btn btn-big" disabled={busy} onClick={addAll}>
-        {busy ? "Adding…" : `Add all ${plural(total, "album")}`}
+        {busy ? "Adding…" : total === 1 ? "Add the album" : `Add all ${plural(total, "album")}`}
       </button>
     </div>
   );
@@ -252,8 +252,8 @@ function allAlbums(): Promise<AlbumSummary[]> {
   return albumsCache.list;
 }
 
-/** Search on the Music tab also looks through everything not in your music yet. */
-function MoreToAdd({ q }: { q: string }) {
+/** Search on the Music tab also looks through everything not in your music yet; `onFound` says whether it found any. */
+function MoreToAdd({ q, onFound }: { q: string; onFound: (found: boolean) => void }) {
   const [albums, setAlbums] = useState<AlbumSummary[] | null>(null);
   const [songs, setSongs] = useState<TrackDto[]>([]);
   useEffect(() => {
@@ -276,7 +276,12 @@ function MoreToAdd({ q }: { q: string }) {
   const moreAlbums = (albums ?? []).filter((a) => albumInMusic(a) !== "all" && albumMatches(a, q)).slice(0, 6);
   // Songs by title only: their album and artist already show above.
   const moreSongs = songs.filter((t) => !t.inMusic && t.title.toLowerCase().includes(q)).slice(0, 20);
-  if (!moreAlbums.length && !moreSongs.length) return null;
+  const found = moreAlbums.length + moreSongs.length > 0;
+  useEffect(() => {
+    onFound(found);
+    return () => onFound(false);
+  }, [found, onFound]);
+  if (!found) return null;
   return (
     <section className="section">
       <h2 className="section-title">More to add</h2>
@@ -285,7 +290,7 @@ function MoreToAdd({ q }: { q: string }) {
           <AlbumRow key={a.id} album={a} />
         ))}
         {moreSongs.map((t) => (
-          <SongRow key={t.id} track={t} sub={`Song, ${t.artist}`} toggle />
+          <SongRow key={t.id} track={t} sub={songSub(t)} toggle />
         ))}
       </div>
     </section>
@@ -407,6 +412,8 @@ export function MusicView({
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   const [songs, setSongs] = useState<TrackDto[] | null>(null);
+  // Set when a search also finds things to add, so your own matches get a heading of their own.
+  const [moreFound, setMoreFound] = useState(false);
   const q = query.trim().toLowerCase();
 
   // Songs load the first time they're shown, and again when your music changes.
@@ -445,6 +452,13 @@ export function MusicView({
   const shownArtists = artists.filter((a) => artistMatches(a, q));
   const shownSongs = (songs ?? []).filter((t) => songMatches(t, q));
   const shownPlaylists = playlists.filter((p) => p.name.toLowerCase().includes(q));
+  const ownFound = {
+    home: shownAlbums.length,
+    albums: shownAlbums.length,
+    artists: shownArtists.length,
+    playlists: shownPlaylists.length,
+    songs: shownSongs.length,
+  }[tab] > 0;
   const songsSource: MusicSource = { kind: "songs", refId: null, title: "Your songs", tracks: shownSongs };
   const songsFrom = usePlayerSelect((s) => s.isPlayingFrom("songs", null));
   const songsPlaying = usePlayerSelect((s) => songsFrom && s.playing);
@@ -466,7 +480,7 @@ export function MusicView({
             {searching ? <CloseIcon /> : <SearchIcon />}
           </button>
           {tab === "albums" ? (
-            <button type="button" className="icon-btn" aria-label="Sort" onClick={() => setSortOpen(true)}>
+            <button type="button" className="icon-btn" aria-label={`Sort albums, ${ALBUM_SORTS.find((s) => s.id === sort)?.label}`} onClick={() => setSortOpen(true)}>
               <FilterIcon />
             </button>
           ) : null}
@@ -488,6 +502,8 @@ export function MusicView({
       </Chips>
 
       <div style={{ marginTop: 16 }}>
+        {/* Only over results of its own, so it never sits above "Nothing matches". */}
+        {q && moreFound && ownFound ? <h2 className="section-title">In your music</h2> : null}
         {tab === "home" && !q ? (
           <MusicHome home={home} />
         ) : tab === "albums" || tab === "home" ? (
@@ -511,7 +527,7 @@ export function MusicView({
               </GroupGrid>
             ))
           ) : (
-            <EmptyState>{`Nothing matches "${query.trim()}".`}</EmptyState>
+            <EmptyState>{q ? `Nothing matches "${query.trim()}".` : "Nothing here yet."}</EmptyState>
           )
         ) : tab === "playlists" ? (
           <>
@@ -546,9 +562,9 @@ export function MusicView({
             </div>
           </>
         ) : (
-          <EmptyState>{`Nothing matches "${query.trim()}".`}</EmptyState>
+          <EmptyState>{q ? `Nothing matches "${query.trim()}".` : "Nothing here yet."}</EmptyState>
         )}
-        {q ? <MoreToAdd q={q} /> : null}
+        {q ? <MoreToAdd q={q} onFound={setMoreFound} /> : null}
       </div>
 
       <AlbumSortSheet open={sortOpen} onClose={() => setSortOpen(false)} sort={sort} onPick={setSort} />
