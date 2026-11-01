@@ -57,7 +57,7 @@ import { toast } from "@/components/toast";
 import { MixerBars } from "@/components/mixer";
 import { Caption, Chips, CountPill, IconButton, Text } from "@/components/ui";
 import { UpNextSheet } from "@/components/up-next";
-import { addBookmark, deleteBookmark, removeBookmarkWithUndo, useBookmarks } from "@/lib/bookmarks";
+import { newBookmark, useBookmarks } from "@/lib/bookmarks";
 import { useAlbumColor } from "@/lib/data";
 import { dragEndHaptic, selectHaptic, tapHaptic } from "@/lib/haptics";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdDetection, useAdPrefs, type AdMode } from "@/player/ad-prefs";
@@ -106,7 +106,7 @@ export default function Player() {
   const adDetection = useAdDetection();
   const [sheet, setSheet] = useState<null | "speed" | "sleep" | "chapters" | "bookmarks" | "ads" | "more" | "upnext">(null);
   const [chaptersTab, setChaptersTab] = useState<"chapters" | "bookmarks">("chapters");
-  const [editingBookmark, setEditingBookmark] = useState<BookmarkDto | null>(null);
+  const [editingBookmark, setEditingBookmark] = useState<{ bookmark: BookmarkDto; isNew: boolean } | null>(null);
   const bookmarks = useBookmarks(p.item?.type, p.item?.id);
   const [scrub, setScrub] = useState<number | null>(null);
   const [speedDraft, setSpeedDraft] = useState<number | null>(null);
@@ -197,15 +197,8 @@ export default function Player() {
   const slot = thirdTile(item.type, multiChapter);
   const adShort = AD_MODES.find((m) => m.id === adMode)?.short;
   const nearBookmark = song ? null : bookmarkNear(bookmarks, pos);
-  const onBookmark = () => {
-    if (nearBookmark) return nearBookmark.note ? setEditingBookmark(nearBookmark) : removeBookmarkWithUndo(nearBookmark);
-    const b = addBookmark(item, bookmarkSpot(position, p.playing, p.speed));
-    toast.show(`Bookmarked ${clock(b.positionSec)}`, {
-      action: { label: "Add note", onPress: () => setEditingBookmark(b) },
-      cancel: { label: "Undo", onPress: () => deleteBookmark(b) },
-      duration: 5000,
-    });
-  };
+  const onBookmark = () =>
+    setEditingBookmark(nearBookmark ? { bookmark: nearBookmark, isNew: false } : { bookmark: newBookmark(item, bookmarkSpot(position, p.playing, p.speed)), isNew: true });
   const jumpToBookmark = (b: BookmarkDto) => {
     setSheet(null);
     void jumpTo(b, b.positionSec);
@@ -299,7 +292,7 @@ export default function Player() {
               </View>
               {song ? null : (
                 <IconButton
-                  label={nearBookmark ? "Remove bookmark" : "Bookmark this spot"}
+                  label={nearBookmark ? "Edit bookmark" : "Bookmark this spot"}
                   accessibilityState={{ selected: !!nearBookmark }}
                   onPress={onBookmark}
                   style={{ marginTop: -5, marginBottom: -11, marginRight: -10 }}
@@ -317,8 +310,8 @@ export default function Player() {
             <View>
             {segmented ? (
               <ChapterSegments chapters={item.chapters} current={ci} pos={pos} frac={frac} grow={dragging} marks={marks} />
-            ) : marks.length ? (
-              // The slider's own track can't show ads, so it draws see-through over this one.
+            ) : (
+              // The slider's own track would cover the ticks and can't show ads, so it draws see-through over this one.
               <View
                 pointerEvents="none"
                 style={{ position: "absolute", left: 0, right: 0, top: 14, height: 4, borderRadius: 2, overflow: "hidden", backgroundColor: trackColor }}
@@ -326,9 +319,10 @@ export default function Player() {
                 <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${frac(pos) * 100}%`, backgroundColor: t.text }} />
                 <AdMarks marks={marks} pos={pos} frac={frac} />
               </View>
-            ) : null}
+            )}
+            {/* Over the bar and under the thumb, inset to the thumb's travel so one sits on its tick at either end. */}
             {bookmarks.length ? (
-              <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: 10, height: 12 }}>
+              <View pointerEvents="none" style={{ position: "absolute", left: 5, right: 5, top: 10, height: 12 }}>
                 {bookmarks
                   .filter((b) => b.positionSec >= span.start && b.positionSec <= span.end)
                   .map((b) => (
@@ -342,8 +336,8 @@ export default function Player() {
               minimumValue={0}
               maximumValue={spanLen}
               value={within}
-              minimumTrackTintColor={marks.length || segmented ? "transparent" : t.text}
-              maximumTrackTintColor={marks.length || segmented ? "transparent" : trackColor}
+              minimumTrackTintColor="transparent"
+              maximumTrackTintColor="transparent"
               thumbTintColor={t.text}
               onSlidingStart={(v) => {
                 tapHaptic();
@@ -479,7 +473,7 @@ export default function Player() {
               <ListIcon size={20} color={t.text} />
             </Tile>
           ) : slot === "bookmarks" ? (
-            <Tile label="Bookmarks" count={bookmarks.length} onPress={() => setSheet("bookmarks")}>
+            <Tile label="Bookmarks" onPress={() => setSheet("bookmarks")}>
               <BookmarkIcon size={20} color={t.text} />
             </Tile>
           ) : null}
@@ -646,7 +640,7 @@ export default function Player() {
         {bookmarks.length ? <BookmarkRows bookmarks={bookmarks} onJump={jumpToBookmark} /> : noBookmarks}
       </Sheet>
 
-      <BookmarkNoteSheet bookmark={editingBookmark} onClose={() => setEditingBookmark(null)} />
+      <BookmarkNoteSheet bookmark={editingBookmark?.bookmark ?? null} isNew={editingBookmark?.isNew} onClose={() => setEditingBookmark(null)} />
 
       <Sheet open={sheet === "ads"} onClose={() => setSheet(null)} title="Ads">
         <Text variant="small" style={{ paddingHorizontal: 12, marginTop: -4, marginBottom: 4 }}>

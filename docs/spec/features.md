@@ -68,9 +68,9 @@ Optional. More in [Watch](watch.md).
 
 ## Bookmarks
 
-- Tap the bookmark beside the player's title to save a spot. While playing it lands 10 seconds of listening earlier, since you tap after you hear the thing. The toast offers Add note and Undo, and the app's media notification has a bookmark button too
-- The icon fills within 15 seconds of a bookmark. Tapping it then removes that bookmark with Undo, or opens its note if it has one
-- A note runs up to 500 characters, and its sheet can move the bookmark 15 seconds either way
+- Tap the bookmark beside the player's title to open a sheet for a note, and Save there adds it. While playing it lands 10 seconds of listening earlier, since you tap after you hear the thing. A toast confirms it and offers Undo. The app's media notification has a bookmark button too, which saves right away
+- The icon fills within 15 seconds of a bookmark. Tapping it then opens that bookmark's sheet
+- A note runs up to 500 characters, and the sheet can move the bookmark 15 seconds either way
 - Bookmarks show as ticks on the scrubber, in the player's sheet, in a section on the book's page, and on an expanded episode row. A podcast's page has a Bookmarks button once it has any, opening them grouped by episode
 - Jumping more than 30 seconds to a bookmark offers Go back to your real place. Until you take it, close it with the X, play for 5 minutes, or play up to that place, your saved position stays where it was, so a look back doesn't move Continue listening. Finishing the item ends it too, and leaving the item or closing the player keeps the old position. A bookmark in another book or episode does the same against that item's saved place
 - They're kept until you delete them or your account goes. If a book or podcast is removed they're hidden, and they return with it

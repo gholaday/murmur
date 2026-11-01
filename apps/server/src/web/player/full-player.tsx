@@ -26,7 +26,7 @@ import {
   timeLeft,
 } from "@murmur/shared/client";
 import { BookmarkNoteSheet, BookmarkRows } from "../bookmark-rows";
-import { addBookmark, BOOKMARK_TOAST_MS, deleteBookmark, removeBookmarkWithUndo, useBookmarks } from "../bookmarks";
+import { newBookmark, useBookmarks } from "../bookmarks";
 import {
   BookmarkIcon,
   CheckIcon,
@@ -121,7 +121,7 @@ export function FullPlayer() {
   const castDevice = useCast().device;
   const [sheet, setSheet] = useState<null | "sleep" | "chapters" | "bookmarks" | "more" | "ads" | "upnext">(null);
   const [chaptersTab, setChaptersTab] = useState<"chapters" | "bookmarks">("chapters");
-  const [editingBookmark, setEditingBookmark] = useState<BookmarkDto | null>(null);
+  const [editingBookmark, setEditingBookmark] = useState<{ bookmark: BookmarkDto; isNew: boolean } | null>(null);
   const bookmarks = useBookmarks(p.item?.type, p.item?.id);
   const adPrefs = useAdPrefs();
   const [speedOpen, setSpeedOpen] = useState(false);
@@ -196,15 +196,8 @@ export function FullPlayer() {
   // Songs: previous and next instead of skips and chapters, no speed, no position kept.
   const song = item.type === "track";
   const nearBookmark = song ? null : bookmarkNear(bookmarks, pos);
-  const onBookmark = () => {
-    if (nearBookmark) return nearBookmark.note ? setEditingBookmark(nearBookmark) : removeBookmarkWithUndo(nearBookmark);
-    const b = addBookmark(item, bookmarkSpot(position, p.playing, p.speed));
-    toast(`Bookmarked ${clock(b.positionSec)}`, {
-      duration: BOOKMARK_TOAST_MS,
-      action: { label: "Add note", onClick: () => setEditingBookmark(b) },
-      cancel: { label: "Undo", onClick: () => deleteBookmark(b) },
-    });
-  };
+  const onBookmark = () =>
+    setEditingBookmark(nearBookmark ? { bookmark: nearBookmark, isNew: false } : { bookmark: newBookmark(item, bookmarkSpot(position, p.playing, p.speed)), isNew: true });
   const jumpToBookmark = (b: BookmarkDto) => {
     setSheet(null);
     void p.jumpTo({ itemType: b.itemType, itemId: b.itemId }, b.positionSec);
@@ -309,7 +302,7 @@ export function FullPlayer() {
             <div className="player-sub">{multiChapter && !segmented && chapter ? chapter.title : item.subtitle}</div>
           </div>
           {song ? null : (
-            <button type="button" className={`icon-btn${nearBookmark ? " on" : ""}`} aria-label={nearBookmark ? "Remove bookmark" : "Bookmark this spot"} aria-pressed={!!nearBookmark} onClick={onBookmark}>
+            <button type="button" className={`icon-btn${nearBookmark ? " on" : ""}`} aria-label={nearBookmark ? "Edit bookmark" : "Bookmark this spot"} aria-pressed={!!nearBookmark} onClick={onBookmark}>
               <BookmarkIcon filled={!!nearBookmark} />
             </button>
           )}
@@ -347,7 +340,7 @@ export function FullPlayer() {
                   />
                 ))}
               </div>
-            ) : marks.length ? (
+            ) : (
               <div className="scrub-track" aria-hidden="true">
                 <div className="scrub-played" style={{ width: pct(pos) }} />
                 {marks.map((a) => (
@@ -364,25 +357,24 @@ export function FullPlayer() {
                   />
                 ))}
               </div>
+            )}
+            {bookmarks.length ? (
+              <div className="scrub-bookmarks" aria-hidden="true">
+                {bookmarks
+                  .filter((b) => b.positionSec >= span.start && b.positionSec <= span.end)
+                  .map((b) => (
+                    <span key={b.id} style={{ left: pct(b.positionSec) }} />
+                  ))}
+              </div>
             ) : null}
-          {bookmarks.length ? (
-            <div className="scrub-bookmarks" aria-hidden="true">
-              {bookmarks
-                .filter((b) => b.positionSec >= span.start && b.positionSec <= span.end)
-                .map((b) => (
-                  <span key={b.id} style={{ left: pct(b.positionSec) }} />
-                ))}
-            </div>
-          ) : null}
           <input
             type="range"
-            className={`scrubber${marks.length || segmented ? " over-track" : ""}`}
+            className="scrubber"
             aria-label="Position"
             min={0}
             max={Math.floor(spanLen)}
             step={1}
             value={Math.min(Math.floor(within), Math.floor(spanLen))}
-            style={{ "--pct": `${(within / spanLen) * 100}%` } as React.CSSProperties}
             onChange={(e) => setScrub(span.start + Number(e.target.value))}
             onPointerUp={commitScrub}
             onKeyUp={commitScrub}
@@ -566,10 +558,7 @@ export function FullPlayer() {
         ) : slot === "bookmarks" ? (
           <button type="button" className="tile" onClick={() => setSheet("bookmarks")}>
             <BookmarkIcon size={20} />
-            <span>
-              Bookmarks
-              {bookmarks.length ? <span className="count-pill">{bookmarks.length}</span> : null}
-            </span>
+            <span>Bookmarks</span>
           </button>
         ) : null}
         <button type="button" className="tile" onClick={() => setSheet("upnext")}>
@@ -647,7 +636,7 @@ export function FullPlayer() {
         {bookmarks.length ? <BookmarkRows bookmarks={bookmarks} onJump={jumpToBookmark} /> : noBookmarks}
       </Sheet>
 
-      <BookmarkNoteSheet bookmark={editingBookmark} onClose={() => setEditingBookmark(null)} />
+      <BookmarkNoteSheet bookmark={editingBookmark?.bookmark ?? null} isNew={editingBookmark?.isNew} onClose={() => setEditingBookmark(null)} />
 
       <Sheet open={sheet === "ads"} onClose={() => setSheet(null)} title="Ads">
         <p className="sheet-note">This device only</p>

@@ -332,7 +332,6 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
       <ConfirmSheet
         open={deleting}
         title={`Delete ${playlist.name}?`}
-        message="The playlist goes for good. Its songs stay in your music."
         confirmLabel="Delete"
         busy={busy}
         onConfirm={() => void del()}

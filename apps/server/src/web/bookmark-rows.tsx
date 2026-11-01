@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { type BookmarkDto, BOOKMARK_NOTE_MAX, BOOKMARK_NUDGE_SEC, clock } from "@murmur/shared/client";
-import { deleteBookmark, updateBookmark } from "./bookmarks";
+import { addBookmark, deleteBookmark, updateBookmark } from "./bookmarks";
 import { PencilIcon, PlayIcon } from "./icons";
 import { ConfirmSheet, Sheet } from "./sheet";
 
@@ -35,16 +35,16 @@ export function BookmarkRows({ bookmarks, onJump }: { bookmarks: BookmarkDto[]; 
   );
 }
 
-/** Adds or edits a bookmark's note, and moves it a little if it landed in the wrong spot. */
-export function BookmarkNoteSheet({ bookmark, onClose }: { bookmark: BookmarkDto | null; onClose: () => void }) {
+/** Saves a new bookmark, or edits one's note, and moves it a little if it landed in the wrong spot. */
+export function BookmarkNoteSheet({ bookmark, isNew = false, onClose }: { bookmark: BookmarkDto | null; isNew?: boolean; onClose: () => void }) {
   return (
-    <Sheet open={bookmark !== null} onClose={onClose} title={bookmark?.note ? "Edit note" : "Add a note"} sub={bookmark?.chapter}>
-      {bookmark ? <NoteForm key={bookmark.id} bookmark={bookmark} onClose={onClose} /> : null}
+    <Sheet open={bookmark !== null} onClose={onClose} title={isNew ? "Add bookmark" : bookmark?.note ? "Edit note" : "Add a note"} sub={bookmark?.chapter}>
+      {bookmark ? <NoteForm key={bookmark.id} bookmark={bookmark} isNew={isNew} onClose={onClose} /> : null}
     </Sheet>
   );
 }
 
-function NoteForm({ bookmark, onClose }: { bookmark: BookmarkDto; onClose: () => void }) {
+function NoteForm({ bookmark, isNew, onClose }: { bookmark: BookmarkDto; isNew: boolean; onClose: () => void }) {
   const [position, setPosition] = useState(bookmark.positionSec);
   const [note, setNote] = useState(bookmark.note ?? "");
   const [deleting, setDeleting] = useState(false);
@@ -53,7 +53,9 @@ function NoteForm({ bookmark, onClose }: { bookmark: BookmarkDto; onClose: () =>
       className="form"
       onSubmit={(e) => {
         e.preventDefault();
-        updateBookmark(bookmark, { positionSec: position, note: note.trim() || null, chapter: bookmark.chapter });
+        const edit = { positionSec: position, note: note.trim() || null, chapter: bookmark.chapter };
+        if (isNew) addBookmark({ ...bookmark, ...edit });
+        else updateBookmark(bookmark, edit);
         onClose();
       }}
     >
@@ -70,13 +72,14 @@ function NoteForm({ bookmark, onClose }: { bookmark: BookmarkDto; onClose: () =>
       <button type="submit" className="btn btn-primary btn-big">
         Save
       </button>
-      <button type="button" className="btn btn-plain-danger" onClick={() => setDeleting(true)}>
-        Delete bookmark
-      </button>
+      {isNew ? null : (
+        <button type="button" className="btn btn-plain-danger" onClick={() => setDeleting(true)}>
+          Delete bookmark
+        </button>
+      )}
       <ConfirmSheet
         open={deleting}
         title="Delete this bookmark?"
-        message={`It goes for good, along with its note.`}
         confirmLabel="Delete"
         onConfirm={() => {
           deleteBookmark(bookmark);

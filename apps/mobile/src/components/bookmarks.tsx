@@ -2,11 +2,12 @@ import { useContext, useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { type BookmarkDto, BOOKMARK_NOTE_MAX, BOOKMARK_NUDGE_SEC, clock } from "@murmur/shared/client";
-import { deleteBookmark, updateBookmark } from "@/lib/bookmarks";
+import { addBookmark, deleteBookmark, updateBookmark } from "@/lib/bookmarks";
 import { jumpTo } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { PencilIcon, PlayIcon } from "./icons";
 import { ConfirmSheet, Sheet } from "./sheet";
+import { toast } from "./toast";
 import { Button, Field, IconButton, InSheet, Text } from "./ui";
 
 /** Plays a bookmark from a page, in the full player, where the Go back card shows. */
@@ -52,12 +53,13 @@ export function BookmarkRows({ bookmarks, onJump }: { bookmarks: BookmarkDto[]; 
   );
 }
 
-/** Adds or edits a bookmark's note, and moves it a little if it landed in the wrong spot. */
-export function BookmarkNoteSheet({ bookmark, onClose }: { bookmark: BookmarkDto | null; onClose: () => void }) {
+/** Saves a new bookmark, or edits one's note, and moves it a little if it landed in the wrong spot. */
+export function BookmarkNoteSheet({ bookmark, isNew = false, onClose }: { bookmark: BookmarkDto | null; isNew?: boolean; onClose: () => void }) {
   // The last one stays drawn while the sheet slides away.
-  const [last, setLast] = useState(bookmark);
-  if (bookmark && bookmark !== last) setLast(bookmark);
-  const shown = bookmark ?? last;
+  const [last, setLast] = useState({ bookmark, isNew });
+  if (bookmark && bookmark !== last.bookmark) setLast({ bookmark, isNew });
+  const shown = bookmark ?? last.bookmark;
+  const shownNew = bookmark ? isNew : last.isNew;
   const [deleting, setDeleting] = useState(false);
   return (
     <>
@@ -66,7 +68,7 @@ export function BookmarkNoteSheet({ bookmark, onClose }: { bookmark: BookmarkDto
         onClose={onClose}
         head={
           <View style={{ gap: 2 }}>
-            <Text variant="heading">{shown?.note ? "Edit note" : "Add a note"}</Text>
+            <Text variant="heading">{shownNew ? "Add bookmark" : shown?.note ? "Edit note" : "Add a note"}</Text>
             {shown?.chapter ? (
               <Text variant="small" numberOfLines={1}>
                 {shown.chapter}
@@ -75,12 +77,11 @@ export function BookmarkNoteSheet({ bookmark, onClose }: { bookmark: BookmarkDto
           </View>
         }
       >
-        {shown ? <NoteForm key={shown.id} bookmark={shown} onClose={onClose} onDelete={() => setDeleting(true)} /> : null}
+        {shown ? <NoteForm key={shown.id} bookmark={shown} isNew={shownNew} onClose={onClose} onDelete={() => setDeleting(true)} /> : null}
       </Sheet>
       <ConfirmSheet
         open={deleting}
         title="Delete this bookmark?"
-        message="It goes for good, along with its note."
         confirmLabel="Delete"
         danger
         onConfirm={() => {
@@ -93,7 +94,7 @@ export function BookmarkNoteSheet({ bookmark, onClose }: { bookmark: BookmarkDto
   );
 }
 
-function NoteForm({ bookmark, onClose, onDelete }: { bookmark: BookmarkDto; onClose: () => void; onDelete: () => void }) {
+function NoteForm({ bookmark, isNew, onClose, onDelete }: { bookmark: BookmarkDto; isNew: boolean; onClose: () => void; onDelete: () => void }) {
   const t = useTheme();
   const [position, setPosition] = useState(bookmark.positionSec);
   const [note, setNote] = useState(bookmark.note ?? "");
@@ -115,13 +116,22 @@ function NoteForm({ bookmark, onClose, onDelete }: { bookmark: BookmarkDto; onCl
       <Button
         label="Save"
         onPress={() => {
-          updateBookmark(bookmark, { positionSec: position, note: note.trim() || null });
+          const edit = { positionSec: position, note: note.trim() || null };
+          if (isNew) {
+            const saved = { ...bookmark, ...edit };
+            addBookmark(saved);
+            toast.show(`Bookmarked ${clock(position)}`, { action: { label: "Undo", onPress: () => deleteBookmark(saved) }, duration: 5000 });
+          } else {
+            updateBookmark(bookmark, edit);
+          }
           onClose();
         }}
       />
-      <Pressable accessibilityRole="button" onPress={onDelete} hitSlop={6} style={({ pressed }) => ({ alignSelf: "center", paddingVertical: 8, opacity: pressed ? 0.6 : 1 })}>
-        <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: t.danger }}>Delete bookmark</Text>
-      </Pressable>
+      {isNew ? null : (
+        <Pressable accessibilityRole="button" onPress={onDelete} hitSlop={6} style={({ pressed }) => ({ alignSelf: "center", paddingVertical: 8, opacity: pressed ? 0.6 : 1 })}>
+          <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: t.danger }}>Delete bookmark</Text>
+        </Pressable>
+      )}
     </View>
   );
 }

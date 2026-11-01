@@ -2,11 +2,11 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { apiPaths, type BookmarkDto, type BookmarkItem, chapterAt, type ChapterDto, newBookmarkId, type PlayType } from "@murmur/shared/client";
+import { apiPaths, type BookmarkDto, type BookmarkItem, chapterAt, type ChapterDto, clock, newBookmarkId, type PlayType } from "@murmur/shared/client";
 import { api } from "./api";
 
 /** How long a bookmark's toast stays up, matching the app's. */
-export const BOOKMARK_TOAST_MS = 5000;
+const BOOKMARK_TOAST_MS = 5000;
 
 /** What a bookmark needs from the item it's in; a Playable fits. */
 interface BookmarkTarget {
@@ -18,8 +18,6 @@ interface BookmarkTarget {
 }
 
 const NONE: BookmarkDto[] = [];
-/** Removed here, with the server not told until the Undo toast ends. */
-const undoable = new Set<string>();
 
 /**
  * Your bookmarks for the player and the rows, outside React state so one change redraws only the
@@ -48,10 +46,9 @@ const store = (() => {
     get: () => all,
     forItem: (key: string, initial: BookmarkDto[]) => (loaded ? (byItem.get(key) ?? NONE) : initial),
     forPodcast: (id: string, initial: BookmarkDto[]) => (loaded ? (byPodcast.get(id) ?? NONE) : initial),
-    /** The server's list, without any you've just removed and might still undo. */
     load(next: BookmarkDto[]) {
       loaded = true;
-      this.set(next.filter((b) => !undoable.has(b.id)));
+      this.set(next);
     },
     set(next: BookmarkDto[]) {
       all = next;
@@ -102,11 +99,12 @@ function failed(undo: (now: BookmarkDto[]) => BookmarkDto[], message: string) {
 const without = (b: BookmarkDto) => (now: BookmarkDto[]) => now.filter((x) => x.id !== b.id);
 const putBack = (b: BookmarkDto) => (now: BookmarkDto[]) => inOrder([...now.filter((x) => x.id !== b.id), b]);
 
-export function addBookmark(item: BookmarkTarget, positionSec: number): BookmarkDto {
+/** A bookmark for the note sheet to fill in, saved only by addBookmark. */
+export function newBookmark(item: BookmarkTarget, positionSec: number): BookmarkDto {
   if (item.type !== "book" && item.type !== "episode") throw new Error("Only books and episodes have bookmarks.");
   const now = Date.now();
   const multi = item.chapters.length > 1;
-  const b: BookmarkDto = {
+  return {
     id: newBookmarkId(),
     itemType: item.type,
     itemId: item.id,
@@ -118,9 +116,15 @@ export function addBookmark(item: BookmarkTarget, positionSec: number): Bookmark
     podcastId: item.podcastId,
     title: item.type === "episode" ? item.title : null,
   };
+}
+
+export function addBookmark(b: BookmarkDto) {
   change(putBack(b)(store.get()));
   put(b).catch(() => failed(without(b), "Couldn't save the bookmark."));
-  return b;
+  toast(`Bookmarked ${clock(b.positionSec)}`, {
+    duration: BOOKMARK_TOAST_MS,
+    action: { label: "Undo", onClick: () => deleteBookmark(b) },
+  });
 }
 
 export function updateBookmark(b: BookmarkDto, edit: { positionSec: number; note: string | null; chapter: string | null }) {
@@ -132,33 +136,6 @@ export function updateBookmark(b: BookmarkDto, edit: { positionSec: number; note
 export function deleteBookmark(b: BookmarkDto) {
   change(without(b)(store.get()));
   del(b).catch(() => failed(putBack(b), "Couldn't delete the bookmark."));
-}
-
-/** Takes it out at once and only tells the server when the toast ends, so Undo sends nothing. */
-export function removeBookmarkWithUndo(b: BookmarkDto) {
-  undoable.add(b.id);
-  change(without(b)(store.get()));
-  let settled = false;
-  const send = () => {
-    if (settled) return;
-    settled = true;
-    del(b)
-      .catch(() => failed(putBack(b), "Couldn't delete the bookmark."))
-      .finally(() => undoable.delete(b.id));
-  };
-  toast("Bookmark removed", {
-    duration: BOOKMARK_TOAST_MS,
-    action: {
-      label: "Undo",
-      onClick: () => {
-        settled = true;
-        undoable.delete(b.id);
-        change(putBack(b)(store.get()));
-      },
-    },
-    onAutoClose: send,
-    onDismiss: send,
-  });
 }
 
 /** Queued behind any saves, and started again if you change something while it's on its way. */

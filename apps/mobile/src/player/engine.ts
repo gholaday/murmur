@@ -50,7 +50,7 @@ import {
   type UserPrefs,
 } from "@murmur/shared/client";
 import { absolute, api, authHeaders, HttpError } from "@/lib/api";
-import { addBookmark, bookmarksFor, flushBookmarks, forgetBookmarks, refreshBookmarks } from "@/lib/bookmarks";
+import { addBookmark, bookmarksFor, flushBookmarks, forgetBookmarks, newBookmark, refreshBookmarks } from "@/lib/bookmarks";
 import { fetchBook, fetchEpisode, invalidateListening, keys } from "@/lib/data";
 import { downloadTypeOf, getDownload, localTrackUri, localUri, savedArt, savedTrack, saveDownloadAds } from "@/lib/downloads";
 import { tapHaptic } from "@/lib/haptics";
@@ -628,7 +628,7 @@ for (const p of players) {
 function bookmarkHere() {
   const it = state.item;
   if (!it || it.type === "track" || bookmarkNear(bookmarksFor(it.type, it.id), position)) return;
-  addBookmark(it, bookmarkSpot(position, state.playing, state.speed));
+  addBookmark(newBookmark(it, bookmarkSpot(position, state.playing, state.speed)));
 }
 
 function onStatus(s: AudioStatus) {

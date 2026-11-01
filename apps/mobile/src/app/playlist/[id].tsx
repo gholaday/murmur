@@ -192,7 +192,6 @@ export default function PlaylistScreen() {
           <ConfirmSheet
             open={deleting}
             title={`Delete ${p.name}?`}
-            message="The playlist goes for good. Its songs stay in your music."
             confirmLabel="Delete"
             danger
             onConfirm={() => {

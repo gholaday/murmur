@@ -10,7 +10,7 @@ import { type SortableScroll, SortableScrollProvider } from "./sortable-list";
 import { Toaster, useToastLayer } from "./toast";
 import { Button, InSheet, Text } from "./ui";
 
-/** "Are you sure?" for actions that delete something: a message, then Cancel and the action. */
+/** "Are you sure?" for actions that delete something: an optional message, then Cancel and the action. */
 export function ConfirmSheet({
   open,
   title,
@@ -22,7 +22,7 @@ export function ConfirmSheet({
 }: {
   open: boolean;
   title: string;
-  message: string;
+  message?: string;
   confirmLabel: string;
   /** The confirm button in the danger colour, for deleting something saved on the server. */
   danger?: boolean;
@@ -32,7 +32,7 @@ export function ConfirmSheet({
   return (
     <Sheet open={open} onClose={onClose} title={title}>
       <View style={{ paddingHorizontal: 12, gap: 14, paddingBottom: 8 }}>
-        <Text>{message}</Text>
+        {message ? <Text>{message}</Text> : null}
         <View style={{ flexDirection: "row", gap: 10 }}>
           <Button label="Cancel" kind="secondary" onPress={onClose} style={{ flex: 1 }} />
           <Button

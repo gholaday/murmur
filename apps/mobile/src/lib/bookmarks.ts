@@ -25,8 +25,6 @@ const NONE: BookmarkDto[] = [];
 
 let base = getJson<BookmarkDto[]>(LIST_KEY) ?? [];
 let outbox = getJson<Op[]>(OUTBOX_KEY) ?? [];
-/** Taken out for now, while a toast offers Undo; nothing has been sent. */
-const hidden = new Set<string>();
 
 let all: BookmarkDto[] = [];
 let byItem = new Map<string, BookmarkDto[]>();
@@ -53,7 +51,7 @@ function regroup(old: Map<string, BookmarkDto[]>, keyOf: (b: BookmarkDto) => str
 }
 
 function changed() {
-  all = outbox.reduce(apply, base).filter((b) => !hidden.has(b.id));
+  all = outbox.reduce(apply, base);
   all.sort((a, b) => a.positionSec - b.positionSec);
   byItem = regroup(byItem, (b) => `${b.itemType}:${b.itemId}`);
   byPodcast = regroup(byPodcast, (b) => b.podcastId);
@@ -132,17 +130,17 @@ export async function refreshBookmarks(): Promise<void> {
 export function forgetBookmarks() {
   base = [];
   outbox = [];
-  hidden.clear();
   removeKey(LIST_KEY);
   removeKey(OUTBOX_KEY);
   changed();
 }
 
-export function addBookmark(item: BookmarkTarget, positionSec: number): BookmarkDto {
+/** A bookmark for the note sheet to fill in, saved only by addBookmark. */
+export function newBookmark(item: BookmarkTarget, positionSec: number): BookmarkDto {
   if (item.type !== "book" && item.type !== "episode") throw new Error("Only books and episodes have bookmarks.");
   const now = Date.now();
   const multi = item.chapters.length > 1;
-  const b: BookmarkDto = {
+  return {
     id: newBookmarkId(),
     itemType: item.type,
     itemId: item.id,
@@ -154,35 +152,15 @@ export function addBookmark(item: BookmarkTarget, positionSec: number): Bookmark
     podcastId: item.podcastId,
     title: item.type === "episode" ? item.title : null,
   };
-  queue({ op: "upsert", bookmark: b });
-  return b;
 }
+
+export const addBookmark = (b: BookmarkDto) => queue({ op: "upsert", bookmark: b });
 
 export function updateBookmark(b: BookmarkDto, change: { positionSec: number; note: string | null }) {
   queue({ op: "upsert", bookmark: { ...b, ...change, updatedAt: Date.now() } });
 }
 
 export const deleteBookmark = (b: BookmarkDto) => queue({ op: "delete", bookmark: b });
-
-/** Takes it out at once and only queues the delete when the toast ends, so Undo sends nothing. */
-export function removeBookmarkWithUndo(b: BookmarkDto) {
-  hidden.add(b.id);
-  changed();
-  toast.show("Bookmark removed", {
-    action: {
-      label: "Undo",
-      onPress: () => {
-        hidden.delete(b.id);
-        changed();
-      },
-    },
-    duration: 5000,
-    // Undo or a sign-out already took it off the list, and then there's nothing to send.
-    onEnd: () => {
-      if (hidden.delete(b.id)) deleteBookmark(b);
-    },
-  });
-}
 
 const subscribe = (l: () => void) => {
   listeners.add(l);
