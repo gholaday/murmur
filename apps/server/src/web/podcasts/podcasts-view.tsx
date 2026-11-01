@@ -27,7 +27,7 @@ import { Mixer } from "../mixer";
 import { useNowPlaying } from "../player/engine";
 import { FilterIcon, PlusIcon } from "../icons";
 import { EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle } from "../ui";
-import { Sheet, SheetItem } from "../sheet";
+import { ChoiceSheet, Sheet } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
 function PodcastCard({ podcast: p }: { podcast: PodcastSummary }) {
@@ -110,20 +110,14 @@ export function PodcastsView({
         }}
       />
 
-      <Sheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort podcasts">
-        {(Object.keys(PODCAST_SORT_LABEL) as PodcastSort[]).map((s) => (
-          <SheetItem
-            key={s}
-            active={s === sort}
-            onClick={() => {
-              setSort(s);
-              setSortOpen(false);
-            }}
-          >
-            {PODCAST_SORT_LABEL[s]}
-          </SheetItem>
-        ))}
-      </Sheet>
+      <ChoiceSheet
+        open={sortOpen}
+        onClose={() => setSortOpen(false)}
+        title="Sort podcasts"
+        choices={(Object.keys(PODCAST_SORT_LABEL) as PodcastSort[]).map((id) => ({ id, label: PODCAST_SORT_LABEL[id] }))}
+        value={sort}
+        onPick={setSort}
+      />
     </>
   );
 

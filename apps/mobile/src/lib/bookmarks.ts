@@ -1,8 +1,8 @@
-import { useSyncExternalStore } from "react";
-import { apiPaths, type BookmarkDto, type BookmarkItem, chapterAt, type ChapterDto, newBookmarkId, type PlayType } from "@murmur/shared/client";
+import { addTo, apiPaths, type BookmarkDto, type BookmarkItem, chapterAt, type ChapterDto, newBookmarkId, type PlayType } from "@murmur/shared/client";
 import { toast } from "@/components/toast";
 import { api, HttpError } from "./api";
 import { getJson, removeKey, setJson } from "./storage";
+import { createStore } from "./store";
 
 // Your bookmarks, offline first. The last list from the server is kept on the phone, and each change
 // goes into an outbox replayed in order on top of it, so they work on downloads and on a plane.
@@ -29,7 +29,8 @@ let outbox = getJson<Op[]>(OUTBOX_KEY) ?? [];
 let all: BookmarkDto[] = [];
 let byItem = new Map<string, BookmarkDto[]>();
 let byPodcast = new Map<string, BookmarkDto[]>();
-const listeners = new Set<() => void>();
+/** Moves on with each change; `byItem` and `byPodcast` are read from it. */
+const version = createStore(0);
 
 const apply = (list: BookmarkDto[], o: Op) => {
   const rest = list.filter((b) => b.id !== o.bookmark.id);
@@ -41,7 +42,7 @@ function regroup(old: Map<string, BookmarkDto[]>, keyOf: (b: BookmarkDto) => str
   const next = new Map<string, BookmarkDto[]>();
   for (const b of all) {
     const key = keyOf(b);
-    if (key) next.set(key, [...(next.get(key) ?? []), b]);
+    if (key) addTo(next, key, b);
   }
   for (const [key, list] of next) {
     const was = old.get(key);
@@ -55,7 +56,7 @@ function changed() {
   all.sort((a, b) => a.positionSec - b.positionSec);
   byItem = regroup(byItem, (b) => `${b.itemType}:${b.itemId}`);
   byPodcast = regroup(byPodcast, (b) => b.podcastId);
-  listeners.forEach((l) => l());
+  version.set(version.get() + 1);
 }
 changed();
 
@@ -162,21 +163,16 @@ export function updateBookmark(b: BookmarkDto, change: { positionSec: number; no
 
 export const deleteBookmark = (b: BookmarkDto) => queue({ op: "delete", bookmark: b });
 
-const subscribe = (l: () => void) => {
-  listeners.add(l);
-  return () => void listeners.delete(l);
-};
-
 /** One item's bookmarks right now, for code outside React. */
 export const bookmarksFor = (type: PlayType, id: string) => byItem.get(`${type}:${id}`) ?? NONE;
 
 /** One item's bookmarks, in order. */
 export function useBookmarks(type: PlayType | undefined, id: string | undefined): BookmarkDto[] {
   const key = `${type}:${id}`;
-  return useSyncExternalStore(subscribe, () => byItem.get(key) ?? NONE);
+  return version.useSelect(() => byItem.get(key) ?? NONE);
 }
 
 /** Every bookmark in a podcast's episodes. */
 export function usePodcastBookmarks(podcastId: string): BookmarkDto[] {
-  return useSyncExternalStore(subscribe, () => byPodcast.get(podcastId) ?? NONE);
+  return version.useSelect(() => byPodcast.get(podcastId) ?? NONE);
 }

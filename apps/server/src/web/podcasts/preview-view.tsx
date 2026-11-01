@@ -14,14 +14,13 @@ import {
 import { api } from "../api";
 import { Cover } from "../cover";
 import { PlusIcon } from "../icons";
-import { BackButton, BackRow, EmptyState, SectionTitle } from "../ui";
+import { BackButton, BackRow, Description, EmptyState, SectionTitle } from "../ui";
 
 const PAGE = 20;
 
 /** A podcast from search, read live from its feed, with Subscribe. Episodes can't be played yet. */
 export function PreviewView({ preview, error }: { preview?: PodcastPreview; error?: string }) {
   const router = useRouter();
-  const [aboutOpen, setAboutOpen] = useState(false);
   const [limit, setLimit] = useState(PAGE);
   const [busy, setBusy] = useState(false);
 
@@ -73,18 +72,7 @@ export function PreviewView({ preview, error }: { preview?: PodcastPreview; erro
         </div>
       </div>
 
-      {preview.description ? (
-        <>
-          <p className={`description ${aboutOpen ? "" : "clamped"}`} style={{ WebkitLineClamp: aboutOpen ? undefined : 2 }}>
-            {preview.description}
-          </p>
-          {preview.description.length > 140 ? (
-            <button type="button" className="more-link" onClick={() => setAboutOpen((o) => !o)}>
-              {aboutOpen ? "Less" : "More"}
-            </button>
-          ) : null}
-        </>
-      ) : null}
+      {preview.description ? <Description text={preview.description} longerThan={140} lines={2} /> : null}
 
       <div className="episodes-head">
         <div className="section-head">

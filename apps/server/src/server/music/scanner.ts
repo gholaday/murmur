@@ -5,8 +5,9 @@ import type { Sqlite } from "../db";
 import { errorMessage, type Logger } from "../log";
 import { pickCoverImage, storeCover } from "../library/covers";
 import type { LibraryFolder } from "../library/folders";
-import { AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, extname, isIgnoredName, mimeTypeFor } from "../library/parse";
+import { AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, extname, mimeTypeFor } from "../library/parse";
 import { createLimiter, createUnreadable, extractEmbeddedCover, probeFile } from "../library/probe";
+import { fileDetails, runScan, walkTree } from "../library/scan-loop";
 import type { ScanState } from "../library/scanner";
 import { nameKey, sortName, trackInfo } from "./parse";
 import { bumpChanges } from "../changes";
@@ -48,38 +49,21 @@ interface TrackRow {
 }
 
 const newId = () => crypto.randomBytes(9).toString("base64url");
-const WALK_CONCURRENCY = 16;
-const fsLimit = createLimiter(WALK_CONCURRENCY);
 
 /** Every audio file under a music folder, and the images next to them. */
 async function walk(root: string, log: Logger): Promise<Walked> {
   const out: Walked = { audio: [], images: new Map() };
-  async function visit(rel: string): Promise<void> {
-    let entries;
-    try {
-      entries = (await fsLimit(() => fs.readdir(path.join(root, rel), { withFileTypes: true }))).filter((e) => !isIgnoredName(e.name));
-    } catch (err) {
-      if (rel === "") throw err;
-      log.warn("cannot read folder, skipping", { folder: rel, error: errorMessage(err) });
-      return;
-    }
+  await walkTree(root, log, async (rel, files) => {
     const images: string[] = [];
     await Promise.all(
-      entries.map(async (e) => {
-        const relPath = rel ? `${rel}/${e.name}` : e.name;
-        if (e.isDirectory()) return visit(relPath);
-        if (!e.isFile()) return;
-        const ext = extname(e.name);
-        if (IMAGE_EXTENSIONS.has(ext)) images.push(e.name);
-        else if (AUDIO_EXTENSIONS.has(ext)) {
-          const st = await fsLimit(() => fs.stat(path.join(root, relPath)));
-          out.audio.push({ relPath, size: st.size, mtimeMs: Math.floor(st.mtimeMs) });
-        }
+      files.map(async ({ name, relPath }) => {
+        const ext = extname(name);
+        if (IMAGE_EXTENSIONS.has(ext)) images.push(name);
+        else if (AUDIO_EXTENSIONS.has(ext)) out.audio.push(await fileDetails(root, relPath));
       }),
     );
     if (images.length) out.images.set(rel, images);
-  }
-  await visit("");
+  });
   return out;
 }
 
@@ -258,34 +242,17 @@ export function createMusicScanner(deps: MusicScannerDeps) {
   }
 
   /** Scans every music folder. If a scan is already running, another pass starts right after. */
-  async function scan(): Promise<void> {
-    if (state.running) {
-      state.rerunRequested = true;
-      return;
-    }
-    state.running = true;
-    try {
-      do {
-        state.rerunRequested = false;
-        const started = Date.now();
-        try {
-          const { stats, problems } = await runOnce();
-          state.lastStats = { ...stats, moved: 0 };
-          state.lastError = problems.length ? problems.join(" ") : null;
-          log.info("music scan finished", { ...stats, ms: Date.now() - started });
-          // Not awaited: online lookups mustn't hold up the next scan or the status.
-          void deps.afterScan?.().catch((err: unknown) => log.warn("after-scan step failed", { error: errorMessage(err) }));
-        } catch (err) {
-          state.lastError = errorMessage(err);
-          log.error("music scan failed", { error: state.lastError });
-        } finally {
-          state.lastFinishedAt = Date.now();
-          state.lastDurationMs = Date.now() - started;
-        }
-      } while (state.rerunRequested);
-    } finally {
-      state.running = false;
-    }
+  function scan(): Promise<void> {
+    return runScan({
+      state,
+      log,
+      name: "music scan",
+      afterScan: deps.afterScan,
+      once: async () => {
+        const { stats, problems } = await runOnce();
+        return { stats: { ...stats, moved: 0 }, problems };
+      },
+    });
   }
 
   return { scan };

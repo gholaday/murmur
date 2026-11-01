@@ -1,6 +1,6 @@
 import type { BookSummary } from "./index";
 import { duration } from "./format";
-import { nextInSeriesSub } from "./library";
+import { addTo, nextInSeriesSub } from "./library";
 import { ladderKeys, rankSimilar, splitPeople, type SimilarItem } from "./similar";
 
 // The rows at the top of the Books tab, shared by the web and the app. Each heading opens
@@ -51,7 +51,7 @@ export function nextInSeries(books: BookSummary[]): BookSummary[] {
   const bySeries = new Map<string, BookSummary[]>();
   for (const b of books) {
     if (!b.series || !present(b)) continue;
-    bySeries.set(b.series, [...(bySeries.get(b.series) ?? []), b]);
+    addTo(bySeries, b.series, b);
   }
   const picks: { book: BookSummary; finishedAt: number }[] = [];
   for (const list of bySeries.values()) {

@@ -10,7 +10,7 @@ import type { UserPrefs } from "@murmur/shared/client";
 import { AppIcon, LibraryIcon, MusicIcon, PodcastIcon, ProfileIcon, WatchIcon } from "./icons";
 import { FullPlayer } from "./player/full-player";
 import { MiniPlayer } from "./player/mini-player";
-import { usePlayer } from "./player/engine";
+import { usePlayerSelect } from "./player/engine";
 import { VideoPlayer } from "./watch/video-player";
 import { useVideo } from "./watch/video-session";
 
@@ -31,7 +31,7 @@ export function Shell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { item } = usePlayer();
+  const item = usePlayerSelect((p) => p.item);
   useDragToScroll();
   useLiveChanges();
   // Looks for Chromecasts; Chromium browsers only, and nothing shows until one is found.

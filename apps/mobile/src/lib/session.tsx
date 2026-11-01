@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { LoginResponse, UserDto } from "@murmur/shared/client";
-import { flushProgress, forgetProgress, stop as stopPlayer } from "@/player/engine";
+import { stop as stopPlayer } from "@/player/engine";
+import { flushProgress, forgetProgress } from "@/player/progress";
 import { api, clearEtags, configureApi, normalizeServerUrl, probeServer, settleWrites } from "./api";
 import { APP_NAME } from "./platform";
 import { clearPersistedCache, queryClient } from "./query";

@@ -23,7 +23,7 @@ import { api } from "./api";
 import { savedMovie, savedShow } from "./downloads";
 import { queryClient } from "./query";
 import { getJson, removeKey, setJson } from "./storage";
-import { queueProgress } from "@/player/engine";
+import { queueProgress } from "@/player/progress";
 
 // Watch: movies and TV shows. The lists and pages, marking things watched, and where screens go.
 

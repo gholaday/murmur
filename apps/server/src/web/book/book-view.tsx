@@ -13,7 +13,7 @@ import { CheckIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "../icons
 import { bookToPlayable, usePlayer, usePosition } from "../player/engine";
 import { setFinished } from "../progress";
 import { BookMenuItems } from "../library/book-card";
-import { BackButton, SectionTitle } from "../ui";
+import { BackButton, Description, SectionTitle } from "../ui";
 import { EditBookDialog, type EditTab } from "./edit-dialog";
 import { setPlayNext } from "./play-next";
 
@@ -23,7 +23,6 @@ export function BookView({ book, bookmarks: firstBookmarks, isAdmin }: { book: B
   const bookmarks = useBookmarks("book", book.id, firstBookmarks);
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState<EditTab | null>(null);
-  const [expanded, setExpanded] = useState(false);
 
   const current = player.isCurrent("book", book.id);
   // Only follow the playhead while this book is the one playing.
@@ -164,14 +163,7 @@ export function BookView({ book, bookmarks: firstBookmarks, isAdmin }: { book: B
       ) : null}
 
       {book.description ? (
-        <>
-          <p className={`description ${expanded ? "" : "clamped"}`}>{book.description}</p>
-          {book.description.length > 280 ? (
-            <button type="button" className="more-link" onClick={() => setExpanded((e) => !e)}>
-              {expanded ? "Less" : "More"}
-            </button>
-          ) : null}
-        </>
+        <Description text={book.description} longerThan={280} />
       ) : null}
 
       {bookmarks.length ? (

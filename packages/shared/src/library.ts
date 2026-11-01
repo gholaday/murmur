@@ -95,12 +95,18 @@ export function bySeriesOrder(a: BookSummary, b: BookSummary) {
   return (a.seriesPosition ?? 9999) - (b.seriesPosition ?? 9999) || collator.compare(a.title, b.title);
 }
 
+/** Adds to a key's list, starting it if it's the first. */
+export function addTo<K, V>(map: Map<K, V[]>, key: K, value: V) {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
+}
+
 export function groupBy(books: BookSummary[], key: (b: BookSummary) => string | null) {
   const map = new Map<string, BookSummary[]>();
   for (const b of books) {
     const k = key(b);
-    if (!k) continue;
-    map.set(k, [...(map.get(k) ?? []), b]);
+    if (k) addTo(map, k, b);
   }
   return [...map.entries()].sort(([a], [b]) => collator.compare(sortTitle(a), sortTitle(b)));
 }

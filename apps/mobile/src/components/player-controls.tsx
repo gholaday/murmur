@@ -25,6 +25,11 @@ export function CastButton({ color }: { color: string }) {
   );
 }
 
+/** A progress bar's filled part, `fraction` of its parent. A transform, so each tick moves it without any layout. */
+export function BarFill({ fraction, color }: { fraction: number; color: string }) {
+  return <View style={{ position: "absolute", inset: 0, backgroundColor: color, transform: [{ scaleX: fraction }], transformOrigin: "left" }} />;
+}
+
 /** A skip button with its seconds drawn inside the arrow. */
 export function SkipButton({
   seconds,

@@ -23,7 +23,9 @@ Podcasts, Music and Watch are turned on and off under You > Tabs, and that alone
 
 **Subtitles:** the app draws the line itself over the picture, from the place in the video, so `expo-video` needs no patch. The pick is made in the player or on the movie or show page, and is remembered per movie and per show on the phone. See [Subtitles](watch.md#subtitles).
 
-**Offline:** lists and opened pages are cached on the phone, so the app opens and downloaded items play without a connection. A downloaded video keeps its subtitles as VTT files beside it; any that weren't ready are fetched the next time it's opened with a connection. Progress and bookmarks are written to a local outbox first and sent to the server when it's reachable.
+**Coming back:** the lists refresh when the app returns after five minutes or more, since live changes only cover scans and edits, not progress from another device or new episodes.
+
+**Offline:** lists and the newest opened pages are cached on the phone, so the app opens and downloaded items play without a connection. The mini player comes back from the saved place at once, then moves if the server has a newer one. A downloaded video keeps its subtitles as VTT files beside it; any that weren't ready are fetched the next time it's opened with a connection. Progress and bookmarks are written to a local outbox first and sent to the server when it's reachable.
 
 **First run:** enter the server URL, then username and password; the app stores a token and never asks again until it's revoked.
 

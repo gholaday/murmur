@@ -15,6 +15,7 @@ import {
   clampSpeed,
   clock,
   duration,
+  type EpisodeAdsDto,
   MAX_SPEED,
   MIN_SPEED,
   SLEEP_MINUTES,
@@ -51,7 +52,7 @@ import {
   SkipForwardIcon,
 } from "@/components/icons";
 import { Empty, useTopInset } from "@/components/page";
-import { CastButton, SkipButton, Tile } from "@/components/player-controls";
+import { BarFill, CastButton, SkipButton, Tile } from "@/components/player-controls";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
 import { MixerBars } from "@/components/mixer";
@@ -65,6 +66,7 @@ import { useCast } from "@/player/cast";
 import {
   chapterStep,
   cycleRepeat,
+  getPosition,
   goBack,
   jumpTo,
   markCurrent,
@@ -80,7 +82,8 @@ import {
   toggleShuffle,
   trackStep,
   usePlayer,
-  usePosition,
+  usePlayerSelect,
+  usePositionSelect,
 } from "@/player/engine";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fonts, mixColor, useTheme } from "@/theme";
@@ -96,18 +99,33 @@ const ON_AD = "#412402";
 
 export default function Player() {
   const t = useTheme();
+  const item = usePlayerSelect((s) => s.item);
+
+  // Nothing to show (e.g. playback was stopped): close.
+  useEffect(() => {
+    if (!item && router.canGoBack()) router.back();
+  }, [item]);
+
+  if (!item) return <View style={{ flex: 1, backgroundColor: t.bg }} />;
+  return <PlayerScreen item={item} />;
+}
+
+/** The place on the bar while dragging, else in the item, run through `pick`; renders when the answer changes. */
+const useBarPlace = <T,>(scrub: number | null, pick: (place: number) => T) => usePositionSelect((at) => pick(scrub ?? at));
+
+function PlayerScreen({ item }: { item: Playable }) {
+  const t = useTheme();
   const top = useTopInset(4);
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const p = usePlayer();
   const cast = useCast();
-  const position = usePosition();
   const adPrefs = useAdPrefs();
   const adDetection = useAdDetection();
   const [sheet, setSheet] = useState<null | "speed" | "sleep" | "chapters" | "bookmarks" | "ads" | "more" | "upnext">(null);
   const [chaptersTab, setChaptersTab] = useState<"chapters" | "bookmarks">("chapters");
   const [editingBookmark, setEditingBookmark] = useState<{ bookmark: BookmarkDto; isNew: boolean } | null>(null);
-  const bookmarks = useBookmarks(p.item?.type, p.item?.id);
+  const bookmarks = useBookmarks(item.type, item.id);
   const [scrub, setScrub] = useState<number | null>(null);
   const [speedDraft, setSpeedDraft] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -115,10 +133,13 @@ export default function Player() {
   const titleRef = useRef<ViewInstance>(null);
   /** Where the seek thumb was on the last change, for the ticks it passes. */
   const scrubFrom = useRef(0);
-  const { item } = p;
   // A song plays at 1x with no chapters: previous and next step through the songs.
-  const song = item?.type === "track";
-  const albumColor = useAlbumColor(item?.album?.id);
+  const song = item.type === "track";
+  const albumColor = useAlbumColor(item.album?.id);
+  const ci = useBarPlace(scrub, (at) => chapterAt(item.chapters, at));
+  const nearBookmark = useBarPlace(scrub, (at) => (song ? null : bookmarkNear(bookmarks, at)));
+  // A book that played to its end waits there: nothing starts on its own, so it offers a replay.
+  const ended = useBarPlace(scrub, (at) => bookFinished(item.type, item.durationSec, at, p.playing || p.loading));
 
   // Pulling down anywhere from the top bar to the bottom of the cover minimises the player: it
   // follows the finger, uncovering the screen below, and closes past a distance or on a flick.
@@ -152,15 +173,6 @@ export default function Player() {
     return () => clearInterval(id);
   }, [p.sleep]);
 
-  // Nothing to show (e.g. playback was stopped): close.
-  useEffect(() => {
-    if (!item && router.canGoBack()) router.back();
-  }, [item]);
-
-  if (!item) return <View style={{ flex: 1, backgroundColor: t.bg }} />;
-
-  const pos = scrub ?? position;
-  const ci = chapterAt(item.chapters, pos);
   const chapter = item.chapters[ci];
   const multiChapter = item.chapters.length > 1;
   // An episode's chapters split the bar into segments over the whole episode; a book's bar spans
@@ -169,7 +181,7 @@ export default function Player() {
   const span =
     chapter && multiChapter && !segmented ? { start: chapter.startSec, end: chapter.endSec } : { start: 0, end: item.durationSec || 0 };
   const spanLen = Math.max(1, span.end - span.start);
-  const within = Math.min(spanLen, Math.max(0, pos - span.start));
+  const within = (at: number) => Math.min(spanLen, Math.max(0, at - span.start));
   const speed = speedDraft ?? p.speed;
   const tint = item.color ?? albumColor ?? "#3b4a6e";
   // The page's tint, strongest at the top; the blurred cover fades into it a little lower down.
@@ -186,19 +198,14 @@ export default function Player() {
   const showAds = item.type === "episode" && (adDetection ?? !!p.ads?.enabled);
   const adMode = adModeFor(adPrefs, item.podcastId);
   const marks = showAds && adMode !== "off" && p.ads?.enabled ? p.ads.ads : [];
-  const adIndex = marks.findIndex((a) => pos >= a.startSec && pos < a.endSec);
-  const inAd = adIndex >= 0 ? adBreak(marks, adIndex) : null;
-  // An ad that runs to the episode's end has nothing to skip to once it's over.
-  const canSkipAd = inAd && !(item.durationSec && item.durationSec - pos < 1);
   /** Where a time falls on the bar, 0 to 1. */
   const frac = (sec: number) => Math.min(Math.max(sec - span.start, 0), spanLen) / spanLen;
   const trackColor = t.isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)";
   const showOverride: AdMode | null = item.podcastId ? (adPrefs.shows[item.podcastId] ?? null) : null;
   const slot = thirdTile(item.type, multiChapter);
   const adShort = AD_MODES.find((m) => m.id === adMode)?.short;
-  const nearBookmark = song ? null : bookmarkNear(bookmarks, pos);
   const onBookmark = () =>
-    setEditingBookmark(nearBookmark ? { bookmark: nearBookmark, isNew: false } : { bookmark: newBookmark(item, bookmarkSpot(position, p.playing, p.speed)), isNew: true });
+    setEditingBookmark(nearBookmark ? { bookmark: nearBookmark, isNew: false } : { bookmark: newBookmark(item, bookmarkSpot(getPosition(), p.playing, p.speed)), isNew: true });
   const jumpToBookmark = (b: BookmarkDto) => {
     setSheet(null);
     void jumpTo(b, b.positionSec);
@@ -209,8 +216,6 @@ export default function Player() {
     fn();
     setSheet(null);
   };
-  // A book that played to its end waits there: nothing starts on its own, so it offers a replay.
-  const ended = bookFinished(item.type, item.durationSec, pos, p.playing || p.loading);
 
   return (
     <GestureDetector gesture={pullDown}>
@@ -261,27 +266,7 @@ export default function Player() {
             <Cover path={item.coverPathLarge} title={item.title} color={item.color} radius={16} />
             {/* Over the artwork like a video player's skip button, so nothing below moves. Both can
                 show at once, Mark played on top. */}
-            <View pointerEvents="box-none" style={{ position: "absolute", right: 12, bottom: 12, gap: 8, alignItems: "flex-end" }}>
-              {showMarkPlayed(item.type, item.durationSec, pos) ? (
-                // Marking it played closes the player, as reaching the end does.
-                <CoverPill
-                  color={t.accent}
-                  onPress={() => {
-                    markCurrent(true);
-                    toast.show("Marked as played");
-                  }}
-                >
-                  <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.onAccent }}>Mark played</Text>
-                  <CheckIcon size={16} color={t.onAccent} />
-                </CoverPill>
-              ) : null}
-              {inAd && canSkipAd ? (
-                <CoverPill color={AD} onPress={() => seek(inAd.endSec)}>
-                  <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: ON_AD }}>Skip ad</Text>
-                  <NextChapterIcon size={16} color={ON_AD} />
-                </CoverPill>
-              ) : null}
-            </View>
+            <CoverPills item={item} scrub={scrub} marks={marks} />
           </View>
 
           <View style={{ gap: 4 }}>
@@ -309,15 +294,15 @@ export default function Player() {
           <View>
             <View>
             {segmented ? (
-              <ChapterSegments chapters={item.chapters} current={ci} pos={pos} frac={frac} grow={dragging} marks={marks} />
+              <ChapterSegments chapters={item.chapters} current={ci} scrub={scrub} frac={frac} grow={dragging} marks={marks} />
             ) : (
               // The slider's own track would cover the ticks and can't show ads, so it draws see-through over this one.
               <View
                 pointerEvents="none"
                 style={{ position: "absolute", left: 0, right: 0, top: 14, height: 4, borderRadius: 2, overflow: "hidden", backgroundColor: trackColor }}
               >
-                <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${frac(pos) * 100}%`, backgroundColor: t.text }} />
-                <AdMarks marks={marks} pos={pos} frac={frac} />
+                <Fill scrub={scrub} from={span.start} to={span.start + spanLen} color={t.text} />
+                <AdMarks marks={marks} scrub={scrub} frac={frac} />
               </View>
             )}
             {/* Over the bar and under the thumb, inset to the thumb's travel so one sits on its tick at either end. */}
@@ -330,12 +315,13 @@ export default function Player() {
                   ))}
               </View>
             ) : null}
-            <Slider
+            <SeekSlider
+              scrub={scrub}
+              at={within}
               accessibilityLabel="Position"
               style={{ marginHorizontal: -12, height: 32 }}
               minimumValue={0}
               maximumValue={spanLen}
-              value={within}
               minimumTrackTintColor="transparent"
               maximumTrackTintColor="transparent"
               thumbTintColor={t.text}
@@ -366,9 +352,7 @@ export default function Player() {
             />
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text variant="small" style={{ fontVariant: ["tabular-nums"], color: soft }}>
-                {clock(within)}
-              </Text>
+              <BarTime scrub={scrub} text={(at) => clock(within(at))} style={{ fontVariant: ["tabular-nums"], color: soft }} />
               {/* An episode's chapter takes the middle: the time left is already on the right. */}
               {segmented ? (
                 chapter ? (
@@ -380,13 +364,9 @@ export default function Player() {
                   </Pressable>
                 ) : null
               ) : item.durationSec && !song ? (
-                <Text variant="small" style={{ color: soft }}>
-                  {timeLeft(item.durationSec, pos)}
-                </Text>
+                <BarTime scrub={scrub} text={(at) => timeLeft(item.durationSec, at)} style={{ color: soft }} />
               ) : null}
-              <Text variant="small" style={{ fontVariant: ["tabular-nums"], color: soft }}>
-                -{clock(spanLen - within)}
-              </Text>
+              <BarTime scrub={scrub} text={(at) => `-${clock(spanLen - within(at))}`} style={{ fontVariant: ["tabular-nums"], color: soft }} />
             </View>
           </View>
 
@@ -704,16 +684,71 @@ function CoverPill({ color, onPress, children }: { color: string; onPress: () =>
 
 type Span = { startSec: number; endSec: number };
 
+// What moves with the playhead is in small components of its own, so a tick renders those and not
+// the screen around them, with its blurred backdrop.
+
+/** Mark played and Skip ad, when they apply. */
+function CoverPills({ item, scrub, marks }: { item: Playable; scrub: number | null; marks: EpisodeAdsDto["ads"] }) {
+  const t = useTheme();
+  const showMark = useBarPlace(scrub, (at) => showMarkPlayed(item.type, item.durationSec, at));
+  const adIndex = useBarPlace(scrub, (at) => marks.findIndex((a) => at >= a.startSec && at < a.endSec));
+  // An ad that runs to the episode's end has nothing to skip to once it's over.
+  const atEnd = useBarPlace(scrub, (at) => !!item.durationSec && item.durationSec - at < 1);
+  const inAd = adIndex >= 0 ? adBreak(marks, adIndex) : null;
+  return (
+    <View pointerEvents="box-none" style={{ position: "absolute", right: 12, bottom: 12, gap: 8, alignItems: "flex-end" }}>
+      {showMark ? (
+        // Marking it played closes the player, as reaching the end does.
+        <CoverPill
+          color={t.accent}
+          onPress={() => {
+            markCurrent(true);
+            toast.show("Marked as played");
+          }}
+        >
+          <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.onAccent }}>Mark played</Text>
+          <CheckIcon size={16} color={t.onAccent} />
+        </CoverPill>
+      ) : null}
+      {inAd && !atEnd ? (
+        <CoverPill color={AD} onPress={() => seek(inAd.endSec)}>
+          <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: ON_AD }}>Skip ad</Text>
+          <NextChapterIcon size={16} color={ON_AD} />
+        </CoverPill>
+      ) : null}
+    </View>
+  );
+}
+
+/** How much of `from` to `to` has played, filling its parent. */
+function Fill({ scrub, from, to, color }: { scrub: number | null; from: number; to: number; color: string }) {
+  const fraction = useBarPlace(scrub, (at) => Math.min(1, Math.max(0, (at - from) / (to - from || 1))));
+  return <BarFill fraction={fraction} color={color} />;
+}
+
+function SeekSlider({ scrub, at, ...slider }: { scrub: number | null; at: (place: number) => number } & Omit<React.ComponentProps<typeof Slider>, "value">) {
+  const value = useBarPlace(scrub, at);
+  return <Slider value={value} {...slider} />;
+}
+
+function BarTime({ scrub, text, style }: { scrub: number | null; text: (place: number) => string; style: React.ComponentProps<typeof Text>["style"] }) {
+  const shown = useBarPlace(scrub, text);
+  return (
+    <Text variant="small" style={style}>
+      {shown}
+    </Text>
+  );
+}
+
 /** The ads on the bar, filling darker as they're heard. */
-function AdMarks({ marks, pos, frac }: { marks: Span[]; pos: number; frac: (sec: number) => number }) {
+function AdMarks({ marks, scrub, frac }: { marks: Span[]; scrub: number | null; frac: (sec: number) => number }) {
   return marks.map((a) => {
     const left = frac(a.startSec);
     const width = frac(a.endSec) - left;
     if (width <= 0) return null;
-    const heard = Math.min(1, Math.max(0, (pos - a.startSec) / (a.endSec - a.startSec)));
     return (
       <View key={a.startSec} style={{ position: "absolute", top: 0, bottom: 0, left: `${left * 100}%`, width: `${width * 100}%`, minWidth: 2, backgroundColor: AD }}>
-        <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${heard * 100}%`, backgroundColor: AD_HEARD }} />
+        <Fill scrub={scrub} from={a.startSec} to={a.endSec} color={AD_HEARD} />
       </View>
     );
   });
@@ -726,14 +761,14 @@ function AdMarks({ marks, pos, frac }: { marks: Span[]; pos: number; frac: (sec:
 function ChapterSegments({
   chapters,
   current,
-  pos,
+  scrub,
   frac,
   grow,
   marks,
 }: {
   chapters: Span[];
   current: number;
-  pos: number;
+  scrub: number | null;
   frac: (sec: number) => number;
   grow: boolean;
   marks: Span[];
@@ -745,7 +780,6 @@ function ChapterSegments({
     <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: 14, height: 4, borderRadius: 2, overflow: grow ? "visible" : "hidden" }}>
       {chapters.map((c, i) => {
         const left = frac(c.startSec);
-        const fill = Math.min(1, Math.max(0, (pos - c.startSec) / (c.endSec - c.startSec || 1)));
         return (
           <View
             key={c.startSec}
@@ -761,12 +795,12 @@ function ChapterSegments({
           >
             <View style={{ flex: 1 }}>
               <View style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, backgroundColor: t.text, opacity: 0.18 }} />
-              <View style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: `${fill * 100}%`, backgroundColor: t.text }} />
+              <Fill scrub={scrub} from={c.startSec} to={c.endSec} color={t.text} />
             </View>
           </View>
         );
       })}
-      <AdMarks marks={marks} pos={pos} frac={frac} />
+      <AdMarks marks={marks} scrub={scrub} frac={frac} />
     </View>
   );
 }

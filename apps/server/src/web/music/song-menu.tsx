@@ -9,26 +9,44 @@ import { MoreIcon } from "../icons";
 import { usePlayerControls, usePlayerSelect } from "../player/engine";
 import { Sheet, SheetItem } from "../sheet";
 
-/** A song's ⋯ button: add to (or remove from) Up Next, add to a playlist, go to its album, and any `extra` items. */
-export function SongMenuButton({
-  track,
-  hideAlbum,
-  extra,
-}: {
+interface SongMenuProps {
   track: TrackDto;
   /** On the album's own page, where "Go to album" goes nowhere. */
   hideAlbum?: boolean;
   /** More items at the end, given a function that closes the menu. */
   extra?: (close: () => void) => React.ReactNode;
-}) {
+}
+
+/** A song's ⋯ button. Its sheets mount the first time it's pressed, since a long list has one per song. */
+export function SongMenuButton(props: SongMenuProps) {
+  const [open, setOpen] = useState(false);
+  const [used, setUsed] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        className="icon-btn dim"
+        aria-label={`More for ${props.track.title}`}
+        onClick={() => {
+          setUsed(true);
+          setOpen(true);
+        }}
+      >
+        <MoreIcon size={18} />
+      </button>
+      {used ? <SongSheets {...props} open={open} close={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+
+/** Add to (or remove from) Up Next, add to a playlist, go to its album, and any `extra` items. */
+function SongSheets({ track, hideAlbum, extra, open, close }: SongMenuProps & { open: boolean; close: () => void }) {
   const router = useRouter();
   const player = usePlayerControls();
-  const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const ref = { itemType: "track", itemId: track.id } as const;
   const queued = usePlayerSelect((s) => s.isWaiting(ref));
-  const close = () => setOpen(false);
-  const run =(fn: () => Promise<void>, done: string) => {
+  const run = (fn: () => Promise<void>, done: string) => {
     close();
     fn().then(
       () => toast(done),
@@ -38,9 +56,6 @@ export function SongMenuButton({
 
   return (
     <>
-      <button type="button" className="icon-btn dim" aria-label={`More for ${track.title}`} onClick={() => setOpen(true)}>
-        <MoreIcon size={18} />
-      </button>
       <Sheet open={open} onClose={close} title={track.title}>
         {queued ? (
           <SheetItem onClick={() => run(async () => player.removeWaiting(ref), "Removed from queue")}>Remove from queue</SheetItem>

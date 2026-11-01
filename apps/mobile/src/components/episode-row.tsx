@@ -89,7 +89,7 @@ export const EpisodeRow = memo(function EpisodeRow({
 
   const onDownload = () => {
     if (dl?.status === "done") setConfirmRemove(true);
-    else if (dl) removeDownload("podcast", episode.id);
+    else if (dl?.status === "downloading") removeDownload("podcast", episode.id);
     else downloadEpisode(episode);
   };
 
@@ -204,7 +204,7 @@ export const EpisodeRow = memo(function EpisodeRow({
             <PlayedIcon size={20} played={finished} color={finished ? t.accent : t.text2} checkColor={t.onAccent} />
           </ActionIcon>
           <ActionIcon
-            label={dl ? (dl.status === "downloading" ? "Cancel download" : "Remove download") : "Download"}
+            label={dl?.status === "error" ? "Download failed, try again" : dl ? (dl.status === "downloading" ? "Cancel download" : "Remove download") : "Download"}
             selected={dl?.status === "done"}
             onPress={onDownload}
           >

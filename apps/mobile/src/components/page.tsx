@@ -1,8 +1,8 @@
 import { ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { usePlayer } from "@/player/engine";
-import { useVideo } from "@/player/video";
+import { usePlayerSelect } from "@/player/engine";
+import { useVideoSelect } from "@/player/video";
 import { useTheme } from "@/theme";
 import { BackIcon } from "./icons";
 import { PAD } from "./library";
@@ -109,8 +109,8 @@ export function PageTitle({
  */
 export function useBottomPad(extra = 24) {
   const insets = useSafeAreaInsets();
-  const { item } = usePlayer();
-  const video = useVideo().item;
+  const item = usePlayerSelect((s) => !!s.item);
+  const video = useVideoSelect((v) => !!v.item);
   return item || video ? extra : insets.bottom + extra;
 }
 

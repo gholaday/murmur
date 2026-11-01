@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { FlatList, Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
+import { FlatList, PixelRatio, Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import Animated, { FadeIn as EnterFade, LayoutAnimationConfig } from "react-native-reanimated";
 import {
@@ -34,7 +34,7 @@ import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, FadeIn, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { useCardMenu } from "@/components/sheet";
 import { DragHandle, SortableList, SortableScrollProvider, useSortableScroll } from "@/components/sortable-list";
-import { GAP, Grid, Group, openAllBooks, openGroup, openShelf, PAD, safeShelf, safeShelfTitle, Shelf, todayKey, useGridWidth, useShelfWidth } from "@/components/library";
+import { GAP, gridRows, Group, openAllBooks, openGroup, openShelf, PAD, safeShelf, safeShelfTitle, Shelf, todayKey, useGridWidth, useShelfWidth } from "@/components/library";
 import { Bar, Button, Chips, CountPill, IconButton, Text } from "@/components/ui";
 import { saveBookSections, useBookSections, useBooks } from "@/lib/data";
 import { withLongPressHaptic } from "@/lib/haptics";
@@ -99,10 +99,7 @@ export default function Library() {
 
   const finishedRows = useMemo(() => {
     if (tab !== "finished") return [];
-    const shown = list.filter((b) => b.progress?.finished).sort((a, b) => b.progress!.updatedAt - a.progress!.updatedAt);
-    const rows: BookSummary[][] = [];
-    for (let i = 0; i < shown.length; i += 3) rows.push(shown.slice(i, i + 3));
-    return rows;
+    return gridRows(list.filter((b) => b.progress?.finished).sort((a, b) => b.progress!.updatedAt - a.progress!.updatedAt));
   }, [list, tab]);
 
 
@@ -186,108 +183,111 @@ export default function Library() {
   );
 
 
+  // The views below are different lists, and a header inside one would remount with it. While
+  // searching it sits above them, so the search box stays the same input as the results change.
+  const listHeader = searching ? undefined : header;
+  const plain = (body: React.ReactNode) => (
+    <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24 }} refreshControl={refresh} keyboardShouldPersistTaps="handled">
+      {listHeader}
+      <FadeIn when={fade}>{body}</FadeIn>
+    </ScrollView>
+  );
+
+  let content: React.ReactNode;
   if (books.isPending) {
-    return (
-      <View style={{ flex: 1, backgroundColor: t.bg, paddingHorizontal: PAD }}>
-        {header}
+    content = (
+      <View style={{ flex: 1, paddingHorizontal: PAD }}>
+        {listHeader}
         <Skeleton>
           <SectionBone />
           <CoverGridBones />
         </Skeleton>
       </View>
     );
-  }
-
-  let body: React.ReactNode;
-  if (books.isError && list.length === 0) {
-    body = <Empty title="Couldn't load your library">{books.error.message}</Empty>;
+  } else if (books.isError && list.length === 0) {
+    content = plain(<Empty title="Couldn't load your library">{books.error.message}</Empty>);
   } else if (list.length === 0) {
-    body = <Empty title="No books yet">{health ? emptyLibraryReason(health.scan) : null}</Empty>;
+    content = plain(<Empty title="No books yet">{health ? emptyLibraryReason(health.scan) : null}</Empty>);
   } else if (q) {
-    const found = sorted.filter((b) => matchesBook(b, q));
-    body = found.length ? (
-      <View style={{ marginTop: 8 }}>
-        <Grid>
-          {found.map((b) => (
-            <BookCard key={b.id} book={b} width={cardWidth} sub={seriesLabel(b.series, b.seriesPosition) ?? b.author} />
-          ))}
-        </Grid>
-      </View>
-    ) : (
-      <Empty>{`Nothing matches "${query.trim()}".`}</Empty>
+    content = (
+      <VirtualList
+        header={<View style={{ height: 8 }} />}
+        data={gridRows(sorted.filter((b) => matchesBook(b, q)))}
+        keyOf={(r) => r[0]!.id}
+        fade={fade}
+        refresh={refresh}
+        separator={RowGap}
+        empty={<Empty>{`Nothing matches "${query.trim()}".`}</Empty>}
+        render={(r) => (
+          <View style={{ flexDirection: "row", columnGap: GAP }}>
+            {r.map((b) => (
+              <BookCard key={b.id} book={b} width={cardWidth} sub={seriesLabel(b.series, b.seriesPosition) ?? b.author} />
+            ))}
+          </View>
+        )}
+      />
     );
   } else if (tab === "books") {
-    return (
-      <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <BooksTab
-          header={header}
-          books={list}
-          sorted={sorted}
-          fade={fade}
-          refresh={refresh}
-          customizing={customizing}
-          onCustomize={() => setCustomizing(true)}
-        />
-        <BookSortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
-      </View>
+    content = (
+      <BooksTab
+        header={listHeader}
+        books={list}
+        sorted={sorted}
+        fade={fade}
+        refresh={refresh}
+        customizing={customizing}
+        onCustomize={() => setCustomizing(true)}
+      />
     );
   } else if ((tab === "authors" || tab === "series") && groups.length) {
     // One item per author or series: its heading and its sideways shelf.
-    return (
-      <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <VirtualList
-          header={header}
-          data={groups}
-          keyOf={(g) => g.name}
-          fade={fade}
-          refresh={refresh}
-          render={(g) => (
-            <Group title={g.name} count={g.books.length} sub={g.sub} side={g.side} onOpen={g.open}>
-              {g.books.map((b) => (
-                <BookCard key={b.id} book={b} width={shelfWidth} sub={g.cardSub(b)} />
-              ))}
-            </Group>
-          )}
-        />
-        <BookSortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
-      </View>
+    content = (
+      <VirtualList
+        header={listHeader}
+        data={groups}
+        keyOf={(g) => g.name}
+        fade={fade}
+        refresh={refresh}
+        render={(g) => (
+          <Group title={g.name} count={g.books.length} sub={g.sub} side={g.side} onOpen={g.open}>
+            {g.books.map((b) => (
+              <BookCard key={b.id} book={b} width={shelfWidth} sub={g.cardSub(b)} />
+            ))}
+          </Group>
+        )}
+      />
     );
   } else if (tab === "finished" && finishedRows.length) {
-    return (
-      <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <VirtualList
-          header={
-            <>
-              {header}
-              <View style={{ height: 20 }} />
-            </>
-          }
-          data={finishedRows}
-          keyOf={(r) => r[0]!.id}
-          fade={fade}
-          refresh={refresh}
-          separator={RowGap}
-          render={(r) => (
-            <View style={{ flexDirection: "row", columnGap: GAP }}>
-              {r.map((b) => (
-                <BookCard key={b.id} book={b} width={cardWidth} />
-              ))}
-            </View>
-          )}
-        />
-        <BookSortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
-      </View>
+    content = (
+      <VirtualList
+        header={
+          <>
+            {listHeader}
+            <View style={{ height: 20 }} />
+          </>
+        }
+        data={finishedRows}
+        keyOf={(r) => r[0]!.id}
+        fade={fade}
+        refresh={refresh}
+        separator={RowGap}
+        render={(r) => (
+          <View style={{ flexDirection: "row", columnGap: GAP }}>
+            {r.map((b) => (
+              <BookCard key={b.id} book={b} width={cardWidth} />
+            ))}
+          </View>
+        )}
+      />
     );
   } else {
-    body = tab === "authors" ? null : <Empty>{tab === "finished" ? "No finished books yet." : "No series yet."}</Empty>;
+    content = plain(tab === "authors" ? null : <Empty>{tab === "finished" ? "No finished books yet." : "No series yet."}</Empty>);
   }
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24 }} refreshControl={refresh} keyboardShouldPersistTaps="handled">
-        {header}
-        <FadeIn when={fade}>{body}</FadeIn>
-      </ScrollView>
+      {searching ? <View style={{ paddingHorizontal: PAD }}>{header}</View> : null}
+      {content}
       <BookSortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
     </View>
   );
@@ -309,7 +309,7 @@ type BookGroup = {
 
 /**
  * A virtualised list under the page header, so long libraries only mount the rows near the
- * screen. Used by the Authors, Series and Finished views.
+ * screen. Used by the Authors, Series and Finished views, and search.
  */
 function VirtualList<T>({
   header,
@@ -319,14 +319,16 @@ function VirtualList<T>({
   fade,
   refresh,
   separator,
+  empty,
 }: {
-  header: React.ReactElement;
+  header?: React.ReactElement;
   data: T[];
   keyOf: (item: T) => string;
   render: (item: T) => React.ReactNode;
   fade: boolean;
   refresh: React.ReactElement<React.ComponentProps<typeof RefreshControl>>;
   separator?: React.ComponentType;
+  empty?: React.ReactElement;
 }) {
   return (
     <FlatList
@@ -336,6 +338,7 @@ function VirtualList<T>({
       refreshControl={refresh}
       keyboardShouldPersistTaps="handled"
       ListHeaderComponent={header}
+      ListEmptyComponent={empty}
       ItemSeparatorComponent={separator}
       windowSize={7}
       maxToRenderPerBatch={6}
@@ -554,7 +557,7 @@ function ContinueCard({ book, width }: { book: BookSummary; width: number }) {
     >
       {menu.shown ? <BookActions book={book} open={menu.open} onClose={menu.close} onIdle={menu.idle} /> : null}
       <View>
-        <Cover path={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 600) : null} title={book.title} color={book.coverColor} radius={12} />
+        <Cover path={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, PixelRatio.getPixelSizeForLayoutSize(width) > 300 ? 600 : 200) : null} title={book.title} color={book.coverColor} radius={12} />
         {now ? <Mixer playing={now === "playing"} /> : null}
       </View>
       <Bar pct={progressPct(book)} height={4} />

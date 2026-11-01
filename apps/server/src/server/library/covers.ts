@@ -27,7 +27,15 @@ export interface CoverMeta {
 /** Bumped whenever coverColor changes, so stored colours are redone on next use. */
 const COLOR_VERSION = 2;
 
-const metaCache = new Map<string, CoverMeta | null>();
+declare global {
+  var __murmurCoverMeta: Map<string, CoverMeta | null> | undefined;
+}
+
+// On globalThis so every route bundle shares one cache, filled at boot by warmCoverMeta.
+const metaCache = (globalThis.__murmurCoverMeta ??= new Map<string, CoverMeta | null>());
+
+/** How many covers warmCoverMeta reads at once; an older colour rule means decoding each one. */
+const WARM_AT_ONCE = 16;
 
 function metaFile(coversDir: string, hash: string): string {
   return path.join(coversDir, `${hash}.json`);
@@ -90,6 +98,15 @@ export async function coverMeta(coversDir: string, hash: string): Promise<CoverM
   }
   metaCache.set(hash, meta);
   return meta;
+}
+
+/** Reads every stored colour in the background at boot, so list requests never touch the disk for them. */
+export async function warmCoverMeta(coversDir: string) {
+  const names = await fs.readdir(coversDir).catch(() => [] as string[]);
+  const hashes = names.filter((n) => n.endsWith(".json")).map((n) => n.slice(0, -".json".length));
+  for (let i = 0; i < hashes.length; i += WARM_AT_ONCE) {
+    await Promise.all(hashes.slice(i, i + WARM_AT_ONCE).map((hash) => coverMeta(coversDir, hash)));
+  }
 }
 
 /** Stores the colour of an image kept in another shape (Watch's posters and stills), so coverColors finds it. */

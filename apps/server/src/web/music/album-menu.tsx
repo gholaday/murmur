@@ -77,10 +77,16 @@ export function AlbumMenuItems({
 export function useAlbumMenuSheets(album: AlbumSummary) {
   const router = useRouter();
   const [adding, setAdding] = useState<string[] | null>(null);
+  // Mounted once it's needed, since a page can have hundreds of album cards.
+  const [added, setAdded] = useState(false);
   const [matching, setMatching] = useState(false);
+  const onAddToPlaylist = (trackIds: string[]) => {
+    setAdded(true);
+    setAdding(trackIds);
+  };
   const sheets = (
     <>
-      <AddToPlaylistSheet open={adding !== null} onClose={() => setAdding(null)} title={album.title} trackIds={adding ?? []} />
+      {added ? <AddToPlaylistSheet open={adding !== null} onClose={() => setAdding(null)} title={album.title} trackIds={adding ?? []} /> : null}
       {matching ? (
         <AlbumMatchDialog
           album={album}
@@ -94,7 +100,7 @@ export function useAlbumMenuSheets(album: AlbumSummary) {
       ) : null}
     </>
   );
-  return { onAddToPlaylist: setAdding, onMatch: () => setMatching(true), sheets };
+  return { onAddToPlaylist, onMatch: () => setMatching(true), sheets };
 }
 
 export function AlbumCardMenu({ album }: { album: AlbumSummary }) {

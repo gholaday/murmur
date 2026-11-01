@@ -60,7 +60,7 @@ import {
   SkipForwardIcon,
   SubtitlesIcon,
 } from "../icons";
-import { addWatching, sendListening, usePlayer } from "../player/engine";
+import { addWatching, sendListening, usePlayerControls, usePlayerSelect } from "../player/engine";
 import { usePullToClose } from "../player/full-player";
 import { effectiveVolume, useVolume } from "../player/volume";
 import { VolumeControl } from "../player/volume-control";
@@ -235,7 +235,7 @@ function SubtitleLine({ cues, position }: { cues: SubtitleCue[]; position: () =>
 }
 
 function MiniBar({ store, total }: { store: Clock; total: number }) {
-  return <div className="mini-bar" style={{ width: `${percentDone(useClock(store).time, total)}%` }} />;
+  return <div className="mini-bar" style={{ transform: `scaleX(${percentDone(useClock(store).time, total) / 100})` }} />;
 }
 
 /**
@@ -245,7 +245,10 @@ function MiniBar({ store, total }: { store: Clock; total: number }) {
  */
 export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autoplay: boolean; mini: boolean }) {
   const router = useRouter();
-  const audio = usePlayer();
+  const audioControls = usePlayerControls();
+  const audioItem = usePlayerSelect((p) => p.item);
+  const audioPlaying = usePlayerSelect((p) => p.playing);
+  const audioSkip = usePlayerSelect((p) => p.skip);
   const video = useVideo();
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -318,20 +321,20 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
 
   // A video takes over from whatever audio was on: it saves its place and leaves the mini player.
   // It also takes the browser's media controls (below), and hands them back when it closes.
-  const stopAudio = useRef(audio.stop);
-  const claimAudioControls = useRef(audio.claimMediaSession);
-  claimAudioControls.current = audio.claimMediaSession;
+  const stopAudio = useRef(audioControls.stop);
+  const claimAudioControls = useRef(audioControls.claimMediaSession);
+  claimAudioControls.current = audioControls.claimMediaSession;
   useEffect(() => {
     stopAudio.current();
     return () => claimAudioControls.current();
   }, []);
   // And playing audio later ends the video. Only playing counts: after a reload the audio player
   // brings back its last item paused, which mustn't close the video.
-  const audioAtStart = useRef(audio.item);
+  const audioAtStart = useRef(audioItem);
   const { close: closeVideo } = video;
   useEffect(() => {
-    if (audio.item && audio.playing && audio.item !== audioAtStart.current) closeVideo();
-  }, [audio.item, audio.playing, closeVideo]);
+    if (audioItem && audioPlaying && audioItem !== audioAtStart.current) closeVideo();
+  }, [audioItem, audioPlaying, closeVideo]);
 
   // Casting starting or ending picks the video up from the same moment on the other side; when it
   // ends the video comes back paused. (Before the plan below, which starts again from resumeAt.)
@@ -766,8 +769,8 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
       if (e.key === " " || e.key === "k") {
         e.preventDefault();
         toggle();
-      } else if (e.key === "ArrowLeft") skip(-audio.skip.back);
-      else if (e.key === "ArrowRight") skip(audio.skip.forward);
+      } else if (e.key === "ArrowLeft") skip(-audioSkip.back);
+      else if (e.key === "ArrowRight") skip(audioSkip.forward);
       else if (e.key === "f") void toggleFullscreen();
       else if (e.key === "Escape" && !document.querySelector("dialog[open]") && !document.fullscreenElement) backRef.current();
       else return;
@@ -775,7 +778,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mini, toggle, skip, toggleFullscreen, poke, audio.skip.back, audio.skip.forward]);
+  }, [mini, toggle, skip, toggleFullscreen, poke, audioSkip.back, audioSkip.forward]);
 
   // On a phone, pulling the top bar down minimises the player, as with the audio one.
   const pull = usePullToClose(() => backRef.current());
@@ -799,8 +802,8 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     const handlers: Array<[MediaSessionAction, MediaSessionActionHandler | null]> = [
       ["play", () => void media()?.play()],
       ["pause", () => media()?.pause()],
-      ["seekbackward", () => skip(-audio.skip.back)],
-      ["seekforward", () => skip(audio.skip.forward)],
+      ["seekbackward", () => skip(-audioSkip.back)],
+      ["seekforward", () => skip(audioSkip.forward)],
       ["nexttrack", next ? goNext : null],
       ["previoustrack", null],
     ];
@@ -811,7 +814,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         // Older browsers don't know every action.
       }
     }
-  }, [item.title, item.showTitle, item.label, next, goNext, skip, audio.skip.back, audio.skip.forward]);
+  }, [item.title, item.showTitle, item.label, next, goNext, skip, audioSkip.back, audioSkip.forward]);
 
   const onStageTap = (e: React.MouseEvent<HTMLDivElement>) => {
     if (mini) {
@@ -828,7 +831,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
       setCountdown(null);
     }
     if (now - lastTap.current.at < DOUBLE_TAP_MS && Math.abs(x - lastTap.current.x) < 0.2 && (x < 0.35 || x > 0.65)) {
-      skip(x < 0.5 ? -audio.skip.back : audio.skip.forward);
+      skip(x < 0.5 ? -audioSkip.back : audioSkip.forward);
       poke();
       lastTap.current = { at: 0, x };
       return;
@@ -1107,9 +1110,9 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
             <button type="button" className="icon-btn dim" aria-label="Start over" onClick={() => seekTo(0)}>
               <PrevChapterIcon />
             </button>
-            <button type="button" className="skip-btn" aria-label={`Skip back ${audio.skip.back} seconds`} onClick={() => skip(-audio.skip.back)}>
+            <button type="button" className="skip-btn" aria-label={`Skip back ${audioSkip.back} seconds`} onClick={() => skip(-audioSkip.back)}>
               <SkipBackIcon size={36} />
-              <span>{audio.skip.back}</span>
+              <span>{audioSkip.back}</span>
             </button>
             <button
             type="button"
@@ -1120,9 +1123,9 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
           >
               {playing ? <PauseIcon size={32} /> : <PlayIcon size={32} />}
             </button>
-            <button type="button" className="skip-btn" aria-label={`Skip forward ${audio.skip.forward} seconds`} onClick={() => skip(audio.skip.forward)}>
+            <button type="button" className="skip-btn" aria-label={`Skip forward ${audioSkip.forward} seconds`} onClick={() => skip(audioSkip.forward)}>
               <SkipForwardIcon size={36} />
-              <span>{audio.skip.forward}</span>
+              <span>{audioSkip.forward}</span>
             </button>
             <button type="button" className="icon-btn dim" aria-label="Next episode" onClick={goNext} disabled={!next}>
               <NextChapterIcon />
@@ -1218,9 +1221,9 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
               )}
             </span>
           </Link>
-          <button type="button" className="mini-skip" onClick={() => skip(-audio.skip.back)} aria-label={`Skip back ${audio.skip.back} seconds`}>
+          <button type="button" className="mini-skip" onClick={() => skip(-audioSkip.back)} aria-label={`Skip back ${audioSkip.back} seconds`}>
             <SkipBackIcon size={30} />
-            <span>{audio.skip.back}</span>
+            <span>{audioSkip.back}</span>
           </button>
           <button type="button" className={`icon-btn mini-play${buffering ? " buffering" : ""}`} onClick={toggle} aria-label={playing ? "Pause" : "Play"}>
             {playing ? <PauseIcon /> : <PlayIcon />}

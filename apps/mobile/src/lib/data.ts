@@ -21,6 +21,7 @@ import {
   type EpisodeWithShow,
   type PodcastDetail,
   type PodcastSummary,
+  type ProgressItem,
   type UserPrefs,
   type UserPrefsPatch,
   type VideoQuality,
@@ -36,6 +37,7 @@ export const keys = {
   podcasts: ["podcasts"] as const,
   podcast: (id: string) => ["podcast", id] as const,
   episodes: (podcastId: string) => ["episodes", podcastId] as const,
+  episode: (id: string) => ["episode", id] as const,
   newEpisodes: ["newEpisodes"] as const,
   continueEpisodes: ["continueEpisodes"] as const,
   /** The player's own copy of Up Next, kept for offline; the player owns it, nothing fetches it. */
@@ -55,7 +57,11 @@ export const keys = {
 
 // Your own settings (Books tab layout, which tabs show), saved on the server so the web and the
 // app share them. Until they load, or on a server without them, the defaults apply.
-const usePrefs = () => useQuery({ queryKey: keys.prefs, queryFn: () => api<UserPrefs>(apiPaths.prefs) });
+const prefsQuery = { queryKey: keys.prefs, queryFn: () => api<UserPrefs>(apiPaths.prefs) };
+const usePrefs = () => useQuery(prefsQuery);
+
+/** Your prefs, sharing a request with any screen asking at the same moment. */
+export const fetchPrefs = () => queryClient.fetchQuery(prefsQuery);
 
 export function useBookSections(): BookSection[] {
   return bookSections(usePrefs().data?.bookSections);
@@ -90,7 +96,7 @@ export const useVideoQuality = (): VideoQuality => usePrefs().data?.videoQuality
 /** The same, for the player, loading your prefs if nothing has yet. */
 export async function readVideoQuality(): Promise<VideoQuality> {
   try {
-    return (await queryClient.fetchQuery({ queryKey: keys.prefs, queryFn: () => api<UserPrefs>(apiPaths.prefs) })).videoQuality ?? "full";
+    return (await fetchPrefs()).videoQuality ?? "full";
   } catch {
     return "full";
   }
@@ -280,6 +286,25 @@ export function invalidateListening() {
   void queryClient.invalidateQueries({ queryKey: ["watch"] });
 }
 
+/** After saved places reach the server, refresh only what shows those items. */
+export function invalidateProgress(items: ProgressItem[]) {
+  const refresh = (queryKey: readonly unknown[]) => void queryClient.invalidateQueries({ queryKey });
+  if (items.some((i) => i.itemType === "book")) refresh(keys.books);
+  if (items.some((i) => i.itemType === "episode")) {
+    refresh(keys.newEpisodes);
+    refresh(keys.continueEpisodes);
+    refresh(["episodes"]);
+  }
+  // Only finishing one changes a show's count of what's new.
+  if (items.some((i) => i.itemType === "episode" && i.finished)) refresh(keys.podcasts);
+  // Movies and shows (watchKeys.all): a TV episode's place doesn't say which show it's in.
+  if (items.some((i) => i.itemType === "video")) refresh(["watch"]);
+  for (const i of items) {
+    if (i.itemType === "book") refresh(keys.book(i.itemId));
+    if (i.itemType === "episode") refresh(keys.episode(i.itemId));
+  }
+}
+
 /** Book details, from cache when available (works offline for anything opened before). */
 export function fetchBook(id: string): Promise<BookDetail> {
   return queryClient.fetchQuery({ queryKey: keys.book(id), queryFn: () => api<BookDetail>(`/api/books/${id}`), staleTime: 60_000 });
@@ -287,7 +312,7 @@ export function fetchBook(id: string): Promise<BookDetail> {
 
 export function fetchEpisode(id: string): Promise<EpisodeWithShow> {
   return queryClient.fetchQuery({
-    queryKey: ["episode", id],
+    queryKey: keys.episode(id),
     queryFn: () => api<EpisodeWithShow>(`/api/episodes/${id}`),
     staleTime: 60_000,
   });
@@ -299,7 +324,7 @@ export function fetchEpisode(id: string): Promise<EpisodeWithShow> {
  */
 export function useEpisodeNotes(episode: EpisodeDto, open: boolean): string | null {
   const full = useQuery({
-    queryKey: ["episode", episode.id],
+    queryKey: keys.episode(episode.id),
     queryFn: () => api<EpisodeWithShow>(`/api/episodes/${episode.id}`),
     enabled: open && !!episode.descriptionCut,
     staleTime: 60_000,

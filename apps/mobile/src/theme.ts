@@ -1,7 +1,6 @@
 import { useColorScheme } from "react-native";
-import { useSyncExternalStore } from "react";
 import type { ThemeChoice } from "@murmur/shared/client";
-import { getJson, setJson } from "./lib/storage";
+import { createSavedStore } from "./lib/store";
 
 // Colours follow docs/mockups and the web player's tokens.
 
@@ -62,25 +61,11 @@ export function mixColor(a: string, b: string, amount: number): string {
   return `#${pa.map((v, i) => Math.round(v * amount + pb[i]! * (1 - amount)).toString(16).padStart(2, "0")).join("")}`;
 }
 
-const MODE_KEY = "murmur.theme";
-const listeners = new Set<() => void>();
-let mode: ThemeMode = getJson<ThemeMode>(MODE_KEY) ?? "dark";
+const mode = createSavedStore<ThemeMode>("murmur.theme", "dark");
 
-export function setThemeMode(next: ThemeMode) {
-  mode = next;
-  setJson(MODE_KEY, next);
-  listeners.forEach((l) => l());
-}
+export const setThemeMode = mode.set;
 
-export function useThemeMode(): ThemeMode {
-  return useSyncExternalStore(
-    (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    () => mode,
-  );
-}
+export const useThemeMode = mode.useValue;
 
 /** Dark by default, like the spec; Profile can switch to light or follow the system. */
 export function useTheme(): Theme {

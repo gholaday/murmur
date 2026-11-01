@@ -4,9 +4,10 @@ import path from "node:path";
 import type { Sqlite } from "../db";
 import { errorMessage, type Logger } from "../log";
 import type { LibraryFolder } from "../library/folders";
-import { IMAGE_EXTENSIONS, extname, isIgnoredName } from "../library/parse";
+import { IMAGE_EXTENSIONS, extname } from "../library/parse";
 import { HttpError } from "../http";
 import { createLimiter, createUnreadable } from "../library/probe";
+import { fileDetails, runScan, walkTree } from "../library/scan-loop";
 import type { ScanState } from "../library/scanner";
 import { storeArt } from "./art";
 import { grabStill, probeVideo, videoProblem } from "./video-addon";
@@ -71,7 +72,6 @@ interface VideoRow {
 }
 
 const newId = () => crypto.randomBytes(9).toString("base64url");
-const fsLimit = createLimiter(16);
 const dirOf = (relPath: string) => {
   const d = path.posix.dirname(relPath);
   return d === "." ? "" : d;
@@ -80,36 +80,21 @@ const dirOf = (relPath: string) => {
 /** Every video file under a folder, and the images, .nfo and subtitle files next to them. */
 async function walk(root: string, log: Logger): Promise<Walked> {
   const out: Walked = { videos: [], extras: new Map(), subtitles: new Map() };
-  async function visit(rel: string): Promise<void> {
-    let entries;
-    try {
-      entries = (await fsLimit(() => fs.readdir(path.join(root, rel), { withFileTypes: true }))).filter((e) => !isIgnoredName(e.name));
-    } catch (err) {
-      if (rel === "") throw err;
-      log.warn("cannot read folder, skipping", { folder: rel, error: errorMessage(err) });
-      return;
-    }
+  await walkTree(root, log, async (rel, files) => {
     const extras: string[] = [];
     const subtitles: string[] = [];
     await Promise.all(
-      entries.map(async (e) => {
-        const relPath = rel ? `${rel}/${e.name}` : e.name;
-        if (e.isDirectory()) return visit(relPath);
-        if (!e.isFile()) return;
-        const ext = extname(e.name);
-        if (IMAGE_EXTENSIONS.has(ext) || ext === ".nfo") extras.push(e.name);
-        else if (isSubtitleFile(e.name)) subtitles.push(e.name);
-        else if (isVideoFile(e.name) && !isExtra(relPath)) {
-          const st = await fsLimit(() => fs.stat(path.join(root, relPath)));
-          out.videos.push({ relPath, size: st.size, mtimeMs: Math.floor(st.mtimeMs) });
-        }
+      files.map(async ({ name, relPath }) => {
+        const ext = extname(name);
+        if (IMAGE_EXTENSIONS.has(ext) || ext === ".nfo") extras.push(name);
+        else if (isSubtitleFile(name)) subtitles.push(name);
+        else if (isVideoFile(name) && !isExtra(relPath)) out.videos.push(await fileDetails(root, relPath));
       }),
     );
     if (extras.length) out.extras.set(rel, extras);
     // Sorted, since files arrive in any order and a changed list means a changed video.
     if (subtitles.length) out.subtitles.set(rel, subtitles.sort());
-  }
-  await visit("");
+  });
   return out;
 }
 
@@ -475,33 +460,17 @@ export function createWatchScanner(deps: WatchScannerDeps) {
   }
 
   /** Scans every movies and shows folder. If a scan is already running, another pass starts right after. */
-  async function scan(): Promise<void> {
-    if (state.running) {
-      state.rerunRequested = true;
-      return;
-    }
-    state.running = true;
-    try {
-      do {
-        state.rerunRequested = false;
-        const started = Date.now();
-        try {
-          const { stats, problems } = await runOnce();
-          state.lastStats = { ...stats, moved: 0 };
-          state.lastError = problems.length ? problems.join(" ") : null;
-          if (problems.length) log.warn("watch scan held back", { problems: state.lastError, ms: Date.now() - started });
-          else log.info("watch scan finished", { ...stats, ms: Date.now() - started });
-        } catch (err) {
-          state.lastError = errorMessage(err);
-          log.error("watch scan failed", { error: state.lastError });
-        } finally {
-          state.lastFinishedAt = Date.now();
-          state.lastDurationMs = Date.now() - started;
-        }
-      } while (state.rerunRequested);
-    } finally {
-      state.running = false;
-    }
+  function scan(): Promise<void> {
+    return runScan({
+      state,
+      log,
+      name: "watch scan",
+      once: async () => {
+        const { stats, problems } = await runOnce();
+        if (problems.length) log.warn("watch scan held back", { problems: problems.join(" ") });
+        return { stats: { ...stats, moved: 0 }, problems };
+      },
+    });
   }
 
   return { scan };

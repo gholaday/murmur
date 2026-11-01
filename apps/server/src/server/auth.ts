@@ -131,9 +131,10 @@ function castUser(ctx: AppContext, req: Request): UserDto | null {
 
 export function requireUser(ctx: AppContext, req: Request): UserDto {
   const found = tokenFromRequest(req);
+  // First, so a refused cross-site request writes nothing to the session.
+  if (found?.viaCookie) assertSameOrigin(req);
   const user = (found ? userFromToken(ctx, found.token) : null) ?? castUser(ctx, req);
   if (!user) throw new HttpError(401, "Sign in to continue.");
-  if (found?.viaCookie) assertSameOrigin(req);
   return user;
 }
 

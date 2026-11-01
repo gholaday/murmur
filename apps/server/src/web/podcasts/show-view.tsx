@@ -3,20 +3,20 @@
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { apiPaths, type BookmarkDto, type EpisodeDto, type EpisodeWithShow, errorText, matchesEpisode, plural, type PodcastDetail, shortDate } from "@murmur/shared/client";
+import { addTo, apiPaths, type BookmarkDto, type EpisodeDto, type EpisodeWithShow, errorText, matchesEpisode, plural, type PodcastDetail, shortDate } from "@murmur/shared/client";
 import { api } from "../api";
 import { BookmarkRows } from "../bookmark-rows";
 import { usePodcastBookmarks } from "../bookmarks";
 import { Cover } from "../cover";
 import { BookmarkIcon, CheckIcon, FilterIcon, LockIcon, MoreIcon, SearchIcon } from "../icons";
 import { usePlayerControls } from "../player/engine";
-import { BackButton, EmptyState, SearchBox, SectionTitle } from "../ui";
+import { BackButton, Description, EmptyState, SearchBox, SectionTitle } from "../ui";
 import { ConfirmSheet, Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
 function byEpisode(bookmarks: BookmarkDto[]) {
   const groups = new Map<string, BookmarkDto[]>();
-  for (const b of bookmarks) groups.set(b.itemId, [...(groups.get(b.itemId) ?? []), b]);
+  for (const b of bookmarks) addTo(groups, b.itemId, b);
   return groups;
 }
 
@@ -45,7 +45,6 @@ export function ShowView({
   );
   const firstByEpisode = useMemo(() => byEpisode(firstBookmarks), [firstBookmarks]);
   const [busy, setBusy] = useState(false);
-  const [aboutOpen, setAboutOpen] = useState(false);
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   // Every episode, fetched the first time you need more than the first page.
@@ -156,18 +155,7 @@ export function ShowView({
         </p>
       ) : null}
 
-      {podcast.description ? (
-        <>
-          <p className={`description ${aboutOpen ? "" : "clamped"}`} style={{ WebkitLineClamp: aboutOpen ? undefined : 2 }}>
-            {podcast.description}
-          </p>
-          {podcast.description.length > 140 ? (
-            <button type="button" className="more-link" onClick={() => setAboutOpen((o) => !o)}>
-              {aboutOpen ? "Less" : "More"}
-            </button>
-          ) : null}
-        </>
-      ) : null}
+      {podcast.description ? <Description text={podcast.description} longerThan={140} lines={2} /> : null}
 
       <div className="episodes-head">
         <div className="section-head">

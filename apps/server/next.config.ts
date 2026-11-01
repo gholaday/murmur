@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
   // the code. A container's own environment can't then report an older one.
   ...(process.env.MURMUR_VERSION ? { env: { MURMUR_VERSION: process.env.MURMUR_VERSION } } : {}),
   images: { unoptimized: true },
+  // Going back to a tab shows it straight away. Live changes and the players refresh what's changed.
+  experimental: { staleTimes: { dynamic: 30 } },
   // Nothing Murmur serves is a page to sniff into or a thing to frame.
   headers: async () => [
     {

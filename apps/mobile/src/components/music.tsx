@@ -1,4 +1,4 @@
-import { memo, useState, useSyncExternalStore } from "react";
+import { memo, useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import {
@@ -20,7 +20,7 @@ import { setInMusic, useAlbum } from "@/lib/data";
 import { selectHaptic, withLongPressHaptic } from "@/lib/haptics";
 import { downloadTrack, removeDownload, useDownload, useInAlbumDownload } from "@/lib/downloads";
 import { useSession } from "@/lib/session";
-import { getJson, setJson } from "@/lib/storage";
+import { createSavedStore } from "@/lib/store";
 import { addToUpNext, playMusic, isCurrent, isPlayingFrom, isWaiting, removeWaiting, toggle, toggleShuffle, usePlayerSelect } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
@@ -102,25 +102,11 @@ export function AlbumActions({ album, open, onClose, onIdle }: { album: AlbumSum
 
 // ---------- Album sort, kept on this phone ----------
 
-const ALBUM_SORT_KEY = "murmur.albumSort";
-let sortValue: AlbumSort = getJson<AlbumSort>(ALBUM_SORT_KEY) ?? "added";
-const sortListeners = new Set<() => void>();
+const albumSort = createSavedStore<AlbumSort>("murmur.albumSort", "added");
 
-function setAlbumSort(next: AlbumSort) {
-  sortValue = next;
-  setJson(ALBUM_SORT_KEY, next);
-  sortListeners.forEach((l) => l());
-}
+const setAlbumSort = albumSort.set;
 
-export function useAlbumSort(): AlbumSort {
-  return useSyncExternalStore(
-    (l) => {
-      sortListeners.add(l);
-      return () => sortListeners.delete(l);
-    },
-    () => sortValue,
-  );
-}
+export const useAlbumSort = albumSort.useValue;
 
 export function AlbumSortSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const sort = useAlbumSort();

@@ -9,20 +9,19 @@ import { useAlbumColor } from "@/lib/data";
 import { VideoView } from "expo-video";
 import { openVideoPlayer } from "@/lib/watch";
 import { useCast } from "@/player/cast";
-import { skipBy, toggle, trackStep, usePlayer, usePlayerSelect, usePosition } from "@/player/engine";
-import { closeVideo, skipVideo, toggleVideo, useVideo, useVideoHost, useVideoTime, videoPlayer } from "@/player/video";
+import { type Playable, skipBy, toggle, trackStep, usePlayer, usePlayerSelect, usePositionSelect } from "@/player/engine";
+import { closeVideo, skipVideo, toggleVideo, useVideo, useVideoHost, useVideoPositionSelect, useVideoSelect, videoPlayer } from "@/player/video";
 import { fonts, mixColor, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { CastIcon, CloseIcon, NextChapterIcon, PauseIcon, PlayIcon, PrevChapterIcon, SkipBackIcon, SkipForwardIcon } from "./icons";
 import { Marquee } from "./marquee";
-import { BufferingRing } from "./player-controls";
+import { BarFill, BufferingRing } from "./player-controls";
 import { Text } from "./ui";
 
 /** Floating player above the tabs; tap to open the full player. */
 export function MiniPlayer() {
   const t = useTheme();
   const { item, playing, loading, error, skip } = usePlayer();
-  const position = usePosition();
   // Tinted with what's playing, like the web's Now playing card; eases over when the item changes.
   // A song takes its album's colour.
   const albumColor = useAlbumColor(item?.album?.id);
@@ -32,12 +31,10 @@ export function MiniPlayer() {
   const sub = t.isDark ? undefined : { color: t.text2 };
   const tint = useAnimatedStyle(() => ({ backgroundColor: withTiming(surface, { duration: 400 }) }));
   const castDevice = useCast().device;
-  const video = useVideo().item;
+  const video = useVideoSelect((v) => !!v.item);
   if (video) return <VideoMiniPlayer />;
   if (!item) return null;
   const dur = item.durationSec || 0;
-  const chapter = item.chapters.length > 1 ? item.chapters[chapterAt(item.chapters, position)] : undefined;
-  const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
   const book = item.type === "book";
   // A song shows its artist and steps through the songs instead of skipping.
   const song = item.type === "track";
@@ -97,22 +94,18 @@ export function MiniPlayer() {
               </Text>
             ) : castDevice ? (
               <CastLine device={castDevice} />
-            ) : book && chapter ? (
+            ) : book && item.chapters.length > 1 ? (
               // A book's chapter and time left share a line, which scrolls as one when it's long.
               // Tabular digits keep the time's width steady as it ticks, so the scroll runs on.
               <Marquee>
-                <Text variant="small" numberOfLines={1} style={sub}>
-                  {chapter.title}
-                </Text>
-                {dur ? (
-                  <Text variant="small" numberOfLines={1} style={[{ marginLeft: 14, fontVariant: ["tabular-nums"] }, sub]}>
-                    {timeLeft(dur, position)}
-                  </Text>
-                ) : null}
+                <ChapterTitle item={item} style={sub} />
+                {dur ? <TimeLeft dur={dur} style={[{ marginLeft: 14, fontVariant: ["tabular-nums"] }, sub]} /> : null}
               </Marquee>
+            ) : dur && !song ? (
+              <TimeLeft dur={dur} style={sub} />
             ) : (
               <Text variant="small" numberOfLines={1} style={sub}>
-                {dur && !song ? timeLeft(dur, position) : item.subtitle}
+                {item.subtitle}
               </Text>
             )}
           </View>
@@ -152,13 +145,49 @@ export function MiniPlayer() {
       </View>
       {/* A faint track under the fill, so early on (when the fill is tucked into the rounded
           corner) the bar still reads as progress. */}
-      {dur ? (
-        <View style={{ height: 3 }}>
-          <View style={{ position: "absolute", inset: 0, backgroundColor: t.muted, opacity: 0.18 }} />
-          <View style={{ height: 3, width: `${pct}%`, backgroundColor: t.accent }} />
-        </View>
-      ) : null}
+      {dur ? <MiniBar fraction={usePositionFraction} dur={dur} /> : null}
     </Animated.View>
+  );
+}
+
+// The ticking parts are their own components, so the card around them doesn't render twice a second.
+
+type SubStyle = React.ComponentProps<typeof Text>["style"];
+
+function ChapterTitle({ item, style }: { item: Playable; style: SubStyle }) {
+  const title = usePositionSelect((at) => item.chapters[chapterAt(item.chapters, at)]?.title);
+  return (
+    <Text variant="small" numberOfLines={1} style={style}>
+      {title}
+    </Text>
+  );
+}
+
+function TimeLeft({ dur, style }: { dur: number; style: SubStyle }) {
+  const left = usePositionSelect((at) => timeLeft(dur, at));
+  return (
+    <Text variant="small" numberOfLines={1} style={style}>
+      {left}
+    </Text>
+  );
+}
+
+function usePositionFraction(dur: number) {
+  return usePositionSelect((at) => (dur ? Math.min(1, at / dur) : 0));
+}
+
+function useVideoFraction(dur: number) {
+  return useVideoPositionSelect((at) => (dur ? Math.min(1, at / dur) : 0));
+}
+
+function MiniBar({ fraction, dur }: { fraction: (dur: number) => number; dur: number }) {
+  const t = useTheme();
+  const f = fraction(dur);
+  return (
+    <View style={{ height: 3 }}>
+      <View style={{ position: "absolute", inset: 0, backgroundColor: t.muted, opacity: 0.18 }} />
+      <BarFill fraction={f} color={t.accent} />
+    </View>
   );
 }
 
@@ -212,15 +241,12 @@ function StepButton({ label, onPress, children }: { label: string; onPress: () =
 function VideoMiniPlayer() {
   const t = useTheme();
   const v = useVideo();
-  const { position, total } = useVideoTime();
   const skip = usePlayerSelect((s) => s.skip);
   const host = useVideoHost();
   const castDevice = useCast().device;
   const it = v.item;
   if (!it) return null;
-  const pct = total ? Math.min(100, (position / total) * 100) : 0;
   const heading = it.kind === "episode" ? it.showTitle : it.title;
-  const left = total ? timeLeft(total, position) : "";
   return (
     <View
       style={{
@@ -276,9 +302,7 @@ function VideoMiniPlayer() {
                     {`${it.label}, `}
                   </Text>
                 ) : null}
-                <Text variant="small" numberOfLines={1} style={{ fontVariant: ["tabular-nums"] }}>
-                  {left}
-                </Text>
+                <VideoTimeLeft dur={it.durationSec} />
               </View>
             )}
           </View>
@@ -299,19 +323,25 @@ function VideoMiniPlayer() {
           <CloseIcon size={22} color={t.text} />
         </StepButton>
       </View>
-      <View style={{ height: 3 }}>
-        <View style={{ position: "absolute", inset: 0, backgroundColor: t.muted, opacity: 0.18 }} />
-        <View style={{ height: 3, width: `${pct}%`, backgroundColor: t.accent }} />
-      </View>
+      <MiniBar fraction={useVideoFraction} dur={it.durationSec} />
     </View>
+  );
+}
+
+function VideoTimeLeft({ dur }: { dur: number }) {
+  const left = useVideoPositionSelect((at) => (dur ? timeLeft(dur, at) : ""));
+  return (
+    <Text variant="small" numberOfLines={1} style={{ fontVariant: ["tabular-nums"] }}>
+      {left}
+    </Text>
   );
 }
 
 /** The mini player at the bottom of screens outside the tabs (book, show, author). */
 export function BottomMiniPlayer() {
   const insets = useSafeAreaInsets();
-  const { item } = usePlayer();
-  const video = useVideo().item;
+  const item = usePlayerSelect((s) => !!s.item);
+  const video = useVideoSelect((v) => !!v.item);
   if (!item && !video) return null;
   return (
     <View style={{ paddingBottom: insets.bottom + 4, paddingTop: 4 }}>

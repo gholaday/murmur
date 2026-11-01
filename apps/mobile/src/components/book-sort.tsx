@@ -1,28 +1,14 @@
-import { useSyncExternalStore } from "react";
 import { BOOK_SORTS, type BookSort, LIBRARY_SORT_KEY } from "@murmur/shared/client";
-import { getJson, setJson } from "@/lib/storage";
+import { createSavedStore } from "@/lib/store";
 import { Sheet, SheetItem } from "./sheet";
 
 // One saved sort shared by the Library tab and the All books screen, so changing it on one
 // shows on the other.
-let value: BookSort = getJson<BookSort>(LIBRARY_SORT_KEY) ?? "added";
-const listeners = new Set<() => void>();
+const sortStore = createSavedStore<BookSort>(LIBRARY_SORT_KEY, "added");
 
-export function setBookSort(next: BookSort) {
-  value = next;
-  setJson(LIBRARY_SORT_KEY, next);
-  listeners.forEach((l) => l());
-}
+export const setBookSort = sortStore.set;
 
-export function useBookSort(): BookSort {
-  return useSyncExternalStore(
-    (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    () => value,
-  );
-}
+export const useBookSort = sortStore.useValue;
 
 export function BookSortSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const sort = useBookSort();

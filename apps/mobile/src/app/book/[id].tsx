@@ -26,7 +26,7 @@ import {
   setFinished,
   toggle,
   useItemPosition,
-  usePlayer,
+  usePlayerSelect,
 } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
@@ -56,14 +56,15 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
   const t = useTheme();
   const top = useTopInset();
   const bottomPad = useBottomPad();
-  const player = usePlayer();
+  const current = usePlayerSelect((s) => isCurrent(s, "book", book.id));
+  const playing = usePlayerSelect((s) => s.playing);
+  const loading = usePlayerSelect((s) => s.loading);
   const live = useItemPosition("book", book.id) ?? 0;
   const bookmarks = useBookmarks("book", book.id);
   const [menu, setMenu] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  const current = isCurrent(player, "book", book.id);
   const finished = !!book.progress?.finished && !current;
   const position = current ? live : book.progress && !book.progress.finished ? book.progress.positionSec : 0;
   const started = pastStart(position);
@@ -74,7 +75,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
   const onPlayNext = book.playNext != null;
   const left = timeLeft(book.durationSec, position);
   const [playLabel, playSub] = current
-    ? player.playing
+    ? playing
       ? ["Pause", left]
       : ["Resume", left]
     : finished
@@ -103,7 +104,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
     const existing = getDownload("book", book.id);
     // A finished download is asked about first; cancelling one in progress isn't.
     if (existing?.status === "done") setConfirmRemove(true);
-    else if (existing) removeDownload("book", book.id);
+    else if (existing?.status === "downloading") removeDownload("book", book.id);
     else downloadBook(book);
   };
 
@@ -180,9 +181,9 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
                 opacity: pressed ? 0.85 : 1,
               })}
             >
-              {current && player.loading ? (
+              {current && loading ? (
                 <ActivityIndicator color={t.onAccent} />
-              ) : current && player.playing ? (
+              ) : current && playing ? (
                 <PauseIcon size={22} color={t.onAccent} />
               ) : (
                 <PlayIcon size={22} color={t.onAccent} />

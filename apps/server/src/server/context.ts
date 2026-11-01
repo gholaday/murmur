@@ -9,6 +9,7 @@ import { createWatchMatcher, type WatchMatcher } from "./watch/match";
 import { createTmdb, type Tmdb } from "./watch/tmdb";
 import { setBusy } from "./changes";
 import { autoMatching, autoMatchPending } from "./metadata/auto-match";
+import { warmCoverMeta } from "./library/covers";
 import { pruneProviderCache } from "./metadata/providers";
 import { fillArtistPhotos } from "./music/match";
 import { createMusicScanner, type MusicScanner } from "./music/scanner";
@@ -229,6 +230,7 @@ async function boot(): Promise<AppContext> {
   startUpdateChecks();
 
   setBusy(() => scanState.running || musicState.running || watchState.running || !!matcher?.busy() || autoMatching());
+  void warmCoverMeta(env.coversDir);
   void scanner.scan(); // initial scans run in the background; the server is usable meanwhile
   void musicScanner.scan();
   void watchScanner.scan();

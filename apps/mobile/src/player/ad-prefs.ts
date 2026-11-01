@@ -1,23 +1,14 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AD_PREFS_KEY, type AdPrefs, type HealthDto, parseAdPrefs } from "@murmur/shared/client";
 import { api } from "@/lib/api";
 import { getJson, setJson } from "@/lib/storage";
+import { createSavedStore } from "@/lib/store";
 
 // The modes and skip rules are shared with the web player; this keeps the phone's copy.
 export { AD_MODES, adBreak, adModeFor, adToSkip, playedThrough, setShowMode, type AdMode, type AdPrefs } from "@murmur/shared/client";
 
-let value: AdPrefs = parseAdPrefs(getJson<Partial<AdPrefs>>(AD_PREFS_KEY));
-const listeners = new Set<() => void>();
-
-export const adPrefsStore = {
-  get: (): AdPrefs => value,
-  set(next: AdPrefs) {
-    value = next;
-    setJson(AD_PREFS_KEY, next);
-    listeners.forEach((l) => l());
-  },
-};
+export const adPrefsStore = createSavedStore<AdPrefs>(AD_PREFS_KEY, parseAdPrefs(getJson<Partial<AdPrefs>>(AD_PREFS_KEY)));
 
 const DETECTION_KEY = "murmur.adDetection";
 
@@ -37,12 +28,4 @@ export function useAdDetection(): boolean | undefined {
   return known ?? stored;
 }
 
-export function useAdPrefs(): AdPrefs {
-  return useSyncExternalStore(
-    (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    adPrefsStore.get,
-  );
-}
+export const useAdPrefs = adPrefsStore.useValue;

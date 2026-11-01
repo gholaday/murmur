@@ -19,7 +19,7 @@ import {
 } from "@murmur/shared/client";
 import { CheckIcon, MoreIcon, PlayedIcon, PlayIcon } from "../icons";
 import { setManyFinished } from "../progress";
-import { BackButton, Chip, Chips, SettingsCard } from "../ui";
+import { BackButton, Chip, Chips, Description, SettingsCard } from "../ui";
 import { playHref, Poster, Still } from "./cards";
 import { useAdmin } from "../admin";
 import { MenuSheet } from "../card-menu";
@@ -70,7 +70,6 @@ export function TvShowView({ show }: { show: ShowDetail }) {
   const params = useSearchParams();
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState<WatchEditTab | null>(null);
-  const [expanded, setExpanded] = useState(false);
   /** A converted-video quality picked for this viewing; null means your setting. */
   const [quality, setQuality] = useState<VideoQuality | null>(null);
   const all = show.seasonList.flatMap((s) => s.episodes);
@@ -164,16 +163,7 @@ export function TvShowView({ show }: { show: ShowDetail }) {
         </button>
       </div>
 
-      {show.description ? (
-        <>
-          <p className={`description ${expanded ? "" : "clamped"}`}>{show.description}</p>
-          {show.description.length > 220 ? (
-            <button type="button" className="more-link" onClick={() => setExpanded((e) => !e)}>
-              {expanded ? "Less" : "More"}
-            </button>
-          ) : null}
-        </>
-      ) : null}
+      {show.description ? <Description text={show.description} /> : null}
 
       {upNext?.file.subtitleTracks.length ? (
         <div style={{ marginTop: 18 }}>

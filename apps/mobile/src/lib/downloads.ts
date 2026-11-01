@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from "react";
 import { Directory, File, Paths } from "expo-file-system";
 import {
   type AlbumDetail,
@@ -17,8 +16,10 @@ import {
   type VideoSubtitleTrack,
   type WatchDownloadQuery,
 } from "@murmur/shared/client";
+import { toast } from "@/components/toast";
 import { absolute, api, authHeaders, HttpError } from "./api";
 import { getJson, setJson } from "./storage";
+import { createStore } from "./store";
 
 // Books, episodes, music, movies and TV episodes saved on the phone for offline listening and
 // watching. Each download keeps a copy of the item's details too, so it can be opened and played
@@ -72,7 +73,6 @@ export type Download = {
 type Index = Record<string, Download>;
 
 const keyOf = (type: DownloadType, id: string) => `${type}:${id}`;
-const listeners = new Set<() => void>();
 let index: Index = getJson<Index>(INDEX_KEY) ?? {};
 
 // A download cut off by the app being closed can't resume; show it as failed so it can be retried.
@@ -80,9 +80,10 @@ for (const d of Object.values(index)) {
   if (d.status === "downloading") index[keyOf(d.type, d.id)] = { ...d, status: "error", error: "Interrupted." };
 }
 
+const live = createStore(index);
 // What list screens see. Progress ticks leave it alone, so a running download only redraws its
 // own row (useDownload), not every screen that lists downloads.
-let listed: Index = index;
+const listed = createStore(index);
 
 /** Saved movie and TV pictures by server path, for Cover to show offline. */
 let art = new Map<string, string>();
@@ -94,11 +95,11 @@ indexArt(index);
 function commit(next: Index, progressOnly = false) {
   index = next;
   if (!progressOnly) {
-    listed = next;
     setJson(INDEX_KEY, next);
     indexArt(next);
+    listed.set(next);
   }
-  listeners.forEach((l) => l());
+  live.set(next);
 }
 
 /** The saved copy of a movie or TV picture, when one was downloaded with it. */
@@ -115,18 +116,11 @@ function setProgress(key: string, progress: number) {
   if (cur) commit({ ...index, [key]: { ...cur, progress } }, true);
 }
 
-const subscribe = (l: () => void) => {
-  listeners.add(l);
-  return () => listeners.delete(l);
-};
-
 /** Every download, for lists. Progress here can lag; read a row's live progress with useDownload. */
-export function useDownloads(): Index {
-  return useSyncExternalStore(subscribe, () => listed);
-}
+export const useDownloads = listed.useValue;
 
 export function useDownload(type: DownloadType, id: string): Download | undefined {
-  return useSyncExternalStore(subscribe, () => index[keyOf(type, id)]);
+  return live.useSelect((i) => i[keyOf(type, id)]);
 }
 
 export function getDownload(type: DownloadType, id: string): Download | undefined {
@@ -156,7 +150,7 @@ export const savedTrack = (trackId: string): TrackDto | null => savedSong(trackI
 
 /** Whether a song is saved as part of a downloaded (or downloading) album. */
 export function useInAlbumDownload(track: TrackDto): boolean {
-  return useSyncExternalStore(subscribe, () => index[keyOf("album", track.albumId)] !== undefined);
+  return live.useSelect((i) => i[keyOf("album", track.albumId)] !== undefined);
 }
 
 /** The local copy of one file, if it's fully downloaded and still on disk. */
@@ -187,32 +181,81 @@ function folderFor(type: DownloadType, id: string): Directory {
 
 const active = new Map<string, AbortController>();
 
-async function run(key: string, type: DownloadType, id: string, files: { index: number; url: string; mime: string; durationSec: number }[]) {
+type AudioFile = { index: number; url: string; mime: string; durationSec: number };
+
+/** Files that finished before a download failed, kept when it's tried again. */
+const keptFiles = (key: string): Pick<Download, "files" | "bytes"> => {
+  const old = index[key];
+  return old?.status === "error" ? { files: old.files, bytes: old.bytes } : { files: {}, bytes: 0 };
+};
+
+// Audio downloads run a couple at a time, so a page of Download taps doesn't all hit the server at once.
+const MAX_AUDIO = 2;
+const audioQueue: { key: string; type: DownloadType; id: string; files: AudioFile[] }[] = [];
+let audioRunning = 0;
+
+function pumpAudio() {
+  while (audioRunning < MAX_AUDIO) {
+    const next = audioQueue.shift();
+    if (!next) return;
+    // Cancelled while it waited.
+    if (index[next.key]?.status !== "downloading" || active.has(next.key)) continue;
+    audioRunning++;
+    void run(next.key, next.type, next.id, next.files).finally(() => {
+      audioRunning--;
+      pumpAudio();
+    });
+  }
+}
+
+function startAudio(key: string, type: DownloadType, id: string, files: AudioFile[]) {
+  audioQueue.push({ key, type, id, files });
+  pumpAudio();
+}
+
+async function run(key: string, type: DownloadType, id: string, files: AudioFile[]) {
   const folder = folderFor(type, id);
   folder.create({ intermediates: true, idempotent: true });
   const abort = new AbortController();
   active.set(key, abort);
   const total = files.reduce((n, f) => n + Math.max(1, f.durationSec), 0);
   let doneWeight = 0;
-  const saved: Record<number, string> = {};
-  let bytes = 0;
+  const saved = { ...index[key]?.files };
+  let bytes = index[key]?.bytes ?? 0;
+  /** The server said how big a file is and it won't fit. */
+  let noRoom = false;
   try {
     for (const f of files) {
       if (abort.signal.aborted) return;
+      const weight = Math.max(1, f.durationSec);
+      const had = saved[f.index];
+      if (had && new File(had).exists) {
+        doneWeight += weight;
+        continue;
+      }
       const dest = new File(folder, `${f.index}.${EXT[f.mime] ?? "audio"}`);
       if (dest.exists) dest.delete();
-      const weight = Math.max(1, f.durationSec);
       let lastUpdate = 0;
       const task = File.createDownloadTask(absolute(f.url), dest, {
         headers: authHeaders(),
         onProgress: ({ bytesWritten, totalBytes }) => {
           if (Date.now() - lastUpdate < 500 || totalBytes <= 0) return;
+          // The first report is the first time its size is known.
+          if (!lastUpdate && totalBytes - bytesWritten > Paths.availableDiskSpace) {
+            noRoom = true;
+            task.cancel();
+            return;
+          }
           lastUpdate = Date.now();
           setProgress(key, (doneWeight + (bytesWritten / totalBytes) * weight) / total);
         },
       });
       abort.signal.addEventListener("abort", () => task.cancel());
       const file = await task.downloadAsync();
+      if (noRoom) {
+        toast.error("Not enough space on this phone.");
+        throw new Error("Not enough space.");
+      }
       if (!file) throw new Error("Download stopped.");
       saved[f.index] = file.uri;
       bytes += file.size;
@@ -231,8 +274,8 @@ async function run(key: string, type: DownloadType, id: string, files: { index: 
 export function downloadBook(book: BookDetail) {
   const key = keyOf("book", book.id);
   if (index[key]?.status === "downloading") return;
-  commit({ ...index, [key]: { type: "book", id: book.id, book, status: "downloading", progress: 0, bytes: 0, files: {}, savedAt: Date.now() } });
-  void run(
+  commit({ ...index, [key]: { type: "book", id: book.id, book, status: "downloading", progress: 0, ...keptFiles(key), savedAt: Date.now() } });
+  startAudio(
     key,
     "book",
     book.id,
@@ -245,9 +288,9 @@ export function downloadEpisode(episode: EpisodeWithShow) {
   if (index[key]?.status === "downloading") return;
   commit({
     ...index,
-    [key]: { type: "podcast", id: episode.id, episode, status: "downloading", progress: 0, bytes: 0, files: {}, savedAt: Date.now() },
+    [key]: { type: "podcast", id: episode.id, episode, status: "downloading", progress: 0, ...keptFiles(key), savedAt: Date.now() },
   });
-  void run(key, "podcast", episode.id, [
+  startAudio(key, "podcast", episode.id, [
     { index: 0, url: apiPaths.episodeUrl(episode.id), mime: "audio/mpeg", durationSec: episode.durationSec ?? 0 },
   ]);
   // Ad times go with it, so marks and Auto-skip work offline. No ads (or no connection) just
@@ -261,8 +304,8 @@ export function downloadEpisode(episode: EpisodeWithShow) {
 export function downloadAlbum(album: AlbumDetail) {
   const key = keyOf("album", album.id);
   if (index[key]?.status === "downloading") return;
-  commit({ ...index, [key]: { type: "album", id: album.id, album, status: "downloading", progress: 0, bytes: 0, files: {}, savedAt: Date.now() } });
-  void run(
+  commit({ ...index, [key]: { type: "album", id: album.id, album, status: "downloading", progress: 0, ...keptFiles(key), savedAt: Date.now() } });
+  startAudio(
     key,
     "album",
     album.id,
@@ -273,8 +316,8 @@ export function downloadAlbum(album: AlbumDetail) {
 export function downloadTrack(track: TrackDto) {
   const key = keyOf("track", track.id);
   if (index[key]?.status === "downloading") return;
-  commit({ ...index, [key]: { type: "track", id: track.id, track, status: "downloading", progress: 0, bytes: 0, files: {}, savedAt: Date.now() } });
-  void run(key, "track", track.id, [{ index: 0, url: apiPaths.trackUrl(track.id), mime: track.mimeType, durationSec: track.durationSec }]);
+  commit({ ...index, [key]: { type: "track", id: track.id, track, status: "downloading", progress: 0, ...keptFiles(key), savedAt: Date.now() } });
+  startAudio(key, "track", track.id, [{ index: 0, url: apiPaths.trackUrl(track.id), mime: track.mimeType, durationSec: track.durationSec }]);
 }
 
 // ---------- Movies and TV episodes ----------
@@ -547,12 +590,18 @@ export function removeDownload(type: DownloadType, id: string) {
   commit(rest);
 }
 
-export function downloadedBytes(): number {
-  return Object.values(index).reduce((n, d) => n + d.bytes, 0);
-}
-
-export function removeAllDownloads() {
-  for (const d of Object.values(index)) removeDownload(d.type, d.id);
+/** They leave the list at once; the folders go one at a time, so a big library doesn't hold up the screen. */
+export async function removeAllDownloads() {
+  const all = Object.values(index);
+  for (const d of all) active.get(keyOf(d.type, d.id))?.abort();
+  commit({});
+  for (const d of all) {
+    await new Promise((next) => setTimeout(next));
+    // Downloaded again meanwhile: that one's staying.
+    if (index[keyOf(d.type, d.id)]) continue;
+    const folder = folderFor(d.type, d.id);
+    if (folder.exists) folder.delete();
+  }
 }
 
 export function formatBytes(bytes: number): string {

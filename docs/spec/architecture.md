@@ -109,14 +109,15 @@ The bar is high: every screen opens instantly, playback starts in about a second
 - SQLite in WAL mode with indexes on every lookup column; the library list is one query, not one per book.
 - No transcoding: audio is streamed byte for byte with range requests, so playback costs almost no CPU.
 - Covers are resized once at scan time (200 px and 600 px WebP) and served with a content hash in the URL and a one-year immutable cache header.
-- JSON responses carry ETags, so unchanged data returns `304 Not Modified` with no body.
+- JSON responses carry ETags, so unchanged data returns `304 Not Modified` with no body, and big ones are gzipped.
+- Cover colours are read into memory at boot, so lists never go to the disk for them.
 - Incremental scans: only files whose size or modified time changed are probed again, at most 2 at a time so a big import doesn't swamp the disk.
 - Progress updates are tiny writes, debounced on the client to one every 10 s plus on pause.
 
 ### App speed
 
 - Library, podcasts and progress are cached on the phone, so screens draw from local data first and refresh in the background.
-- Long lists use virtualized rendering (FlashList); covers load through `expo-image` with disk caching.
+- Long lists use virtualized rendering (FlatList); covers load through `expo-image` with disk caching.
 - Progress is written on the phone first and synced after, so a flaky connection never stalls the player.
 
 ### Safeguards

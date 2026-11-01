@@ -2,7 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { apiPaths, type BookmarkDto, type BookmarkItem, chapterAt, type ChapterDto, clock, newBookmarkId, type PlayType } from "@murmur/shared/client";
+import { addTo, apiPaths, type BookmarkDto, type BookmarkItem, chapterAt, type ChapterDto, clock, newBookmarkId, type PlayType } from "@murmur/shared/client";
 import { api } from "./api";
 
 /** How long a bookmark's toast stays up, matching the app's. */
@@ -34,7 +34,7 @@ const store = (() => {
     const next = new Map<string, BookmarkDto[]>();
     for (const b of all) {
       const key = keyOf(b);
-      if (key) next.set(key, [...(next.get(key) ?? []), b]);
+      if (key) addTo(next, key, b);
     }
     for (const [key, list] of next) {
       const was = old.get(key);

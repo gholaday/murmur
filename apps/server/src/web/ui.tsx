@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { Children, createContext, useContext, useEffect, useRef, useState } from "react";
 import { plural } from "@murmur/shared/client";
 import { BackIcon, ChevronIcon, SearchIcon } from "./icons";
 
@@ -25,9 +25,11 @@ export function ScrollRow({ className = "shelf", children }: { className?: strin
     const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
     setEnds((e) => (e.start === start && e.end === end ? e : { start, end }));
   };
-  // Cards can arrive or change after the first paint, and the window can be resized. Not on its
-  // own re-renders: an arrow showing can shift the measure and flip the ends back and forth.
-  useEffect(update, [children]);
+  // Cards can arrive after the first paint, and the window can be resized. Not on every render: a
+  // page of rows would measure them all on each keystroke, and an arrow showing can shift the
+  // measure and flip the ends back and forth.
+  const cards = Children.count(children);
+  useEffect(update, [cards]);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -51,6 +53,45 @@ export function ScrollRow({ className = "shelf", children }: { className?: strin
         <ChevronIcon size={20} />
       </button>
     </div>
+  );
+}
+
+/** A choice kept in this browser, like a list's sort. Storage only exists in the browser, so it follows the first render. */
+export function useSavedChoice<T extends string>(key: string, fallback: T, choices: ReadonlyArray<{ id: T }>): [T, (next: T) => void] {
+  const [value, setValue] = useState(fallback);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(key) as T | null;
+      if (saved && choices.some((c) => c.id === saved)) setValue(saved);
+    } catch {
+      // private mode
+    }
+  }, [key, choices]);
+  const save = (next: T) => {
+    setValue(next);
+    try {
+      localStorage.setItem(key, next);
+    } catch {
+      // private mode
+    }
+  };
+  return [value, save];
+}
+
+/** A description cut short, with More and Less when it's longer than `longerThan` characters. */
+export function Description({ text, longerThan = 220, lines }: { text: string; longerThan?: number; lines?: number }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <p className={`description ${open ? "" : "clamped"}`} style={lines && !open ? { WebkitLineClamp: lines } : undefined}>
+        {text}
+      </p>
+      {text.length > longerThan ? (
+        <button type="button" className="more-link" onClick={() => setOpen((o) => !o)}>
+          {open ? "Less" : "More"}
+        </button>
+      ) : null}
+    </>
   );
 }
 

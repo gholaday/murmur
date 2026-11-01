@@ -1,5 +1,3 @@
-import { useSyncExternalStore } from "react";
-import { AppState } from "react-native";
 import { useIsFocused } from "expo-router";
 import { createVideoPlayer, type VideoPlayer, type VideoSource } from "expo-video";
 import { File } from "expo-file-system";
@@ -41,8 +39,11 @@ import {
   subtitleTracks,
   type WatchTarget,
 } from "@/lib/watch";
+import { createStore } from "@/lib/store";
 import { CastPlayer, onCastDevice } from "./cast";
-import { artworkFile, countWatching, getPlayerState, onPlayerChange, queueProgress, stop as stopAudio, unsentProgress } from "./engine";
+import { getPlayerState, onPlayerChange, stop as stopAudio } from "./engine";
+import { artworkFile } from "./lock-screen";
+import { countWatching, queueProgress, unsentProgress } from "./progress";
 
 // The video being watched, kept outside the screens so it plays on in the mini player, like the
 // audio engine. One expo-video player for the whole app; screens show it with a VideoView.
@@ -162,24 +163,18 @@ let retries = 0;
 let saveTimer: ReturnType<typeof setInterval> | null = null;
 /** When the last time update came while playing, for watch time; 0 when it wasn't. */
 let watchedAt = 0;
-const stateListeners = new Set<() => void>();
-const positionListeners = new Set<() => void>();
+const store = createStore(state);
+const place = createStore(position, { foregroundOnly: true });
 
 function set(change: Partial<VideoState>) {
   state = { ...state, ...change };
-  stateListeners.forEach((l) => l());
+  store.set(state);
 }
 
 function setPosition(p: number) {
   position = p;
-  if (appActive) positionListeners.forEach((l) => l());
+  place.set(p);
 }
-
-let appActive = AppState.currentState !== "background";
-AppState.addEventListener("change", (s) => {
-  appActive = s !== "background";
-  if (appActive) positionListeners.forEach((l) => l());
-});
 
 let player: VideoPlayer | null = null;
 
@@ -664,29 +659,18 @@ export function setVideoQuality(quality: VideoQuality, remember = false) {
   void start(position);
 }
 
-export const getVideoPosition = () => position;
+export const useVideo = store.useValue;
 
-export function useVideo(): VideoState {
-  return useSyncExternalStore(
-    (l) => {
-      stateListeners.add(l);
-      return () => stateListeners.delete(l);
-    },
-    () => state,
-  );
-}
+/** One value picked from the video state; return a primitive, as with usePlayerSelect. */
+export const useVideoSelect = store.useSelect;
 
 /** Position and length in seconds; only components that show time should subscribe. */
 export function useVideoTime(): { position: number; total: number } {
-  const p = useSyncExternalStore(
-    (l) => {
-      positionListeners.add(l);
-      return () => positionListeners.delete(l);
-    },
-    () => position,
-  );
-  return { position: p, total: state.item?.durationSec || 0 };
+  return { position: place.useValue(), total: state.item?.durationSec || 0 };
 }
+
+/** Something worked out from the position; a component using it renders only when the answer changes. */
+export const useVideoPositionSelect = place.useSelect;
 
 // ---------- Where the picture shows ----------
 

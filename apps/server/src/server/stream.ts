@@ -14,16 +14,22 @@ export function resolveInside(root: string, relPath: string): string {
   const full = path.resolve(/*turbopackIgnore: true*/ root, relPath);
   if (!isInside(root, full)) throw new HttpError(400, "Invalid file path.");
   let real: string;
-  let realRoot: string;
+  let realRoot = realRoots.get(root);
   try {
     real = fs.realpathSync.native(full);
-    realRoot = fs.realpathSync.native(root);
+    // A seek makes several requests, so the folder is only looked up again if it seems to have moved.
+    if (!realRoot || !isInside(realRoot, real)) {
+      realRoot = fs.realpathSync.native(root);
+      realRoots.set(root, realRoot);
+    }
   } catch {
     throw new HttpError(404, "The file is missing on the server. A rescan will fix the library.");
   }
   if (!isInside(realRoot, real)) throw new HttpError(403, "This file links to a place outside the library folder.");
   return real;
 }
+
+const realRoots = new Map<string, string>();
 
 function isInside(root: string, full: string): boolean {
   const rel = path.relative(root, full);

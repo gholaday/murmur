@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   type MovieSummary,
@@ -14,8 +14,8 @@ import {
   type WatchSort,
 } from "@murmur/shared/client";
 import { CloseIcon, FilterIcon, SearchIcon } from "../icons";
-import { Sheet, SheetItem } from "../sheet";
-import { Chip, Chips, EmptyState, ScrollRow, SearchBox, SectionTitle } from "../ui";
+import { ChoiceSheet } from "../sheet";
+import { Chip, Chips, EmptyState, ScrollRow, SearchBox, SectionTitle, useSavedChoice } from "../ui";
 import { PosterCard, StillCard } from "./cards";
 
 export type WatchTab = "home" | "movies" | "shows" | "watched";
@@ -32,26 +32,7 @@ const titleOf = (i: Item) => (i.kind === "movie" ? i.m.title : i.s.title);
 const summaryOf = (i: Item) => (i.kind === "movie" ? i.m : i.s);
 
 /** The Movies, Shows and Watched sort, kept in this browser. */
-function useWatchSort(): [WatchSort, (s: WatchSort) => void] {
-  const [sort, setSort] = useState<WatchSort>("added");
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(WATCH_SORT_KEY) as WatchSort | null;
-      if (saved && WATCH_SORTS.some((s) => s.id === saved)) setSort(saved);
-    } catch {
-      // private mode
-    }
-  }, []);
-  const save = (next: WatchSort) => {
-    setSort(next);
-    try {
-      localStorage.setItem(WATCH_SORT_KEY, next);
-    } catch {
-      // private mode
-    }
-  };
-  return [sort, save];
-}
+const useWatchSort = () => useSavedChoice<WatchSort>(WATCH_SORT_KEY, "added", WATCH_SORTS);
 const watchedOf = (i: Item) => (i.kind === "movie" ? !!i.m.progress?.finished : i.s.episodes > 0 && i.s.watched === i.s.episodes);
 
 function ItemCard({ item }: { item: Item }) {
@@ -169,20 +150,7 @@ export function WatchView({
           ) : null}
         </div>
       </div>
-      <Sheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort">
-        {WATCH_SORTS.map((s) => (
-          <SheetItem
-            key={s.id}
-            active={sort === s.id}
-            onClick={() => {
-              setSort(s.id);
-              setSortOpen(false);
-            }}
-          >
-            {s.label}
-          </SheetItem>
-        ))}
-      </Sheet>
+      <ChoiceSheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort" choices={WATCH_SORTS} value={sort} onPick={setSort} />
       {searching ? <SearchBox value={query} onChange={setQuery} placeholder="Search movies and shows" label="Search movies and shows" /> : null}
       <Chips kind="tabs" label="Watch">
         {TABS.map((t) => (

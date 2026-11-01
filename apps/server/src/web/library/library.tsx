@@ -34,9 +34,9 @@ import { Mixer } from "../mixer";
 import { useNowPlaying } from "../player/engine";
 import { CustomizeIcon, DragIcon, FilterIcon, SearchIcon } from "../icons";
 import { EditBookDialog, type EditTab } from "../book/edit-dialog";
-import { Sheet, SheetItem } from "../sheet";
+import { ChoiceSheet } from "../sheet";
 import { useSortable } from "../sortable";
-import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle } from "../ui";
+import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle, useSavedChoice } from "../ui";
 import { BookActionsContext, BookCard } from "./book-card";
 import { PlayNextList } from "./play-next-list";
 
@@ -147,7 +147,7 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
   const allBooks = shelfParam === "all";
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
-  const [sort, setSort] = useState<Sort>("added");
+  const [sort, setSort] = useSavedChoice<Sort>(LIBRARY_SORT_KEY, "added", BOOK_SORTS);
   const [sortOpen, setSortOpen] = useState(false);
   const [sections, setSections] = useState(savedSections);
   const [customizing, setCustomizing] = useState(false);
@@ -162,16 +162,7 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
     });
   };
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(LIBRARY_SORT_KEY) as Sort | null;
-      if (saved && BOOK_SORTS.some((s) => s.id === saved)) setSort(saved);
-    } catch {
-      // private mode
-    }
-  }, []);
-
-  const go = (next: Record<string, string | null>) => {
+  const go =(next: Record<string, string | null>) => {
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(next)) if (v) p.set(k, v);
     const qs = p.toString();
@@ -186,6 +177,7 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
   const shelves = useMemo(
     () => ({
       playnext: shelfBooks("playnext", books, today),
+      continue: safeShelf("continue", books, today),
       next: shelfBooks("next", books, today),
       like: safeShelf("like", books, today),
       short: safeShelf("short", books, today),
@@ -221,27 +213,7 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
   const sorted = useMemo(() => sortBooks(books, sort), [books, sort]);
   const q = query.trim().toLowerCase();
 
-  const sortSheet = (
-    <Sheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort books">
-      {BOOK_SORTS.map((s) => (
-        <SheetItem
-          key={s.id}
-          active={sort === s.id}
-          onClick={() => {
-            setSort(s.id);
-            setSortOpen(false);
-            try {
-              localStorage.setItem(LIBRARY_SORT_KEY, s.id);
-            } catch {
-              // private mode
-            }
-          }}
-        >
-          {s.label}
-        </SheetItem>
-      ))}
-    </Sheet>
-  );
+  const sortSheet = <ChoiceSheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort books" choices={BOOK_SORTS} value={sort} onPick={setSort} />;
 
   if (books.length === 0) {
     return (
@@ -280,7 +252,7 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
   // A shelf's full list, opened from its heading.
   if (shelf === "playnext") return <PlayNextList books={shelves.playnext} />;
   if (shelf) {
-    const list = safeShelf(shelf, books, today);
+    const list = shelves[shelf];
     return (
       <>
         <NestedHead title={titleOf(shelf)} count={list.length} />

@@ -108,7 +108,7 @@ export function DownloadsView() {
         title="Remove all downloads?"
         message="Everything downloaded is deleted from this phone. It all stays on the server, so you can download it again."
         confirmLabel="Remove all"
-        onConfirm={removeAllDownloads}
+        onConfirm={() => void removeAllDownloads()}
         onClose={() => setRemovingAll(false)}
       />
     </View>

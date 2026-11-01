@@ -12,7 +12,7 @@ export const GET = route(async (req) => {
   const sig = params.get("s");
   if (!url || !sig) throw new HttpError(400, "Missing artwork link.");
   const { body, type } = await fetchArtwork(ctx.sqlite, url, sig);
-  return new Response(new Uint8Array(body), {
+  return new Response(new Uint8Array(body.buffer as ArrayBuffer, body.byteOffset, body.length), {
     headers: {
       "Content-Type": type,
       "Cache-Control": "private, max-age=86400",

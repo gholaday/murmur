@@ -33,7 +33,7 @@ import {
 import { api } from "../api";
 import { RefreshIcon } from "../icons";
 import { AD_MODES, adPrefsStore, useAdPrefs } from "../player/ad-prefs";
-import { usePlayer } from "../player/engine";
+import { usePlayerControls, usePlayerSelect } from "../player/engine";
 import { ConfirmSheet, Sheet } from "../sheet";
 import { applyTheme, currentTheme } from "../theme";
 import { BackRow, Chip, Chips, Setting, SettingLink, SettingsCard, SettingSub, SwitchRow } from "../ui";
@@ -85,7 +85,7 @@ export function ProfileView({
   server: ServerInfo;
 }) {
   const router = useRouter();
-  const player = usePlayer();
+  const player = usePlayerControls();
   const [theme, setTheme] = useState<ThemeChoice>("system");
   useEffect(() => setTheme(currentTheme()), []);
 
@@ -180,7 +180,8 @@ function PlaybackCard({
   videoQuality: UserPrefs["videoQuality"];
   autoplayNext: boolean;
 }) {
-  const player = usePlayer();
+  const { setSkip } = usePlayerControls();
+  const skip = usePlayerSelect((p) => p.skip);
   const adPrefs = useAdPrefs();
   const [quality, setQuality] = useState(videoQuality);
   const [nextOn, setNextOn] = useState(autoplayNext);
@@ -203,7 +204,7 @@ function PlaybackCard({
       <Setting title="Skip back" wrap>
         <Chips kind="radio" label="Skip back">
           {SKIP_BACK_OPTIONS.map((s) => (
-            <Chip key={s} selected={player.skip.back === s} onClick={() => player.setSkip({ ...player.skip, back: s })}>
+            <Chip key={s} selected={skip.back === s} onClick={() => setSkip({ ...skip, back: s })}>
               {s}s
             </Chip>
           ))}
@@ -212,7 +213,7 @@ function PlaybackCard({
       <Setting title="Skip forward" wrap>
         <Chips kind="radio" label="Skip forward">
           {SKIP_FORWARD_OPTIONS.map((s) => (
-            <Chip key={s} selected={player.skip.forward === s} onClick={() => player.setSkip({ ...player.skip, forward: s })}>
+            <Chip key={s} selected={skip.forward === s} onClick={() => setSkip({ ...skip, forward: s })}>
               {s}s
             </Chip>
           ))}

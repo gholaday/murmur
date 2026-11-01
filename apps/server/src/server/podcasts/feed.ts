@@ -1,5 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
-import { parsePscChapters } from "./chapters";
+import { parseClock, parsePscChapters } from "./chapters";
 
 export interface ParsedEpisode {
   guid: string;
@@ -111,11 +111,7 @@ function int(value: string | null): number | null {
 
 /** itunes:duration comes as "1:02:03", "62:03", "3723" or "3723.5". */
 export function parseDuration(value: string | null): number | null {
-  if (!value) return null;
-  const parts = value.trim().split(":").map(Number);
-  if (parts.length === 0 || parts.length > 3 || parts.some((p) => !Number.isFinite(p) || p < 0)) return null;
-  const sec = parts.reduce((acc, p) => acc * 60 + p, 0);
-  return sec > 0 ? sec : null;
+  return parseClock(value) || null;
 }
 
 /** Feed descriptions are HTML; we keep plain text so no client ever renders untrusted markup. */

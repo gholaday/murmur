@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { ScrollView, View } from "react-native";
+import { FlatList, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { type AlbumSummary, type BookSummary, bookIssues } from "@murmur/shared/client";
 import { BookCard } from "@/components/book-card";
-import { Grid, PAD, useGridWidth } from "@/components/library";
+import { GAP, gridRows, PAD, useGridWidth } from "@/components/library";
 import { BookEditSheet } from "@/components/book-edit";
 import { AlbumMatchSheet } from "@/components/match";
 import { MatchAllBar, MatchAllProgress, MatchAllRows, MatchAllStart, useMatchAll } from "@/components/match-all";
@@ -31,18 +31,29 @@ export default function LibraryListScreen() {
   return <UnmatchedList kind={list === "albums" ? "albums" : "books"} />;
 }
 
+/** One item of a list, mounted only near the screen. */
+type Cell = { key: string; node: React.ReactNode };
+
+/** Cards in rows of a grid. */
+function gridCells<T extends { id: string }>(list: T[], card: (item: T) => React.ReactNode): Cell[] {
+  return gridRows(list).map((row) => ({
+    key: row[0]!.id,
+    node: <View style={{ flexDirection: "row", columnGap: GAP, marginBottom: 18 }}>{row.map(card)}</View>,
+  }));
+}
+
 function AttentionList() {
   const width = useGridWidth();
   const books = useBooks();
   const shown = (books.data ?? []).filter((b) => bookIssues(b).length > 0);
   return (
-    <ListScreen list="attention" refresh={books.refetch} loading={books.isPending} empty={shown.length === 0}>
-      <Grid>
-        {shown.map((b) => (
-          <BookCard key={b.id} book={b} width={width} sub={bookIssues(b).join(", ")} />
-        ))}
-      </Grid>
-    </ListScreen>
+    <ListScreen
+      list="attention"
+      refresh={books.refetch}
+      loading={books.isPending}
+      empty={shown.length === 0}
+      cells={gridCells(shown, (b) => <BookCard key={b.id} book={b} width={width} sub={bookIssues(b).join(", ")} />)}
+    />
   );
 }
 
@@ -91,24 +102,20 @@ function UnmatchedList({ kind }: { kind: "books" | "albums" }) {
           <AlbumMatchSheet album={album} onClose={() => setAlbum(null)} />
         </>
       }
-    >
-      {m.job ? (
-        <MatchAllRows m={m} onSearch={search} />
-      ) : (
-        <Grid>
-          {kind === "books"
-            ? bookList.map((b) => <BookCard key={b.id} book={b} width={width} />)
-            : albumList.map((a) => <AlbumCard key={a.id} album={a} width={width} />)}
-        </Grid>
-      )}
-    </ListScreen>
+      cells={
+        m.job
+          ? [{ key: "results", node: <MatchAllRows m={m} onSearch={search} /> }]
+          : kind === "books"
+            ? gridCells(bookList, (b) => <BookCard key={b.id} book={b} width={width} />)
+            : gridCells(albumList, (a) => <AlbumCard key={a.id} album={a} width={width} />)
+      }
+    />
   );
 }
 
 /**
  * The lists' screen: the back row, title and sub line, then `head`, `bar` (which sticks to the
- * top as the list scrolls) and the list. Its own scroll view, since the bar needs to be one of
- * the scroll view's direct children to stick.
+ * top as the list scrolls) and the cells. The bar is the list's first cell, since only cells can stick.
  */
 function ListScreen({
   list,
@@ -118,7 +125,7 @@ function ListScreen({
   head,
   bar,
   after,
-  children,
+  cells,
 }: {
   list: LibraryList;
   refresh: () => Promise<unknown>;
@@ -127,7 +134,7 @@ function ListScreen({
   head?: React.ReactNode;
   bar?: React.ReactNode;
   after?: React.ReactNode;
-  children: React.ReactNode;
+  cells: Cell[];
 }) {
   const t = useTheme();
   const top = useTopInset();
@@ -135,30 +142,33 @@ function ListScreen({
   const pull = usePullRefresh(refresh);
   const fade = useJustLoaded(!loading);
   const { title, sub, empty: emptyText } = LIBRARY_LISTS[list];
-  const body = loading ? (
-    <Skeleton>
-      <CoverGridBones count={6} />
-    </Skeleton>
-  ) : empty ? (
-    <Empty>{emptyText}</Empty>
-  ) : (
-    <FadeIn when={fade}>{children}</FadeIn>
-  );
+  const data: Cell[] = loading
+    ? [{ key: "loading", node: <Skeleton><CoverGridBones count={6} /></Skeleton> }]
+    : empty
+      ? [{ key: "empty", node: <Empty>{emptyText}</Empty> }]
+      : [...(bar ? [{ key: "bar", node: bar }] : []), ...cells];
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView
+      <FlatList
+        data={data}
+        keyExtractor={(c) => c.key}
         contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }}
         refreshControl={pull}
-        stickyHeaderIndices={bar && !loading ? [2] : undefined}
-      >
-        <View style={{ marginBottom: 12 }}>
-          <BackRow />
-          <PageTitle title={title} sub={sub} />
-        </View>
-        <View>{loading ? null : head}</View>
-        {bar && !loading ? bar : <View />}
-        {body}
-      </ScrollView>
+        // Index 0 is the header.
+        stickyHeaderIndices={bar && !loading ? [1] : undefined}
+        ListHeaderComponent={
+          <View>
+            <View style={{ marginBottom: 12 }}>
+              <BackRow />
+              <PageTitle title={title} sub={sub} />
+            </View>
+            {loading ? null : head}
+          </View>
+        }
+        windowSize={7}
+        maxToRenderPerBatch={8}
+        renderItem={({ item }) => (item.key === "bar" ? <>{item.node}</> : <FadeIn when={fade}>{item.node}</FadeIn>)}
+      />
       <BottomMiniPlayer />
       {after}
     </View>

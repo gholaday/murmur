@@ -73,7 +73,40 @@ export function useBackdropClose(onClose: () => void) {
   };
 }
 
-/** A full-width row button inside a sheet. */
+/** Pick one of a few choices, like a sort; picking closes it. */
+export function ChoiceSheet<T extends string>({
+  open,
+  onClose,
+  title,
+  choices,
+  value,
+  onPick,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  choices: ReadonlyArray<{ id: T; label: string }>;
+  value: T;
+  onPick: (id: T) => void;
+}) {
+  return (
+    <Sheet open={open} onClose={onClose} title={title}>
+      {choices.map((c) => (
+        <SheetItem
+          key={c.id}
+          active={value === c.id}
+          onClick={() => {
+            onPick(c.id);
+            onClose();
+          }}
+        >
+          {c.label}
+        </SheetItem>
+      ))}
+    </Sheet>
+  );
+}
+
 /** Asks before something can't be undone: a title, a line on what happens if it isn't plain, then Cancel and the action, as in the app. */
 export function ConfirmSheet({
   open,
@@ -113,6 +146,7 @@ export function ConfirmSheet({
   );
 }
 
+/** A full-width row button inside a sheet. */
 export function SheetItem({
   children,
   onClick,

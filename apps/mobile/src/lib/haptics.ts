@@ -1,36 +1,17 @@
-import { useSyncExternalStore } from "react";
 import { Platform } from "react-native";
 import * as Haptics from "expo-haptics";
 import { AndroidHaptics } from "expo-haptics";
 import { HAPTICS_KEY } from "@murmur/shared/client";
 import { isIOS } from "./platform";
-import { getJson, setJson } from "./storage";
+import { createSavedStore } from "./store";
 
 // Light taps on the controls people press most. Android uses the system's own feedback
 // constants, which feel like its keyboard and follow the phone's Touch feedback setting,
 // rather than driving the vibration motor directly.
 
-let enabled = getJson<boolean>(HAPTICS_KEY) ?? true;
-const listeners = new Set<() => void>();
+export const hapticsStore = createSavedStore(HAPTICS_KEY, true);
 
-export const hapticsStore = {
-  get: () => enabled,
-  set(next: boolean) {
-    enabled = next;
-    setJson(HAPTICS_KEY, next);
-    listeners.forEach((l) => l());
-  },
-};
-
-export function useHapticsEnabled(): boolean {
-  return useSyncExternalStore(
-    (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    hapticsStore.get,
-  );
-}
+export const useHapticsEnabled = hapticsStore.useValue;
 
 const sdk = Platform.OS === "android" ? (Platform.Version as number) : 0;
 const R = 30;
@@ -38,11 +19,11 @@ const UPSIDE_DOWN_CAKE = 34;
 
 // Each type throws below the Android version that added it, so older phones get an older one.
 function android(type: AndroidHaptics | null) {
-  if (enabled && type) Haptics.performAndroidHapticsAsync(type).catch(() => {});
+  if (hapticsStore.get() && type) Haptics.performAndroidHapticsAsync(type).catch(() => {});
 }
 
 function ios(run: () => Promise<void>) {
-  if (enabled) run().catch(() => {});
+  if (hapticsStore.get()) run().catch(() => {});
 }
 
 /** A button that changes playback: play, pause, skip. */

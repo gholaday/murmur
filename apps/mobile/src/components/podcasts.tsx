@@ -1,7 +1,7 @@
-import { useSyncExternalStore } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { apiPaths, PODCAST_SORT_LABEL, type PodcastListId, type PodcastSort, type PodcastSummary } from "@murmur/shared/client";
+import { createStore } from "@/lib/store";
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { Mixer, useNowPlaying } from "./mixer";
@@ -9,21 +9,9 @@ import { Sheet, SheetItem } from "./sheet";
 import { NumberBadge, Text } from "./ui";
 
 // The sort is shared by the Podcasts tab and its full list, so both show the same order.
-let sort: PodcastSort = "latest";
-const listeners = new Set<() => void>();
-export function setSort(next: PodcastSort) {
-  sort = next;
-  listeners.forEach((l) => l());
-}
-export function useSort() {
-  return useSyncExternalStore(
-    (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    () => sort,
-  );
-}
+const sortStore = createStore<PodcastSort>("latest");
+export const setSort = sortStore.set;
+export const useSort = sortStore.useValue;
 
 export function SortSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const current = useSort();

@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect } from "react";
 import { AppState } from "react-native";
 import {
   CastContext,
@@ -17,6 +17,7 @@ import {
 import { apiPaths, type CastLinkDto, castContentType, castPrefix } from "@murmur/shared/client";
 import { toast } from "@/components/toast";
 import { absolute, api } from "@/lib/api";
+import { createStore } from "@/lib/store";
 
 // Chromecast: Google's Default Media Receiver on the TV, which fetches the media straight from the
 // server. The audio engine and the video player stay in charge: while a session is up they play
@@ -30,26 +31,18 @@ export interface CastStatus {
   device: string | null;
 }
 
-let status: CastStatus = { available: false, device: null };
-const listeners = new Set<() => void>();
+const store = createStore<CastStatus>({ available: false, device: null });
 const deviceListeners = new Set<(device: string | null) => void>();
 
 function setStatus(change: Partial<CastStatus>) {
+  const status = store.get();
   const next = { ...status, ...change };
   if (next.available === status.available && next.device === status.device) return;
-  const deviceChanged = next.device !== status.device;
-  status = next;
-  listeners.forEach((l) => l());
-  if (deviceChanged) deviceListeners.forEach((l) => l(next.device));
+  store.set(next);
+  if (next.device !== status.device) deviceListeners.forEach((l) => l(next.device));
 }
 
-const subscribe = (l: () => void) => {
-  listeners.add(l);
-  return () => void listeners.delete(l);
-};
-
-export const getCastStatus = () => status;
-export const useCast = (): CastStatus => useSyncExternalStore(subscribe, getCastStatus);
+export const useCast = store.useValue;
 
 /** Runs when casting starts (the device's name) or ends (null), for the players to hand over. */
 export function onCastDevice(listener: (device: string | null) => void): () => void {

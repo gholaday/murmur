@@ -21,6 +21,8 @@ const VIEWS = [
 ] as const;
 type View_ = (typeof VIEWS)[number]["id"];
 
+const SONG_ROW = 64;
+
 /** Waits until the text has stopped changing for a moment, so a search doesn't run on every key. */
 function useDebounced(value: string, ms: number) {
   const [settled, setSettled] = useState(value);
@@ -44,6 +46,7 @@ export default function AddSongsScreen() {
   const playlist = usePlaylist(id);
   const [view, setView] = useState<View_>("mine");
   const [query, setQuery] = useState("");
+  const [headerHeight, setHeaderHeight] = useState(0);
   const q = useDebounced(query.trim(), 250);
   const mine = useTrackSearch("mine", q, view === "mine");
   const all = useTrackSearch("all", q, view === "all");
@@ -115,8 +118,9 @@ export default function AddSongsScreen() {
         keyExtractor={(s) => s.id}
         contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: bottom }}
         keyboardShouldPersistTaps="handled"
-        ListHeaderComponent={header}
+        ListHeaderComponent={<View onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>{header}</View>}
         ListEmptyComponent={empty}
+        getItemLayout={(_, index) => ({ length: SONG_ROW, offset: headerHeight + index * SONG_ROW, index })}
         renderItem={({ item }) => <AddSongRow song={item} added={inPlaylist.has(item.id)} name={name} onToggle={() => toggle(item)} />}
       />
       <BottomMiniPlayer />
@@ -128,7 +132,7 @@ export default function AddSongsScreen() {
 function AddSongRow({ song, added, name, onToggle }: { song: TrackDto; added: boolean; name: string; onToggle: () => void }) {
   const t = useTheme();
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, borderBottomWidth: 1, borderBottomColor: t.line }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, height: SONG_ROW, borderBottomWidth: 1, borderBottomColor: t.line }}>
       <Cover path={albumCover(song.albumId, song.coverHash)} title="" size={44} radius={8} />
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Text variant="bodyStrong" numberOfLines={1}>

@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, useSyncExternalStore } from "react";
+import { memo, useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
 import {
@@ -29,7 +29,7 @@ import {
 import { useVideoQuality } from "@/lib/data";
 import { downloadingText, downloadMovie, downloadTvEpisode, removeDownload, useDownload } from "@/lib/downloads";
 import { withLongPressHaptic } from "@/lib/haptics";
-import { getJson, setJson } from "@/lib/storage";
+import { createSavedStore } from "@/lib/store";
 import { openVideoPlayer, subtitleTracks } from "@/lib/watch";
 import { convertsPicture, rememberVideoSubtitle, subtitleFor, useVideo, videoDownloadSource, videoPlace } from "@/player/video";
 import { fonts, useTheme } from "@/theme";
@@ -97,18 +97,9 @@ export interface PosterItem {
 
 // ---------- Sort for Movies, Shows and Watched, kept on this phone ----------
 
-let sortValue: WatchSort = getJson<WatchSort>(WATCH_SORT_KEY) ?? "added";
-const sortListeners = new Set<() => void>();
+const watchSort = createSavedStore<WatchSort>(WATCH_SORT_KEY, "added");
 
-export function useWatchSort(): WatchSort {
-  return useSyncExternalStore(
-    (l) => {
-      sortListeners.add(l);
-      return () => sortListeners.delete(l);
-    },
-    () => sortValue,
-  );
-}
+export const useWatchSort = watchSort.useValue;
 
 export function WatchSortSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const sort = useWatchSort();
@@ -120,9 +111,7 @@ export function WatchSortSheet({ open, onClose }: { open: boolean; onClose: () =
           label={s.label}
           active={sort === s.id}
           onPress={() => {
-            sortValue = s.id;
-            setJson(WATCH_SORT_KEY, s.id);
-            sortListeners.forEach((l) => l());
+            watchSort.set(s.id);
             onClose();
           }}
         />

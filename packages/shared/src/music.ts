@@ -2,7 +2,7 @@
 
 import { apiPaths } from "./api-paths";
 import { clock, duration, plural } from "./format";
-import { collator } from "./library";
+import { addTo, collator } from "./library";
 
 export type AlbumSort = "added" | "name" | "artist" | "year";
 export const ALBUM_SORTS: Array<{ id: AlbumSort; label: string }> = [
@@ -357,7 +357,7 @@ export function sortAlbums(albums: AlbumSummary[], sort: AlbumSort): AlbumSummar
 /** Each artist's own albums, newest first. */
 export function albumsByArtist(albums: AlbumSummary[]): Map<string, AlbumSummary[]> {
   const out = new Map<string, AlbumSummary[]>();
-  for (const a of albums) out.set(a.artistId, [...(out.get(a.artistId) ?? []), a]);
+  for (const a of albums) addTo(out, a.artistId, a);
   for (const list of out.values()) list.sort((x, y) => (y.year ?? "").localeCompare(x.year ?? ""));
   return out;
 }

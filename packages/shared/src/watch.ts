@@ -3,7 +3,7 @@
 import { apiPaths } from "./api-paths";
 import { gigabytes } from "./format";
 import { languageName } from "./languages";
-import { collator, sortTitle } from "./library";
+import { addTo, collator, sortTitle } from "./library";
 
 export type WatchSort = "added" | "title" | "year";
 export const WATCH_SORTS: Array<{ id: WatchSort; label: string }> = [
@@ -288,7 +288,7 @@ export function collectionOrder<T extends Pick<CollectionMovie, "title" | "relea
  */
 export function nextInCollection<T extends CollectionMovie>(movies: readonly T[]): T[] {
   const byCollection = new Map<number, T[]>();
-  for (const m of movies) byCollection.set(m.collectionId, [...(byCollection.get(m.collectionId) ?? []), m]);
+  for (const m of movies) addTo(byCollection, m.collectionId, m);
   const picks: { movie: T; finishedAt: number }[] = [];
   for (const list of byCollection.values()) {
     if (list.some((m) => m.progress && !m.progress.finished && m.progress.positionSec > 5)) continue;

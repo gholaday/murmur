@@ -21,7 +21,7 @@ import {
 import { CheckIcon, ChevronIcon, MoreIcon, PlayIcon } from "../icons";
 import { setFinished } from "../progress";
 import { Sheet, SheetItem } from "../sheet";
-import { BackButton, ScrollRow, SectionTitle, SettingsCard } from "../ui";
+import { BackButton, Description, ScrollRow, SectionTitle, SettingsCard } from "../ui";
 import { playHref, Poster, PosterCard } from "./cards";
 import { useAdmin } from "../admin";
 import { MenuSheet } from "../card-menu";
@@ -38,7 +38,7 @@ export function FileDetails({ file }: { file: VideoFileInfo }) {
     <section className="section">
       <h2 className="section-title">File</h2>
       <div className="file-details">
-        <span className="file-name">{file.fileName}</span>
+        <span className="video-file-name">{file.fileName}</span>
         <div className="pills">
           {parts.map((p) => (
             <span key={p} className="pill">
@@ -71,7 +71,6 @@ function MovieShelf({ title, items, current }: { title: string; items: WatchPost
 export function MovieView({ movie }: { movie: MovieDetail }) {
   const router = useRouter();
   const { tmdb } = useAdmin();
-  const [expanded, setExpanded] = useState(false);
   const [picking, setPicking] = useState(false);
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState<WatchEditTab | null>(null);
@@ -158,16 +157,7 @@ export function MovieView({ movie }: { movie: MovieDetail }) {
         </button>
       </div>
 
-      {movie.description ? (
-        <>
-          <p className={`description ${expanded ? "" : "clamped"}`}>{movie.description}</p>
-          {movie.description.length > 220 ? (
-            <button type="button" className="more-link" onClick={() => setExpanded((e) => !e)}>
-              {expanded ? "Less" : "More"}
-            </button>
-          ) : null}
-        </>
-      ) : null}
+      {movie.description ? <Description text={movie.description} /> : null}
 
       {movie.versionList.length > 1 || version.file.subtitleTracks.length ? (
         <div style={{ marginTop: 18 }}>

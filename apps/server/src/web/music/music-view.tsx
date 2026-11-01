@@ -33,9 +33,9 @@ import { ChevronIcon, CloseIcon, FilterIcon, FolderIcon, MusicIcon, PauseIcon, P
 import { ShuffleButton } from "./shuffle-button";
 import { type MusicSource, useNowPlaying, usePlayerControls, usePlayerSelect } from "../player/engine";
 import { GroupGrid } from "../library/library";
-import { Sheet, SheetItem } from "../sheet";
+import { ChoiceSheet } from "../sheet";
 import { SongRowsSkeleton } from "../skeletons";
-import { Chip, Chips, EmptyState, ScrollRow, SearchBox, SectionTitle } from "../ui";
+import { Chip, Chips, EmptyState, ScrollRow, SearchBox, SectionTitle, useSavedChoice } from "../ui";
 import { AlbumCardMenu } from "./album-menu";
 import { AlbumBadge, MineToggle, useMineChange } from "./mine";
 import { NewPlaylistButton, PlaylistCard } from "./playlist-view";
@@ -52,44 +52,10 @@ const TABS: Array<{ id: MusicTab; label: string; placeholder: string }> = [
 const SORT_KEY = "murmur.albumSort";
 
 /** The album sort, kept in this browser and shared by the Music tab and Browse. */
-export function useAlbumSort(): [AlbumSort, (s: AlbumSort) => void] {
-  const [sort, setSort] = useState<AlbumSort>("added");
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(SORT_KEY) as AlbumSort | null;
-      if (saved && ALBUM_SORTS.some((s) => s.id === saved)) setSort(saved);
-    } catch {
-      // private mode
-    }
-  }, []);
-  const save = (next: AlbumSort) => {
-    setSort(next);
-    try {
-      localStorage.setItem(SORT_KEY, next);
-    } catch {
-      // private mode
-    }
-  };
-  return [sort, save];
-}
+export const useAlbumSort = () => useSavedChoice<AlbumSort>(SORT_KEY, "added", ALBUM_SORTS);
 
 export function AlbumSortSheet({ open, onClose, sort, onPick }: { open: boolean; onClose: () => void; sort: AlbumSort; onPick: (s: AlbumSort) => void }) {
-  return (
-    <Sheet open={open} onClose={onClose} title="Sort albums">
-      {ALBUM_SORTS.map((s) => (
-        <SheetItem
-          key={s.id}
-          active={sort === s.id}
-          onClick={() => {
-            onPick(s.id);
-            onClose();
-          }}
-        >
-          {s.label}
-        </SheetItem>
-      ))}
-    </Sheet>
-  );
+  return <ChoiceSheet open={open} onClose={onClose} title="Sort albums" choices={ALBUM_SORTS} value={sort} onPick={onPick} />;
 }
 
 /** Cover with title and a sub line; `badge` puts the add / added button on the cover. */
@@ -429,6 +395,8 @@ export function MusicView({
 
   const sorted = useMemo(() => sortAlbums(albums, sort), [albums, sort]);
   const byArtist = useMemo(() => albumsByArtist(albums), [albums]);
+  const songsFrom = usePlayerSelect((s) => s.isPlayingFrom("songs", null));
+  const songsPlaying = usePlayerSelect((s) => songsFrom && s.playing);
 
   if (!summary.enabled || (summary.mine.tracks === 0 && playlists.length === 0)) {
     return (
@@ -460,8 +428,6 @@ export function MusicView({
     songs: shownSongs.length,
   }[tab] > 0;
   const songsSource: MusicSource = { kind: "songs", refId: null, title: "Your songs", tracks: shownSongs };
-  const songsFrom = usePlayerSelect((s) => s.isPlayingFrom("songs", null));
-  const songsPlaying = usePlayerSelect((s) => songsFrom && s.playing);
 
   return (
     <>

@@ -17,6 +17,7 @@ import {
   type ScannedAudioFile,
 } from "./parse";
 import { createLimiter, createUnreadable, extractEmbeddedCover, probeFile } from "./probe";
+import { runScan } from "./scan-loop";
 import { bumpChanges } from "../changes";
 
 export interface ScannerDeps {
@@ -469,37 +470,20 @@ export function createScanner(deps: ScannerDeps) {
    * Runs a scan of everything, or with `scopes` of just those folders. If one is already
    * running, another pass is queued to start right after, merging what was asked for.
    */
-  async function scan(scopes?: ScanScopes): Promise<void> {
+  function scan(scopes?: ScanScopes): Promise<void> {
     enqueue(scopes);
-    if (state.running) {
-      state.rerunRequested = true;
-      return;
-    }
-    state.running = true;
-    try {
-      do {
-        state.rerunRequested = false;
+    return runScan({
+      state,
+      log,
+      name: "scan",
+      afterScan: deps.afterScan,
+      once: async () => {
         const pass = queued;
         queued = null;
-        const started = Date.now();
-        try {
-          const { stats, problems } = await runOnce(pass === "full" || pass === null ? undefined : pass);
-          state.lastStats = stats;
-          state.lastError = problems.length ? problems.join(" ") : null;
-          log.info(pass === "full" ? "scan finished" : "folder rescan finished", { ...stats, ms: Date.now() - started });
-          // Not awaited: online lookups mustn't hold up the next scan or the status.
-          void deps.afterScan?.().catch((err: unknown) => log.warn("after-scan step failed", { error: errorMessage(err) }));
-        } catch (err) {
-          state.lastError = errorMessage(err);
-          log.error("scan failed", { error: state.lastError });
-        } finally {
-          state.lastFinishedAt = Date.now();
-          state.lastDurationMs = Date.now() - started;
-        }
-      } while (state.rerunRequested);
-    } finally {
-      state.running = false;
-    }
+        const done = await runOnce(pass === "full" || pass === null ? undefined : pass);
+        return { ...done, ...(pass === "full" ? {} : { finished: "folder rescan finished" }) };
+      },
+    });
   }
 
   /** Rescans just the folders holding these changed paths (absolute, from the file watcher). */

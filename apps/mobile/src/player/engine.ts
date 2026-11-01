@@ -1,7 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { AppState } from "react-native";
-import { type AudioLockScreenOptions, type AudioMetadata, type AudioPlayer, createAudioPlayer, setAudioModeAsync, type AudioStatus } from "expo-audio";
-import { File, Directory, Paths } from "expo-file-system";
+import { type AudioPlayer, createAudioPlayer, setAudioModeAsync, type AudioStatus } from "expo-audio";
 import { onlineManager } from "@tanstack/react-query";
 import {
   ADS_POLL_MS,
@@ -19,8 +17,6 @@ import {
   fitChapters,
   holdEnded,
   type JumpHold,
-  type ListeningStore,
-  ListeningTracker,
   moveItem as moveListItem,
   nextIndex,
   nextRepeatMode,
@@ -50,29 +46,22 @@ import {
   type UserPrefs,
 } from "@murmur/shared/client";
 import { absolute, api, authHeaders, HttpError } from "@/lib/api";
-import { addBookmark, bookmarksFor, flushBookmarks, forgetBookmarks, newBookmark, refreshBookmarks } from "@/lib/bookmarks";
-import { fetchBook, fetchEpisode, invalidateListening, keys } from "@/lib/data";
-import { downloadTypeOf, getDownload, localTrackUri, localUri, savedArt, savedTrack, saveDownloadAds } from "@/lib/downloads";
+import { addBookmark, bookmarksFor, newBookmark, refreshBookmarks } from "@/lib/bookmarks";
+import { fetchBook, fetchEpisode, fetchPrefs, keys } from "@/lib/data";
+import { downloadTypeOf, getDownload, localTrackUri, localUri, savedTrack, saveDownloadAds } from "@/lib/downloads";
 import { tapHaptic } from "@/lib/haptics";
-import { isIOS } from "@/lib/platform";
 import { queryClient } from "@/lib/query";
 import { getJson, removeKey, setJson } from "@/lib/storage";
+import { createStore } from "@/lib/store";
 import { toast } from "@/components/toast";
 import { adModeFor, adPrefsStore, adToSkip, playedThrough } from "./ad-prefs";
 import { CastPlayer, onCastDevice } from "./cast";
+import { createLockScreen } from "./lock-screen";
+import { flush, listening, queuePlay, queueProgress, saveListening, unsentProgress } from "./progress";
 
 // One audio player for the whole app, kept outside React so playback, the lock screen and
 // progress saving carry on whatever screen is showing (or with the screen off).
 // Mirrors the web player's engine (apps/server/src/web/player/engine.tsx).
-
-const OUTBOX_KEY = "murmur.progressOutbox";
-const LISTENING_KEY = "murmur.listening";
-
-/** Time spent listening per day, for the stats; sent along with progress. */
-const listening = new ListeningTracker(
-  () => getJson<ListeningStore>(LISTENING_KEY),
-  (data) => setJson(LISTENING_KEY, data),
-);
 
 export interface PlayableFile {
   path: string;
@@ -101,6 +90,9 @@ export interface Playable {
 
 /** What was playing, saved on this phone so a restart picks it up. */
 type PlayRef = { itemType: PlayType; itemId: string };
+
+/** The same, with where it had got to: details saved earlier may be behind. */
+type SavedPlace = PlayRef & { at?: number };
 
 export function bookToPlayable(b: BookDetail): Playable {
   return {
@@ -169,10 +161,6 @@ export async function loadPlayable(ref: PlayRef): Promise<Playable> {
   return resumeFrom(await loadPlayableDetails(ref));
 }
 
-/** Progress saved on this phone that the server hasn't been told about yet, if any. */
-export const unsentProgress = (itemType: ProgressItem["itemType"], itemId: string): ProgressItem | undefined =>
-  getJson<Outbox>(OUTBOX_KEY)?.[`${itemType}:${itemId}`];
-
 /** `it` starting where it was last left on this phone, when that's newer than what its details say. */
 export function resumeFrom(it: Playable): Playable {
   if (it.type === "track") return it; // songs start from the top
@@ -180,31 +168,44 @@ export function resumeFrom(it: Playable): Playable {
   return unsent && !unsent.finished ? { ...it, startAt: unsent.positionSec } : it;
 }
 
-async function loadPlayableDetails(ref: PlayRef): Promise<Playable> {
+/** An item's details from the server (or from the cache, if they've only just been fetched). */
+async function fetchPlayable(ref: PlayRef): Promise<Playable> {
+  if (ref.itemType === "track") return trackToPlayable(await api<TrackDto>(apiPaths.track(ref.itemId)));
+  if (ref.itemType === "book") return bookToPlayable(await fetchBook(ref.itemId));
+  return episodeToPlayable(await fetchEpisode(ref.itemId));
+}
+
+/** An item's details as this phone has them, with no request: its download, or Up Next. */
+function savedPlayable(ref: PlayRef): Playable | null {
   if (ref.itemType === "track") {
-    try {
-      return trackToPlayable(await api<TrackDto>(apiPaths.track(ref.itemId)));
-    } catch (err) {
-      const saved = savedTrack(ref.itemId);
-      if (saved) return trackToPlayable(saved);
-      throw err;
-    }
-  }
-  const dl = getDownload(downloadTypeOf(ref.itemType), ref.itemId);
-  if (ref.itemType === "book") {
-    try {
-      return bookToPlayable(await fetchBook(ref.itemId));
-    } catch (err) {
-      if (dl?.type === "book") return bookToPlayable(dl.book);
-      throw err;
-    }
-  }
-  try {
-    return episodeToPlayable(await fetchEpisode(ref.itemId));
-  } catch (err) {
+    const saved = savedTrack(ref.itemId);
+    if (saved) return trackToPlayable(saved);
+  } else {
+    const dl = getDownload(downloadTypeOf(ref.itemType), ref.itemId);
+    if (dl?.type === "book") return bookToPlayable(dl.book);
     if (dl?.type === "podcast") return episodeToPlayable(dl.episode);
+  }
+  const entry = state.upNext.items.find((e) => e.itemType === ref.itemType && e.itemId === ref.itemId);
+  return entry ? entryToPlayable(entry) : null;
+}
+
+async function loadPlayableDetails(ref: PlayRef): Promise<Playable> {
+  try {
+    return await fetchPlayable(ref);
+  } catch (err) {
+    const saved = savedPlayable(ref);
+    if (saved) return saved;
     throw err;
   }
+}
+
+/** What can show at once for an item put back after a restart: the cached details, else the saved ones. */
+function cachedPlayable(ref: SavedPlace): Playable | null {
+  const book = ref.itemType === "book" ? queryClient.getQueryData<BookDetail>(keys.book(ref.itemId)) : undefined;
+  const episode = ref.itemType === "episode" ? queryClient.getQueryData<EpisodeWithShow>(keys.episode(ref.itemId)) : undefined;
+  const it = book ? bookToPlayable(book) : episode ? episodeToPlayable(episode) : savedPlayable(ref);
+  if (!it) return null;
+  return resumeFrom(it.type !== "track" && ref.at !== undefined ? { ...it, startAt: ref.at } : it);
 }
 
 export interface PlayerState {
@@ -258,8 +259,9 @@ let state: PlayerState = {
   goBackTo: null,
 };
 let position = 0;
-const stateListeners = new Set<() => void>();
-const positionListeners = new Set<() => void>();
+const store = createStore(state);
+// Ticks skip React with the app in the background (screen off, another app open).
+const place = createStore(position, { foregroundOnly: true });
 
 /** A jump to a bookmark not yet taken as your place: until it ends, saves leave the real place alone. */
 let hold: JumpHold | null = null;
@@ -276,68 +278,36 @@ function set(change: Partial<PlayerState>) {
     watchAds();
     watchChapters();
   }
-  stateListeners.forEach((l) => l());
+  store.set(state);
 }
-
-// With the app in the background (screen off, another app open) nothing on screen shows the
-// position, so ticks skip React entirely; it catches up when the app comes back.
-let appActive = AppState.currentState !== "background";
-AppState.addEventListener("change", (s) => {
-  appActive = s !== "background";
-  if (appActive) positionListeners.forEach((l) => l());
-});
 
 function setPosition(p: number) {
   position = p;
-  if (appActive) positionListeners.forEach((l) => l());
-  // The lock screen names the chapter playing, so it changes as a chapter ends.
-  const it = state.item;
-  if (lockScreenOn && it && it.chapters.length > 1 && chapterAt(it.chapters, p) !== lockScreenChapter) void showOnLockScreen(it);
+  place.set(p);
+  if (state.item) lockScreen.moved(state.item, p);
 }
 
 export const getPlayerState = () => state;
 
 /** Runs `listener` on every player change, outside React (the video player ends when audio starts). */
-export function onPlayerChange(listener: (s: PlayerState) => void): () => void {
-  const l = () => listener(state);
-  stateListeners.add(l);
-  return () => stateListeners.delete(l);
-}
+export const onPlayerChange = (listener: (s: PlayerState) => void) => store.subscribe(() => listener(state));
 
-export function usePlayer(): PlayerState {
-  return useSyncExternalStore(
-    (l) => {
-      stateListeners.add(l);
-      return () => stateListeners.delete(l);
-    },
-    () => state,
-  );
-}
+export const usePlayer = store.useValue;
 
 /**
  * One value picked from the player state. Return a primitive, so a component (a card in a long
  * grid, say) only renders again when that value changes, not on every player update.
  */
-export function usePlayerSelect<T>(select: (s: PlayerState) => T): T {
-  return useSyncExternalStore(
-    (l) => {
-      stateListeners.add(l);
-      return () => stateListeners.delete(l);
-    },
-    () => select(state),
-  );
-}
+export const usePlayerSelect = store.useSelect;
 
 /** Current position in seconds; only components that show time should subscribe. */
-export function usePosition(): number {
-  return useSyncExternalStore(
-    (l) => {
-      positionListeners.add(l);
-      return () => positionListeners.delete(l);
-    },
-    () => position,
-  );
-}
+export const usePosition = place.useValue;
+
+/**
+ * Something worked out from the position, like the text of a time. A component using it renders
+ * only when the answer changes, not on every tick, so return a primitive.
+ */
+export const usePositionSelect = place.useSelect;
 
 /**
  * The position while this item is the one loaded, else null. Rows in long lists use this so
@@ -346,11 +316,11 @@ export function usePosition(): number {
 export function useItemPosition(type: PlayType, id: string): number | null {
   return useSyncExternalStore(
     (l) => {
-      positionListeners.add(l);
-      stateListeners.add(l);
+      const stopPlace = place.subscribe(l);
+      const stopState = store.subscribe(l);
       return () => {
-        positionListeners.delete(l);
-        stateListeners.delete(l);
+        stopPlace();
+        stopState();
       };
     },
     () => (isCurrent(state, type, id) ? position : null),
@@ -470,14 +440,40 @@ export const isCurrent = (s: PlayerState, type: PlayType, id: string) => s.item?
 
 // ---------- Audio ----------
 
-// Two players: `player` is the one playing; the other loads the next song ahead of time so it
-// can take over the moment the current one ends. Events from the spare one are ignored.
-const players = [0, 1].map(() => createAudioPlayer(null, { updateInterval: 500, keepAudioSessionActive: true }));
-let player: AudioPlayer = players[0]!;
-const spare = () => (player === players[0] ? players[1]! : players[0]!);
+// Two players: `player()` is the one playing; the other loads the next song ahead of time so it
+// can take over the moment the current one ends. Events from the spare one are ignored. They and
+// the audio session are made the first time something loads, not while the app is opening.
+let players: AudioPlayer[] | null = null;
+let inUse = 0;
+const player = () => (players ??= makePlayers())[inUse]!;
+const spare = () => (players ??= makePlayers())[1 - inUse]!;
 /** The song the spare player has loaded, ready to go. */
 let preloaded: string | null = null;
-void setAudioModeAsync({ shouldPlayInBackground: true, interruptionMode: "doNotMix", playsInSilentMode: true });
+
+// The patched expo-audio sends the notification's previous and next taps as "remoteTrack", and its
+// bookmark button as "remoteBookmark".
+type RemoteEmitter = {
+  addListener(event: "remoteTrack", fn: (e: { direction: number }) => void): unknown;
+  addListener(event: "remoteBookmark", fn: () => void): unknown;
+};
+
+function makePlayers() {
+  void setAudioModeAsync({ shouldPlayInBackground: true, interruptionMode: "doNotMix", playsInSilentMode: true });
+  const made = [0, 1].map(() => createAudioPlayer(null, { updateInterval: 500, keepAudioSessionActive: true }));
+  for (const p of made) {
+    p.addListener("playbackStatusUpdate", (s: AudioStatus) => {
+      if (p === made[inUse] && !casting) onStatus(s);
+    });
+    const remote = p as unknown as RemoteEmitter;
+    remote.addListener("remoteTrack", ({ direction }) => {
+      if (p === made[inUse]) trackStep(direction < 0 ? -1 : 1);
+    });
+    remote.addListener("remoteBookmark", () => {
+      if (p === made[inUse]) bookmarkHere();
+    });
+  }
+  return made;
+}
 
 let fileIndex = 0;
 let pendingSeek: number | null = null;
@@ -492,21 +488,14 @@ let seeking = false;
 /** Whether the loaded file is the phone's downloaded copy rather than the server's stream. */
 let playingLocal = false;
 let lastSaved = 0;
-/** The player the lock screen and notification are bound to, and whether they show song buttons. */
-let lockScreenOn: AudioPlayer | null = null;
-let lockScreenSongs = false;
-/** The chapter the lock screen shows, or -1 for an item without chapters. */
-let lockScreenChapter = -1;
-let lockScreenMetadata: AudioMetadata | undefined;
 
-/**
- * Songs get previous and next on the lock screen; books and episodes get the skip buttons,
- * jumping as far as the player's own (iOS; Android has its own).
- */
-const lockScreenOptions = (): AudioLockScreenOptions =>
-  state.item?.type === "track"
-    ? { showSeekBackward: false, showSeekForward: false, showPreviousTrack: true, showNextTrack: true }
-    : { showSeekBackward: true, showSeekForward: true, seekBackwardInterval: state.skip.back, seekForwardInterval: state.skip.forward, showBookmark: true };
+const lockScreen = createLockScreen({
+  item: () => state.item,
+  position: () => position,
+  skip: () => state.skip,
+  player,
+  casting: () => casting,
+});
 
 const fileAt = (it: Playable, sec: number) => Math.max(0, it.files.findLastIndex((f) => f.startSec <= sec));
 
@@ -538,7 +527,7 @@ function load(it: Playable, at: number, autoplay: boolean) {
   awaitingSource = true;
   autoplayAfterLoad = autoplay;
   playingLocal = !!localFor(it, idx);
-  player.replace(sourceFor(it, idx));
+  player().replace(sourceFor(it, idx));
   // Playback starts once the position is restored (see the status listener).
 }
 
@@ -570,15 +559,15 @@ const castPlayer = new CastPlayer({
 /** What plays: the phone's player, or the Chromecast while casting. */
 const media = {
   get playing() {
-    return casting ? castPlayer.playing : player.playing;
+    return casting ? castPlayer.playing : player().playing;
   },
   get duration() {
-    return casting ? castPlayer.duration : player.duration;
+    return casting ? castPlayer.duration : player().duration;
   },
-  play: () => (casting ? castPlayer.play() : player.play()),
-  pause: () => (casting ? castPlayer.pause() : player.pause()),
-  seekTo: (sec: number) => (casting ? castPlayer.seek(sec) : void player.seekTo(sec)),
-  setRate: (rate: number) => (casting ? castPlayer.setRate(rate) : player.setPlaybackRate(rate)),
+  play: () => (casting ? castPlayer.play() : player().play()),
+  pause: () => (casting ? castPlayer.pause() : player().pause()),
+  seekTo: (sec: number) => (casting ? castPlayer.seek(sec) : void player().seekTo(sec)),
+  setRate: (rate: number) => (casting ? castPlayer.setRate(rate) : player().setPlaybackRate(rate)),
 };
 
 // A connected Chromecast takes over where the phone is, playing if it was playing, and Google's
@@ -589,9 +578,8 @@ onCastDevice((device) => {
     const wasPlaying = state.playing;
     casting = true;
     dropPreloaded();
-    player.pause();
-    if (lockScreenOn) lockScreenOn.clearLockScreenControls();
-    lockScreenOn = null;
+    if (players) player().pause();
+    lockScreen.clear();
     if (it) load(it, position, wasPlaying);
   } else if (!device && casting) {
     casting = false;
@@ -599,30 +587,10 @@ onCastDevice((device) => {
     set({ playing: false });
     if (it) {
       load(it, position, false);
-      void showOnLockScreen(it);
+      void lockScreen.show(it);
     }
   }
 });
-
-// The patched expo-audio sends the notification's previous and next taps as "remoteTrack", and its
-// bookmark button as "remoteBookmark".
-type RemoteEmitter = {
-  addListener(event: "remoteTrack", fn: (e: { direction: number }) => void): unknown;
-  addListener(event: "remoteBookmark", fn: () => void): unknown;
-};
-
-for (const p of players) {
-  p.addListener("playbackStatusUpdate", (s: AudioStatus) => {
-    if (p === player && !casting) onStatus(s);
-  });
-  const remote = p as unknown as RemoteEmitter;
-  remote.addListener("remoteTrack", ({ direction }) => {
-    if (p === player) trackStep(direction < 0 ? -1 : 1);
-  });
-  remote.addListener("remoteBookmark", () => {
-    if (p === player) bookmarkHere();
-  });
-}
 
 /** The notification's bookmark button: saves this spot, unless it already has one. */
 function bookmarkHere() {
@@ -653,11 +621,11 @@ function onStatus(s: AudioStatus) {
     // Until the seek lands the player still reports the file's start, which would reset the
     // restored position to 0 (and, paused, nothing would correct it).
     seeking = true;
-    void player.seekTo(to).then(() => {
+    void player().seekTo(to).then(() => {
       seeking = false;
       setPosition((it.files[fileIndex]?.startSec ?? 0) + to);
-      player.setPlaybackRate(state.speed);
-      if (autoplayAfterLoad) player.play();
+      player().setPlaybackRate(state.speed);
+      if (autoplayAfterLoad) player().play();
     });
     // Feeds often omit or misstate an episode's length; trust the file.
     if (it.type === "episode" && s.duration > 0 && Math.abs(it.durationSec - s.duration) > 1) {
@@ -783,8 +751,8 @@ function go(l: UpNextDto, save: "list" | "index") {
   const it = entryToPlayable(e);
   if (e.itemType === "track" && preloaded === e.itemId) {
     // The gapless hand-over: the spare player already has the song loaded.
-    const old = player;
-    player = spare();
+    const old = player();
+    inUse = 1 - inUse;
     preloaded = null;
     fileIndex = 0;
     pendingSeek = null;
@@ -797,14 +765,14 @@ function go(l: UpNextDto, save: "list" | "index") {
     heardSec = 0;
     counted = false;
     setPosition(0);
-    player.setPlaybackRate(1);
-    player.play();
+    player().setPlaybackRate(1);
+    player().play();
     old.pause();
     old.replace(null);
     // "End of song" was for the one that just ended; a plain timer carries on.
     set({ item: it, speed: 1, error: null, ...(state.sleep.mode === "chapter" ? { sleep: { mode: "off" } as const } : {}) });
     setJson(NOW_PLAYING_KEY, { itemType: it.type, itemId: it.id } satisfies PlayRef);
-    void showOnLockScreen(it);
+    void lockScreen.show(it);
   } else {
     dropPreloaded();
     // Songs play from the start; an episode carries on where you left it.
@@ -885,69 +853,7 @@ export function cycleRepeat() {
   setMusicPrefs({ repeat: nextRepeatMode(state.repeat) }, true);
 }
 
-// ---------- Lock screen ----------
-
-/**
- * A server picture as a file on the phone, for the media notification, which can't send our
- * sign-in with its own request. Audio and video both use it.
- */
-export async function artworkFile(path: string | null): Promise<string | undefined> {
-  if (!path) return undefined;
-  const saved = savedArt(path);
-  if (saved) return saved;
-  // Two asks for the same picture at once share one download; a second would find the file half-made.
-  let pending = artworkLoads.get(path);
-  if (!pending) {
-    pending = fetchArtwork(path).finally(() => artworkLoads.delete(path));
-    artworkLoads.set(path, pending);
-  }
-  return pending;
-}
-
-const artworkLoads = new Map<string, Promise<string | undefined>>();
-
-async function fetchArtwork(path: string): Promise<string | undefined> {
-  try {
-    const dir = new Directory(Paths.cache, "artwork");
-    dir.create({ intermediates: true, idempotent: true });
-    const file = new File(dir, `${path.replace(/\W+/g, "-")}.img`);
-    if (!file.exists) await File.downloadFileAsync(absolute(path), file, { headers: authHeaders() });
-    return file.uri;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * Shows the item on the lock screen and Control Center (Android's media notification). A book
- * with chapters shows the chapter as the title and the book under it.
- */
-async function showOnLockScreen(it: Playable) {
-  // Google's Cast notification takes over while casting.
-  if (casting) return;
-  const ci = it.chapters.length > 1 ? chapterAt(it.chapters, position) : -1;
-  lockScreenChapter = ci;
-  const chapter = ci >= 0 ? it.chapters[ci] : undefined;
-  const metadata: AudioMetadata = {
-    title: chapter?.title ?? it.title,
-    artist: chapter ? it.title : (it.subtitle ?? undefined),
-    albumTitle: it.type === "book" ? it.title : (it.album?.title ?? it.subtitle ?? undefined),
-    artworkUrl: await artworkFile(it.coverPathLarge),
-  };
-  if ((state.item !== it && state.item?.id !== it.id) || casting) return;
-  lockScreenMetadata = metadata;
-  // A new song can be on the other player, and songs show different buttons, so either means
-  // setting the controls up again rather than just changing the text.
-  const songs = it.type === "track";
-  if (lockScreenOn === player && lockScreenSongs === songs) player.updateLockScreenMetadata(metadata);
-  else player.setActiveForLockScreen(true, metadata, lockScreenOptions());
-  lockScreenOn = player;
-  lockScreenSongs = songs;
-}
-
-// ---------- Progress (saved to an outbox first, so offline listening syncs later) ----------
-
-type Outbox = Record<string, ProgressItem>;
+// ---------- Progress ----------
 
 function save(finished = false, refreshLists = finished || !state.playing) {
   const it = state.item;
@@ -956,8 +862,7 @@ function save(finished = false, refreshLists = finished || !state.playing) {
   if (it.type === "track" || hold) {
     // Songs keep no position, and a hold leaves the real place alone; only the listening time goes to the server.
     lastSaved = Date.now();
-    listening.persist();
-    void flush();
+    saveListening(!state.playing);
     return;
   }
   const dur = it.durationSec || media.duration || 0;
@@ -971,153 +876,10 @@ function save(finished = false, refreshLists = finished || !state.playing) {
     updatedAt: Date.now(),
   };
   lastSaved = Date.now();
+  // Where it had got to, for putting it back after a restart.
+  setJson(NOW_PLAYING_KEY, { itemType: it.type, itemId: it.id, at: finished ? 0 : position } satisfies SavedPlace);
   queueProgress(entry, refreshLists);
 }
-
-/**
- * Puts a place in the outbox and sends it with the listening totals; offline it waits for the
- * next save or reconnect. The video player saves through here too.
- */
-export function queueProgress(entry: ProgressItem, refreshLists: boolean) {
-  listening.persist();
-  const outbox = getJson<Outbox>(OUTBOX_KEY) ?? {};
-  outbox[`${entry.itemType}:${entry.itemId}`] = entry;
-  setJson(OUTBOX_KEY, outbox);
-  void flush(refreshLists);
-}
-
-/** Time spent watching a movie or episode (by its progress id), for the stats. */
-export const countWatching = (id: string, wallSec: number, movedSec: number, speed: number) => listening.add("video", id, wallSec, movedSec, speed);
-
-let flushing = false;
-let flushAgain = false;
-let refreshAfterFlush = false;
-async function flush(refreshLists = false) {
-  // Waiting song plays go out on the same saves and reconnects.
-  void flushPlays();
-  if (refreshLists) refreshAfterFlush = true;
-  if (flushing) {
-    // Saved while another save is in flight (e.g. marked finished): send it right after.
-    flushAgain = true;
-    return;
-  }
-  flushing = true;
-  let sent = false;
-  try {
-    for (;;) {
-      do {
-        flushAgain = false;
-        const items = Object.values(getJson<Outbox>(OUTBOX_KEY) ?? {});
-        if (items.length === 0) break;
-        await api("/api/progress", { method: "PUT", body: { items } });
-        sent = true;
-        // Drop what was sent unless it changed meanwhile.
-        const now = getJson<Outbox>(OUTBOX_KEY) ?? {};
-        for (const i of items) {
-          const k = `${i.itemType}:${i.itemId}`;
-          if (now[k]?.updatedAt === i.updatedAt) delete now[k];
-        }
-        setJson(OUTBOX_KEY, now);
-      } while (flushAgain);
-      const report = listening.pending();
-      if (report) {
-        await api("/api/listening", { method: "PUT", body: report });
-        listening.sent(report);
-      }
-      // Progress saved during the listening upload goes out now, not at the next save.
-      if (!flushAgain) break;
-    }
-    // Lists showing finished state or progress refresh once the server has it. With nothing
-    // sent (e.g. just coming back to the app) they're left to React Query's own staleness checks.
-    if (refreshAfterFlush && sent) {
-      refreshAfterFlush = false;
-      invalidateListening();
-    }
-  } catch {
-    // Stays in the outbox until the next save or reconnect.
-  } finally {
-    flushing = false;
-  }
-}
-
-// ---------- Song plays (kept in their own list, so plays made offline count later) ----------
-
-/** A counted play waiting to be sent. Its id makes a retry count once. */
-interface PlayEntry {
-  trackId: string;
-  source: { kind: UpNextSource["kind"]; refId: string | null } | null;
-  playId: string;
-  playedAt: number;
-}
-
-const PLAYS_KEY = "murmur.playOutbox";
-/** The most plays kept unsent; a phone offline for months drops the oldest. */
-const PLAYS_MAX = 500;
-
-function queuePlay(entry: PlayEntry) {
-  const plays = [...(getJson<PlayEntry[]>(PLAYS_KEY) ?? []), entry].slice(-PLAYS_MAX);
-  setJson(PLAYS_KEY, plays);
-  playsWaiting = true;
-  void flushPlays();
-}
-
-let sendingPlays: Promise<void> | null = null;
-/** Whether any plays are waiting, so most flushes skip reading the list; null until it's first read. */
-let playsWaiting: boolean | null = null;
-
-/**
- * Sends waiting plays oldest first, each taken off once the server has it. One the server turns
- * down (a song that's gone) is dropped; offline or a server error leaves the rest for next time.
- */
-function flushPlays(): Promise<void> {
-  // Before the block below: with nothing to send it would finish at once and leave `sendingPlays` set for good.
-  playsWaiting ??= !!getJson<PlayEntry[]>(PLAYS_KEY)?.length;
-  if (!playsWaiting) return sendingPlays ?? Promise.resolve();
-  sendingPlays ??= (async () => {
-    try {
-      for (;;) {
-        const next = getJson<PlayEntry[]>(PLAYS_KEY)?.[0];
-        if (!next) {
-          playsWaiting = false;
-          return;
-        }
-        try {
-          await api(apiPaths.trackPlays, { method: "POST", body: next });
-        } catch (err) {
-          const refused = err instanceof HttpError && err.status >= 400 && err.status < 500 && err.status !== 401 && err.status !== 429;
-          if (!refused) return;
-        }
-        setJson(PLAYS_KEY, (getJson<PlayEntry[]>(PLAYS_KEY) ?? []).filter((p) => p.playId !== next.playId));
-      }
-    } finally {
-      sendingPlays = null;
-    }
-  })();
-  return sendingPlays;
-}
-
-/** Sends what's waiting in the outbox now (before signing out, say); a failure leaves it there. */
-export const flushProgress = () => Promise.all([flush(), flushPlays(), flushBookmarks()]).then(() => undefined);
-
-/** Drops unsent progress, plays, bookmarks and listening minutes, on sign-out: they're this account's, not the next one's. */
-export function forgetProgress() {
-  removeKey(OUTBOX_KEY);
-  removeKey(PLAYS_KEY);
-  playsWaiting = false;
-  listening.clear();
-  forgetBookmarks();
-}
-
-onlineManager.subscribe((online) => {
-  if (!online) return;
-  void flush(true);
-  void refreshBookmarks();
-});
-AppState.addEventListener("change", (s) => {
-  if (s !== "active") return;
-  void flush(true);
-  void refreshBookmarks();
-});
 
 // ---------- Up Next ----------
 
@@ -1213,7 +975,7 @@ export function play(it: Playable, startAt?: number, fromList = false) {
   if (state.sleep.mode !== "off") setSleep({ mode: "off" });
   load(it, startAt ?? it.startAt, true);
   setJson(NOW_PLAYING_KEY, { itemType: it.type, itemId: it.id } satisfies PlayRef);
-  void showOnLockScreen(it);
+  void lockScreen.show(it);
   if (fromList || it.type === "track") return;
   dropPreloaded();
   if (it.type === "book") setList(startSingle(state.upNext, null), "list");
@@ -1375,8 +1137,7 @@ export function setSleep(s: SleepTimer) {
 export function setSkip(s: SkipSettings) {
   set({ skip: s });
   setJson(SKIP_KEY, s);
-  // iOS reads the intervals when the lock screen controls are set up, so set them up again.
-  if (isIOS && lockScreenOn === player) player.setActiveForLockScreen(true, lockScreenMetadata, lockScreenOptions());
+  lockScreen.skipChanged();
 }
 
 /** Marks the current item finished (or not) and saves it. */
@@ -1409,14 +1170,11 @@ export function stop() {
 /** Empties the player without saving; status events for the old item are ignored after this. */
 function clear() {
   set({ item: null, playing: false, loading: false, error: null });
-  player.pause();
+  if (players) player().pause();
   // Closing or stopping while casting stops the TV too.
   castPlayer.stop();
-  if (lockScreenOn) lockScreenOn.clearLockScreenControls();
-  lockScreenOn = null;
-  lockScreenChapter = -1;
-  lockScreenMetadata = undefined;
-  player.replace(null);
+  lockScreen.clear();
+  if (players) player().replace(null);
   dropPreloaded();
   removeKey(NOW_PLAYING_KEY);
 }
@@ -1428,37 +1186,58 @@ export async function restorePlayer() {
   // Up Next comes back from the server with its place, so next and previous work after a restart.
   void refreshUpNext();
   // Older servers have no shuffle or repeat; those stay off.
-  api<UserPrefs>(apiPaths.prefs)
-    .then((p) => {
-      queryClient.setQueryData(keys.prefs, p);
-      setMusicPrefs({ shuffle: p.shuffle ?? false, repeat: p.repeat ?? "off" }, false);
-    })
-    .catch(() => undefined);
+  const musicPrefs = (p: UserPrefs) => setMusicPrefs({ shuffle: p.shuffle ?? false, repeat: p.repeat ?? "off" }, false);
+  const cached = queryClient.getQueryData<UserPrefs>(keys.prefs);
+  if (cached) musicPrefs(cached);
+  fetchPrefs().then(musicPrefs, () => undefined);
   await restoreNowPlaying();
 }
 
-/**
- * Puts back what was playing when the app closed, paused. It's only forgotten once the server
- * says it's gone; offline, or with the server down, it tries again when the phone is back online.
- */
+function putBack(it: Playable) {
+  set({ item: it, speed: it.speed });
+  load(it, it.startAt, false);
+  void lockScreen.show(it);
+}
+
+/** Puts back what was playing when the app closed, paused: from what's on the phone at once, then as the server has it. */
 async function restoreNowPlaying() {
-  const saved = getJson<PlayRef>(NOW_PLAYING_KEY);
+  const saved = getJson<SavedPlace>(NOW_PLAYING_KEY);
   if (!saved || state.item) return;
+  const cached = cachedPlayable(saved);
+  if (cached) putBack(cached);
+  await refreshRestored(saved, cached?.startAt ?? null);
+}
+
+/**
+ * Brings a restored item up to date, or restores it if nothing could show yet (`shownAt` null).
+ * Anything you've done with it since stays. It's only forgotten once the server says it's gone;
+ * offline, or with the server down, it tries again when the phone is back online.
+ */
+async function refreshRestored(saved: SavedPlace, shownAt: number | null) {
+  const untouched = () => state.item && isCurrent(state, saved.itemType, saved.itemId) && !state.playing && !media.playing && Math.abs(position - shownAt!) < 2;
   try {
-    const it = await loadPlayable(saved);
-    if (state.item) return;
-    set({ item: it, speed: it.speed });
-    load(it, it.startAt, false);
-    void showOnLockScreen(it);
+    const fresh = resumeFrom(await fetchPlayable(saved));
+    if (shownAt === null) {
+      if (!state.item) putBack(fresh);
+      return;
+    }
+    if (!untouched()) return;
+    // An episode's length and chapters came from the file and the server since; a book's details are all here.
+    const item = fresh.type === "book" ? fresh : { ...state.item!, startAt: fresh.startAt, speed: fresh.speed };
+    const faster = fresh.speed !== state.speed;
+    set({ item, speed: fresh.speed });
+    if (Math.abs(fresh.startAt - position) > 1) load(item, fresh.startAt, false);
+    else if (faster) media.setRate(fresh.speed);
   } catch (err) {
     if (err instanceof HttpError && (err.status === 404 || err.status === 410)) {
-      removeKey(NOW_PLAYING_KEY);
+      if (shownAt === null) removeKey(NOW_PLAYING_KEY);
+      else if (untouched()) clear();
       return;
     }
     const unsubscribe = onlineManager.subscribe((online) => {
       if (!online) return;
       unsubscribe();
-      void restoreNowPlaying();
+      void refreshRestored(saved, shownAt);
     });
   }
 }

@@ -5,32 +5,20 @@ import { Cover } from "../cover";
 import { chapterAt, clock, timeLeft } from "@murmur/shared/client";
 import { useCast } from "../cast/cast";
 import { CastIcon, NextChapterIcon, PauseIcon, PlayIcon, PrevChapterIcon, SkipBackIcon, SkipForwardIcon } from "../icons";
-import { usePlayer, usePosition, useTint } from "./engine";
+import { type Playable, usePlayer, usePlayerControls, usePosition, useTint } from "./engine";
 
 /**
  * Floating player above the tabs. On desktop it grows on hover to reveal a seek bar,
  * so you can scrub without opening the full player.
  */
 export function MiniPlayer() {
-  const { item, playing, loading, error, toggle, skipBy, skip, seek, setExpanded, trackStep } = usePlayer();
+  const { item, playing, loading, error, toggle, skipBy, skip, setExpanded, trackStep } = usePlayer();
   const castDevice = useCast().device;
-  const position = usePosition();
   const [scrub, setScrub] = useState<number | null>(null);
   const tint = useTint(item);
   if (!item) return null;
 
-  const pos = scrub ?? position;
-  const dur = item.durationSec || 0;
-  const chapter = item.chapters[chapterAt(item.chapters, pos)];
-  const pct = dur ? Math.min(100, (pos / dur) * 100) : 0;
-  const chapterLine = item.chapters.length > 1 ? chapter?.title : null;
-  // A song shows its artist; a book or episode the time left.
   const song = item.type === "track";
-  const leftLine = song ? item.subtitle : dur ? timeLeft(dur, pos) : item.subtitle;
-  const commit = () => {
-    if (scrub !== null) seek(scrub);
-    setScrub(null);
-  };
 
   return (
     <div
@@ -57,17 +45,7 @@ export function MiniPlayer() {
                 {castDevice}
               </span>
             ) : (
-              <>
-                {chapterLine ? (
-                  // A book's chapter and time left share a line, like the app; a long chapter name gives way first.
-                  <span className="mini-sub mini-split">
-                    <span>{chapterLine}</span>
-                    {leftLine ? <span className="mini-time">{leftLine}</span> : null}
-                  </span>
-                ) : leftLine ? (
-                  <span className="mini-sub">{leftLine}</span>
-                ) : null}
-              </>
+              <MiniLine item={item} scrub={scrub} />
             )}
           </span>
         </button>
@@ -95,6 +73,46 @@ export function MiniPlayer() {
           </button>
         )}
       </div>
+      <MiniProgress item={item} scrub={scrub} onScrub={setScrub} />
+    </div>
+  );
+}
+
+// The two parts that follow the playhead sit in their own components, so a tick redraws only them.
+
+/** The line under the title. */
+function MiniLine({ item, scrub }: { item: Playable; scrub: number | null }) {
+  const position = usePosition();
+  const pos = scrub ?? position;
+  const dur = item.durationSec || 0;
+  const chapterLine = item.chapters.length > 1 ? item.chapters[chapterAt(item.chapters, pos)]?.title : null;
+  // A song shows its artist; a book or episode the time left.
+  const leftLine = item.type === "track" ? item.subtitle : dur ? timeLeft(dur, pos) : item.subtitle;
+  if (chapterLine) {
+    // A book's chapter and time left share a line, like the app; a long chapter name gives way first.
+    return (
+      <span className="mini-sub mini-split">
+        <span>{chapterLine}</span>
+        {leftLine ? <span className="mini-time">{leftLine}</span> : null}
+      </span>
+    );
+  }
+  return leftLine ? <span className="mini-sub">{leftLine}</span> : null;
+}
+
+/** The seek bar that shows on hover, and the thin line along the bottom. */
+function MiniProgress({ item, scrub, onScrub }: { item: Playable; scrub: number | null; onScrub: (to: number | null) => void }) {
+  const seek = usePlayerControls().seek;
+  const position = usePosition();
+  const pos = scrub ?? position;
+  const dur = item.durationSec || 0;
+  const done = dur ? Math.min(1, pos / dur) : 0;
+  const commit = () => {
+    if (scrub !== null) seek(scrub);
+    onScrub(null);
+  };
+  return (
+    <>
       {dur ? (
         <div className="mini-seek">
           <span>{clock(pos)}</span>
@@ -106,15 +124,15 @@ export function MiniPlayer() {
             max={Math.floor(dur)}
             step={1}
             value={Math.floor(pos)}
-            style={{ "--pct": `${pct}%` } as React.CSSProperties}
-            onChange={(e) => setScrub(Number(e.target.value))}
+            style={{ "--pct": `${done * 100}%` } as React.CSSProperties}
+            onChange={(e) => onScrub(Number(e.target.value))}
             onPointerUp={commit}
             onKeyUp={commit}
           />
           <span>-{clock(dur - pos)}</span>
         </div>
       ) : null}
-      <div className="mini-bar" style={{ width: `${pct}%` }} />
-    </div>
+      <div className="mini-bar" style={{ transform: `scaleX(${done})` }} />
+    </>
   );
 }
