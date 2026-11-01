@@ -37,7 +37,7 @@ let leftAt = 0;
 function cameBack() {
   poller.start();
   if (!leftAt || Date.now() - leftAt < AWAY_MS) return;
-  for (const queryKey of [keys.books, keys.podcasts, keys.newEpisodes, keys.continueEpisodes, watchKeys.home]) void queryClient.invalidateQueries({ queryKey });
+  for (const queryKey of [keys.books, keys.podcasts, keys.newEpisodes, keys.continueEpisodes, keys.serverVersion, watchKeys.home]) void queryClient.invalidateQueries({ queryKey });
 }
 
 // Only while the app is in front.

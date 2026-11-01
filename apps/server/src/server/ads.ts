@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { type AddonJob, type AddonReport, type AddonStatus, type AdSpan, cameThroughProxy, type EpisodeAdsDto } from "@murmur/shared";
+import { type AddonJob, type AddonReport, type AddonStatus, addonVersionProblem, type AdSpan, cameThroughProxy, type EpisodeAdsDto } from "@murmur/shared";
 import type { Sqlite } from "./db";
 import { env } from "./env";
 import { HttpError } from "./http";
@@ -218,9 +218,12 @@ export function saveAddonStatus(sqlite: Sqlite, { started, ...status }: AddonSta
 export function adsStatus(sqlite: Sqlite) {
   const counts = sqlite.prepare("SELECT status, COUNT(*) AS n FROM ad_scans GROUP BY status").all() as Array<{ status: string; n: number }>;
   const n = (...s: string[]) => counts.filter((c) => s.includes(c.status)).reduce((sum, c) => sum + c.n, 0);
+  const addon = readState<AddonStatus & { seenAt: number }>(sqlite, "addon");
+  // Only what the status line says: it keeps scanning, and its own errors come first.
+  const version = addon?.state === "ok" ? addonVersionProblem("ad", addon.version, env.version) : null;
   return {
     enabled: adsEnabled(),
-    addon: readState<AddonStatus & { seenAt: number }>(sqlite, "addon"),
+    addon: addon && version ? { ...addon, state: "error" as const, message: version } : addon,
     queued: n("queued", "scanning"),
     done: n("done"),
     failed: n("failed"),

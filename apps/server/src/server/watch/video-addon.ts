@@ -1,4 +1,5 @@
 import {
+  addonVersionProblem,
   type ProbedVideo,
   VIDEO_OWNER_HEADER,
   type VideoAddonHealth,
@@ -67,16 +68,22 @@ const ENCODER_NAME: Record<VideoAddonHealth["encoder"], string> = {
   cpu: "the CPU",
 };
 
-/** Settings' Video row from the add-on's health (null when it can't be reached). */
-export function videoStatus(health: VideoAddonHealth | null): VideoStatus {
-  if (!env.addonSecret) return { problem: env.addonSecretProblem ?? "Set ADDON_SECRET on Murmur and the video add-on to read movies and shows." };
-  if (!health) return { problem: UNREACHABLE };
-  if (!health.ffmpeg) return { problem: "ffmpeg isn't working in the video add-on, so movies and shows can't be read." };
-  return { problem: null, working: `Working, converts video with ${ENCODER_NAME[health.encoder]}` };
+/** What stops the add-on reading files (null when it can't be reached counts). */
+function blocked(health: VideoAddonHealth | null): string | null {
+  if (!env.addonSecret) return env.addonSecretProblem ?? "Set ADDON_SECRET on Murmur and the video add-on to read movies and shows.";
+  if (!health) return UNREACHABLE;
+  if (!health.ffmpeg) return "ffmpeg isn't working in the video add-on, so movies and shows can't be read.";
+  return null;
 }
 
-/** Why Watch can't read files right now, or null when the add-on is there with ffmpeg. */
-export const videoProblem = async (): Promise<string | null> => videoStatus(await videoHealth()).problem;
+/** Settings' Video row from the add-on's health (null when it can't be reached). */
+export function videoStatus(health: VideoAddonHealth | null): VideoStatus {
+  const problem = blocked(health) ?? addonVersionProblem("video", health?.version, env.version);
+  return problem ? { problem } : { problem: null, working: `Working, converts video with ${ENCODER_NAME[health!.encoder]}` };
+}
+
+/** Why Watch can't read files right now, or null when the add-on is there with ffmpeg. Another major version is only reported, so scans still run. */
+export const videoProblem = async (): Promise<string | null> => blocked(await videoHealth());
 
 export const probeVideo = (file: string) => post<ProbedVideo>("/probe", { file });
 

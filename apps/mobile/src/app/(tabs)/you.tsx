@@ -4,7 +4,7 @@ import { THEME_CHOICES } from "@murmur/shared/client";
 import { DownloadIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { PageTitle, SectionTitle, useTopInset } from "@/components/page";
-import { Card, useServerVersion, useUsers } from "@/components/settings";
+import { Card, useServerVersion, useUsers, VersionNotice } from "@/components/settings";
 import { NavRow } from "@/components/settings-page";
 import { StatsBoundary, StatsCard } from "@/components/stats";
 import { CardLink } from "@/components/ui";
@@ -12,7 +12,7 @@ import { formatBytes, useDownloads } from "@/lib/downloads";
 import { useSession } from "@/lib/session";
 import { useTheme, useThemeMode } from "@/theme";
 
-/** Downloads at the top, then this week's stats card and Settings (a row for each group). */
+/** Any version problem, then Downloads, this week's stats card and Settings (a row for each group). */
 export default function You() {
   const t = useTheme();
   const top = useTopInset();
@@ -22,6 +22,8 @@ export default function You() {
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: 32 }}>
         <PageTitle title="You" />
+
+        <VersionNotice />
 
         <View style={{ marginTop: 16 }}>
           <DownloadsRow />

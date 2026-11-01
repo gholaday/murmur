@@ -1,0 +1,105 @@
+/api/addon/ads/[fileId] POST
+/api/addon/ads/next POST
+/api/addon/status POST
+/api/auth/login POST
+/api/auth/logout POST
+/api/auth/setup POST
+/api/bookmarks GET PUT
+/api/bookmarks/[id] DELETE
+/api/books GET
+/api/books/[id] GET
+/api/books/[id]/chapters PUT
+/api/books/[id]/cover DELETE GET POST
+/api/books/[id]/details PUT
+/api/books/[id]/edit GET
+/api/books/[id]/match DELETE GET POST
+/api/books/[id]/match/marked DELETE POST
+/api/books/[id]/match/preview GET
+/api/books/[id]/play-next DELETE POST
+/api/books/[id]/rescan POST
+/api/cast POST
+/api/changes GET
+/api/episodes/[id] GET
+/api/episodes/[id]/ads GET
+/api/episodes/[id]/archive PUT
+/api/episodes/[id]/chapters GET
+/api/episodes/[id]/neighbor GET
+/api/episodes/continue GET
+/api/episodes/new GET
+/api/health GET
+/api/library/admin GET
+/api/library/folders GET
+/api/library/match DELETE GET POST
+/api/library/match/apply POST
+/api/library/match/undo POST
+/api/library/scan POST
+/api/listening PUT
+/api/me GET
+/api/me/password PUT
+/api/me/prefs GET PUT
+/api/music GET
+/api/music/albums GET
+/api/music/albums/[id] GET
+/api/music/albums/[id]/cover GET
+/api/music/albums/[id]/match DELETE GET POST
+/api/music/albums/[id]/match/preview GET
+/api/music/artists GET
+/api/music/artists/[id] GET
+/api/music/artists/[id]/photo GET PUT
+/api/music/artists/[id]/photo/options GET
+/api/music/folders GET
+/api/music/home GET
+/api/music/match DELETE GET POST
+/api/music/match/apply POST
+/api/music/match/undo POST
+/api/music/mine DELETE PUT
+/api/music/playlists GET POST
+/api/music/playlists/[id] DELETE GET PATCH
+/api/music/playlists/[id]/tracks POST
+/api/music/plays GET POST
+/api/music/scan POST
+/api/music/tracks GET
+/api/music/tracks/[id] GET
+/api/play-next PUT
+/api/podcasts GET POST
+/api/podcasts/[id] DELETE GET PATCH
+/api/podcasts/[id]/cover GET
+/api/podcasts/[id]/episodes GET
+/api/podcasts/[id]/refresh POST
+/api/podcasts/artwork GET
+/api/podcasts/opml GET POST
+/api/podcasts/preview GET
+/api/podcasts/search GET
+/api/progress GET PUT
+/api/server/ads/retry POST
+/api/server/cache GET PUT
+/api/server/version GET
+/api/stats GET
+/api/stream/book/[id]/[fileIndex] GET HEAD
+/api/stream/episode/[id] GET HEAD
+/api/stream/track/[id] GET HEAD
+/api/stream/video/[id] GET HEAD
+/api/up-next GET PATCH POST PUT
+/api/users GET POST
+/api/users/[id] DELETE
+/api/watch GET
+/api/watch/downloads/[id] DELETE GET HEAD
+/api/watch/folders/[kind] GET
+/api/watch/match GET
+/api/watch/movies GET
+/api/watch/movies/[id] GET PATCH
+/api/watch/movies/[id]/[kind] DELETE GET POST
+/api/watch/movies/[id]/[kind]/options GET
+/api/watch/movies/[id]/match POST
+/api/watch/scan POST
+/api/watch/shows GET
+/api/watch/shows/[id] GET PATCH
+/api/watch/shows/[id]/[kind] DELETE GET POST
+/api/watch/shows/[id]/[kind]/options GET
+/api/watch/shows/[id]/match POST
+/api/watch/streams/[session] DELETE
+/api/watch/streams/[session]/[file] GET
+/api/watch/videos/[id]/download POST
+/api/watch/videos/[id]/still GET
+/api/watch/videos/[id]/stream POST
+/api/watch/videos/[id]/subtitles/[track] GET

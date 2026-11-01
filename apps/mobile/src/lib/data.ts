@@ -32,6 +32,7 @@ import { api, HttpError } from "./api";
 import { queryClient } from "./query";
 
 export const keys = {
+  serverVersion: ["server-version"] as const,
   books: ["books"] as const,
   book: (id: string) => ["book", id] as const,
   podcasts: ["podcasts"] as const,

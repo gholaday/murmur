@@ -15,14 +15,18 @@ import {
   KEEP_PER_SHOW_OPTIONS,
   type LibraryAdminDto,
   type LibraryFolderDto,
+  outOfDate,
   plural,
   type ScanStatusDto,
   scanStatusText,
   type ServerVersionDto,
+  UPDATE_APP,
+  UPDATE_SERVER,
   type UserDto,
   versionStatus,
 } from "@murmur/shared/client";
 import { api } from "@/lib/api";
+import { keys } from "@/lib/data";
 import { selectHaptic } from "@/lib/haptics";
 import { APP_NAME } from "@/lib/platform";
 import { queryClient } from "@/lib/query";
@@ -76,7 +80,9 @@ export function Row({
       <View style={{ flexShrink: 1, gap: 2 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           {dot ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dot }} /> : null}
-          <Text variant="bodyStrong">{title}</Text>
+          <Text variant="bodyStrong" style={{ flexShrink: 1 }}>
+            {title}
+          </Text>
         </View>
         {sub ? (
           <Text variant="small" style={subDanger ? { color: t.danger } : undefined}>
@@ -283,6 +289,23 @@ export function PasswordRow() {
 const OK_DOT = "#5ccf8a";
 const WARN_DOT = "#f0b45a";
 
+const LATEST_APK = "https://github.com/gholaday/murmur/releases/latest";
+
+/** On You when the app and the server are on different major versions. Nothing shows within a major. */
+export function VersionNotice() {
+  const behind = outOfDate(Constants.expoConfig?.version, useServerVersion().data?.version);
+  if (!behind) return null;
+  return (
+    <View style={{ marginTop: 16 }}>
+      <Card>
+        <Row title={behind === "app" ? UPDATE_APP : UPDATE_SERVER} dot={WARN_DOT} last>
+          {behind === "app" ? <SmallButton label="Download" onPress={() => void Linking.openURL(LATEST_APK)} /> : null}
+        </Row>
+      </Card>
+    </View>
+  );
+}
+
 /**
  * The server's version, and for admins whether a newer release is out; then this app's own
  * version, so an old APK is easy to spot.
@@ -357,7 +380,7 @@ function TmdbLogo({ height }: { height: number }) {
 const libraryKeys = { health: ["health"], admin: ["library-admin"], folders: ["library-folders"], users: ["users"], cache: ["episode-cache"] } as const;
 
 // Shared by the sections and the You tab's rows, which show a short value from them.
-export const useServerVersion = () => useQuery({ queryKey: ["server-version"], queryFn: () => api<ServerVersionDto>("/api/server/version") });
+export const useServerVersion = () => useQuery({ queryKey: keys.serverVersion, queryFn: () => api<ServerVersionDto>("/api/server/version") });
 export const useHealth = (enabled = true) => useQuery({ queryKey: libraryKeys.health, queryFn: () => api<HealthDto>("/api/health"), enabled });
 const useEpisodeCache = (enabled = true) =>
   useQuery({ queryKey: libraryKeys.cache, queryFn: () => api<EpisodeCacheStatusDto>("/api/server/cache"), enabled });
