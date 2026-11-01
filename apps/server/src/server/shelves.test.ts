@@ -161,6 +161,19 @@ it("ranks More like on the last finished book with genres, deeper matches first"
   expect(moreLike(books).map((b) => b.id)).toEqual(["Hail Mary", "Monte Cristo", "Dune", "Screwtape"]);
 });
 
+it("only recommends a series from its first unread book, and at most 20 books", () => {
+  const lewis = (series: string | null, position: number | null, progress?: { finished?: boolean; at?: number }) => ({ ...book(series, position, progress), author: "C.S. Lewis" });
+  const done = lewis("Narnia", 3, { finished: true, at: 10 });
+  const first = lewis("Narnia", 1, { finished: true, at: 5 });
+  const unread = lewis("Narnia", 4);
+  const later = lewis("Narnia", 5);
+  const trilogyTwo = lewis("Space Trilogy", 2);
+  const trilogyOne = lewis("Space Trilogy", 1);
+  const standalone = lewis(null, null);
+  expect(moreLike([done, first, unread, later, trilogyTwo, trilogyOne, standalone]).map((b) => b.id).sort()).toEqual([standalone.id, trilogyOne.id, unread.id].sort());
+  expect(moreLike([done, ...Array.from({ length: 25 }, () => lewis(null, null))])).toHaveLength(20);
+});
+
 it("leaves More like empty when nothing has been finished", () => {
   expect(moreLike([book(null, null)])).toEqual([]);
   expect(shelfTitle("like", [])).toBe("More like");

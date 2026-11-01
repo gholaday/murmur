@@ -128,8 +128,6 @@ export function PodcastsView({
       <>
         <NestedHead
           title={PODCAST_LIST_TITLES[list]}
-          count={count}
-          noun={list === "podcasts" ? "podcast" : "episode"}
           fallback="/podcasts"
           actions={list === "podcasts" ? sortButton : null}
         />

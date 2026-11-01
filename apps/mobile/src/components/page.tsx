@@ -22,7 +22,7 @@ export function BackRow({ right }: { right?: React.ReactNode }) {
   );
 }
 
-/** A nested screen's head: the back row, then the page title (with its count, sub line and actions). */
+/** A nested screen's head: the back row, then the page title (with its sub line and actions). */
 export function NestedHead(props: React.ComponentProps<typeof PageTitle>) {
   return (
     <>
@@ -74,16 +74,14 @@ export function NestedFallback({ children }: { children?: React.ReactNode }) {
   );
 }
 
-/** Large page title with optional count and actions on the right. */
+/** Large page title with optional actions on the right. */
 export function PageTitle({
   title,
-  count,
   sub,
   below,
   right,
 }: {
   title: string;
-  count?: number;
   sub?: string | null;
   /** Shown in place of `sub`, e.g. a loading placeholder. */
   below?: React.ReactNode;
@@ -92,10 +90,7 @@ export function PageTitle({
   return (
     <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12, paddingVertical: 8 }}>
       <View style={{ flex: 1, gap: 2 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <Text variant="title">{title}</Text>
-          {count !== undefined ? <CountPill count={count} /> : null}
-        </View>
+        <Text variant="title">{title}</Text>
         {sub ? <Text variant="small">{sub}</Text> : below}
       </View>
       {right ? <View style={{ flexDirection: "row" }}>{right}</View> : null}

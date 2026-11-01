@@ -64,7 +64,6 @@ export default function PodcastListScreen() {
     <NestedScreen refreshControl={refresh} after={<SortSheet open={sortOpen} onClose={() => setSortOpen(false)} />}>
       <PageTitle
         title={PODCAST_LIST_TITLES[id]}
-        count={count}
         right={
           id === "podcasts" && shows.length > 1 ? (
             <IconButton label="Sort podcasts" onPress={() => setSortOpen(true)}>

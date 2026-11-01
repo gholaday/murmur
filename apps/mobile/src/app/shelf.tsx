@@ -30,7 +30,7 @@ function ShelfList({ id }: { id: ShelfId }) {
 
   return (
     <NestedScreen>
-      <PageTitle title={safeShelfTitle(id, books.data ?? [])} count={list.length} />
+      <PageTitle title={safeShelfTitle(id, books.data ?? [])} />
       {list.length === 0 ? (
         books.isPending ? null : <Empty>Nothing here right now.</Empty>
       ) : (
@@ -59,7 +59,7 @@ function PlayNextList() {
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <SortableScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }}>
         <BackRow />
-        <PageTitle title={SHELF_TITLES.playnext} count={list.length} />
+        <PageTitle title={SHELF_TITLES.playnext} />
         {list.length === 0 ? (
           books.isPending ? null : <Empty title="Nothing lined up">Add books from their menu, with Add to Play next.</Empty>
         ) : (

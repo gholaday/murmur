@@ -22,7 +22,7 @@ export default function GroupScreen() {
 
   return (
     <NestedScreen>
-      <PageTitle title={author ?? series ?? ""} count={list.length} sub={series ? list[0]?.author : null} />
+      <PageTitle title={author ?? series ?? ""} sub={series ? list[0]?.author : null} />
       {list.length === 0 ? (
         books.isPending ? null : <Empty>No books here.</Empty>
       ) : series ? (

@@ -13,6 +13,8 @@ export const STATS_PERIODS: StatsPeriod[] = ["week", "month", "year", "all"];
 export const COUNTS_AS_LISTENED_SEC = 60;
 /** A song counts as played after this much of it. */
 export const COUNTS_AS_SONG_SEC = 30;
+/** The least time in a period for something to be named or counted as watched. Shorter time still adds to the totals. */
+export const STATS_MIN_SEC = { book: 300, podcast: 300, album: 180, song: COUNTS_AS_SONG_SEC, tvshow: 300, movie: 600 } as const;
 /** How many things a period's top list shows. */
 export const STATS_TOP_COUNT: Record<StatsPeriod, number> = { week: 10, month: 15, year: 25, all: 25 };
 
@@ -212,15 +214,15 @@ export interface StatsDto {
   finishedBooks: number;
   /** Podcast episodes played for at least a minute. */
   episodesPlayed: number;
-  /** Songs played for at least 30 seconds, and the albums they're on. */
+  /** Songs and albums played for at least their `STATS_MIN_SEC`. */
   songsPlayed: number;
   albumsPlayed: number;
-  /** TV episodes and movies watched for at least a minute. */
+  /** TV episodes and movies watched for at least their `STATS_MIN_SEC`. */
   showEpisodesWatched: number;
   moviesWatched: number;
   /** Time saved by listening faster than 1x. No longer shown; kept for older apps. */
   savedSec: number;
-  /** What you spent longest on: up to the period's `STATS_TOP_COUNT` books, podcasts, albums, songs and videos, each kind longest first. */
+  /** What you spent longest on: up to the period's `STATS_TOP_COUNT` books, podcasts, albums, songs and videos past their `STATS_MIN_SEC`, each kind longest first. */
   top: StatsTop[];
   /** Your first listening day ever. */
   firstDay?: string | null;

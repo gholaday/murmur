@@ -232,7 +232,6 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
       <>
         <NestedHead
           title={BOOK_SECTION_TITLES.all}
-          count={sorted.length}
           actions={
             <button type="button" className="icon-btn" aria-label="Sort" onClick={() => setSortOpen(true)}>
               <FilterIcon />
@@ -255,7 +254,7 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
     const list = shelves[shelf];
     return (
       <>
-        <NestedHead title={titleOf(shelf)} count={list.length} />
+        <NestedHead title={titleOf(shelf)} />
         {list.length ? (
           <div className="grid">
             {list.map((b) => (
@@ -276,7 +275,7 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
     const standalone = author ? list.filter((b) => !b.series) : [];
     return (
       <>
-        <NestedHead title={author ?? series ?? ""} count={list.length} sub={series ? list[0]?.author : null} />
+        <NestedHead title={author ?? series ?? ""} sub={series ? list[0]?.author : null} />
         {series ? (
           <div className="grid">
             {[...list].sort(bySeriesOrder).map((b) => (

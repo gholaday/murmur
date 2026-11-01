@@ -121,21 +121,17 @@ export function BackRow({ fallback, onClick, children }: { fallback?: string; on
 }
 
 /**
- * A nested screen's head: the back arrow on its own row, then the title with its count,
- * an optional sub line, and actions on the right.
+ * A nested screen's head: the back arrow on its own row, then the title, an optional sub line,
+ * and actions on the right.
  */
 export function NestedHead({
   title,
-  count,
-  noun,
   sub,
   actions,
   fallback,
   onBack,
 }: {
   title: string;
-  count?: number;
-  noun?: string;
   sub?: React.ReactNode;
   actions?: React.ReactNode;
   fallback?: string;
@@ -147,26 +143,12 @@ export function NestedHead({
       <div className="page-head">
         <div style={{ minWidth: 0 }}>
           <h1 className="page-title" style={{ fontSize: 26 }}>
-            {count !== undefined ? <TitleWithCount title={title} count={count} noun={noun} /> : title}
+            {title}
           </h1>
           {sub ? <div className="page-sub">{sub}</div> : null}
         </div>
         {actions ? <div className="head-actions">{actions}</div> : null}
       </div>
-    </>
-  );
-}
-
-/** Keeps the count pill on the same line as the title's last word when it wraps. */
-export function TitleWithCount({ title, count, noun = "book" }: { title: string; count: number; noun?: string }) {
-  const cut = title.lastIndexOf(" ") + 1;
-  return (
-    <>
-      {title.slice(0, cut)}
-      <span style={{ whiteSpace: "nowrap" }}>
-        {title.slice(cut)}
-        <CountPill count={count} noun={noun} />
-      </span>
     </>
   );
 }

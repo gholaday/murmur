@@ -47,7 +47,6 @@ export function AllBooks() {
           <View style={{ marginBottom: 12 }}>
             <NestedHead
               title={BOOK_SECTION_TITLES.all}
-              count={sorted.length}
               right={
                 <IconButton label="Sort" onPress={() => setSortOpen(true)}>
                   <FilterIcon color={t.text} />

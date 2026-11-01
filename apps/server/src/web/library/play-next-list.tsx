@@ -34,7 +34,7 @@ export function PlayNextList({ books }: { books: BookSummary[] }) {
 
   return (
     <>
-      <NestedHead title="Play next" count={order.length} />
+      <NestedHead title="Play next" />
       {order.length === 0 ? (
         <EmptyState title="Nothing lined up">Add books from their menu, with Add to Play next.</EmptyState>
       ) : (

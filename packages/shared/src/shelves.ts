@@ -121,13 +121,35 @@ export function moreLikeSource(books: BookSummary[]): BookSummary | null {
   return finished.find((b) => (b.genres ?? []).length > 0) ?? finished.find((b) => b.author) ?? null;
 }
 
-/** Unstarted books like the one you finished last, best match first. Play next books are left out. */
+/** How many books More like shows, the same as Watch's. */
+const MORE_LIKE_LIMIT = 20;
+
+/** Each series' first book you haven't started. */
+function firstUnread(books: BookSummary[]): Set<string> {
+  const firsts = new Map<string, BookSummary>();
+  for (const b of books) {
+    if (!b.series || started(b)) continue;
+    const first = firsts.get(b.series);
+    if (!first || (b.seriesPosition ?? Infinity) < (first.seriesPosition ?? Infinity)) firsts.set(b.series, b);
+  }
+  return new Set([...firsts.values()].map((b) => b.id));
+}
+
+/**
+ * Unstarted books like the one you finished last, best match first. Play next books are left out,
+ * and a series only shows its first unread book, so nothing comes up before you've reached it.
+ */
 export function moreLike(books: BookSummary[]): BookSummary[] {
   const source = moreLikeSource(books);
   if (!source) return [];
+  const shelved = books.filter(present);
+  const firsts = firstUnread(shelved);
   // Rarity is judged against the whole library, not just what's left to play.
-  const ranked = rankSimilar(similarItem(source), books.filter(present).map(similarItem));
-  return ranked.map((r) => r.book).filter((b) => !started(b) && b.playNext === null);
+  const ranked = rankSimilar(similarItem(source), shelved.map(similarItem));
+  return ranked
+    .map((r) => r.book)
+    .filter((b) => !started(b) && b.playNext === null && (!b.series || firsts.has(b.id)))
+    .slice(0, MORE_LIKE_LIMIT);
 }
 
 /** The line under a card on a shelf, when it isn't the author: which book of the series, or how long. */
