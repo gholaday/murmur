@@ -57,6 +57,7 @@ export function Tile({
   count,
   onPress,
   active,
+  filled,
   disabled,
   children,
 }: {
@@ -65,6 +66,8 @@ export function Tile({
   count?: number;
   onPress: () => void;
   active?: boolean;
+  /** Something that stays on over the picture, like subtitles: the whole tile is the accent. Its icon brings its own colour. */
+  filled?: boolean;
   disabled?: boolean;
   children: React.ReactNode;
 }) {
@@ -73,7 +76,7 @@ export function Tile({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={count ? `${label}, ${count}` : label}
-      accessibilityState={{ disabled, selected: active }}
+      accessibilityState={{ disabled, selected: active || filled }}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => ({
@@ -84,12 +87,12 @@ export function Tile({
         justifyContent: "center",
         gap: 4,
         // Frosted white in light mode: a grey wash disappears into the tinted page.
-        backgroundColor: t.isDark ? (pressed ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.07)") : pressed ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.65)",
-        opacity: disabled ? 0.4 : 1,
+        backgroundColor: filled ? t.accent : t.isDark ? (pressed ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.07)") : pressed ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.65)",
+        opacity: disabled ? 0.4 : filled && pressed ? 0.85 : 1,
       })}
     >
       {children}
-      <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 11, color: active ? t.accent : t.isDark ? t.muted : t.text2 }}>
+      <Text numberOfLines={1} style={{ fontFamily: filled ? fonts.bold : fonts.semibold, fontSize: 11, color: filled ? t.onAccent : active ? t.accent : t.isDark ? t.muted : t.text2 }}>
         {label}
       </Text>
       {count ? <NumberBadge value={count > 99 ? "99+" : count} style={{ position: "absolute", top: 6, right: 8 }} /> : null}

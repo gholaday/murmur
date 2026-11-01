@@ -12,13 +12,20 @@ import {
   duration,
   episodeLabel,
   errorText,
+  loadSubtitleCues,
   percentDone,
+  pickSubtitle,
   type PlaybackPlan,
   playbackPlan,
   QUALITY_LABEL,
+  qualityMatters,
   resumeStart,
   type StreamRequest,
   type StreamSessionDto,
+  SUBTITLE_ERROR,
+  SUBTITLE_SLOW_MS,
+  type SubtitleCue,
+  subtitleName,
   timeLeft,
   trackDetails,
   trackForLanguage,
@@ -29,7 +36,9 @@ import {
   type VideoEpisode,
   type VideoFileInfo,
   videoLanguageKey,
+  type VideoSubtitleTrack,
   WATCHED_AT,
+  cueAt,
 } from "@murmur/shared/client";
 import { toast } from "sonner";
 import { api } from "../api";
@@ -49,6 +58,7 @@ import {
   PrevChapterIcon,
   SkipBackIcon,
   SkipForwardIcon,
+  SubtitlesIcon,
 } from "../icons";
 import { addWatching, sendListening, usePlayer } from "../player/engine";
 import { usePullToClose } from "../player/full-player";
@@ -58,6 +68,7 @@ import { setFinished } from "../progress";
 import { Sheet, SheetItem } from "../sheet";
 import { playHref, Still } from "./cards";
 import { QualitySheet } from "./quality-pick";
+import { readSubtitle, saveSubtitle, SubtitleSheet } from "./subtitle-pick";
 import { browserSupport, isSafari } from "./support";
 import { useVideo } from "./video-session";
 
@@ -71,8 +82,9 @@ export interface PlayerItem {
   videoId: string;
   /** The movie, or the episode's own title. */
   title: string;
-  /** Episodes: the show, and which episode ("S2 E4"). */
+  /** Episodes: the show. */
   showTitle: string | null;
+  /** Which episode ("S2 E4"), or which version of a movie that has several. */
   label: string | null;
   /** The poster's colour, tinting the player like the audio one. */
   color: string | null;
@@ -193,7 +205,33 @@ function Times({ store, total }: { store: Clock; total: number }) {
 
 function MiniSub({ store, total, label }: { store: Clock; total: number; label: string | null }) {
   const left = timeLeft(total, useClock(store).time);
-  return <span className="mini-sub">{label ? `${label}, ${left}` : left}</span>;
+  if (!label) return <span className="mini-sub">{left}</span>;
+  return (
+    <span className="mini-sub mini-split">
+      <span>{label}</span>
+      <span className="mini-time">{left}</span>
+    </span>
+  );
+}
+
+/** How often the subtitle line looks at the video; a time update alone comes a quarter of a second late. */
+const SUBTITLE_TICK_MS = 100;
+
+/** The subtitle showing, over the picture. Read from the place in the video, so a stream's own clock doesn't matter. */
+function SubtitleLine({ cues, position }: { cues: SubtitleCue[]; position: () => number }) {
+  const [text, setText] = useState("");
+  useEffect(() => {
+    const timer = setInterval(() => setText(cueAt(cues, position())), SUBTITLE_TICK_MS);
+    return () => clearInterval(timer);
+  }, [cues, position]);
+  if (!text) return null;
+  return (
+    <div className="vp-subs">
+      {text.split("\n").map((line, i) => (
+        <span key={i}>{line}</span>
+      ))}
+    </div>
+  );
 }
 
 function MiniBar({ store, total }: { store: Clock; total: number }) {
@@ -225,6 +263,17 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   // The player only renders in the browser (the shell opens it), so storage can be read up front.
   /** The audio track picked; null plays the default one. */
   const [track, setTrack] = useState<number | null>(() => rememberedTrack(item.file, item.memoryKey));
+  /** The subtitle picked, or the one the video opens with; null is off. */
+  const [subtitle, setSubtitle] = useState<VideoSubtitleTrack | null>(() => {
+    const playing = track ?? defaultAudioTrack(item.file);
+    const language = item.file.audioTracks.find((t) => t.index === playing)?.language ?? null;
+    return pickSubtitle(item.file.subtitleTracks, readSubtitle(item.memoryKey), language);
+  });
+  /** The subtitle's lines, once they've arrived. */
+  const [cues, setCues] = useState<SubtitleCue[] | null>(null);
+  /** The server is still reading the subtitle out of the file. */
+  const [subtitleSlow, setSubtitleSlow] = useState(false);
+  const [subtitlesOpen, setSubtitlesOpen] = useState(false);
   /** The file was tried as it is and wouldn't open. */
   const [forceRemux, setForceRemux] = useState(false);
   /** The file played as it is; null while streaming or before it's known. */
@@ -340,6 +389,30 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     };
   }, [item.file, item.src, item.videoId, item.startAt, item.durationSec, track, forceRemux, restartKey, casting]);
 
+  // Fetches the subtitle's lines. The first time, the server may have to read the whole file for them.
+  useEffect(() => {
+    setCues(null);
+    setSubtitleSlow(false);
+    if (!subtitle) return;
+    const stop = new AbortController();
+    const slow = setTimeout(() => setSubtitleSlow(true), SUBTITLE_SLOW_MS);
+    loadSubtitleCues(() => fetch(apiPaths.videoSubtitle(item.videoId, subtitle.id), { signal: stop.signal }), stop.signal)
+      .then(setCues)
+      .catch((err: unknown) => {
+        if (stop.signal.aborted) return;
+        toast.error(err instanceof Error ? err.message : SUBTITLE_ERROR);
+        setSubtitle(null);
+      })
+      .finally(() => {
+        clearTimeout(slow);
+        if (!stop.signal.aborted) setSubtitleSlow(false);
+      });
+    return () => {
+      clearTimeout(slow);
+      stop.abort();
+    };
+  }, [subtitle, item.videoId]);
+
   // A paused player stops fetching pieces, and the server ends a session nobody asks anything of
   // for five minutes; asking for the playlist now and then keeps it, so Play carries straight on.
   useEffect(() => {
@@ -451,10 +524,23 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     if (!stream) resumeAt.current = null;
     cm.autoplay = wantPlay.current;
     cm.volume = effectiveVolume(volume);
+    // A stream's clock starts where the stream does, and the TV draws the lines by that clock.
+    cm.subtitles = item.file.subtitleTracks.map((t, i) => ({
+      id: i + 1,
+      name: subtitleName(t),
+      language: t.language,
+      path: apiPaths.videoSubtitle(item.videoId, t.id, stream?.start ?? 0),
+    }));
     cm.load();
     return () => cm.release();
     // The volume is applied by its own effect; this runs for a new file, stream or cast.
   }, [casting, src, stream]);
+
+  // Only once the lines exist, so the TV never asks for a track still being read from the file.
+  useEffect(() => {
+    if (!casting) return;
+    castRef.current?.showSubtitle(subtitle && cues ? item.file.subtitleTracks.indexOf(subtitle) + 1 : null);
+  }, [casting, subtitle, cues, src, stream, item.file.subtitleTracks]);
 
   /** Where you are in the video: the player's clock, plus where a stream started. */
   const position = useCallback(() => offsetRef.current + (media()?.currentTime ?? 0), [media]);
@@ -517,6 +603,15 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
       </div>
     ) : null;
 
+  const subtitleCard = subtitleSlow ? (
+    <div className="float-card vp-slow" role="status">
+      <span>Getting subtitles ready</span>
+      <button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setSubtitleSlow(false)}>
+        <CloseIcon size={20} />
+      </button>
+    </div>
+  ) : null;
+
   // The volume slider is this device's, shared with the audio player.
   useEffect(() => {
     const v = media();
@@ -533,6 +628,15 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     resumeAt.current = position();
     saveLanguage(item.memoryKey, t.language);
     setTrack(t.index === defaultAudioTrack(item.file) ? null : t.index);
+    // A forced track only fits the language it was made for.
+    if (!subtitle || subtitle.forced) setSubtitle(pickSubtitle(item.file.subtitleTracks, readSubtitle(item.memoryKey), t.language));
+  };
+
+  /** Another subtitle, or off: remembered for the movie or show. */
+  const pickSubtitleTrack = (t: VideoSubtitleTrack | null) => {
+    setSubtitlesOpen(false);
+    setSubtitle(t);
+    saveSubtitle(item.memoryKey, t);
   };
 
   /** Saves your place; nothing is saved until you've actually watched or moved, so opening and closing changes nothing. */
@@ -872,7 +976,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   };
 
   const heading = item.kind === "episode" ? item.showTitle : item.title;
-  const subheading = item.kind === "episode" ? `${item.label}, ${item.title}` : null;
+  const subheading = item.kind === "episode" ? `${item.label}, ${item.title}` : item.label;
   const tracks = item.file.audioTracks;
   const currentTrack = track ?? defaultAudioTrack(item.file);
   const audioButton =
@@ -881,6 +985,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         <AudioTrackIcon />
       </button>
     ) : null;
+  const subtitleTracks = item.file.subtitleTracks;
 
   return (
     <div
@@ -935,6 +1040,8 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
           />
         ) : null}
 
+        {cues && !casting && !mini ? <SubtitleLine cues={cues} position={position} /> : null}
+
         <div className="vp-overlay">
           <div className="vp-top">
             <button type="button" className="icon-btn" aria-label="Close player" onClick={back}>
@@ -948,6 +1055,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         </div>
 
         {slowCard}
+        {subtitleCard}
         {countdown !== null && next ? (
           <div className="vp-next">
             <button type="button" className="vp-next-main" onClick={goNext}>
@@ -979,11 +1087,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         <div className="player-info-row vp-info">
           <div className="player-info">
             <h1 className="player-title">{item.title}</h1>
-            {item.kind === "episode" ? (
-              <div className="player-sub">
-                {item.showTitle}, {item.label}
-              </div>
-            ) : null}
+            {item.label ? <div className="player-sub">{item.kind === "episode" ? `${item.showTitle}, ${item.label}` : item.label}</div> : null}
           </div>
           <VolumeControl />
         </div>
@@ -1028,6 +1132,11 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
           <div className="vp-tools">
             <VolumeControl />
             {audioButton}
+            {subtitleTracks.length ? (
+              <button type="button" className={`icon-btn${subtitle ? " vp-on" : ""}`} aria-label="Subtitles" onClick={() => setSubtitlesOpen(true)}>
+                <SubtitlesIcon />
+              </button>
+            ) : null}
             {casting ? null : (
               <>
                 <button type="button" className="icon-btn" aria-label="Picture in picture" onClick={pip}>
@@ -1065,10 +1174,17 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         </div>
         <div className="player-tiles vp-tiles">
           {slowCard}
+          {subtitleCard}
           {tracks.length > 1 ? (
             <button type="button" className="tile" onClick={() => setAudioOpen(true)}>
               <AudioTrackIcon size={20} />
               <span>Audio</span>
+            </button>
+          ) : null}
+          {subtitleTracks.length ? (
+            <button type="button" className={`tile${subtitle ? " tile-on" : ""}`} aria-pressed={!!subtitle} onClick={() => setSubtitlesOpen(true)}>
+              <SubtitlesIcon size={20} />
+              <span>Subtitles</span>
             </button>
           ) : null}
           {/* The picture is on the TV while casting, so there's nothing to pop out or fill the screen with. */}
@@ -1126,7 +1242,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         >
           Go to {item.kind === "movie" ? "movie" : "show"}
         </SheetItem>
-        {plan?.kind === "transcode" ? (
+        {plan?.kind === "transcode" && qualityMatters(item.file) ? (
           <SheetItem
             onClick={() => {
               setMoreOpen(false);
@@ -1167,6 +1283,8 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
           </SheetItem>
         ))}
       </Sheet>
+
+      <SubtitleSheet open={subtitlesOpen} tracks={subtitleTracks} value={subtitle} onClose={() => setSubtitlesOpen(false)} onPick={pickSubtitleTrack} />
 
       <Sheet open={!!error} onClose={close} title={error ?? ""}>
         <div className="vp-problem">

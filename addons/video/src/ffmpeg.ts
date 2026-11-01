@@ -1,4 +1,8 @@
 import { type ChildProcess, execFile, spawn } from "node:child_process";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { ProbedVideo } from "@murmur/shared";
 import { probedVideo, type FfprobeOutput } from "./codecs";
 import { env } from "./env";
@@ -6,7 +10,7 @@ import { env } from "./env";
 // ffprobe and ffmpeg, run as child processes: reading files for Murmur's scan, and the still each
 // card shows.
 
-function run(cmd: string, args: string[], opts: { timeoutMs: number; input?: Buffer }): Promise<Buffer> {
+function run(cmd: string, args: string[], opts: { timeoutMs: number; input?: Buffer; nice?: number }): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const child = execFile(
       cmd,
@@ -27,6 +31,13 @@ function run(cmd: string, args: string[], opts: { timeoutMs: number; input?: Buf
       },
     );
     if (opts.input) child.stdin?.end(opts.input);
+    if (opts.nice && child.pid) {
+      try {
+        os.setPriority(child.pid, opts.nice);
+      } catch {
+        // Not allowed here; it runs at the usual priority.
+      }
+    }
   });
 }
 
@@ -66,6 +77,38 @@ export async function probeVideo(file: string): Promise<ProbedVideo> {
     timeoutMs: 60_000,
   });
   return probedVideo(JSON.parse(out.toString("utf8")) as FfprobeOutput);
+}
+
+/** A whole film has to be read to find its subtitles, off a slow disk on a big file. */
+const SUBTITLES_TIMEOUT_MS = 10 * 60_000;
+/** Below streams, like downloads: nobody's picture should stall for this. */
+const SUBTITLES_NICE = 10;
+
+const subtitlesRoot = () => path.join(env.cacheDir, "subtitles");
+
+/** Clears what was left from before a restart. Run once at start. */
+export function initSubtitles() {
+  fs.rmSync(subtitlesRoot(), { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+}
+
+/**
+ * Text subtitle tracks as WebVTT, by index. They're spread through the whole file, so one run
+ * writes them all: a film with twenty tracks gets read once, not twenty times.
+ */
+export async function extractSubtitles(file: string, tracks: number[]): Promise<Record<string, string>> {
+  const dir = path.join(subtitlesRoot(), crypto.randomBytes(9).toString("base64url"));
+  fs.mkdirSync(dir, { recursive: true });
+  const out = (track: number) => path.join(dir, `${track}.vtt`);
+  try {
+    await run(
+      env.ffmpegPath,
+      [...["-v", "error", "-nostdin", "-y", "-i", file], ...tracks.flatMap((t) => ["-map", `0:s:${t}`, "-c:s", "webvtt", "-f", "webvtt", out(t)])],
+      { timeoutMs: SUBTITLES_TIMEOUT_MS, nice: SUBTITLES_NICE },
+    );
+    return Object.fromEntries(tracks.map((t) => [t, fs.readFileSync(out(t), "utf8")]));
+  } finally {
+    fs.rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }, () => undefined);
+  }
 }
 
 /** HDR frames look grey and flat as they are; this maps them down to ordinary colour (needs zimg). */

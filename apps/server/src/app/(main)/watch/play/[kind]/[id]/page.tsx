@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { apiPaths, episodeLabel } from "@murmur/shared";
+import { apiPaths, episodeLabel, versionLabel } from "@murmur/shared";
 import { getContext } from "@/server/context";
 import { getPrefs } from "@/server/prefs";
 import { requirePageUser } from "@/server/session";
@@ -23,17 +23,20 @@ export default async function PlayPage({
   // A quality picked before pressing Play (`?q=`), for this video only; otherwise your setting applies.
   const quality = q === "full" || q === "light" ? q : prefs.videoQuality;
   let item: PlayerItem;
+  let versions: string[] | undefined;
   if (kind === "movie") {
     const movie = await getMovie(ctx, user.id, id);
     if (!movie) notFound();
     const version = movie.versionList.find((x) => x.id === v) ?? movie.versionList[0]!;
+    if (!v && movie.versionList.length > 1) versions = movie.versionList.map((x) => x.id);
     item = {
       kind: "movie",
       progressId: movie.id,
-      href: `/watch/play/movie/${movie.id}${version.id === movie.versionList[0]!.id ? "" : `?v=${version.id}`}`,
+      // Names the version even when it's the first, so the mini player comes back to what's playing, not to a newer pick.
+      href: `/watch/play/movie/${movie.id}${movie.versionList.length > 1 ? `?v=${version.id}` : ""}`,
       title: movie.title,
       showTitle: null,
-      label: null,
+      label: movie.versionList.length > 1 ? versionLabel(version) : null,
       color: movie.color,
       art: movie.backdropHash
         ? apiPaths.movieArtUrl(movie.id, "backdrop", movie.backdropHash)
@@ -76,5 +79,5 @@ export default async function PlayPage({
       memoryKey: play.show.id,
     };
   } else notFound();
-  return <OpenVideo item={item} />;
+  return <OpenVideo item={item} versions={versions} />;
 }

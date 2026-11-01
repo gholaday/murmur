@@ -11,7 +11,6 @@ import type {
   VideoFileInfo,
   VideoProgress,
   VideoSource,
-  VideoSubtitleTrack,
   WatchCard,
   WatchHomeDto,
   WatchPoster,
@@ -25,6 +24,7 @@ import { shelf } from "../shelf";
 import { HttpError } from "../http";
 import { coverColors } from "../library/covers";
 import { resolveInside } from "../stream";
+import { shownSubtitles, type StoredSubtitle } from "./subtitles";
 
 // Read side of Watch: the Watch tab, movie and show pages. Videos whose file has gone missing
 // are left out, and so are movies and shows left with none. Progress is the shared `progress`
@@ -122,7 +122,7 @@ function fileInfo(r: VideoRow): VideoFileInfo {
     height: r.height,
     hdr: r.hdr,
     audioTracks: JSON.parse(r.audio_tracks) as VideoAudioTrack[],
-    subtitleTracks: JSON.parse(r.subtitle_tracks) as VideoSubtitleTrack[],
+    subtitleTracks: shownSubtitles(JSON.parse(r.subtitle_tracks) as StoredSubtitle[]),
     size: r.size,
     fileName: path.posix.basename(r.rel_path),
   };

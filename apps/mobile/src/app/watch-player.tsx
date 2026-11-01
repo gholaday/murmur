@@ -19,10 +19,12 @@ import {
   episodeLabel,
   type MovieDetail,
   QUALITY_LABEL,
+  qualityMatters,
   type ShowDetail,
   timeLeft,
   trackDetails,
   trackName,
+  versionLabel,
   VIDEO_PLAYER,
   type VideoEpisode,
   type VideoQuality,
@@ -41,6 +43,7 @@ import {
   PrevChapterIcon,
   SkipBackIcon,
   SkipForwardIcon,
+  SubtitlesIcon,
 } from "@/components/icons";
 import { Pills } from "@/components/music";
 import { Empty, NestedFallback, SectionTitle } from "@/components/page";
@@ -48,7 +51,7 @@ import { BufferingRing, CastButton, SkipButton, Tile } from "@/components/player
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
 import { Button, Caption, IconButton, Text } from "@/components/ui";
-import { QualitySheet, Still } from "@/components/watch";
+import { QualitySheet, Still, SubtitleLine, SubtitleSheet } from "@/components/watch";
 import { absolute, authHeaders } from "@/lib/api";
 import { useAutoplayNext } from "@/lib/data";
 import { localVideo, useDownloads } from "@/lib/downloads";
@@ -59,7 +62,9 @@ import {
   markWatched,
   openMovie,
   openTvShow,
+  readVideoVersion,
   showEpisodes,
+  subtitleTracks,
   useMovie,
   useShow,
   type WatchTarget,
@@ -68,10 +73,12 @@ import { useCast } from "@/player/cast";
 import { usePlayerSelect } from "@/player/engine";
 import {
   closeVideo,
+  dismissSubtitleSlow,
   finishVideo,
   openVideo,
   seekVideo,
   setVideoQuality,
+  setVideoSubtitle,
   setVideoTrack,
   skipVideo,
   toggleVideo,
@@ -90,15 +97,17 @@ const CLOSE_VELOCITY = 900;
 const isQuality = (q: string | undefined): q is VideoQuality => q === "full" || q === "light";
 
 function movieItem(movie: MovieDetail, versionId: string | undefined, quality: VideoQuality | null): VideoItem {
-  const version = movie.versionList.find((v) => v.id === versionId) ?? movie.versionList[0]!;
+  const wanted = versionId ?? readVideoVersion(movie.id);
+  const version = movie.versionList.find((v) => v.id === wanted) ?? movie.versionList[0]!;
   return {
-    target: { kind: "movie", id: movie.id, ...(version.id === movie.versionList[0]!.id ? {} : { version: version.id }) },
+    // Always the version, so reopening from the mini player stays on it whatever was picked since.
+    target: { kind: "movie", id: movie.id, version: version.id },
     kind: "movie",
     progressId: movie.id,
     videoId: version.id,
     title: movie.title,
     showTitle: null,
-    label: null,
+    label: movie.versionList.length > 1 ? versionLabel(version) : null,
     color: movie.color,
     sub: movie.year ?? "Movie",
     art: movie.backdropHash
@@ -203,7 +212,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
   const host = useVideoHost();
   const { available: castAvailable, device: castDevice } = useCast();
   const [view, setView] = useState<VideoView | null>(null);
-  const [sheet, setSheet] = useState<null | "audio" | "more" | "quality">(null);
+  const [sheet, setSheet] = useState<null | "audio" | "more" | "quality" | "subtitles">(null);
   const [controls, setControls] = useState(true);
   const [pokedAt, setPokedAt] = useState(0);
   const [lastTap, setLastTap] = useState({ at: 0, x: 0 });
@@ -345,8 +354,10 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
   const pullStyle = useAnimatedStyle(() => ({ transform: [{ translateY: pull.value }] }));
 
   const heading = item.kind === "episode" ? item.showTitle : item.title;
-  const subheading = item.kind === "episode" ? `${item.label}, ${item.title}` : null;
+  const subheading = item.kind === "episode" ? `${item.label}, ${item.title}` : item.label;
   const tracks = item.file.audioTracks;
+  const subtitles = subtitleTracks(item.file);
+  const subtitleOn = open && !!v.subtitle;
   const tint = item.color ?? "#3b4a6e";
   const tintTop = mixColor(tint, t.bg, t.isDark ? 0.42 : 0.36);
   const tintBottom = mixColor(tint, t.bg, t.isDark ? 0.1 : 0.12);
@@ -419,32 +430,31 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
       </View>
     ) : null;
 
-  // Floats just above the tiles (over a show's next episodes) until waved away.
+  // Float just above the tiles (over a show's next episodes) until waved away.
+  const floatStyle = {
+    position: "absolute",
+    left: sideways ? Math.max(insets.left, 24) : 24,
+    right: sideways ? undefined : 24,
+    bottom: sideways ? 150 : insets.bottom + 16 + 64 + 12,
+    maxWidth: sideways ? 380 : undefined,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingLeft: 14,
+    paddingVertical: 6,
+    paddingRight: 2,
+    borderRadius: 14,
+    backgroundColor: sideways ? "rgba(0,0,0,0.78)" : t.surface2,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+  } as const;
   const slowKey = `${item.progressId}:${v.quality}`;
   const slowCard =
     open && v.slow && slowShut !== slowKey ? (
-      <View
-        style={{
-          position: "absolute",
-          left: sideways ? Math.max(insets.left, 24) : 24,
-          right: sideways ? undefined : 24,
-          bottom: sideways ? 150 : insets.bottom + 16 + 64 + 12,
-          maxWidth: sideways ? 380 : undefined,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 10,
-          paddingLeft: 14,
-          paddingVertical: 6,
-          paddingRight: 2,
-          borderRadius: 14,
-          backgroundColor: sideways ? "rgba(0,0,0,0.78)" : t.surface2,
-          elevation: 8,
-          shadowColor: "#000",
-          shadowOpacity: 0.25,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 6 },
-        }}
-      >
+      <View style={floatStyle}>
         <Text variant="small" numberOfLines={2} style={{ flex: 1, color: sideways ? "#fff" : t.text }}>
           Converting slower than it plays
         </Text>
@@ -460,6 +470,20 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
         </IconButton>
       </View>
     ) : null;
+  // They share a spot, so this one waits behind the slow card.
+  const subtitleCard =
+    open && v.subtitleSlow && !slowCard ? (
+      <View style={floatStyle}>
+        <Text variant="small" numberOfLines={2} style={{ flex: 1, color: sideways ? "#fff" : t.text }}>
+          Getting subtitles ready
+        </Text>
+        <IconButton label="Dismiss" onPress={dismissSubtitleSlow}>
+          <CloseIcon size={20} color={sideways ? "#fff" : t.text} />
+        </IconButton>
+      </View>
+    ) : null;
+  // The TV draws its own while casting.
+  const subtitleLine = open && v.cues && !castDevice ? <SubtitleLine cues={v.cues} sideways={sideways} raised={controls} /> : null;
 
   const scrubber = (
     <View>
@@ -545,7 +569,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
     <>
       <Sheet open={sheet === "more"} onClose={() => setSheet(null)} title={item.title}>
         <SheetItem label={item.kind === "movie" ? "Go to movie" : "Go to show"} onPress={goToPage} />
-        {open && v.plan === "transcode" ? <SheetItem label="Quality" value={QUALITY_LABEL[v.quality]} onPress={() => setSheet("quality")} /> : null}
+        {open && v.plan === "transcode" && qualityMatters(item.file) ? <SheetItem label="Quality" value={QUALITY_LABEL[v.quality]} onPress={() => setSheet("quality")} /> : null}
         <SheetItem label="Mark as watched" onPress={() => void markDone()} />
         <SheetItem
           label="Start from the beginning"
@@ -579,6 +603,16 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
           />
         ))}
       </Sheet>
+      <SubtitleSheet
+        open={sheet === "subtitles"}
+        tracks={subtitles}
+        value={open ? v.subtitle : null}
+        onClose={() => setSheet(null)}
+        onPick={(s) => {
+          setSheet(null);
+          setVideoSubtitle(s);
+        }}
+      />
       <Sheet open={open && !!v.error} onClose={stopWatching} title={v.error ?? ""}>
         <View style={{ paddingHorizontal: 12, gap: 14, paddingBottom: 8 }}>
           <Pills labels={[item.file.videoCodec ? codecName(item.file.videoCodec) : null, codecName(item.file.container)].filter((p): p is string => !!p)} />
@@ -627,6 +661,11 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
                     <AudioTrackIcon color="#fff" />
                   </IconButton>
                 ) : null}
+                {subtitles.length ? (
+                  <IconButton label="Subtitles" accessibilityState={{ selected: subtitleOn }} onPress={() => setSheet("subtitles")}>
+                    <SubtitlesIcon color={subtitleOn ? t.accent : "#fff"} />
+                  </IconButton>
+                ) : null}
                 {/* The picture is on the TV while casting, so there's nothing to pop out or fill the screen with. */}
                 {castDevice ? null : (
                   <>
@@ -642,8 +681,10 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
             </View>
           </View>
         </FadeView>
+        {subtitleLine}
         {nextCard}
         {slowCard}
+        {subtitleCard}
         {sheets}
       </View>
     );
@@ -689,6 +730,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
             <View style={{ aspectRatio: 16 / 9, borderRadius: 16, overflow: "hidden", backgroundColor: "#000" }}>
               {video}
               {stage}
+              {subtitleLine}
               {nextCard}
             </View>
           </View>
@@ -697,8 +739,10 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
             <Text variant="title" numberOfLines={2} style={{ fontSize: 22, lineHeight: 28 }}>
               {item.title}
             </Text>
-            {item.kind === "episode" ? (
-              <Text variant="small" numberOfLines={1} style={{ fontSize: 14, color: soft }}>{`${item.showTitle}, ${item.label}`}</Text>
+            {item.kind === "episode" || item.label ? (
+              <Text variant="small" numberOfLines={1} style={{ fontSize: 14, color: soft }}>
+                {item.kind === "episode" ? `${item.showTitle}, ${item.label}` : item.label}
+              </Text>
             ) : null}
           </View>
 
@@ -735,11 +779,16 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
             ) : null}
           </ScrollView>
 
-          {tracks.length > 1 || !castDevice ? (
+          {tracks.length > 1 || subtitles.length || !castDevice ? (
             <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
               {tracks.length > 1 ? (
                 <Tile label="Audio" onPress={() => setSheet("audio")}>
                   <AudioTrackIcon size={20} color={t.text} />
+                </Tile>
+              ) : null}
+              {subtitles.length ? (
+                <Tile label="Subtitles" filled={subtitleOn} onPress={() => setSheet("subtitles")}>
+                  <SubtitlesIcon size={20} color={subtitleOn ? t.onAccent : t.text} />
                 </Tile>
               ) : null}
               {/* The picture is on the TV while casting, so there's nothing to pop out or fill the screen with. */}
@@ -757,6 +806,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
           ) : null}
         </View>
         {slowCard}
+        {subtitleCard}
       </Animated.View>
       {sheets}
     </View>

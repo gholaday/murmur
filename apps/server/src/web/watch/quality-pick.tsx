@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiPaths, playbackPlan, QUALITY_LABEL, type UserPrefs, type VideoFileInfo, type VideoQuality } from "@murmur/shared/client";
+import { apiPaths, playbackPlan, QUALITY_LABEL, qualityMatters, type UserPrefs, type VideoFileInfo, type VideoQuality } from "@murmur/shared/client";
 import { api } from "../api";
 import { Sheet, SheetItem } from "../sheet";
 import { browserSupport } from "./support";
@@ -42,14 +42,14 @@ export function useConverts(file: VideoFileInfo | null): boolean {
 }
 
 /**
- * The quality button beside Play, shown only when the picture will be converted, since otherwise
- * it changes nothing. `value` null means your setting.
+ * The quality button beside Play, shown only when the picture will be converted and is big enough
+ * for the two to differ, since otherwise it changes nothing. `value` null means your setting.
  */
 export function QualityPick({ file, value, onChange }: { file: VideoFileInfo | null; value: VideoQuality | null; onChange: (q: VideoQuality) => void }) {
   const [open, setOpen] = useState(false);
   const fallback = useDefaultQuality();
   const converts = useConverts(file);
-  if (!converts) return null;
+  if (!converts || !file || !qualityMatters(file)) return null;
   const current = value ?? fallback;
   return (
     <>

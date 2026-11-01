@@ -335,6 +335,9 @@ export function SheetDivider() {
   return <View style={{ height: 1, backgroundColor: t.line, marginVertical: 6, marginHorizontal: 12 }} />;
 }
 
+/** A SheetItem's height, for `keepInView`. */
+export const SHEET_ROW = 52;
+
 export function SheetItem({
   label,
   onPress,
@@ -365,7 +368,7 @@ export function SheetItem({
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => ({
-        minHeight: 52,
+        minHeight: SHEET_ROW,
         paddingHorizontal: 12,
         paddingVertical: hint ? 8 : 0,
         gap: 12,

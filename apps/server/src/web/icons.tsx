@@ -75,6 +75,12 @@ export const AudioTrackIcon = (p: IconProps) => (
     <path d="M7 9h10M7 13h6" />
   </Icon>
 );
+export const SubtitlesIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="M7 15h4M15 15h2M7 11h2M13 11h4" />
+  </Icon>
+);
 export const FullscreenIcon = ({ exit, ...p }: IconProps & { exit?: boolean }) => (
   <Icon {...p}>
     {exit ? (

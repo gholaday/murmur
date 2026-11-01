@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   apiPaths,
@@ -28,6 +28,8 @@ import { MenuSheet } from "../card-menu";
 import { WatchEditDialog, type WatchEditTab } from "./edit-sheet";
 import { WatchMenuItems } from "./poster-menu";
 import { QualityPick } from "./quality-pick";
+import { SubtitleRow } from "./subtitle-pick";
+import { readVersion, saveVersion } from "./version-memory";
 
 /** Codecs, size and name of a file, for when something won't play. */
 export function FileDetails({ file }: { file: VideoFileInfo }) {
@@ -74,6 +76,11 @@ export function MovieView({ movie }: { movie: MovieDetail }) {
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState<WatchEditTab | null>(null);
   const [versionId, setVersionId] = useState(movie.versionList[0]!.id);
+  // Storage only exists in the browser, so this follows the first render.
+  useEffect(() => {
+    const saved = readVersion(movie.id);
+    if (movie.versionList.some((v) => v.id === saved)) setVersionId(saved!);
+  }, [movie.id, movie.versionList]);
   /** A converted-video quality picked for this viewing; null means your setting. */
   const [quality, setQuality] = useState<VideoQuality | null>(null);
   const version = movie.versionList.find((v) => v.id === versionId) ?? movie.versionList[0]!;
@@ -162,16 +169,19 @@ export function MovieView({ movie }: { movie: MovieDetail }) {
         </>
       ) : null}
 
-      {movie.versionList.length > 1 ? (
+      {movie.versionList.length > 1 || version.file.subtitleTracks.length ? (
         <div style={{ marginTop: 18 }}>
           <SettingsCard>
-            <button type="button" className="setting setting-link" onClick={() => setPicking(true)}>
-              <span className="setting-title">Version</span>
-              <span className="setting-value">
-                <span>{versionLabel(version)}</span>
-                <ChevronIcon />
-              </span>
-            </button>
+            {movie.versionList.length > 1 ? (
+              <button type="button" className="setting setting-link" onClick={() => setPicking(true)}>
+                <span className="setting-title">Version</span>
+                <span className="setting-value">
+                  <span>{versionLabel(version)}</span>
+                  <ChevronIcon />
+                </span>
+              </button>
+            ) : null}
+            {version.file.subtitleTracks.length ? <SubtitleRow file={version.file} memoryKey={movie.id} /> : null}
           </SettingsCard>
         </div>
       ) : null}
@@ -188,6 +198,7 @@ export function MovieView({ movie }: { movie: MovieDetail }) {
             active={v.id === versionId}
             onClick={() => {
               setVersionId(v.id);
+              saveVersion(movie.id, v.id);
               setPicking(false);
             }}
           >

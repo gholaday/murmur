@@ -6,15 +6,16 @@ import { CheckIcon, MoreIcon, PlayedIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { Empty, NestedFallback, SectionTitle, useBottomPad } from "@/components/page";
+import { Card } from "@/components/settings";
 import { SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { Chips, IconButton, RoundButton, Text } from "@/components/ui";
-import { ArtBar, QualityButton, startEpisodeDownload, Still, VideoDownloadButton, WatchHero, WidePlayButton } from "@/components/watch";
+import { ArtBar, QualityButton, startEpisodeDownload, Still, SubtitleRow, VideoDownloadButton, WatchHero, WidePlayButton } from "@/components/watch";
 import { WatchActions } from "@/components/watch-edit";
 import { useDownloads } from "@/lib/downloads";
 import { useOnline } from "@/lib/query";
-import { episodeSub, markWatched, openVideoPlayer, showEpisodes, useShow } from "@/lib/watch";
+import { episodeSub, markWatched, openVideoPlayer, showEpisodes, subtitleTracks, useShow } from "@/lib/watch";
 import { fonts, useTheme } from "@/theme";
 
 export default function TvShowScreen() {
@@ -135,6 +136,14 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
               </Text>
             ) : null}
           </Pressable>
+        ) : null}
+
+        {upNext && subtitleTracks(upNext.file).length ? (
+          <View style={{ marginTop: 18 }}>
+            <Card>
+              <SubtitleRow file={upNext.file} memoryKey={show.id} />
+            </Card>
+          </View>
         ) : null}
 
         {show.seasonList.length > 1 ? (

@@ -19,13 +19,14 @@ import {
 } from "@murmur/shared/client";
 import { CheckIcon, MoreIcon, PlayedIcon, PlayIcon } from "../icons";
 import { setManyFinished } from "../progress";
-import { BackButton, Chip, Chips } from "../ui";
+import { BackButton, Chip, Chips, SettingsCard } from "../ui";
 import { playHref, Poster, Still } from "./cards";
 import { useAdmin } from "../admin";
 import { MenuSheet } from "../card-menu";
 import { WatchEditDialog, type WatchEditTab } from "./edit-sheet";
 import { WatchMenuItems } from "./poster-menu";
 import { QualityPick } from "./quality-pick";
+import { SubtitleRow } from "./subtitle-pick";
 
 /** An episode row: still with how far you are, title, "S1 E2" with the time, and a watched toggle. */
 function EpisodeRow({ e, onMark }: { e: VideoEpisode; onMark: (e: VideoEpisode, done: boolean) => void }) {
@@ -172,6 +173,14 @@ export function TvShowView({ show }: { show: ShowDetail }) {
             </button>
           ) : null}
         </>
+      ) : null}
+
+      {upNext?.file.subtitleTracks.length ? (
+        <div style={{ marginTop: 18 }}>
+          <SettingsCard>
+            <SubtitleRow file={upNext.file} memoryKey={show.id} />
+          </SettingsCard>
+        </div>
       ) : null}
 
       <section className="section">

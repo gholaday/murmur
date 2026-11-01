@@ -20,6 +20,7 @@ const ALLOWED = [
   /^\/api\/stream\/book\/[\w-]+\/$/,
   /^\/api\/stream\/(episode|track|video)\/[\w-]+$/,
   /^\/api\/watch\/streams\/[\w-]+\/$/,
+  /^\/api\/watch\/videos\/[\w-]+\/subtitles\/$/,
   /^\/api\/(books|podcasts)\/[\w-]+\/cover$/,
   /^\/api\/music\/albums\/[\w-]+\/cover$/,
   /^\/api\/watch\/(movies|shows)\/[\w-]+\/(poster|backdrop)$/,

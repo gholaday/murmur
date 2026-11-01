@@ -2,7 +2,9 @@
  * Pure rules that turn movie and show paths (Plex naming) and .nfo files into titles, years,
  * seasons and episode numbers. No I/O here, so every rule is unit-tested in parse.test.ts.
  */
+import crypto from "node:crypto";
 import { XMLParser } from "fast-xml-parser";
+import { type ProbedSubtitleTrack, sidecarTags, SUBTITLE_EXTENSIONS } from "@murmur/shared";
 import { extname } from "../library/parse";
 
 export const VIDEO_EXTENSIONS = new Set([".mkv", ".mp4", ".m4v", ".mov", ".webm", ".avi", ".ts"]);
@@ -129,6 +131,59 @@ export function movieKey(relPath: string): string {
   const fileTitle = loose(parseNameYear(stem(parts.at(-1)!)).title);
   const isMovieFolder = named.year !== null || (fileTitle !== "" && fileTitle.startsWith(loose(named.title)));
   return isMovieFolder ? parts.slice(0, -1).join("/") : relPath;
+}
+
+/** A subtitle file beside a video, as kept with the video's tracks. */
+export interface SubtitleFile extends ProbedSubtitleTrack {
+  id: string;
+  source: "file";
+  /** Relative to the library folder, like the video's own path. */
+  file: string;
+}
+
+export const isSubtitleFile = (name: string) => SUBTITLE_EXTENSIONS.includes(extname(name));
+
+const SUBTITLE_FOLDERS = ["Subs", "subs", "Subtitles", "subtitles"];
+
+/** What a name beside the video says once the video's name is off the front, or null if it's another video's. */
+function afterStem(name: string, videoStem: string): string | null {
+  const base = stem(name);
+  if (base.toLowerCase() === videoStem.toLowerCase()) return "";
+  return base.toLowerCase().startsWith(`${videoStem.toLowerCase()}.`) ? base.slice(videoStem.length + 1) : null;
+}
+
+/**
+ * The .srt and .vtt files that belong to a video, from the names found in each folder. Named after
+ * it beside it or in `Subs/`, or anything in `Subs/<video name>/`. A movie alone in its folder
+ * (`alone`) takes anything there, since there's nothing else they could belong to.
+ */
+export function subtitleFilesFor(relPath: string, names: Map<string, string[]>, alone: boolean): SubtitleFile[] {
+  const slash = relPath.lastIndexOf("/");
+  const dir = slash === -1 ? "" : relPath.slice(0, slash);
+  const videoStem = stem(relPath.slice(slash + 1));
+  const join = (...parts: string[]) => parts.filter(Boolean).join("/");
+  const found: Array<{ file: string; tags: string }> = [];
+  const take = (folder: string, tagsOf: (name: string) => string | null) => {
+    for (const name of names.get(folder) ?? []) {
+      const tags = tagsOf(name);
+      if (tags !== null) found.push({ file: join(folder, name), tags });
+    }
+  };
+  const anything = (name: string) => afterStem(name, videoStem) ?? stem(name);
+  take(dir, alone ? anything : (name) => afterStem(name, videoStem));
+  for (const subs of SUBTITLE_FOLDERS) {
+    take(join(dir, subs), alone ? anything : (name) => afterStem(name, videoStem));
+    take(join(dir, subs, videoStem), anything);
+  }
+  return found.map(({ file, tags }, index) => ({
+    ...sidecarTags(tags),
+    id: `f${crypto.createHash("sha1").update(file).digest("base64url").slice(0, 10)}`,
+    source: "file",
+    file,
+    index,
+    codec: extname(file) === ".vtt" ? "webvtt" : "subrip",
+    isDefault: false,
+  }));
 }
 
 /** Edition names found in file names, longest first so "Extended Cut" wins over "Extended". */

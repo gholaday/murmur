@@ -21,7 +21,9 @@ Podcasts, Music and Watch are turned on and off under You > Tabs, and that alone
 
 **Android Auto:** a pnpm patch to `expo-audio` turns the playback service into a media library service, and the `with-android-auto` config plugin adds the manifest entries. Auto shows Now playing and, while the Music tab shows, Music with Playlists, Albums, Artists and Songs. The app answers those lists from its saved copies, so they work offline. A picked song plays its album, artist or playlist like the app, with previous and next. Cover art reaches Auto as `content://` links from a read-only provider, because it can't open the app's own files or authenticated links. One media session lasts across songs and books, so Auto stays connected.
 
-**Offline:** lists and opened pages are cached on the phone, so the app opens and downloaded items play without a connection. Progress and bookmarks are written to a local outbox first and sent to the server when it's reachable.
+**Subtitles:** the app draws the line itself over the picture, from the place in the video, so `expo-video` needs no patch. The pick is made in the player or on the movie or show page, and is remembered per movie and per show on the phone. See [Subtitles](watch.md#subtitles).
+
+**Offline:** lists and opened pages are cached on the phone, so the app opens and downloaded items play without a connection. A downloaded video keeps its subtitles as VTT files beside it; any that weren't ready are fetched the next time it's opened with a connection. Progress and bookmarks are written to a local outbox first and sent to the server when it's reachable.
 
 **First run:** enter the server URL, then username and password; the app stores a token and never asks again until it's revoked.
 

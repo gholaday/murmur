@@ -67,6 +67,12 @@ export const AudioTrackIcon = (p: IconProps) => (
     <Path d="M7 9h10M7 13h6" />
   </Icon>
 );
+export const SubtitlesIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Rect x="3" y="5" width="18" height="14" rx="2" />
+    <Path d="M7 15h4M15 15h2M7 11h2M13 11h4" />
+  </Icon>
+);
 export const PipIcon = (p: IconProps) => (
   <Icon {...p}>
     <Rect x="3" y="5" width="18" height="14" rx="2" />

@@ -43,7 +43,7 @@ Optional. More in [Watch](watch.md).
 - Posters, descriptions and episode names from TMDB when a key is set, matched on their own like Plex, with Match to fix a wrong one
 - Edit for admins: title, year, description, and the poster and background (an image, a link, or one of TMDB's). What you save is kept over TMDB, like an .nfo; Remove takes a chosen picture off again, bringing back the files' or TMDB's
 - Plays the file as it is when the device can, else streams it through ffmpeg with the sound or the picture converted, on the GPU where there is one
-- Quality (1080p or 720p) for converted video, picked per video or as a setting; audio track choice; the next episode with a countdown (Play next episode turns it off)
+- Quality (1080p or 720p) for converted video, picked per video or as a setting; audio track choice; subtitles, from `.srt` and `.vtt` files or text tracks in the video, picked in the player or on the movie or show page; the next episode with a countdown (Play next episode turns it off)
 - Download movies and episodes to the phone
 
 ## Listening stats

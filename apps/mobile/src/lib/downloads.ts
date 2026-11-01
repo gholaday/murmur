@@ -4,14 +4,17 @@ import {
   type AlbumDetail,
   apiPaths,
   type BookDetail,
+  cuesToVtt,
   type EpisodeAdsDto,
   type EpisodeWithShow,
   type ItemType,
+  loadSubtitleCues,
   type MovieDetail,
   type ShowDetail,
   type TrackDto,
   type VideoDownloadDto,
   type VideoEpisode,
+  type VideoSubtitleTrack,
   type WatchDownloadQuery,
 } from "@murmur/shared/client";
 import { absolute, api, authHeaders, HttpError } from "./api";
@@ -61,9 +64,9 @@ export type Download = {
   /** Files are indexed by the song's place in `album.tracks`. */
   | { type: "album"; album: AlbumDetail }
   | { type: "track"; track: TrackDto }
-  /** `versionId`: the version saved. `art`: saved pictures, by their server path. */
-  | { type: "movie"; movie: MovieDetail; versionId: string; source: VideoDownloadSource; art: Record<string, string> }
-  | { type: "show"; episode: VideoEpisode; show: ShowDetail; source: VideoDownloadSource; art: Record<string, string> }
+  /** `versionId`: the version saved. `art`: saved pictures, by their server path. `subtitles`: saved VTT files, by track id. */
+  | { type: "movie"; movie: MovieDetail; versionId: string; source: VideoDownloadSource; art: Record<string, string>; subtitles?: Record<string, string> }
+  | { type: "show"; episode: VideoEpisode; show: ShowDetail; source: VideoDownloadSource; art: Record<string, string>; subtitles?: Record<string, string> }
 );
 
 type Index = Record<string, Download>;
@@ -369,12 +372,57 @@ async function runVideo(key: string) {
     patch(key, { status: "done", progress: 1, files: { 0: saved.uri }, bytes: saved.size });
     // The phone has it now; the server's copy can go.
     dropJob();
+    // Before the next video, so a season doesn't have the server reading several files at once.
+    if (file) await saveSubtitles(key, file.subtitleTracks.filter((t) => t.id), abort.signal);
   } catch (err) {
     if (abort.signal.aborted) return;
     patch(key, { status: "error", error: err instanceof Error ? err.message : "Download failed." });
   } finally {
     active.delete(key);
   }
+}
+
+/** Downloads saving their subtitles now, so opening one doesn't start that a second time. */
+const savingSubtitles = new Set<string>();
+
+/**
+ * Saves a downloaded video's subtitles beside it, as the video's own timing. One at a time: the
+ * first has the server read them all out of the file. Any that fail stay out and the video isn't
+ * affected; opening it online tries those again.
+ */
+async function saveSubtitles(key: string, tracks: VideoSubtitleTrack[], signal?: AbortSignal) {
+  const d = index[key];
+  if ((d?.type !== "movie" && d?.type !== "show") || savingSubtitles.has(key)) return;
+  const videoId = d.type === "movie" ? d.versionId : d.id;
+  const folder = folderFor(d.type, d.id);
+  const started = d.savedAt;
+  const saved = { ...d.subtitles };
+  savingSubtitles.add(key);
+  try {
+    for (const t of tracks) {
+      if (saved[t.id] || signal?.aborted) continue;
+      try {
+        const cues = await loadSubtitleCues(() => fetch(absolute(apiPaths.videoSubtitle(videoId, t.id)), { headers: authHeaders(), signal }), signal);
+        // Removed (or removed and downloaded again) while it came in: not wanted.
+        const cur = index[key];
+        if ((cur?.type !== "movie" && cur?.type !== "show") || cur.savedAt !== started) return;
+        const dest = new File(folder, `subtitle-${t.id}.vtt`);
+        await dest.write(cuesToVtt(cues));
+        saved[t.id] = dest.uri;
+        patch(key, { subtitles: { ...saved } });
+      } catch {
+        // Tried again on the next open.
+      }
+    }
+  } finally {
+    savingSubtitles.delete(key);
+  }
+}
+
+/** Fetches any subtitles a downloaded video is missing; a video that isn't downloaded has none to fetch. */
+export async function saveVideoSubtitles(videoId: string, tracks: VideoSubtitleTrack[]) {
+  const d = Object.values(index).find((x) => x.status === "done" && ((x.type === "movie" && x.versionId === videoId) || (x.type === "show" && x.id === videoId)));
+  if (d) await saveSubtitles(keyOf(d.type, d.id), tracks);
 }
 
 /** "Preparing 40%" while the server makes a video, else "Downloading 95%": a running download's status line. */
@@ -457,12 +505,12 @@ export function downloadTvEpisode(show: ShowDetail, episode: VideoEpisode, sourc
   startVideo(key, entry, art);
 }
 
-/** The saved file for a movie version or TV episode, once it's complete, with the audio track it holds. */
-export function localVideo(videoId: string): { uri: string; track: number; made: boolean } | null {
+/** The saved file for a movie version or TV episode, once it's complete, with the audio track it holds and its saved subtitles by track id. */
+export function localVideo(videoId: string): { uri: string; track: number; made: boolean; subtitles: Record<string, string> } | null {
   for (const d of Object.values(index)) {
     if (d.status !== "done" || !d.files[0]) continue;
     const match = (d.type === "movie" && d.versionId === videoId) || (d.type === "show" && d.id === videoId);
-    if (match && new File(d.files[0]).exists) return { uri: d.files[0], track: d.source.track, made: d.source.made };
+    if (match && new File(d.files[0]).exists) return { uri: d.files[0], track: d.source.track, made: d.source.made, subtitles: d.subtitles ?? {} };
   }
   return null;
 }

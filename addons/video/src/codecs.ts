@@ -17,7 +17,7 @@ export interface FfprobeStream {
   bits_per_raw_sample?: string;
   color_transfer?: string;
   channels?: number;
-  disposition?: { default?: number; forced?: number; attached_pic?: number };
+  disposition?: { default?: number; forced?: number; hearing_impaired?: number; attached_pic?: number };
   tags?: Record<string, string>;
   side_data_list?: Array<{ side_data_type?: string }>;
 }
@@ -142,6 +142,7 @@ export function probedVideo(out: FfprobeOutput): ProbedVideo {
       title: tag(s, "title"),
       isDefault: Boolean(s.disposition?.default),
       forced: Boolean(s.disposition?.forced),
+      sdh: Boolean(s.disposition?.hearing_impaired),
     })),
   };
 }

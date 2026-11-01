@@ -41,6 +41,8 @@ Shows/
 
 A `poster.jpg` or `fanart.jpg` in the folder is used as the picture. Otherwise a free [TMDB](https://www.themoviedb.org/settings/api) key (`TMDB_API_KEY` in `murmur.env`, see step 2) fills in posters, descriptions and episode names.
 
+Subtitles can sit beside a video as `.srt` or `.vtt`, named after it with the language: `Oppenheimer (2023).en.srt`, or `.en.forced.srt` for a forced track. Text subtitles inside the file work too. Other formats (ASS, and image subtitles like PGS) are ignored for now.
+
 ## 2. Start the server
 
 Copy [`docker-compose.yml`](../docker-compose.yml) to your server and change the `/path/to/...` folders:

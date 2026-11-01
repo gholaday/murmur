@@ -11,6 +11,7 @@ import {
   MediaPlayerState,
   type MediaStatus,
   MediaStreamType,
+  type MediaTrack,
   type RemoteMediaClient,
 } from "react-native-google-cast";
 import { apiPaths, type CastLinkDto, castContentType, castPrefix } from "@murmur/shared/client";
@@ -158,6 +159,15 @@ export interface CastAbout {
   subtitle: string | null;
   /** An API path to the cover or backdrop, or null. */
   image: string | null;
+  /** Every subtitle goes with the load, since the TV can't be given more afterwards. Their ids count from 1. */
+  subtitles?: CastSubtitle[];
+}
+
+/** A subtitle track the TV can show. */
+export interface CastSubtitle {
+  name: string;
+  language: string | null;
+  path: string;
 }
 
 export interface CastEvents {
@@ -216,9 +226,23 @@ export class CastPlayer {
           this.on.loaded();
           return;
         }
-        const prefixes = [castPrefix(path), ...(about.image ? [castPrefix(about.image)] : [])];
+        const subtitles = about.subtitles ?? [];
+        const prefixes = [castPrefix(path), ...(about.image ? [castPrefix(about.image)] : []), ...(subtitles[0] ? [castPrefix(subtitles[0].path)] : [])];
         const url = await castUrl(path, prefixes);
         const image = about.image ? await castUrl(about.image, prefixes) : null;
+        const mediaTracks = await Promise.all(
+          subtitles.map(
+            async (s, i): Promise<MediaTrack> => ({
+              id: i + 1,
+              type: "text",
+              subtype: "subtitles",
+              contentType: "text/vtt",
+              contentId: await castUrl(s.path, prefixes),
+              name: s.name,
+              ...(s.language ? { language: s.language } : {}),
+            }),
+          ),
+        );
         const hls = path.includes(".m3u8");
         const mediaInfo: MediaInfo = {
           contentUrl: url,
@@ -227,6 +251,7 @@ export class CastPlayer {
           streamType: MediaStreamType.BUFFERED,
           ...(hls ? { hlsSegmentFormat: MediaHlsSegmentFormat.FMP4, hlsVideoSegmentFormat: MediaHlsVideoSegmentFormat.FMP4 } : {}),
           metadata: { type: "generic", title: about.title, ...(about.subtitle ? { subtitle: about.subtitle } : {}), images: image ? [{ url: image }] : [] },
+          ...(mediaTracks.length ? { mediaTracks } : {}),
         };
         await c.loadMedia({ mediaInfo, autoplay, startTime: startAt, playbackRate: rate });
         if (id !== this.loadId) return;
@@ -259,6 +284,11 @@ export class CastPlayer {
   setRate(rate: number) {
     this.rate = rate;
     if (this.active) void client?.setPlaybackRate(rate).catch(() => undefined);
+  }
+
+  /** Shows a subtitle on the TV by its id, or none. */
+  showSubtitle(id: number | null) {
+    if (this.active) void client?.setActiveTrackIds(id ? [id] : []).catch(() => undefined);
   }
 
   /** Stops the TV too, rather than leaving it paused: the player was closed or stopped. */

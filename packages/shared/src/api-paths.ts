@@ -83,6 +83,12 @@ export const apiPaths = {
     `/api/watch/videos/${videoId}/still?size=${size}&h=${hash}`,
   /** A movie version or episode file as it is; supports range requests. */
   videoUrl: (videoId: string) => `/api/stream/video/${videoId}`,
+  /**
+   * A subtitle track as WebVTT. `offset` is for a Chromecast playing a stream, whose clock starts
+   * there. A 503 with Retry-After means it's being read out of the video: ask again.
+   */
+  videoSubtitle: (videoId: string, trackId: string, offset = 0) =>
+    `/api/watch/videos/${videoId}/subtitles/${trackId}.vtt${offset > 0 ? `?offset=${offset.toFixed(3)}` : ""}`,
   /** POST starts a remuxed (HLS) stream of a video. */
   videoStream: (videoId: string) => `/api/watch/videos/${videoId}/stream`,
   /**

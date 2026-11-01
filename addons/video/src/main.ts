@@ -7,11 +7,13 @@ import {
   videoFileSchema,
   videoStillSchema,
   videoStreamStartSchema,
+  type VideoSubtitlesDto,
+  videoSubtitlesSchema,
 } from "@murmur/shared";
 import { cancelDownload, downloadCount, downloadFile, initDownloads, startDownload, stopAllDownloads } from "./downloads";
 import { canToneMap, encoder } from "./encoders";
 import { env } from "./env";
-import { ffmpegAvailable, grabStill, probeVideo } from "./ffmpeg";
+import { extractSubtitles, ffmpegAvailable, grabStill, initSubtitles, probeVideo } from "./ffmpeg";
 import { fromInside, HttpError, libraryFile, readJson, refuseProxied, requireSecret, sendError, sendFile, sendJson } from "./http";
 import { createLogger, errorMessage } from "./log";
 import { endStream, initStreams, masterPlaylist, startStream, stopAllStreams, streamCount, streamFilePath, streamMimeType } from "./streams";
@@ -69,6 +71,10 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": jpeg.length });
     return void res.end(jpeg);
   }
+  if (method === "POST" && url.pathname === "/subtitles") {
+    const { file, tracks } = await readJson(req, videoSubtitlesSchema);
+    return sendJson(res, 200, { tracks: await extractSubtitles(libraryFile(file), tracks).catch(notMounted) } satisfies VideoSubtitlesDto);
+  }
 
   if (parts[0] === "streams") {
     if (method === "POST" && parts.length === 1) {
@@ -119,6 +125,7 @@ if (secretProblem) {
 }
 initStreams();
 initDownloads();
+initSubtitles();
 
 const server = http.createServer((req, res) => {
   handle(req, res).catch((err: unknown) => {

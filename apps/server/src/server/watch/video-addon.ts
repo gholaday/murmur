@@ -6,7 +6,9 @@ import {
   type VideoSource,
   type VideoStatus,
   type VideoStreamStarted,
+  type VideoSubtitlesDto,
 } from "@murmur/shared";
+import { Agent, fetch as undiciFetch } from "undici";
 import { env } from "../env";
 import { HttpError } from "../http";
 
@@ -83,6 +85,23 @@ export async function grabStill(file: string, durationSec: number, hdr: boolean)
   const res = await call("/still", { method: "POST", body: JSON.stringify({ file, durationSec, hdr }) });
   if (!res.ok) await json(res);
   return Buffer.from(await res.arrayBuffer());
+}
+
+/** Reading a whole film can pass the five minutes fetch waits for an answer by default. */
+const patient = new Agent({ headersTimeout: 15 * 60_000, bodyTimeout: 15 * 60_000 });
+
+/** Text subtitle tracks of a file as WebVTT, by index, all from one read of it. */
+export async function extractSubtitles(file: string, tracks: number[]): Promise<VideoSubtitlesDto> {
+  if (!env.addonSecret) throw new HttpError(503, env.addonSecretProblem ?? "Set ADDON_SECRET on Murmur and the video add-on to read subtitles.");
+  const res = await undiciFetch(`${env.videoUrl}/subtitles`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.addonSecret}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ file, tracks }),
+    dispatcher: patient,
+  }).catch(() => {
+    throw new HttpError(503, UNREACHABLE);
+  });
+  return json<VideoSubtitlesDto>(res as unknown as Response);
 }
 
 export const startStream = (owner: string, src: VideoSource, start: number) => post<VideoStreamStarted>("/streams", { owner, src, start });

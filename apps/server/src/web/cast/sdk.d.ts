@@ -19,6 +19,23 @@ declare namespace chrome.cast {
     enum HlsVideoSegmentFormat {
       FMP4 = "fmp4",
     }
+    enum TrackType {
+      TEXT = "TEXT",
+    }
+    enum TextTrackType {
+      SUBTITLES = "SUBTITLES",
+    }
+    class Track {
+      constructor(trackId: number, type: TrackType);
+      trackContentId: string;
+      trackContentType: string;
+      subtype: TextTrackType;
+      name: string;
+      language: string;
+    }
+    class EditTracksInfoRequest {
+      constructor(activeTrackIds: number[]);
+    }
     class GenericMediaMetadata {
       title?: string;
       subtitle?: string;
@@ -31,6 +48,7 @@ declare namespace chrome.cast {
       streamType: StreamType;
       metadata: GenericMediaMetadata;
       duration?: number;
+      tracks?: Track[];
       hlsSegmentFormat?: HlsSegmentFormat;
       hlsVideoSegmentFormat?: HlsVideoSegmentFormat;
     }
@@ -38,12 +56,14 @@ declare namespace chrome.cast {
       constructor(media: MediaInfo);
       autoplay: boolean;
       currentTime: number;
+      activeTrackIds?: number[];
     }
     interface Media {
       mediaSessionId: number;
       idleReason: "CANCELLED" | "INTERRUPTED" | "FINISHED" | "ERROR" | null;
       playerState: "IDLE" | "PLAYING" | "PAUSED" | "BUFFERING";
       media: MediaInfo | null;
+      editTracksInfo(request: EditTracksInfoRequest, success: () => void, failure: () => void): void;
       addUpdateListener(listener: (alive: boolean) => void): void;
       removeUpdateListener(listener: (alive: boolean) => void): void;
     }

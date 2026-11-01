@@ -9,12 +9,13 @@ export interface CastLinkDto {
 }
 
 /**
- * The prefix a cast link must cover for an API path, as POST /api/cast takes it: a book's files
- * and a converted stream's pieces share their folder; anything else is the path itself.
+ * The prefix a cast link must cover for an API path, as POST /api/cast takes it: a book's files,
+ * a converted stream's pieces and a video's subtitles share their folder; anything else is the
+ * path itself.
  */
 export function castPrefix(path: string): string {
   const bare = path.split("?")[0]!;
-  if (/^\/api\/stream\/book\/[^/]+\//.test(bare) || /^\/api\/watch\/streams\/[^/]+\//.test(bare)) {
+  if (/^\/api\/stream\/book\/[^/]+\//.test(bare) || /^\/api\/watch\/streams\/[^/]+\//.test(bare) || /^\/api\/watch\/videos\/[^/]+\/subtitles\//.test(bare)) {
     return bare.slice(0, bare.lastIndexOf("/") + 1);
   }
   return bare;

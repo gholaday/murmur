@@ -186,7 +186,7 @@ function describe(d: Download) {
         sub: d.movie.year ?? "Movie",
         kind: null,
         open: () => openMovie(d.movie.id),
-        play: () => openVideoPlayer({ kind: "movie", id: d.movie.id, version: d.versionId === d.movie.versionList[0]?.id ? undefined : d.versionId }),
+        play: () => openVideoPlayer({ kind: "movie", id: d.movie.id, version: d.versionId }),
       };
     case "show":
       return {

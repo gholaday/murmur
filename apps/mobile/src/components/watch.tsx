@@ -1,18 +1,25 @@
-import { memo, useState, useSyncExternalStore } from "react";
+import { memo, useEffect, useState, useSyncExternalStore } from "react";
 import { Pressable, View } from "react-native";
-import Animated from "react-native-reanimated";
+import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
 import {
   apiPaths,
+  cueAt,
   episodeLabel,
   fileDetailParts,
   percentDone,
   QUALITY_LABEL,
+  qualityMatters,
+  type SubtitleCue,
+  subtitleDetails,
+  subtitleName,
+  subtitleRows,
   timeLeft,
   type MovieDetail,
   type ShowDetail,
   type VideoEpisode,
   type VideoFileInfo,
   type VideoQuality,
+  type VideoSubtitleTrack,
   type WatchCard,
   watchCardArtUrl,
   WATCH_SORT_KEY,
@@ -23,15 +30,16 @@ import { useVideoQuality } from "@/lib/data";
 import { downloadingText, downloadMovie, downloadTvEpisode, removeDownload, useDownload } from "@/lib/downloads";
 import { withLongPressHaptic } from "@/lib/haptics";
 import { getJson, setJson } from "@/lib/storage";
-import { openVideoPlayer } from "@/lib/watch";
-import { convertsPicture, videoDownloadSource } from "@/player/video";
+import { openVideoPlayer, subtitleTracks } from "@/lib/watch";
+import { convertsPicture, rememberVideoSubtitle, subtitleFor, useVideo, videoDownloadSource, videoPlace } from "@/player/video";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { HeroBackdrop } from "./hero";
-import { CheckIcon, DownloadIcon, PlayIcon } from "./icons";
+import { CheckIcon, ChevronIcon, DownloadIcon, PlayIcon } from "./icons";
 import { PAD } from "./library";
 import { BackRow, SectionTitle, useTopInset } from "./page";
-import { RemoveDownloadSheet, Sheet, SheetItem, useCardMenu } from "./sheet";
+import { Row } from "./settings";
+import { RemoveDownloadSheet, Sheet, SHEET_ROW, SheetItem, useCardMenu } from "./sheet";
 import { IconButton, Pills, RoundButton, Text } from "./ui";
 import { WatchActions } from "./watch-edit";
 
@@ -264,15 +272,15 @@ export function QualitySheet({ open, value, onClose, onPick }: { open: boolean; 
 }
 
 /**
- * The quality button beside Play, shown only when the picture will be converted, since otherwise
- * it changes nothing. It starts at your setting and applies to this viewing only; `value` null
- * means your setting.
+ * The quality button beside Play, shown only when the picture will be converted and is big enough
+ * for the two to differ, since otherwise it changes nothing. It starts at your setting and applies
+ * to this viewing only; `value` null means your setting.
  */
 export function QualityButton({ file, value, onChange }: { file: VideoFileInfo | null; value: VideoQuality | null; onChange: (q: VideoQuality) => void }) {
   const t = useTheme();
   const [open, setOpen] = useState(false);
   const fallback = useVideoQuality();
-  if (!file || !convertsPicture(file)) return null;
+  if (!file || !convertsPicture(file) || !qualityMatters(file)) return null;
   const current = value ?? fallback;
   return (
     <>
@@ -299,6 +307,105 @@ export function QualityButton({ file, value, onChange }: { file: VideoFileInfo |
         onPick={(q) => {
           onChange(q);
           setOpen(false);
+        }}
+      />
+    </>
+  );
+}
+
+// ---------- Subtitles ----------
+
+/** How often the subtitle line looks at the video. */
+const SUBTITLE_TICK_MS = 100;
+/** How far the line sits above the bottom of a sideways picture, and how much higher the controls push it. */
+const SIDEWAYS_LINE = 18;
+const SIDEWAYS_LINE_RAISED = 132;
+
+/** The subtitle showing, over the picture. Read from the place in the video, so a stream's own clock doesn't matter. */
+export function SubtitleLine({ cues, sideways, raised }: { cues: SubtitleCue[]; sideways: boolean; raised: boolean }) {
+  const [text, setText] = useState("");
+  useEffect(() => {
+    const timer = setInterval(() => setText(cueAt(cues, videoPlace())), SUBTITLE_TICK_MS);
+    return () => clearInterval(timer);
+  }, [cues]);
+  const lift = useAnimatedStyle(() => ({ transform: [{ translateY: withTiming(sideways && raised ? -SIDEWAYS_LINE_RAISED : 0, { duration: 200 }) }] }));
+  if (!text) return null;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[{ position: "absolute", left: 0, right: 0, bottom: sideways ? SIDEWAYS_LINE : 10, alignItems: "center", gap: 2, paddingHorizontal: sideways ? 80 : 16 }, lift]}
+    >
+      {text.split("\n").map((line, i) => (
+        <View key={i} style={{ maxWidth: "100%", paddingHorizontal: sideways ? 12 : 8, paddingVertical: sideways ? 2 : 1, borderRadius: 6, backgroundColor: "rgba(0,0,0,0.62)" }}>
+          <Text style={{ fontFamily: fonts.semibold, fontSize: sideways ? 20 : 13, lineHeight: sideways ? 28 : 18, color: "#fff", textAlign: "center" }}>{line}</Text>
+        </View>
+      ))}
+    </Animated.View>
+  );
+}
+
+export function SubtitleSheet({
+  open,
+  tracks,
+  value,
+  onClose,
+  onPick,
+}: {
+  open: boolean;
+  tracks: VideoSubtitleTrack[];
+  value: VideoSubtitleTrack | null;
+  onClose: () => void;
+  onPick: (track: VideoSubtitleTrack | null) => void;
+}) {
+  const rows = subtitleRows(tracks);
+  // Off is the row before the first track.
+  const at = rows.findIndex((t) => t.id === value?.id) + 1;
+  return (
+    <Sheet open={open} onClose={onClose} title="Subtitles" keepInView={{ top: at * SHEET_ROW, height: SHEET_ROW }}>
+      <SheetItem label="Off" active={!value} onPress={() => onPick(null)} />
+      {rows.map((t) => (
+        <SheetItem key={t.id} label={subtitleName(t)} value={subtitleDetails(t) ?? undefined} active={t.id === value?.id} onPress={() => onPick(t)} />
+      ))}
+    </Sheet>
+  );
+}
+
+/** A row in a movie or show page's card: what it's set to on the right, opening a sheet to change it. */
+export function PickRow({ title, value, last, onPress }: { title: string; value: string; last?: boolean; onPress: () => void }) {
+  const t = useTheme();
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${value}`} onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+      <Row title={title} last={last}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 }}>
+          <Text variant="small" numberOfLines={1} style={{ flexShrink: 1 }}>
+            {value}
+          </Text>
+          <ChevronIcon size={18} color={t.faint} />
+        </View>
+      </Row>
+    </Pressable>
+  );
+}
+
+/** The Subtitles row on a movie or show page, for picking before playing. The player opens with the same choice. */
+export function SubtitleRow({ file, memoryKey }: { file: VideoFileInfo; memoryKey: string }) {
+  // A pick in the player changes what's remembered, and this page stays open under it.
+  useVideo();
+  const [open, setOpen] = useState(false);
+  const track = subtitleFor(file, memoryKey);
+  // A forced track shows by itself, so as a choice this is still Off.
+  const picked = track?.forced ? null : track;
+  return (
+    <>
+      <PickRow title="Subtitles" value={picked ? subtitleName(picked) : "Off"} last onPress={() => setOpen(true)} />
+      <SubtitleSheet
+        open={open}
+        tracks={subtitleTracks(file)}
+        value={picked}
+        onClose={() => setOpen(false)}
+        onPick={(t) => {
+          setOpen(false);
+          rememberVideoSubtitle(memoryKey, t);
         }}
       />
     </>

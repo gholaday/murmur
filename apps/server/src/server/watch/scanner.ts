@@ -16,6 +16,7 @@ import {
   editionOf,
   episodeInfo,
   isExtra,
+  isSubtitleFile,
   isVideoFile,
   movieInfo,
   movieKey,
@@ -24,8 +25,11 @@ import {
   pickArt,
   sortTitle,
   stem,
+  subtitleFilesFor,
   type NfoInfo,
+  type SubtitleFile,
 } from "./parse";
+import { pruneSubtitles, type StoredSubtitle, subtitleFiles, withSubtitleFiles } from "./subtitles";
 
 // The Watch scanner. Like music it goes file by file: a video is probed only when its size or
 // modified time changed. Movies and shows have their own folders, so nothing is guessed.
@@ -53,6 +57,8 @@ interface Walked {
   videos: FoundFile[];
   /** Image and .nfo names by folder (relative, forward slashes, "" for the top). */
   extras: Map<string, string[]>;
+  /** .srt and .vtt names by folder. */
+  subtitles: Map<string, string[]>;
 }
 
 interface VideoRow {
@@ -60,6 +66,7 @@ interface VideoRow {
   rel_path: string;
   size: number;
   mtime_ms: number;
+  subtitle_tracks: string;
   missing_since: number | null;
 }
 
@@ -70,9 +77,9 @@ const dirOf = (relPath: string) => {
   return d === "." ? "" : d;
 };
 
-/** Every video file under a folder, and the images and .nfo files next to them. */
+/** Every video file under a folder, and the images, .nfo and subtitle files next to them. */
 async function walk(root: string, log: Logger): Promise<Walked> {
-  const out: Walked = { videos: [], extras: new Map() };
+  const out: Walked = { videos: [], extras: new Map(), subtitles: new Map() };
   async function visit(rel: string): Promise<void> {
     let entries;
     try {
@@ -83,6 +90,7 @@ async function walk(root: string, log: Logger): Promise<Walked> {
       return;
     }
     const extras: string[] = [];
+    const subtitles: string[] = [];
     await Promise.all(
       entries.map(async (e) => {
         const relPath = rel ? `${rel}/${e.name}` : e.name;
@@ -90,6 +98,7 @@ async function walk(root: string, log: Logger): Promise<Walked> {
         if (!e.isFile()) return;
         const ext = extname(e.name);
         if (IMAGE_EXTENSIONS.has(ext) || ext === ".nfo") extras.push(e.name);
+        else if (isSubtitleFile(e.name)) subtitles.push(e.name);
         else if (isVideoFile(e.name) && !isExtra(relPath)) {
           const st = await fsLimit(() => fs.stat(path.join(root, relPath)));
           out.videos.push({ relPath, size: st.size, mtimeMs: Math.floor(st.mtimeMs) });
@@ -97,6 +106,8 @@ async function walk(root: string, log: Logger): Promise<Walked> {
       }),
     );
     if (extras.length) out.extras.set(rel, extras);
+    // Sorted, since files arrive in any order and a changed list means a changed video.
+    if (subtitles.length) out.subtitles.set(rel, subtitles.sort());
   }
   await visit("");
   return out;
@@ -191,6 +202,7 @@ export function createWatchScanner(deps: WatchScannerDeps) {
     folder: LibraryFolder,
     file: FoundFile,
     extras: Map<string, string[]>,
+    subtitles: SubtitleFile[],
     now: number,
   ): Promise<"ok" | "failed" | "skipped"> {
     const dir = dirOf(file.relPath);
@@ -253,7 +265,7 @@ export function createWatchScanner(deps: WatchScannerDeps) {
       height: probe.height,
       hdr: probe.hdr,
       audioTracks: JSON.stringify(probe.audioTracks),
-      subtitleTracks: JSON.stringify(probe.subtitleTracks),
+      subtitleTracks: JSON.stringify(withSubtitleFiles(probe.subtitleTracks, subtitles)),
       now,
     });
     return "ok";
@@ -386,6 +398,7 @@ export function createWatchScanner(deps: WatchScannerDeps) {
     const extrasByFolder = new Map<number, Map<string, string[]>>();
     const setMissing = sqlite.prepare("UPDATE videos SET missing_since = ? WHERE id = ? AND missing_since IS NULL");
     const clearMissing = sqlite.prepare("UPDATE videos SET missing_since = NULL WHERE id = ?");
+    const setSubtitles = sqlite.prepare("UPDATE videos SET subtitle_tracks = ? WHERE id = ?");
     const kinds = [
       ...folders.movies.map((f) => ["movie", f] as const),
       ...folders.shows.map((f) => ["episode", f] as const),
@@ -402,20 +415,32 @@ export function createWatchScanner(deps: WatchScannerDeps) {
       extrasByFolder.set(folder.id, walked.extras);
       stats.found += walked.videos.length;
       const existing = new Map(
-        (sqlite.prepare("SELECT id, rel_path, size, mtime_ms, missing_since FROM videos WHERE folder_id = ?").all(folder.id) as VideoRow[]).map(
+        (sqlite.prepare("SELECT id, rel_path, size, mtime_ms, subtitle_tracks, missing_since FROM videos WHERE folder_id = ?").all(folder.id) as VideoRow[]).map(
           (r) => [r.rel_path, r],
         ),
       );
+      const versions = new Map<string, number>();
+      for (const v of walked.videos) versions.set(movieKey(v.relPath), (versions.get(movieKey(v.relPath)) ?? 0) + 1);
       await Promise.all(
         walked.videos.map(async (file) => {
           const row = existing.get(file.relPath);
           existing.delete(file.relPath);
+          // A movie alone in its own folder; a loose file is its own key, in a folder it may share.
+          const key = movieKey(file.relPath);
+          const alone = kind === "movie" && key !== file.relPath && versions.get(key) === 1;
+          const subtitles = subtitleFilesFor(file.relPath, walked.subtitles, alone);
           if (row && row.size === file.size && row.mtime_ms === file.mtimeMs) {
             stats.unchanged++;
             if (row.missing_since !== null) clearMissing.run(row.id);
+            // A subtitle dropped in beside a video doesn't change the video, so it's checked every scan.
+            const stored = JSON.parse(row.subtitle_tracks) as StoredSubtitle[];
+            if (JSON.stringify(subtitleFiles(stored)) !== JSON.stringify(subtitles)) {
+              setSubtitles.run(JSON.stringify(withSubtitleFiles(stored, subtitles)), row.id);
+              bumpChanges("watch");
+            }
             return;
           }
-          const result = await importVideo(kind, folder, file, walked.extras, now);
+          const result = await importVideo(kind, folder, file, walked.extras, subtitles, now);
           if (result === "ok") {
             stats[row ? "updated" : "added"]++;
             bumpChanges("watch");
@@ -434,6 +459,7 @@ export function createWatchScanner(deps: WatchScannerDeps) {
       .run(now - deps.missingGraceMs).changes;
     sqlite.prepare("DELETE FROM shows WHERE folder_id IS NULL OR id NOT IN (SELECT show_id FROM videos WHERE show_id IS NOT NULL)").run();
     sqlite.prepare("DELETE FROM movies WHERE folder_id IS NULL OR id NOT IN (SELECT movie_id FROM videos WHERE movie_id IS NOT NULL)").run();
+    await pruneSubtitles({ sqlite });
 
     // Matching first (it started as titles were found), so stills skip episodes TMDB has one for.
     // Online details are optional: a failure there is logged and never fails the scan.

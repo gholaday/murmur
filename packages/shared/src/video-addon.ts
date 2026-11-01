@@ -1,7 +1,7 @@
 // The video add-on's API (`murmur-video`): Murmur asks it to read files and make streams and
 // downloads, with the add-on secret as a bearer token. Internal only; players never call it.
 import { z } from "zod";
-import type { VideoAudioTrack, VideoSubtitleTrack } from "./watch";
+import type { ProbedSubtitleTrack, VideoAudioTrack } from "./watch";
 
 /** What ffprobe says about a video file. */
 export interface ProbedVideo {
@@ -12,7 +12,7 @@ export interface ProbedVideo {
   height: number | null;
   hdr: "hdr10" | "hlg" | "dolby-vision" | null;
   audioTracks: VideoAudioTrack[];
-  subtitleTracks: VideoSubtitleTrack[];
+  subtitleTracks: ProbedSubtitleTrack[];
 }
 
 /** A file on the library, by the absolute path both containers mount it at. */
@@ -22,6 +22,14 @@ export const videoStillSchema = videoFileSchema.extend({
   durationSec: z.number().nonnegative(),
   hdr: z.boolean(),
 });
+
+/** Text tracks to read out of a file as WebVTT, by their `0:s:N` index, all in one pass over it. */
+export const videoSubtitlesSchema = videoFileSchema.extend({ tracks: z.array(z.number().int().nonnegative()).min(1) });
+
+/** Each track's WebVTT, by index. */
+export interface VideoSubtitlesDto {
+  tracks: Record<string, string>;
+}
 
 /** One video and the choices for a stream or download of it. */
 export const videoSourceSchema = z.object({

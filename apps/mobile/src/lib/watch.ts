@@ -8,10 +8,15 @@ import {
   type MovieSummary,
   type ShowDetail,
   type ShowSummary,
+  subtitleMemory,
   timeLeft,
   type VideoEpisode,
+  type VideoFileInfo,
   videoLanguageKey,
   type VideoQuality,
+  videoSubtitleKey,
+  type VideoSubtitleTrack,
+  videoVersionKey,
   type WatchHomeDto,
 } from "@murmur/shared/client";
 import { api } from "./api";
@@ -98,6 +103,19 @@ export function saveVideoLanguage(key: string, language: string | null) {
   if (language) setJson(videoLanguageKey(key), language);
   else removeKey(videoLanguageKey(key));
 }
+
+/** The subtitle language picked for a movie or show, on this phone. */
+export const readVideoSubtitle = (key: string) => getJson<string>(videoSubtitleKey(key));
+
+export const saveVideoSubtitle = (key: string, track: VideoSubtitleTrack | null) => setJson(videoSubtitleKey(key), subtitleMemory(track));
+
+/** The version picked for a movie, on this phone. */
+export const readVideoVersion = (movieId: string) => getJson<string>(videoVersionKey(movieId));
+
+export const saveVideoVersion = (movieId: string, versionId: string) => setJson(videoVersionKey(movieId), versionId);
+
+/** Details saved on the phone before subtitles came in list tracks with no id, which can't be fetched. */
+export const subtitleTracks = (file: VideoFileInfo) => file.subtitleTracks.filter((t) => t.id);
 
 // Media3 plays nearly any picture, so what this phone can't decode is only known once a file is
 // tried (10-bit HEVC on an older phone, say). The codecs that failed are kept, so the next file

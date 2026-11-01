@@ -2,6 +2,7 @@
 
 import { apiPaths } from "./api-paths";
 import { gigabytes } from "./format";
+import { languageName } from "./languages";
 import { collator, sortTitle } from "./library";
 
 export type WatchSort = "added" | "title" | "year";
@@ -35,8 +36,9 @@ export interface VideoAudioTrack {
   isDefault: boolean;
 }
 
-/** A subtitle track inside a video file. Shown once subtitles are supported. */
-export interface VideoSubtitleTrack {
+/** A subtitle track inside a video file, as ffprobe reads it. All of them are kept, shown or not. */
+export interface ProbedSubtitleTrack {
+  /** The stream's index among the file's subtitle streams (ffmpeg's `0:s:N`). */
   index: number;
   /** ffprobe's codec name: subrip, ass, mov_text, webvtt, hdmv_pgs_subtitle, dvd_subtitle. */
   codec: string;
@@ -44,6 +46,24 @@ export interface VideoSubtitleTrack {
   title: string | null;
   isDefault: boolean;
   forced: boolean;
+  /** Written for people who can't hear it. Not on tracks probed before subtitles were shown. */
+  sdh?: boolean;
+}
+
+/** A subtitle a player can show: a text track inside the file, or an .srt or .vtt beside it. */
+export interface VideoSubtitleTrack {
+  /** Stable for a file: `e<index>` inside it, `f<hash>` beside it. Fetch it from `apiPaths.videoSubtitle`. */
+  id: string;
+  source: "embedded" | "file";
+  /** Inside the file, ffmpeg's `0:s:N`; beside it, the file's place in the list. Only for naming a track that has no language or title ("Track 1"). */
+  index: number;
+  codec: string;
+  /** ISO 639-2, like "eng", always the same code for a language. */
+  language: string | null;
+  title: string | null;
+  isDefault: boolean;
+  forced: boolean;
+  sdh: boolean;
 }
 
 /** What a player needs to decide how to play a file (see Playback in docs/spec/watch.md). */
@@ -439,6 +459,9 @@ export function episodeLabel(season: number, episode: number): string {
 
 export const QUALITY_LABEL: Record<VideoQuality, string> = { full: "1080p", light: "720p" };
 
+/** Whether the qualities differ for a file: one that already fits in 720p comes out that size at either, so there's nothing to pick. */
+export const qualityMatters = (file: VideoFileInfo) => !file.width || !file.height || file.width > 1280 || file.height > 720;
+
 export const VIDEO_PLAYER = {
   saveEveryMs: 10_000,
   /** Seeks within a stream stay this far from its live edge, so the player doesn't stall there. */
@@ -457,6 +480,9 @@ export const VIDEO_PLAYER = {
 /** Where the audio language is remembered, per movie and per show. */
 export const videoLanguageKey = (key: string) => `murmur.videoAudio.${key}`;
 
+/** Where the version picked is remembered, per movie. */
+export const videoVersionKey = (movieId: string) => `murmur.videoVersion.${movieId}`;
+
 /** How far through, as a percentage, for progress bars. */
 export const percentDone = (positionSec: number, durationSec: number) => (durationSec ? Math.min(100, (positionSec / durationSec) * 100) : 0);
 
@@ -473,14 +499,15 @@ export function trackForLanguage(file: VideoFileInfo, language: string | null): 
 let languageNames: Intl.DisplayNames | null = null;
 
 /** "English" for "eng"; the track's title, or its number, when the file doesn't say. */
-export function trackName(t: VideoAudioTrack): string {
+export function trackName(t: Pick<VideoAudioTrack, "language" | "title" | "index">): string {
   let language: string | null = null;
   if (t.language && t.language !== "und") {
     try {
       languageNames ??= new Intl.DisplayNames(undefined, { type: "language" });
       language = languageNames.of(t.language) ?? null;
     } catch {
-      language = t.language.toUpperCase();
+      // The app's engine has no Intl.DisplayNames.
+      language = languageName(t.language) ?? t.language.toUpperCase();
     }
   }
   if (language && t.title && !t.title.toLowerCase().includes(language.toLowerCase())) return `${language}, ${t.title}`;

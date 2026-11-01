@@ -1,7 +1,9 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { playHref } from "./cards";
+import { readVersion } from "./version-memory";
 import type { PlayerItem } from "./video-player";
 
 interface VideoSession {
@@ -42,9 +44,18 @@ export function useVideo(): VideoSession {
   return session;
 }
 
-/** Rendered by the play route: puts its video in the player, which the shell shows full screen there. */
-export function OpenVideo({ item }: { item: PlayerItem }) {
+/**
+ * Rendered by the play route: puts its video in the player, which the shell shows full screen there.
+ * `versions`: a movie opened without naming a version (Continue Watching, say). The server can't
+ * see what this device remembers, so a different pick goes to that version's link instead.
+ */
+export function OpenVideo({ item, versions }: { item: PlayerItem; versions?: string[] }) {
   const { open } = useVideo();
-  useEffect(() => open(item), [open, item]);
+  const router = useRouter();
+  useEffect(() => {
+    const saved = versions ? readVersion(item.progressId) : null;
+    if (saved && saved !== item.videoId && versions?.includes(saved)) router.replace(playHref("movie", item.progressId, saved));
+    else open(item);
+  }, [open, item, versions, router]);
   return null;
 }

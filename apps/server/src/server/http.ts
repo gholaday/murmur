@@ -21,7 +21,7 @@ export class HttpError extends Error {
  * Services created at boot live in Next's instrumentation bundle, which has its own copy
  * of this module, so `instanceof` fails across bundles. Match by shape instead.
  */
-function isHttpError(err: unknown): err is HttpError {
+export function isHttpError(err: unknown): err is HttpError {
   return err instanceof Error && err.name === "HttpError" && typeof (err as HttpError).status === "number";
 }
 

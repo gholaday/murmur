@@ -2,18 +2,18 @@ import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { apiPaths, duration, type MovieDetail, pastStart, resolutionLabel, timeLeft, versionLabel, type VideoQuality, type WatchPoster } from "@murmur/shared/client";
-import { CheckIcon, ChevronIcon, MoreIcon } from "@/components/icons";
+import { CheckIcon, MoreIcon } from "@/components/icons";
 import { PAD, Shelf, useShelfWidth } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { Empty, NestedFallback, SectionTitle, useBottomPad } from "@/components/page";
-import { Card, Row } from "@/components/settings";
+import { Card } from "@/components/settings";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { IconButton, RoundButton, Text } from "@/components/ui";
-import { FileDetails, PosterCard, QualityButton, startMovieDownload, VideoDownloadButton, WatchHero, WidePlayButton } from "@/components/watch";
+import { FileDetails, PickRow, PosterCard, QualityButton, startMovieDownload, SubtitleRow, VideoDownloadButton, WatchHero, WidePlayButton } from "@/components/watch";
 import { WatchActions } from "@/components/watch-edit";
-import { markWatched, openMovie, openVideoPlayer, useMovie } from "@/lib/watch";
+import { markWatched, openMovie, openVideoPlayer, readVideoVersion, saveVideoVersion, subtitleTracks, useMovie } from "@/lib/watch";
 import { fonts, useTheme } from "@/theme";
 
 export default function MovieScreen() {
@@ -52,7 +52,11 @@ function MovieView({ movie }: { movie: MovieDetail }) {
   const bottomPad = useBottomPad();
   const [sheet, setSheet] = useState<null | "menu" | "version">(null);
   const [expanded, setExpanded] = useState(false);
-  const [versionId, setVersionId] = useState(movie.versionList[0]!.id);
+  // Opens on the version you picked last, if it's still there.
+  const [versionId, setVersionId] = useState(() => {
+    const saved = readVideoVersion(movie.id);
+    return movie.versionList.some((v) => v.id === saved) ? saved! : movie.versionList[0]!.id;
+  });
   /** A converted-video quality picked for this viewing; null means your setting. */
   const [quality, setQuality] = useState<VideoQuality | null>(null);
   const version = movie.versionList.find((v) => v.id === versionId) ?? movie.versionList[0]!;
@@ -65,6 +69,7 @@ function MovieView({ movie }: { movie: MovieDetail }) {
   const art = backdropPath ?? posterPath ?? (version.stillHash ? apiPaths.videoStillUrl(version.id, version.stillHash, "small") : null);
   const pills = [movie.year, duration(version.durationSec), resolutionLabel(version.file.width, version.file.height)].filter((p): p is string => !!p);
   const playSub = started ? timeLeft(version.durationSec, position) : duration(version.durationSec);
+  const hasSubtitles = subtitleTracks(version.file).length > 0;
 
   const mark = (done: boolean) => {
     markWatched([{ id: movie.id, durationSec: version.durationSec }], done);
@@ -120,19 +125,13 @@ function MovieView({ movie }: { movie: MovieDetail }) {
           </Pressable>
         ) : null}
 
-        {movie.versionList.length > 1 ? (
-          <Pressable accessibilityRole="button" onPress={() => setSheet("version")} style={({ pressed }) => ({ marginTop: 18, opacity: pressed ? 0.7 : 1 })}>
+        {movie.versionList.length > 1 || hasSubtitles ? (
+          <View style={{ marginTop: 18 }}>
             <Card>
-              <Row title="Version" last>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 }}>
-                  <Text variant="small" numberOfLines={1} style={{ flexShrink: 1 }}>
-                    {versionLabel(version)}
-                  </Text>
-                  <ChevronIcon size={18} color={t.faint} />
-                </View>
-              </Row>
+              {movie.versionList.length > 1 ? <PickRow title="Version" value={versionLabel(version)} last={!hasSubtitles} onPress={() => setSheet("version")} /> : null}
+              {hasSubtitles ? <SubtitleRow file={version.file} memoryKey={movie.id} /> : null}
             </Card>
-          </Pressable>
+          </View>
         ) : null}
 
         {movie.collection?.items.length ? <MovieShelf title={movie.collection.name} items={movie.collection.items} current={movie.id} /> : null}
@@ -151,6 +150,7 @@ function MovieView({ movie }: { movie: MovieDetail }) {
             active={v.id === versionId}
             onPress={() => {
               setVersionId(v.id);
+              saveVideoVersion(movie.id, v.id);
               setSheet(null);
             }}
           />

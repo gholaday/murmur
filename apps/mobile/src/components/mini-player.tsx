@@ -269,9 +269,17 @@ function VideoMiniPlayer() {
             ) : castDevice ? (
               <CastLine device={castDevice} />
             ) : (
-              <Text variant="small" numberOfLines={1} style={{ fontVariant: ["tabular-nums"] }}>
-                {it.label ? `${it.label}, ${left}` : left}
-              </Text>
+              // A long version name gives way, so the time left always shows.
+              <View style={{ flexDirection: "row" }}>
+                {it.label ? (
+                  <Text variant="small" numberOfLines={1} style={{ flexShrink: 1 }}>
+                    {`${it.label}, `}
+                  </Text>
+                ) : null}
+                <Text variant="small" numberOfLines={1} style={{ fontVariant: ["tabular-nums"] }}>
+                  {left}
+                </Text>
+              </View>
             )}
           </View>
         </Pressable>

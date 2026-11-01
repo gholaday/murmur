@@ -15,7 +15,7 @@ These are left out on purpose; each can be added later if it earns its place.
 
 - Clips from a bookmark
 - A yearly listening recap
-- Subtitles for movies and shows: `.srt` and `.vtt` beside the file and text tracks inside it as WebVTT, picked in the player and remembered per show. Image subtitles (PGS, VobSub) would need burning into a converted picture
+- More subtitles: ASS and SSA, image tracks (PGS, VobSub) burned into a converted picture, searching online (OpenSubtitles), timing adjustment, and size and colour settings
 - Faster far seeks in a stream, starting with a shorter first piece
 - Smart music mixes, and trimming silence between songs
 - Smart shelves and collections

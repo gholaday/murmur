@@ -107,6 +107,15 @@ export interface CastDescription {
   image: string | null;
 }
 
+/** A subtitle track the TV can show. */
+export interface CastSubtitle {
+  id: number;
+  name: string;
+  language: string | null;
+  /** An API path to its WebVTT, on the clock of what's playing. */
+  path: string;
+}
+
 const MEDIA_NS = "urn:x-cast:com.google.cast.media";
 
 /**
@@ -119,6 +128,9 @@ export class CastMedia extends EventTarget {
   startAt = 0;
   autoplay = false;
   preload = "auto";
+  /** Every track goes with the load, since the TV can't be given more afterwards; one is switched on later. */
+  subtitles: CastSubtitle[] = [];
+  private activeSubtitle: number | null = null;
   private source = "";
   private wantRate = 1;
   private lastTime = 0;
@@ -222,7 +234,8 @@ export class CastMedia extends EventTarget {
     }
     const about = this.describe();
     const image = about?.image ?? null;
-    const prefixes = [castPrefix(path), ...(image ? [castPrefix(image)] : [])];
+    const subtitles = this.subtitles;
+    const prefixes = [castPrefix(path), ...(image ? [castPrefix(image)] : []), ...(subtitles[0] ? [castPrefix(subtitles[0].path)] : [])];
     void (async () => {
       try {
         const url = await castUrl(path, prefixes);
@@ -238,9 +251,21 @@ export class CastMedia extends EventTarget {
         if (about?.subtitle) meta.subtitle = about.subtitle;
         if (image) meta.images = [new chrome.cast.Image(await castUrl(image, prefixes))];
         info.metadata = meta;
+        info.tracks = await Promise.all(
+          subtitles.map(async (s) => {
+            const track = new chrome.cast.media.Track(s.id, chrome.cast.media.TrackType.TEXT);
+            track.trackContentId = await castUrl(s.path, prefixes);
+            track.trackContentType = "text/vtt";
+            track.subtype = chrome.cast.media.TextTrackType.SUBTITLES;
+            track.name = s.name;
+            if (s.language) track.language = s.language;
+            return track;
+          }),
+        );
         const request = new chrome.cast.media.LoadRequest(info);
         request.autoplay = this.autoplay;
         request.currentTime = this.startAt;
+        request.activeTrackIds = this.activeSubtitle ? [this.activeSubtitle] : [];
         await session.loadMedia(request);
         if (id !== this.loadId) return;
         this.lastTime = this.startAt;
@@ -262,6 +287,13 @@ export class CastMedia extends EventTarget {
   pause() {
     this.autoplay = false;
     if (remote?.player.isMediaLoaded && !remote.player.isPaused) remote.controller.playOrPause();
+  }
+
+  /** Shows a subtitle on the TV by its id, or none. */
+  showSubtitle(id: number | null) {
+    this.activeSubtitle = id;
+    const media = cast.framework.CastContext.getInstance().getCurrentSession()?.getMediaSession();
+    media?.editTracksInfo(new chrome.cast.media.EditTracksInfoRequest(id ? [id] : []), () => undefined, () => undefined);
   }
 
   /** Lets go of the TV's player without stopping it, when casting ends or the item changes hands. */

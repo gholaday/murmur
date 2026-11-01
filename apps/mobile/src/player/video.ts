@@ -2,30 +2,43 @@ import { useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import { useIsFocused } from "expo-router";
 import { createVideoPlayer, type VideoPlayer, type VideoSource } from "expo-video";
+import { File } from "expo-file-system";
 import {
   apiPaths,
   CAST_SUPPORT,
   errorText,
+  loadSubtitleCues,
+  parseCues,
+  pickSubtitle,
   type PlaybackPlan,
   playbackPlan,
   type PlaybackSupport,
   resumeStart,
   type StreamRequest,
   type StreamSessionDto,
+  SUBTITLE_ERROR,
+  SUBTITLE_SLOW_MS,
+  type SubtitleCue,
+  subtitleName,
   trackForLanguage,
   VIDEO_PLAYER,
   type VideoFileInfo,
   type VideoQuality,
+  type VideoSubtitleTrack,
   WATCHED_AT,
 } from "@murmur/shared/client";
+import { toast } from "@/components/toast";
 import { absolute, api, authHeaders } from "@/lib/api";
 import { readVideoQuality, saveVideoQuality } from "@/lib/data";
-import { localVideo, type VideoDownloadSource } from "@/lib/downloads";
+import { localVideo, saveVideoSubtitles, type VideoDownloadSource } from "@/lib/downloads";
 import {
   markPictureUnplayable,
   pictureUnplayable,
   readVideoLanguage,
+  readVideoSubtitle,
   saveVideoLanguage,
+  saveVideoSubtitle,
+  subtitleTracks,
   type WatchTarget,
 } from "@/lib/watch";
 import { CastPlayer, onCastDevice } from "./cast";
@@ -63,7 +76,7 @@ export interface VideoItem {
   durationSec: number;
   /** Where to resume; 0 starts from the beginning. */
   startAt: number;
-  /** The audio language is remembered per movie and per show. */
+  /** The audio and subtitle languages are remembered per movie and per show. */
   memoryKey: string;
   /** A converted-picture quality picked for this viewing; null means your setting. */
   quality: VideoQuality | null;
@@ -86,6 +99,12 @@ export interface VideoState {
   quality: VideoQuality;
   /** A converted stream keeps running dry: the server converts slower than it plays. */
   slow: boolean;
+  /** The subtitle picked, or the one the video opened with; null is off. */
+  subtitle: VideoSubtitleTrack | null;
+  /** The subtitle's lines, once they've arrived. */
+  cues: SubtitleCue[] | null;
+  /** The server is still reading the subtitle out of the file. */
+  subtitleSlow: boolean;
 }
 
 /** A paused stream's playlist is asked for this often, so the server keeps its session. */
@@ -118,6 +137,9 @@ let state: VideoState = {
   track: 0,
   quality: "full",
   slow: false,
+  subtitle: null,
+  cues: null,
+  subtitleSlow: false,
 };
 let position = 0;
 /** Nothing is saved until you've watched or moved, so opening and closing changes nothing. */
@@ -256,6 +278,7 @@ const castVideo = new CastPlayer({
     setPosition(offset + castVideo.position);
     set({ loading: false });
     playingChanged(castVideo.playing);
+    showCastSubtitle();
   },
   time: () => timeUpdate(castVideo.position, castVideo.playing),
   playing: playingChanged,
@@ -363,8 +386,11 @@ async function start(at: number, forceRemux = false, autoplay = true) {
   }
   const plan = playbackPlan(it.file, toTv ? CAST_SUPPORT : phoneSupport(forceTranscode), { track: state.track, forceRemux });
   set({ plan: plan.kind, loading: true, error: null, slow: false });
-  const toCast = (path: string) =>
-    castVideo.load(path, { title: it.title, subtitle: it.sub, image: it.castArt }, Math.max(0, pendingAt - offset), autoplay);
+  // A stream's clock starts where the stream does, and the TV draws the lines by that clock.
+  const toCast = (path: string) => {
+    const subtitles = subtitleTracks(it.file).map((t) => ({ name: subtitleName(t), language: t.language, path: apiPaths.videoSubtitle(it.videoId, t.id, offset) }));
+    castVideo.load(path, { title: it.title, subtitle: it.sub, image: it.castArt, subtitles }, Math.max(0, pendingAt - offset), autoplay);
+  };
   let source: VideoSource;
   if (plan.kind === "direct") {
     offset = 0;
@@ -420,6 +446,83 @@ const trackFor = (file: VideoFileInfo, key: string) => trackForLanguage(file, re
 
 const rememberedTrack = (it: VideoItem) => trackFor(it.file, it.memoryKey);
 
+/** The subtitle a file opens with, for the movie or show (`key`) and the audio track being played. */
+export function subtitleFor(file: VideoFileInfo, key: string, track = trackFor(file, key)): VideoSubtitleTrack | null {
+  return pickSubtitle(subtitleTracks(file), readVideoSubtitle(key), file.audioTracks.find((t) => t.index === track)?.language ?? null);
+}
+
+// ---------- Subtitles ----------
+
+let subtitleStop: AbortController | null = null;
+
+/**
+ * Fetches the lines for the subtitle picked; a saved copy needs no server. The first time, the
+ * server may have to read the whole file for them.
+ */
+async function loadSubtitle() {
+  subtitleStop?.abort();
+  const it = state.item;
+  const subtitle = state.subtitle;
+  set({ cues: null, subtitleSlow: false });
+  showCastSubtitle();
+  if (!it || !subtitle) return;
+  const stop = new AbortController();
+  subtitleStop = stop;
+  const slow = setTimeout(() => !stop.signal.aborted && set({ subtitleSlow: true }), SUBTITLE_SLOW_MS);
+  try {
+    const saved = localVideo(it.videoId)?.subtitles[subtitle.id];
+    const cues = saved
+      ? parseCues(await new File(saved).text())
+      : await loadSubtitleCues(
+          () => fetch(absolute(apiPaths.videoSubtitle(it.videoId, subtitle.id)), { headers: authHeaders(), signal: stop.signal }).catch(() => Promise.reject(new Error(SUBTITLE_ERROR))),
+          stop.signal,
+        );
+    if (stop.signal.aborted) return;
+    set({ cues, subtitleSlow: false });
+    showCastSubtitle();
+  } catch (err) {
+    if (stop.signal.aborted) return;
+    toast.error(err instanceof Error ? err.message : SUBTITLE_ERROR);
+    set({ subtitle: null, subtitleSlow: false });
+  } finally {
+    clearTimeout(slow);
+  }
+}
+
+/** Only once the lines exist, so the TV never asks for a track still being read from the file. */
+function showCastSubtitle() {
+  if (!casting) return;
+  const { item, subtitle, cues } = state;
+  const at = item && subtitle && cues ? subtitleTracks(item.file).findIndex((t) => t.id === subtitle.id) : -1;
+  castVideo.showSubtitle(at < 0 ? null : at + 1);
+}
+
+function showSubtitle(subtitle: VideoSubtitleTrack | null) {
+  if (subtitle?.id === state.subtitle?.id) return;
+  set({ subtitle });
+  void loadSubtitle();
+}
+
+/** Another subtitle, or off: remembered for the movie or show. */
+export function setVideoSubtitle(subtitle: VideoSubtitleTrack | null) {
+  const it = state.item;
+  if (!it) return;
+  saveVideoSubtitle(it.memoryKey, subtitle);
+  showSubtitle(subtitle);
+}
+
+/** A pick on a movie or show page, for its next file to open with; a video of it already on follows. */
+export function rememberVideoSubtitle(key: string, subtitle: VideoSubtitleTrack | null) {
+  saveVideoSubtitle(key, subtitle);
+  const it = state.item;
+  if (it?.memoryKey === key) showSubtitle(subtitleFor(it.file, key, state.track));
+}
+
+export const dismissSubtitleSlow = () => set({ subtitleSlow: false });
+
+/** Where you are in the video right now, for the subtitle line: a time update alone comes half a second late. */
+export const videoPlace = () => (loaded && player ? offset + player.currentTime : position);
+
 /**
  * Where a movie version or episode (`videoId`) downloads from: the file as it is when this phone
  * plays it, else an MP4 the server makes with your audio track and, for a converted picture, the
@@ -456,14 +559,19 @@ export function openVideo(opened: VideoItem) {
   forceTranscode = false;
   retries = 0;
   setPosition(item.startAt);
+  const track = rememberedTrack(item);
   set({
     item,
     playing: false,
     ended: false,
-    track: rememberedTrack(item),
+    track,
     quality: item.quality ?? "full",
+    subtitle: subtitleFor(item.file, item.memoryKey, track),
   });
+  void loadSubtitle();
   void start(resumeStart(item.startAt, item.durationSec));
+  // A download whose subtitles weren't ready gets another go.
+  void saveVideoSubtitles(item.videoId, subtitleTracks(item.file));
 }
 
 /** Ends the video: from the mini player's close button, or when it can't play. */
@@ -479,7 +587,8 @@ export function closeVideo() {
   void player?.replaceAsync(null);
   // Closing while casting stops the TV too.
   castVideo.stop();
-  set({ item: null, playing: false, loading: false, error: null, ended: false, plan: null, slow: false });
+  set({ item: null, playing: false, loading: false, error: null, ended: false, plan: null, slow: false, subtitle: null });
+  void loadSubtitle();
 }
 
 /** Marks it watched and stops; the place saved on the way out would undo that, so it isn't. */
@@ -537,6 +646,8 @@ export function setVideoTrack(index: number) {
   if (!it || index === state.track) return;
   saveVideoLanguage(it.memoryKey, it.file.audioTracks.find((t) => t.index === index)?.language ?? null);
   set({ track: index });
+  // A forced track only fits the language it was made for.
+  if (!state.subtitle || state.subtitle.forced) showSubtitle(subtitleFor(it.file, it.memoryKey, index));
   void start(position);
 }
 
