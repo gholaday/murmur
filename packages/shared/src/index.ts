@@ -111,6 +111,8 @@ export const statsQuerySchema = z.object({
   today: daySchema,
   /** The listener's offset from UTC in minutes (east positive), for counting books finished. */
   tz: z.coerce.number().int().min(-14 * 60).max(14 * 60).default(0),
+  /** An earlier year, with period=year. */
+  year: z.coerce.number().int().min(2000).max(9999).optional(),
 });
 
 export const subscribeSchema = z.object({
@@ -812,6 +814,7 @@ export * from "./settings";
 export * from "./shelves";
 export * from "./similar";
 export * from "./stats";
+export * from "./stats-page";
 export * from "./up-next";
 export * from "./video-addon";
 export * from "./watch";

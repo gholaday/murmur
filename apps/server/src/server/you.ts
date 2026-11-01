@@ -22,8 +22,6 @@ export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<Rea
         is_admin: number;
       }>).map((u) => ({ id: u.id, username: u.username, isAdmin: u.is_admin === 1 }))
     : [];
-  const bookCount = (ctx.sqlite.prepare("SELECT COUNT(*) AS n FROM books WHERE missing_since IS NULL").get() as { n: number }).n;
-  const shows = (ctx.sqlite.prepare("SELECT COUNT(*) AS n FROM subscriptions WHERE user_id = ?").get(user.id) as { n: number }).n;
   const prefs = getPrefs(ctx, user.id);
   const movieFolders = user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "movies") : [];
   const showFolders = user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "shows") : [];
@@ -35,7 +33,6 @@ export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<Rea
     // Only asked once there's something to watch, so a server without videos never waits on the add-on.
     video: movieFolders.length + showFolders.length > 0 ? videoStatus(await videoHealth()) : null,
     watch: watchSummary(ctx),
-    shows,
     tabs: prefs.tabs,
     videoQuality: prefs.videoQuality,
     autoplayNext: prefs.autoplayNext,
@@ -50,7 +47,6 @@ export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<Rea
       devBuild: env.devBuild,
       updates: user.isAdmin ? updateStatus() : null,
       backup: user.isAdmin ? backupStatus() : null,
-      books: bookCount,
       watcher: ctx.watcher.mode(),
     },
   };

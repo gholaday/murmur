@@ -24,7 +24,7 @@ Dark is the default theme; light follows the system or a choice under You > Appe
 | --- | --- | --- | --- |
 | `bg` | `#111214` | `#fafaf8` | Page background; lists scroll on it |
 | `bg-deep` | `#0b0b0d` | `#f1f0ec` | Outside the page column on wide screens |
-| `surface` | `#1c1d21` | `#ffffff` | Raised boxes: settings cards, stats tiles, the Browse row, sheets, inputs |
+| `surface` | `#1c1d21` | `#ffffff` | Raised boxes: settings cards, the Browse row, sheets, inputs |
 | `surface-2` | `#26272c` | `#edece8` | Plain and round buttons, menus, the mini player's base, cover placeholders |
 | `chip` | `#212226` | `#edece8` | Unselected chips, count pills, info pills |
 | `line` | `#222327` | `#e4e3de` | Hairlines under rows, the tab bar's top edge, input borders |
@@ -54,11 +54,11 @@ One family, Plus Jakarta Sans (Google Fonts), at weights 400 to 800. Folder path
 
 | Style | Size / weight | Use |
 | --- | --- | --- |
-| Stats total | 34 / 800, -0.8px | The listening total on You |
+| Stats total | 34 / 800, -0.8px | The total on You and in the ring, and Stats' lead sentence |
 | Page title | 30 / 800, -0.5px | Each tab's title |
 | Book title | 24 / 800, -0.3px | A book's header (32 on wide screens) |
 | Show title | 22 / 800 | Show, album, artist and playlist headers; the full player (30 on wide screens) |
-| Stat value | 22 / 800 | Stats tiles |
+| Stat value | 22 / 800 | All time's total |
 | Section title | 17 / 700 | Section headings, often with a count pill |
 | Sheet title | 17 / 800 | Top of a sheet |
 | List title | 15 / 700 | List row and episode titles |
@@ -124,7 +124,6 @@ Web class names are in `globals.css`; the app has matching components under `app
 - **List row** (`.list-row`, `.queue-row`). Thumbnail, bold title, one muted sub line, trailing controls (length, ⋯ menu, drag handle). The left part is the tap target. The playing row's title is `accent`.
 - **Track list** (`.track-list`, `.chapter-list`). Numbered rows for an album's songs or a book's chapters, numbers right-aligned and tabular, no thumbnails.
 - **Mini player** (`.mini`). Cover, title, sub line, transport and a 2px accent progress line. Books and episodes get skip back 10 / forward 30; songs get previous / next, never speed or skip-seconds.
-- **Segmented tabs** (`Segmented`, `.segmented`). A full-width `surface` track with the chosen tab raised on `surface-2` in bold. For switching a whole screen between two views, like Stats and Settings on You; chips stay for filters and shelves.
 - **Tab bar** (`.tabs`). The four tabs in a fixed order with their icons. Settings live on You, not in the bar.
 - **Sheet** (`Sheet`, `SheetItem` in `web/sheet.tsx`). Rises from the bottom for item menus, one- or two-field forms and lists like the queue. Items are verbs; a danger item goes last. Rows have no lines between them, only a highlight on hover, press or keyboard focus (no focus ring), and the content scrolls without a scrollbar; the one divider sits before admin items. Close it before acting and confirm with a toast. No browser dialogs. A sheet can carry a grey count, a sub line and one action (like Clear) in its title row; the title row stays put and only the content under it scrolls, at most 85% of the screen tall.
 - **Player controls** (`.player-controls`). Books and episodes: previous chapter, skip back, play, skip forward, next chapter. An episode without chapters (most of them) uses the outer pair for previous and next instead: the item before or after it in the queue, then the episode above or below it in its show's list. Songs: Repeat, previous, play, next, Shuffle. Shuffle and Repeat are muted icon buttons that turn `accent` when on; Repeat one adds a small 1 to the loop.
@@ -142,7 +141,12 @@ Web class names are in `globals.css`; the app has matching components under `app
 - **Settings card** (`SettingsCard`, `Setting`, `SettingSub`, `SettingLink`, `SwitchRow`, `StatusDot`; `.card-box`, `.setting`). Rows with a title, optional sub line, and a value with chevron, a switch or a button. One setting per row. A status dot before the title is green when fine, amber when it needs a look. Rescan buttons always carry the refresh icon before the word, and it spins while the scan runs.
 - **Confirm sheet** (`ConfirmSheet`, web and app). Asks before something can't be undone: a title ending in a question mark ("Delete Road trip?"), one line on what happens, then Cancel and the action: danger for removing something, primary for signing out. Used for signing out, removing a user, deleting a playlist and unsubscribing.
 - **Form controls** (`.input`, `.switch`, checkboxes). 44px inputs on `surface` with a `line` border that turns `accent` on focus. Placeholders say what to type ("Playlist name"). Each form has one primary button.
-- **Stats card** (`ListeningStats`, `StatTile`, `.stats-*`). Period chips, then a card: the total and the comparison with the period before, a chart with each bar stacked by kind (books, podcasts, music, Watch in `accent`, `stat-2`, `stat-3`, `stat-4`, books at the bottom; today's label bold), and a 2×2 legend that is also the filter. Picking a kind outlines it in its colour, fades the others, and turns the total, chart, tiles and top cards to that kind, with Show all to go back. Then tiles (Streak, Daily average, one count per kind with its dot; or the picked kind's counts and daily average), then Top this week as two-column cards with a square cover and the kind as a small uppercase label. A hidden tab leaves its kind out everywhere, the total included; with only books left there's no legend. Your library follows, three tiles to a row.
+- **Stats** (`StatsCard`, `StatsPage`, `.stats-*`; the rules are in `stats-page.ts` in shared). On You, one card: this week's total and comparison, a chevron and a sparkline. The card opens Stats, a nested screen with Week, Month, Year and All time chips, each fading in.
+  - **Sparkline** (`.stats-spark`). One `accent` line with a faint fill and a dot at today, and a `track` line for the days to come. Under it (`.stats-axis`), the first and last day, and Month's 15th, in small `muted` text, and Today in `text`, which takes the place of any label it would crowd. Month's is a rolling average.
+  - **Sentences.** The lead is Stats total type with the main kind in its colour. Week's rows are the day, a cover, what you played most and the time, with Today in `accent`. Month's are a cover, a sentence in 16 / 700 and a chevron. Rows part with `line` hairlines.
+  - **Ring** (`.stats-ring`). A spoke per day, 2.2 wide with round caps, in `accent`, `stat-2`, `stat-3` or `stat-4` by the week's main kind; `track` stubs for days with nothing played and days to come; a `text` line at today; the total in the middle and Jan, Apr, Jul and Oct around it, up to 440 wide. Year has the legend below it, which is also the filter: picking a kind outlines it in its colour, fades the others and turns the ring, total and Top to that kind. All time has year tiles below it instead (`.stats-years`): 44 high, sharing the row and scrolling sideways once there are too many to fit, with the picked one in `accent`.
+  - **Top** (`.stats-top-strip`). The period's top things as square covers with the kind as a small uppercase label, scrolling sideways on a phone and a grid with room.
+  - A hidden tab leaves its kind out everywhere, the total included; with only books left there's no legend. With no listening at all, the screen is just its empty state.
 - **Episode rows** (`.episode-row`). A 16:9 still with a progress bar, then the title over "S1 E2, 31m" in a smaller muted line, both sitting on the still's bottom edge, and a watched toggle on the right. The video player's Next episodes list uses the same row and scrolls with a thin bar and no arrows; on short windows the picture shrinks so a row and a half still show.
 - **Browse row** (`.browse-row`). A full-width `surface` row with an icon tile, title, sub line, optional "N new" pill and chevron, leading to the rest of a catalogue. One per screen.
 - **Empty state** (`EmptyState`; `.empty`, `.music-empty`). One bold line and one muted sentence, no illustrations, no blame.

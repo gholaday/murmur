@@ -13,6 +13,8 @@ export const STATS_PERIODS: StatsPeriod[] = ["week", "month", "year", "all"];
 export const COUNTS_AS_LISTENED_SEC = 60;
 /** A song counts as played after this much of it. */
 export const COUNTS_AS_SONG_SEC = 30;
+/** How many things a period's top list shows. */
+export const STATS_TOP_COUNT: Record<StatsPeriod, number> = { week: 10, month: 15, year: 25, all: 25 };
 
 /** The four kinds the stats split time into: books, podcasts ("episode"), music and Watch. */
 export type StatsKind = "book" | "episode" | "music" | "watch";
@@ -153,6 +155,18 @@ export function streakDays(listenedDays: ReadonlySet<string>, today: string): nu
   return n;
 }
 
+/** The most days in a row with some listening. */
+export function longestStreak(listenedDays: ReadonlySet<string>): number {
+  let best = 0;
+  for (const day of listenedDays) {
+    if (listenedDays.has(addDays(day, -1))) continue;
+    let n = 1;
+    while (listenedDays.has(addDays(day, n))) n++;
+    best = Math.max(best, n);
+  }
+  return best;
+}
+
 // ---------- What the server sends ----------
 
 export interface StatsTop {
@@ -169,14 +183,14 @@ export interface StatsTop {
   plays?: number;
 }
 
-/** The days of the period so far: up to today, or the whole period once it's over. */
-export function daysSoFar(stats: Pick<StatsDto, "from" | "to">, today: string): number {
-  const end = today < stats.to ? today : stats.to;
-  return Math.max(1, daysBetween(stats.from, end) + 1);
+/** A book finished in the period. */
+export interface StatsFinished {
+  id: string;
+  title: string;
+  coverHash: string | null;
+  /** First listen to last, counting both, or null if it was started before stats began. */
+  days: number | null;
 }
-
-/** Time per day over the period so far, for the Daily average tile. */
-export const dailyAverage = (sec: number, stats: Pick<StatsDto, "from" | "to">, today: string): number => Math.round(sec / daysSoFar(stats, today));
 
 /** Which kind of time a top item belongs to. */
 export const statsTopKind = (t: StatsTop): StatsKind =>
@@ -206,11 +220,19 @@ export interface StatsDto {
   moviesWatched: number;
   /** Time saved by listening faster than 1x. No longer shown; kept for older apps. */
   savedSec: number;
-  /**
-   * What you spent longest on: up to two books, two podcasts, the top album and song, and the top
-   * TV show and movie, each kind longest first.
-   */
+  /** What you spent longest on: up to the period's `STATS_TOP_COUNT` books, podcasts, albums, songs and videos, each kind longest first. */
   top: StatsTop[];
+  /** Your first listening day ever. */
+  firstDay?: string | null;
+  longestStreak?: number;
+  /** Books finished in the period, latest first. */
+  finished?: StatsFinished[];
+  /** A year only: each day with any listening, for the ring. */
+  days?: Array<{ day: string; split: StatsSplit }>;
+  /** A week only: what you played most on each day so far, per kind. */
+  dayTops?: Array<{ day: string; top: StatsTop[] }>;
+  /** All time only: each year's time, earliest first. */
+  years?: Array<{ year: number; split: StatsSplit }>;
 }
 
 // ---------- What the stats say, the same on the web and in the app ----------
@@ -237,13 +259,6 @@ export function statsChange(now: number, before: number | null, last: string): s
   return `${duration(Math.abs(diff))} ${diff > 0 ? "more" : "less"} than ${last}`;
 }
 
-/** The bar for today, or the month or year it's in. */
-export function statsCurrentKey(period: StatsPeriod, today: string): string {
-  if (period === "year") return today.slice(0, 7);
-  if (period === "all") return today.slice(0, 4);
-  return today;
-}
-
 /** The kinds the stats show: a hidden tab leaves its kind out, the total included. */
 export function statsKindsShown(tabs: { podcasts: boolean; music?: boolean; watch?: boolean }): StatsKind[] {
   return ["book", ...(tabs.podcasts ? (["episode"] as const) : []), ...(tabs.music ? (["music"] as const) : []), ...(tabs.watch ? (["watch"] as const) : [])];
@@ -255,22 +270,26 @@ export const statsTotalLabel = (picked: StatsKind | null, period: StatsPeriod): 
   return picked ? `${STATS_KIND_LABEL[picked]} ${p.this.toLowerCase()}` : p.this;
 };
 
-/** The chart's label for screen readers: one bar per day, per month for a year, per year for all time. */
-export const statsBarsLabel = (period: StatsPeriod): string => `Time per ${period === "year" ? "month" : period === "all" ? "year" : "day"}`;
-
-/** All kinds: the top item of each, the album card naming the top song. One kind: its top items. */
-export function statsTopItems(s: StatsDto, picked: StatsKind | null, kinds: StatsKind[]): { title: string; items: Array<{ top: StatsTop; sub: string }> } {
+/**
+ * All kinds: the top of each kind, labelled as such, then the rest longest first, leaving songs out
+ * as the top song's album card names it. One kind: its own longest first, songs included.
+ */
+export function statsTopItems(s: StatsDto, picked: StatsKind | null, kinds: StatsKind[], year?: number): { title: string; items: Array<{ top: StatsTop; label: string; sub: string }> } {
   const mine = s.top.filter((t) => kinds.includes(statsTopKind(t)));
   const song = mine.find((t) => t.kind === "song");
-  const items = picked ? mine.filter((t) => statsTopKind(t) === picked) : kinds.flatMap((k) => mine.find((t) => statsTopKind(t) === k && t.kind !== "song") ?? []);
+  const ranked = mine.filter((t) => (picked ? statsTopKind(t) === picked : t.kind !== "song")).sort((a, b) => b.sec - a.sec);
+  const leads = picked ? [] : kinds.flatMap((k) => ranked.find((t) => statsTopKind(t) === k) ?? []);
+  const items = [...leads, ...ranked.filter((t) => !leads.includes(t))].slice(0, STATS_TOP_COUNT[s.period]);
   const sub = (t: StatsTop) => {
     if (t.kind === "song") return t.plays ? plural(t.plays, "play") : duration(t.sec);
-    if (t.kind === "album" && !picked && song) return song.plays ? `${song.title}, ${plural(song.plays, "play")}` : song.title;
+    if (t.kind === "album" && !picked && song?.albumId === t.id) return song.plays ? `${song.title}, ${plural(song.plays, "play")}` : song.title;
     return duration(t.sec);
   };
   const p = STATS_PERIOD_CHOICES.find((x) => x.id === s.period)!;
   const what = picked === "watch" ? "Most watched" : picked ? "Most played" : "Top";
-  return { title: `${what} ${s.period === "all" ? "of all time" : p.this.toLowerCase()}`, items: items.map((top) => ({ top, sub: sub(top) })) };
+  const when = year ? `of ${year}` : s.period === "all" ? "of all time" : p.this.toLowerCase();
+  const label = (t: StatsTop) => (leads.includes(t) ? `Top ${STATS_TOP_LABEL[t.kind].toLowerCase()}` : STATS_TOP_LABEL[t.kind]);
+  return { title: `${what} ${when}`, items: items.map((top) => ({ top, label: label(top), sub: sub(top) })) };
 }
 
 /** What a top item opens: a song opens its album. */
@@ -287,44 +306,6 @@ export function statsTopCover(t: StatsTop): string | null {
   if (kind === "movie") return apiPaths.movieArtUrl(id, "poster", t.coverHash, "small");
   if (kind === "tvshow") return apiPaths.showArtUrl(id, "poster", t.coverHash, "small");
   return apiPaths.albumCoverUrl(id, t.coverHash, 600);
-}
-
-export interface StatsTile {
-  key: string;
-  value: string;
-  label: string;
-  /** Set on a count tile when every kind shows, for its colour dot. */
-  kind?: StatsKind;
-}
-
-/** All kinds: streak, daily average and a count for each kind. One kind: its counts and its daily average. */
-export function statsTiles(s: StatsDto, picked: StatsKind | null, kinds: StatsKind[], today: string): StatsTile[] {
-  const watched = [s.showEpisodesWatched ? plural(s.showEpisodesWatched, "episode") : null, s.moviesWatched ? plural(s.moviesWatched, "movie") : null]
-    .filter(Boolean)
-    .join(", ");
-  const counts: Record<StatsKind, StatsTile[]> = {
-    book: [{ key: "books", value: plural(s.finishedBooks, "book"), label: "Finished" }],
-    episode: [{ key: "podcasts", value: plural(s.episodesPlayed, "podcast"), label: "Played" }],
-    music: [
-      { key: "songs", value: plural(s.songsPlayed, "song"), label: "Played" },
-      ...(picked === "music" ? [{ key: "albums", value: plural(s.albumsPlayed, "album"), label: "Played from" }] : []),
-    ],
-    watch:
-      picked === "watch"
-        ? [
-            { key: "episodes", value: plural(s.showEpisodesWatched, "episode"), label: "Watched" },
-            { key: "movies", value: plural(s.moviesWatched, "movie"), label: "Watched" },
-          ]
-        : [{ key: "watched", value: watched || "0 episodes", label: "Watched" }],
-  };
-  if (picked) {
-    return [...counts[picked], { key: "avg", value: duration(dailyAverage(statsSum(s.split, [picked]), s, today)) || "0m", label: "Daily average" }];
-  }
-  return [
-    { key: "streak", value: plural(s.streakDays, "day"), label: "Streak" },
-    { key: "avg", value: duration(dailyAverage(statsSum(s.split, kinds), s, today)) || "0m", label: "Daily average" },
-    ...(kinds.length > 1 ? kinds.flatMap((k) => counts[k].map((t) => ({ ...t, kind: k }))) : (counts[kinds[0]!] ?? [])),
-  ];
 }
 
 // ---------- Recording on the device ----------

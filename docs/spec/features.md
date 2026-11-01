@@ -48,8 +48,12 @@ Optional. More in [Watch](watch.md).
 
 ## Listening stats
 
-- On You: time listened and watched this week, month, year or all time against the period before, a chart stacked by books, podcasts, music and Watch, your streak and daily average, a count for each kind, and what you played and watched most. Picking a kind in the legend shows only that kind
-- Kinds whose tab is hidden are left out of the stats altogether, the total included
+- On You, a card with this week's time, how it compares and a line of its days. It opens Stats
+- Stats has Week, Month, Year and All time, each ending with the top things you played and watched: 10 for a week, 15 for a month, and 25 for a year or all time. The top book, podcast, album and video come first, labelled Top book and so on, however little of it you played, then everything else longest first. Picking a kind shows only that kind, longest first. Songs only join them with Music picked, since an album already counts its songs
+- Week and Month lead with a sentence and that line, which stops at today, with the first and last day, the 15th on Month, and Today under it, and Month's is averaged so zero days don't spike. Week then lists each day so far with what you played most. Month has short sentences on what you finished and played most and your streak, each opening what it names
+- Year is a ring with a spoke for every day, by date: longer for more time, coloured by that week's main kind, so one close day doesn't flip colour. Days with nothing played are faint stubs. Picking a kind below it shows only that kind. Your first weeks say how far in you are
+- All time shows the total and one year's ring, with a row of years to pick from, which also changes what played most. In your first calendar year there's nothing to pick, so it uses sentences like Month
+- Kinds whose tab is hidden are left out of the stats altogether: the total, every sentence and the ring's colours
 - Podcasts, Music and Watch can each be shown or hidden per person under Tabs (Music and Watch start hidden); a hidden one's tab and its parts of You go away
 
 ## Player

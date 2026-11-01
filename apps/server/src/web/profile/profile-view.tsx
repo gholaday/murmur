@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   apiPaths,
@@ -36,12 +36,11 @@ import { AD_MODES, adPrefsStore, useAdPrefs } from "../player/ad-prefs";
 import { usePlayer } from "../player/engine";
 import { ConfirmSheet, Sheet } from "../sheet";
 import { applyTheme, currentTheme } from "../theme";
-import { BackRow, Chip, Chips, Segmented, Setting, SettingLink, SettingsCard, SettingSub, StatTile, SwitchRow } from "../ui";
+import { BackRow, Chip, Chips, Setting, SettingLink, SettingsCard, SettingSub, SwitchRow } from "../ui";
 import { SECTIONS, type SettingsSection } from "./sections";
-import { ListeningStats } from "./stats";
+import { StatsCard } from "./stats";
 
 interface ServerInfo extends ServerVersionDto {
-  books: number;
   watcher: "events" | "polling" | "periodic-only";
 }
 
@@ -54,7 +53,6 @@ export function ProfileView({
   cache,
   libraryAdmin,
   server,
-  shows,
   tabs,
   videoQuality,
   autoplayNext,
@@ -74,7 +72,6 @@ export function ProfileView({
   /** The video add-on, for admins once there are movie or show folders. */
   video: VideoStatus | null;
   music: MusicSummaryDto;
-  shows: number;
   tabs: UserPrefs["tabs"];
   videoQuality: UserPrefs["videoQuality"];
   autoplayNext: boolean;
@@ -88,12 +85,8 @@ export function ProfileView({
   server: ServerInfo;
 }) {
   const router = useRouter();
-  const params = useSearchParams();
   const player = usePlayer();
   const [theme, setTheme] = useState<ThemeChoice>("system");
-  const view = params.get("tab") === "settings" ? "settings" : "stats";
-  // Same as the library tabs: no server round trip, and Next keeps useSearchParams in step.
-  const show = (next: "stats" | "settings") => window.history.pushState(null, "", next === "stats" ? "/you" : "/you?tab=settings");
   useEffect(() => setTheme(currentTheme()), []);
 
   if (section) {
@@ -144,7 +137,6 @@ export function ProfileView({
       </>
     );
   }
-  const statsKinds = statsKindsShown(tabs);
 
   const values: Partial<Record<SettingsSection, string | null>> = {
     account: user.username,
@@ -159,41 +151,19 @@ export function ProfileView({
         <h1 className="page-title">You</h1>
       </div>
 
-      <Segmented
-        label="You view"
-        options={[
-          { id: "stats", label: "Stats" },
-          { id: "settings", label: "Settings" },
-        ]}
-        value={view}
-        onChange={show}
-      />
+      <section className="section">
+        <StatsCard kinds={statsKindsShown(tabs)} />
+      </section>
 
-      {view === "stats" ? (
-        <>
-          <ListeningStats kinds={statsKinds} />
-
-          <section className="section">
-            <h2 className="section-title">Your library</h2>
-            <div className="stats-tiles library-tiles">
-              <StatTile value={server.books} label={server.books === 1 ? "Book" : "Books"} />
-              {statsKinds.includes("episode") ? <StatTile value={shows} label={shows === 1 ? "Podcast" : "Podcasts"} /> : null}
-              {statsKinds.includes("music") ? <StatTile value={music.mine.albums} label={music.mine.albums === 1 ? "Album" : "Albums"} /> : null}
-              {statsKinds.includes("watch") && watch.movies ? <StatTile value={watch.movies} label={watch.movies === 1 ? "Movie" : "Movies"} /> : null}
-              {statsKinds.includes("watch") && watch.shows ? <StatTile value={watch.shows} label={watch.shows === 1 ? "Show" : "Shows"} /> : null}
-            </div>
-          </section>
-        </>
-      ) : (
-        <section className="section">
-          <SettingsCard>
-            {/* Library holds only Podcasts for everyone but admins, so it goes when that tab is hidden. */}
-            {SECTIONS.filter((s) => (user.isAdmin || !s.admin) && (s.id !== "podcasts" || tabs.podcasts || user.isAdmin)).map((s) => (
-              <SettingLink key={s.id} title={s.title} value={values[s.id]} href={`/you/${s.id}`} />
-            ))}
-          </SettingsCard>
-        </section>
-      )}
+      <section className="section">
+        <h2 className="section-title">Settings</h2>
+        <SettingsCard>
+          {/* Library holds only Podcasts for everyone but admins, so it goes when that tab is hidden. */}
+          {SECTIONS.filter((s) => (user.isAdmin || !s.admin) && (s.id !== "podcasts" || tabs.podcasts || user.isAdmin)).map((s) => (
+            <SettingLink key={s.id} title={s.title} value={values[s.id]} href={`/you/${s.id}`} />
+          ))}
+        </SettingsCard>
+      </section>
     </>
   );
 }

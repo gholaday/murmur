@@ -16,5 +16,6 @@ export * from "./settings";
 export * from "./shelves";
 export * from "./similar";
 export * from "./stats";
+export * from "./stats-page";
 export * from "./up-next";
 export * from "./watch";

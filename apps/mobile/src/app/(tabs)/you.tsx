@@ -1,32 +1,22 @@
-import { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { THEME_CHOICES } from "@murmur/shared/client";
 import { DownloadIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
-import { PageTitle, useTopInset } from "@/components/page";
+import { PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { Card, useServerVersion, useUsers } from "@/components/settings";
 import { NavRow } from "@/components/settings-page";
-import { LibraryTiles, ListeningStats, StatsBoundary } from "@/components/stats";
-import { CardLink, Segmented } from "@/components/ui";
+import { StatsBoundary, StatsCard } from "@/components/stats";
+import { CardLink } from "@/components/ui";
 import { formatBytes, useDownloads } from "@/lib/downloads";
 import { useSession } from "@/lib/session";
 import { useTheme, useThemeMode } from "@/theme";
 
-const VIEWS = [
-  { id: "stats", label: "Stats" },
-  { id: "settings", label: "Settings" },
-] as const;
-
-/**
- * Downloads at the top, then Stats (your listening and library) or Settings (a row for each
- * group). The tab stays mounted, so the one you're on is kept when you come back.
- */
+/** Downloads at the top, then this week's stats card and Settings (a row for each group). */
 export default function You() {
   const t = useTheme();
   const top = useTopInset();
   const user = useSession().user;
-  const [view, setView] = useState<(typeof VIEWS)[number]["id"]>("stats");
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -37,20 +27,14 @@ export default function You() {
           <DownloadsRow />
         </View>
 
-        <Segmented options={VIEWS} value={view} onChange={setView} style={{ marginTop: 16 }} />
+        <View style={{ marginTop: 16 }}>
+          <StatsBoundary>
+            <StatsCard />
+          </StatsBoundary>
+        </View>
 
-        {view === "stats" ? (
-          <View style={{ marginTop: 24 }}>
-            <StatsBoundary>
-              <ListeningStats />
-              <LibraryTiles />
-            </StatsBoundary>
-          </View>
-        ) : (
-          <View style={{ marginTop: 16 }}>
-            <SettingsRows admin={!!user?.isAdmin} username={user?.username} />
-          </View>
-        )}
+        <SectionTitle title="Settings" />
+        <SettingsRows admin={!!user?.isAdmin} username={user?.username} />
       </ScrollView>
     </View>
   );

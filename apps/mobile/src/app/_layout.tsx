@@ -76,6 +76,7 @@ function Navigation() {
           <Stack.Screen name="users" />
           <Stack.Screen name="tab-settings" />
           <Stack.Screen name="downloads" />
+          <Stack.Screen name="stats" />
           {/* See-through, so the screen below shows as the player is pulled down to minimise it. */}
           <Stack.Screen
             name="player"

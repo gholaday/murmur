@@ -305,11 +305,6 @@ select.input { appearance: none; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-/* Full-width tabs that switch a whole screen (Segmented). */
-.segmented { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface); }
-.segmented button { flex: 1; height: 40px; border-radius: 9px; font-size: 14px; font-weight: 600; color: var(--muted); transition: background 0.15s, color 0.15s; }
-.segmented button[aria-selected="true"] { background: var(--surface-2); color: var(--text); font-weight: 700; }
-.segmented button:hover:not([aria-selected="true"]) { color: var(--text); }
 .count-pill { background: var(--chip); color: var(--muted); margin-left: 8px; vertical-align: 3px; }
 .tab-count, .badge-count, .episode-more { background: var(--accent); color: var(--on-accent); }
 .section-link { font-size: 12px; font-weight: 700; color: var(--accent); }
@@ -1282,20 +1277,56 @@ a.episode-show:hover { color: var(--accent); }
 .stats-total { font-size: 34px; font-weight: 800; letter-spacing: -0.8px; }
 .stats-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .stats-head-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-/* The chart stacks each bar by kind, books at the bottom; with one kind picked it shows only that one. */
-.stats-bars { display: grid; gap: 8px; height: 138px; align-items: end; }
-.stats-bar { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; min-width: 0; height: 100%; }
-.stats-bar-stack { width: 100%; max-width: 56px; display: flex; flex-direction: column-reverse; gap: 2px; border-radius: 6px; overflow: hidden; }
-.stats-bar-empty { height: 3px; background: var(--track); }
-.stats-bar-label { font-size: 11px; font-weight: 600; color: var(--muted); height: 14px; white-space: nowrap; }
-.stats-bar-label.now { color: var(--text); font-weight: 800; }
+.stats-entry { color: var(--text); text-decoration: none; }
+.stats-entry .stats-head > svg { flex-shrink: 0; color: var(--muted); }
+.stats-entry .stats-total { min-height: 43px; }
+.stats-entry .muted { min-height: 16px; }
+.stats-view { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; animation: fade-in 0.2s ease-out; }
+.stats-headline { display: flex; flex-direction: column; gap: 6px; }
+.stats-sentence { margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.8px; line-height: 1.2; }
+.stats-sentence-sub { margin: 0; font-size: 15px; color: var(--muted); }
+.stats-spark { display: block; width: 100%; aspect-ratio: 358 / 64; overflow: visible; }
+.stats-spark-track { stroke: var(--track); stroke-width: 2; stroke-linecap: round; }
+.stats-spark-area { fill: var(--accent); fill-opacity: 0.12; }
+.stats-spark-line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.stats-spark-dot { fill: var(--accent); stroke: var(--bg); stroke-width: 2; }
+.stats-entry .stats-spark-dot { stroke: var(--surface); }
+.stats-axis { position: relative; height: 14px; margin-top: 6px; font-size: 11px; font-weight: 600; color: var(--muted); }
+.stats-axis span { position: absolute; top: 0; white-space: nowrap; }
+.stats-axis .today { color: var(--text); }
+/* Sentences and days: each row names one thing and opens it. */
+.stats-lines { display: flex; flex-direction: column; }
+.stats-line, .stats-day { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--line); color: var(--text); text-decoration: none; }
+.stats-line { min-height: 56px; padding: 12px 0; }
+.stats-line > svg { flex-shrink: 0; color: var(--muted); }
+.stats-line-text { flex: 1; min-width: 0; font-size: 16px; font-weight: 700; line-height: 1.35; }
+.stats-line-cover { width: 48px; height: 48px; flex-shrink: 0; border-radius: 8px; object-fit: cover; }
+.stats-day { height: 60px; }
+.stats-day-label { width: 42px; flex-shrink: 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+.stats-day-label.now { color: var(--accent); }
+.stats-day-cover { width: 40px; height: 40px; flex-shrink: 0; border-radius: 6px; object-fit: cover; }
+.stats-day-title { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stats-line:is(a):hover .stats-line-text, .stats-day:hover .stats-day-title { color: var(--accent); }
+/* The ring: one spoke per day. A stub is a day with nothing played, or one still to come. */
+.stats-ring { position: relative; width: 100%; max-width: 440px; aspect-ratio: 1; margin: 0 auto; }
+.stats-ring svg { display: block; width: 100%; height: 100%; }
+.stats-ring-stub, .stats-ring-spoke { fill: none; stroke-width: 2.2; stroke-linecap: round; }
+.stats-ring-stub { stroke: var(--track); stroke-width: 2; }
+.stats-ring-now { stroke: var(--text); stroke-width: 2; stroke-linecap: round; }
+.stats-ring-middle { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-align: center; pointer-events: none; }
+.stats-ring-month { position: absolute; font-size: 11px; font-weight: 600; color: var(--muted); }
+.stats-ring-month.jan { top: 0; left: 50%; transform: translateX(-50%); }
+.stats-ring-month.apr { right: 0; top: 50%; transform: translateY(-50%); }
+.stats-ring-month.jul { bottom: 0; left: 50%; transform: translateX(-50%); }
+.stats-ring-month.oct { left: 0; top: 50%; transform: translateY(-50%); }
+.stats-alltime { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 /* The legend is also the filter: a kind picked is outlined in its colour, the others fade. */
-.stats-legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.stats-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
 .stats-legend-item {
   display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 12px;
-  background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: opacity 160ms ease, background 160ms ease;
+  background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: opacity 160ms ease, background 160ms ease;
 }
-.stats-legend-item:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.stats-legend-item:hover { background: var(--surface-2); }
 .stats-legend-item.on { background: var(--surface-2); box-shadow: inset 0 0 0 1.5px var(--kind); }
 .stats-legend-item.dim { opacity: 0.5; }
 .stats-legend-item .stats-dot { background: var(--kind); }
@@ -1303,13 +1334,18 @@ a.episode-show:hover { color: var(--accent); }
 .stats-legend-time { font-size: 13px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .stats-dot { width: 10px; height: 10px; border-radius: 5px; flex-shrink: 0; }
 .stats-dot.small { width: 8px; height: 8px; border-radius: 4px; }
-.stats-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
-.library-tiles { margin-top: 0; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
-.stats-tile { background: var(--surface); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 4px; }
-.stats-tile-value { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.stats-tile-label { display: inline-flex; align-items: center; gap: 6px; }
-/* Top items: a card per kind, or the picked kind's top items. */
-.stats-top-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px 12px; }
+.stats-years { display: flex; gap: 8px; margin-right: -16px; padding-right: 16px; overflow-x: auto; scrollbar-width: none; }
+.stats-year { flex: 1 0 72px; height: 44px; border-radius: 10px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stats-year[aria-checked="true"] { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+.stats-alltime-total { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* Top items: a card per kind, or the picked kind's top items. Sideways on a phone, a grid with room. */
+.stats-top { margin-top: 8px; }
+.stats-top-strip { display: flex; gap: 12px; margin-right: -16px; padding-right: 16px; overflow-x: auto; scrollbar-width: none; }
+.stats-top-strip .stats-top-card { width: 124px; flex-shrink: 0; }
+@media (min-width: 700px) {
+  .stats-top-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px 12px; margin-right: 0; padding-right: 0; overflow: visible; }
+  .stats-top-strip .stats-top-card { width: auto; }
+}
 .stats-top-card { display: flex; flex-direction: column; gap: 2px; min-width: 0; color: var(--text); text-decoration: none; }
 .stats-top-card:hover .stats-top-title { color: var(--accent); }
 .stats-top-cover { width: 100%; aspect-ratio: 1; border-radius: 8px; margin-bottom: 6px; object-fit: cover; }
