@@ -12,6 +12,7 @@ import {
   errorText,
   gigabytes,
   type HealthDto,
+  isNewer,
   KEEP_PER_SHOW_OPTIONS,
   type LibraryAdminDto,
   type LibraryFolderDto,
@@ -52,6 +53,7 @@ export function Row({
   stacked,
   last,
   dot,
+  pill,
   children,
 }: {
   title: string;
@@ -60,11 +62,18 @@ export function Row({
   stacked?: boolean;
   /** A status dot's colour, shown before the title. */
   dot?: string | null;
+  /** A short note in a pill, after the sub line. */
+  pill?: string | null;
   /** The last row in a card has no divider under it. */
   last?: boolean;
   children?: React.ReactNode;
 }) {
   const t = useTheme();
+  const subLine = sub ? (
+    <Text variant="small" style={subDanger ? { color: t.danger } : undefined}>
+      {sub}
+    </Text>
+  ) : null;
   return (
     <View
       style={{
@@ -84,11 +93,18 @@ export function Row({
             {title}
           </Text>
         </View>
-        {sub ? (
-          <Text variant="small" style={subDanger ? { color: t.danger } : undefined}>
-            {sub}
-          </Text>
-        ) : null}
+        {pill ? (
+          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            {subLine}
+            <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: t.surface2 }}>
+              <Text variant="small" style={{ color: t.text }}>
+                {pill}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          subLine
+        )}
       </View>
       {children}
     </View>
@@ -308,7 +324,7 @@ export function VersionNotice() {
 
 /**
  * The server's version, and for admins whether a newer release is out; then this app's own
- * version, so an old APK is easy to spot.
+ * version, with the latest build on offer when the server is ahead of it.
  */
 export function ServerSection() {
   const query = useServerVersion();
@@ -317,6 +333,8 @@ export function ServerSection() {
   const update = v?.updates?.update;
   // Admins only: the server leaves it null for everyone else.
   const backup = v?.backup ? backupLine(v.backup) : null;
+  const appVersion = Constants.expoConfig?.version ?? "unknown";
+  const appBehind = !!v && isNewer(v.version, Constants.expoConfig?.version ?? "");
   return (
     <Card>
       {v && status ? (
@@ -331,7 +349,9 @@ export function ServerSection() {
         </Skeleton>
       )}
       {backup ? <Row title="Backups" sub={backup.sub} dot={backup.dot === "warn" ? WARN_DOT : OK_DOT} subDanger={!!v?.backup?.failed} /> : null}
-      <Row title={APP_NAME} sub={`Version ${Constants.expoConfig?.version ?? "unknown"}`} last />
+      <Row title={APP_NAME} sub={`Version ${appVersion}`} pill={appBehind ? `${v.version} available` : null} dot={appBehind ? WARN_DOT : null} last>
+        {appBehind ? <SmallButton label="Download" onPress={() => void Linking.openURL(LATEST_APK)} /> : null}
+      </Row>
     </Card>
   );
 }

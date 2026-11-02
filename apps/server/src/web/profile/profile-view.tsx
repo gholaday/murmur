@@ -59,12 +59,15 @@ export function ProfileView({
   musicFolders,
   movieFolders,
   showFolders,
+  books,
   music,
   watch,
   video,
 }: {
   /** One settings group on its own page; none is You itself. */
   section?: SettingsSection;
+  /** How many books are on the server. */
+  books: number;
   musicFolders: LibraryFolderDto[];
   movieFolders: LibraryFolderDto[];
   showFolders: LibraryFolderDto[];
@@ -131,7 +134,7 @@ export function ProfileView({
           ) : section === "users" ? (
             <UsersCard me={user} users={users} onChanged={refresh} />
           ) : (
-            <TabsCard tabs={tabs} music={music} watch={watch} onSaved={refresh} />
+            <TabsCard tabs={tabs} books={books} music={music} watch={watch} onSaved={refresh} />
           )}
         </div>
       </>
@@ -250,11 +253,13 @@ function PlaybackCard({
 /** Which optional tabs show, saved to your account so every device matches. */
 function TabsCard({
   tabs,
+  books,
   music,
   watch,
   onSaved,
 }: {
   tabs: UserPrefs["tabs"];
+  books: number;
   music: MusicSummaryDto;
   watch: WatchSummaryDto;
   onSaved: () => void;
@@ -270,6 +275,13 @@ function TabsCard({
   };
   return (
     <SettingsCard>
+      <SwitchRow
+        title="Books"
+        sub={books ? `${plural(books, "book")} on your server` : undefined}
+        label="Books tab"
+        checked={shown.books !== false}
+        onChange={(on) => toggle("books", on)}
+      />
       <SwitchRow title="Podcasts" label="Podcasts tab" checked={shown.podcasts} onChange={(on) => toggle("podcasts", on)} />
       <SwitchRow
         title="Music"

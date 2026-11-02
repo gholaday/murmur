@@ -36,9 +36,9 @@ export function Shell({
   useLiveChanges();
   // Looks for Chromecasts; Chromium browsers only, and nothing shows until one is found.
   useEffect(() => startCast(), []);
-  // Podcasts, Music and Watch show as you've set them in You > Tabs.
+  // Everything but You shows as you've set it in You > Tabs.
   const shown = TABS.filter(
-    (t) => (t.href !== "/podcasts" || tabs.podcasts) && (t.href !== "/music" || tabs.music) && (t.href !== "/watch" || tabs.watch),
+    (t) => (t.href !== "/" || tabs.books !== false) && (t.href !== "/podcasts" || tabs.podcasts) && (t.href !== "/music" || tabs.music) && (t.href !== "/watch" || tabs.watch),
   );
   const video = useVideo();
   // The video player has the whole screen on its own page, and is the mini player everywhere else.

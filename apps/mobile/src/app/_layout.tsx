@@ -5,6 +5,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { LoadScreen } from "@/components/load-screen";
 import { Toaster } from "@/components/toast";
 // Answers Android Auto's browse requests (Music) from the start, not only once a screen opens.
 import "@/player/android-auto";
@@ -33,15 +34,21 @@ function Navigation() {
     void SystemUI.setBackgroundColorAsync(t.bg);
   }, [t.bg]);
 
-  // The splash screen isn't held: holding it kept the app from drawing on Android 16+.
-  if (status === "loading") return <View style={{ flex: 1, backgroundColor: t.bg }} />;
+  return (
+    <>
+      {status === "loading" ? <View style={{ flex: 1, backgroundColor: t.bg }} /> : <App signedIn={status === "signedIn"} />}
+      <LoadScreen ready={status !== "loading"} />
+    </>
+  );
+}
 
+function App({ signedIn }: { signedIn: boolean }) {
+  const t = useTheme();
   const base = t.isDark ? DarkTheme : DefaultTheme;
   const navTheme = {
     ...base,
     colors: { ...base.colors, background: t.bg, card: t.nav, text: t.text, border: t.line, primary: t.accent },
   };
-  const signedIn = status === "signedIn";
 
   return (
     <ThemeProvider value={navTheme}>

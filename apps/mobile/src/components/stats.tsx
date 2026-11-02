@@ -250,7 +250,7 @@ function SentencesView({ stats, kinds, today }: { stats: StatsDto; kinds: StatsK
   return (
     <>
       <Headline stats={stats} kinds={kinds} sub={stats.period === "all" ? statsSinceLine(stats, today) : statsCompared(stats, kinds)} />
-      {stats.period === "all" ? null : <Spark stats={stats} kinds={kinds} today={today} width={width} dotEdge={t.bg} />}
+      {stats.period === "all" || !statsSum(stats.split, kinds) ? null : <Spark stats={stats} kinds={kinds} today={today} width={width} dotEdge={t.bg} />}
       {days.length ? (
         <View>
           {days.map((d) => (

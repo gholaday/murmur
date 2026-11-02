@@ -86,7 +86,8 @@ Use tabular figures wherever numbers sit in a column or tick over.
 
 - Phones get a bottom tab bar: Books, Podcasts, Music, You. The mini player floats 8px above it.
 - From 900px wide the tabs become a 220px sidebar with the Murmur mark, and the page is a centred column of at most 1080px.
-- Podcasts, Music and Watch are shown or hidden per person under Tabs, and nothing else hides them; Music and Watch start hidden. When one is hidden, its tab and its parts of You go away. A shown tab with no folder has an empty state; for admins it names the folder to mount (`/music`, or `/movies` and `/shows`), since folders are set up in the compose file.
+- **App start:** on a cold start the app's mark dances, then its bars land in the M, and the app fades in. The bars keep dancing until the app is ready, and reduced motion shows the M still. The web has no load screen.
+- Books, Podcasts, Music and Watch are shown or hidden per person under Tabs, and nothing else hides them; Music and Watch start hidden. When one is hidden, its tab and its parts of You go away, and with Books hidden the app opens on the first tab left. A shown tab with no folder has an empty state; for admins it names the folder to mount (`/music`, or `/movies` and `/shows`), since folders are set up in the compose file.
 - **Nested screens:** the back arrow sits alone on the top row, with the title on the row below it, never beside it. A ⋯ menu may share the arrow's row on the right.
 
 ## Motion and states

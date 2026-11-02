@@ -1,12 +1,13 @@
 import { plural } from "@murmur/shared/client";
 import { Card, SwitchRow } from "@/components/settings";
 import { SettingsPage } from "@/components/settings-page";
-import { saveTabPrefs, useMusicSummary, useTabPrefs } from "@/lib/data";
+import { saveTabPrefs, useBooks, useMusicSummary, useTabPrefs } from "@/lib/data";
 import { useMovies, useShows, useWatchHome } from "@/lib/watch";
 
-/** Which optional tabs show. Books and You are always there; Music and Watch are off until switched on. */
+/** Which optional tabs show. You is always there; Music and Watch are off until switched on. */
 export default function TabsSettings() {
   const tabs = useTabPrefs();
+  const books = useBooks().data?.filter((b) => b.missingSince === null).length ?? 0;
   const music = useMusicSummary().data;
   const hasWatch = !!useWatchHome().data?.enabled;
   const movies = useMovies(hasWatch).data?.length ?? 0;
@@ -14,6 +15,13 @@ export default function TabsSettings() {
   return (
     <SettingsPage title="Tabs">
       <Card>
+        <SwitchRow
+          title="Books"
+          sub={books ? `${plural(books, "book")} on your server` : undefined}
+          label="Books tab"
+          value={tabs.books}
+          onChange={(on) => saveTabPrefs({ ...tabs, books: on })}
+        />
         <SwitchRow title="Podcasts" label="Podcasts tab" value={tabs.podcasts} onChange={(podcasts) => saveTabPrefs({ ...tabs, podcasts })} />
         <SwitchRow
           title="Music"

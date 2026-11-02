@@ -23,7 +23,7 @@ export function getPrefs(ctx: AppContext, userId: number): UserPrefs {
   const saved = readSaved(ctx, userId);
   return {
     bookSections: bookSections(saved.bookSections),
-    tabs: { podcasts: saved.tabs?.podcasts ?? true, music: saved.tabs?.music ?? false, watch: saved.tabs?.watch ?? false },
+    tabs: { books: saved.tabs?.books ?? true, podcasts: saved.tabs?.podcasts ?? true, music: saved.tabs?.music ?? false, watch: saved.tabs?.watch ?? false },
     shuffle: saved.shuffle ?? false,
     repeat: saved.repeat ?? "off",
     videoQuality: saved.videoQuality ?? "full",
@@ -33,7 +33,10 @@ export function getPrefs(ctx: AppContext, userId: number): UserPrefs {
 
 /** Saves the settings that were sent and leaves the rest as they were. */
 export function updatePrefs(ctx: AppContext, userId: number, patch: UserPrefsPatch): UserPrefs {
-  const next = { ...readSaved(ctx, userId), ...patch };
+  const saved = readSaved(ctx, userId);
+  const next = { ...saved, ...patch };
+  // An older app doesn't know every tab, so what it leaves out stays as it was.
+  if (saved.tabs && patch.tabs) next.tabs = { ...saved.tabs, ...patch.tabs };
   ctx.sqlite.prepare("UPDATE users SET prefs = ? WHERE id = ?").run(JSON.stringify(next), userId);
   return getPrefs(ctx, userId);
 }

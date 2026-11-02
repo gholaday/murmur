@@ -1,7 +1,9 @@
 import { useEffect } from "react";
-import { Pressable, View } from "react-native";
+import { BackHandler, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useIsFocused } from "expo-router";
 import { Tabs, type BottomTabBarProps } from "expo-router/js-tabs";
+import { firstTab } from "@murmur/shared/client";
 import { LibraryIcon, MusicIcon, PodcastIcon, ProfileIcon, WatchIcon } from "@/components/icons";
 import { MiniPlayer } from "@/components/mini-player";
 import { Text } from "@/components/ui";
@@ -39,6 +41,21 @@ function TabBar({ state, descriptors, navigateToTab }: BottomTabBarProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const tabs = useTabPrefs();
+  const onTop = useIsFocused();
+
+  // Android's back goes to the first tab, then out. With Books hidden that first tab isn't the
+  // navigator's own, where back would land on the Books route and be sent straight on again.
+  useEffect(() => {
+    if (tabs.books || !onTop) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      const first = state.routes.find((r) => r.name === firstTab(tabs));
+      if (first && first.key !== state.routes[state.index]?.key) navigateToTab(first.key);
+      else BackHandler.exitApp();
+      return true;
+    });
+    return () => sub.remove();
+  }, [tabs, onTop, state, navigateToTab]);
+
   return (
     <View style={{ backgroundColor: t.bg }}>
       <MiniPlayer />
@@ -52,7 +69,8 @@ function TabBar({ state, descriptors, navigateToTab }: BottomTabBarProps) {
         }}
       >
         {state.routes.map((route, i) => {
-          // Podcasts, Music and Watch show as you've set them on You > Tabs.
+          // Books, Podcasts, Music and Watch show as you've set them on You > Tabs.
+          if (route.name === "index" && !tabs.books) return null;
           if (route.name === "podcasts" && !tabs.podcasts) return null;
           if (route.name === "music" && !tabs.music) return null;
           if (route.name === "watch" && !tabs.watch) return null;

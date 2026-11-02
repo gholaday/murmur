@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { isNewer } from "./updates";
+import { isNewer } from "@murmur/shared";
 
 it("compares release versions number by number", () => {
   expect(isNewer("0.2.7", "0.2.6")).toBe(true);

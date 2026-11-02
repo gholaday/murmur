@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { FlatList, PixelRatio, Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
-import { router } from "expo-router";
+import { Redirect, router } from "expo-router";
 import Animated, { FadeIn as EnterFade, LayoutAnimationConfig } from "react-native-reanimated";
 import {
   apiPaths,
@@ -11,6 +11,7 @@ import {
   bySeriesOrder,
   continueListening,
   emptyLibraryReason,
+  firstTab,
   groupBy,
   nextInSeriesSub,
   progressPct,
@@ -36,7 +37,7 @@ import { useCardMenu } from "@/components/sheet";
 import { DragHandle, SortableList, SortableScrollProvider, useSortableScroll } from "@/components/sortable-list";
 import { GAP, gridRows, Group, openAllBooks, openGroup, openShelf, PAD, safeShelf, safeShelfTitle, Shelf, todayKey, useGridWidth, useShelfWidth } from "@/components/library";
 import { Bar, Button, Chips, CountPill, IconButton, Text } from "@/components/ui";
-import { saveBookSections, useBookSections, useBooks } from "@/lib/data";
+import { saveBookSections, useBookSections, useBooks, useTabPrefs } from "@/lib/data";
 import { withLongPressHaptic } from "@/lib/haptics";
 import { isCurrent } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
@@ -50,7 +51,13 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "finished", label: "Finished" },
 ];
 
-export default function Library() {
+/** The app opens here, so with Books hidden this sends you to the first tab left. */
+export default function BooksTabScreen() {
+  const first = firstTab(useTabPrefs());
+  return first === "books" ? <Library /> : <Redirect href={`/${first}`} />;
+}
+
+function Library() {
   const t = useTheme();
   const top = useTopInset();
   const cardWidth = useGridWidth();

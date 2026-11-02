@@ -262,8 +262,13 @@ export function statsChange(now: number, before: number | null, last: string): s
 }
 
 /** The kinds the stats show: a hidden tab leaves its kind out, the total included. */
-export function statsKindsShown(tabs: { podcasts: boolean; music?: boolean; watch?: boolean }): StatsKind[] {
-  return ["book", ...(tabs.podcasts ? (["episode"] as const) : []), ...(tabs.music ? (["music"] as const) : []), ...(tabs.watch ? (["watch"] as const) : [])];
+export function statsKindsShown(tabs: { books?: boolean; podcasts: boolean; music?: boolean; watch?: boolean }): StatsKind[] {
+  return [
+    ...(tabs.books !== false ? (["book"] as const) : []),
+    ...(tabs.podcasts ? (["episode"] as const) : []),
+    ...(tabs.music ? (["music"] as const) : []),
+    ...(tabs.watch ? (["watch"] as const) : []),
+  ];
 }
 
 /** The small heading over the total: "This week", or "Music this week" with one kind picked. */

@@ -1,3 +1,4 @@
+import { isNewer } from "@murmur/shared";
 import { env } from "./env";
 import { createLogger, errorMessage } from "./log";
 
@@ -24,17 +25,6 @@ declare global {
   var __murmurUpdates: { available: UpdateInfo | null; checked: boolean; started: boolean } | undefined;
 }
 const state = (globalThis.__murmurUpdates ??= { available: null, checked: false, started: false });
-
-/** True when version a is newer than b. Both are "x.y.z", with or without a leading v. */
-export function isNewer(a: string, b: string): boolean {
-  const parse = (v: string) => v.replace(/^v/, "").split(".").map((n) => Number.parseInt(n, 10));
-  const [x, y] = [parse(a), parse(b)];
-  if (x.length !== 3 || y.length !== 3 || [...x, ...y].some((n) => !Number.isFinite(n))) return false;
-  for (let i = 0; i < 3; i++) {
-    if (x[i] !== y[i]) return x[i]! > y[i]!;
-  }
-  return false;
-}
 
 async function check() {
   try {

@@ -7,6 +7,17 @@ export function majorOf(version: string | null | undefined): number | null {
   return match ? Number(match[1]) : null;
 }
 
+/** True when version a is newer than b. Both are "x.y.z", with or without a leading v. */
+export function isNewer(a: string, b: string): boolean {
+  const parse = (v: string) => v.replace(/^v/, "").split(".").map((n) => Number.parseInt(n, 10));
+  const [x, y] = [parse(a), parse(b)];
+  if (x.length !== 3 || y.length !== 3 || [...x, ...y].some((n) => !Number.isFinite(n))) return false;
+  for (let i = 0; i < 3; i++) {
+    if (x[i] !== y[i]) return x[i]! > y[i]!;
+  }
+  return false;
+}
+
 /** Which side needs updating when the app and the server are on different majors, or null when they're fine. */
 export function outOfDate(appVersion: string | null | undefined, serverVersion: string | null | undefined): "app" | "server" | null {
   const app = majorOf(appVersion);

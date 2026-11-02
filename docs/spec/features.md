@@ -54,7 +54,7 @@ Optional. More in [Watch](watch.md).
 - Year is a ring with a spoke for every day, by date: longer for more time, coloured by that week's main kind, so one close day doesn't flip colour. Days with nothing played are faint stubs. Picking a kind below it shows only that kind. Your first weeks say how far in you are
 - All time shows the total and one year's ring, with a row of years to pick from, which also changes what played most. In your first calendar year there's nothing to pick, so it uses sentences like Month
 - Kinds whose tab is hidden are left out of the stats altogether: the total, every sentence and the ring's colours
-- Podcasts, Music and Watch can each be shown or hidden per person under Tabs (Music and Watch start hidden); a hidden one's tab and its parts of You go away
+- Books, Podcasts, Music and Watch can each be shown or hidden per person under Tabs (Music and Watch start hidden); a hidden one's tab and its parts of You go away, and with Books hidden the app opens on the first tab left
 
 ## Player
 

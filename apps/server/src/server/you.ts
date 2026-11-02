@@ -26,6 +26,7 @@ export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<Rea
   const movieFolders = user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "movies") : [];
   const showFolders = user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "shows") : [];
   return {
+    books: (ctx.sqlite.prepare("SELECT COUNT(*) AS n FROM books WHERE missing_since IS NULL").get() as { n: number }).n,
     music: musicSummary(ctx, user.id),
     musicFolders: user.isAdmin ? await folderList(ctx.db, ctx.sqlite, "music") : [],
     movieFolders,

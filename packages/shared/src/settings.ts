@@ -1,7 +1,15 @@
 import { shortDate } from "./format";
-import type { BackupStatusDto, ServerVersionDto } from "./index";
+import type { BackupStatusDto, ServerVersionDto, UserPrefs } from "./index";
 
 // Settings shared by the web player and the Android app.
+
+/** The tab the app opens on: Books, or the first one left when it's hidden. You is always there. */
+export function firstTab(tabs: UserPrefs["tabs"]): "books" | "podcasts" | "music" | "watch" | "you" {
+  if (tabs.books !== false) return "books";
+  if (tabs.podcasts) return "podcasts";
+  if (tabs.music) return "music";
+  return tabs.watch ? "watch" : "you";
+}
 
 export type ThemeChoice = "system" | "dark" | "light";
 
