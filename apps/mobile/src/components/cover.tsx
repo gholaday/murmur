@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
+import { AppState, View, type StyleProp, type ViewStyle } from "react-native";
 import { Image } from "expo-image";
-import { View, type StyleProp, type ViewStyle } from "react-native";
+import { onlineManager } from "@tanstack/react-query";
 import { useReducedMotion } from "react-native-reanimated";
 import { absolute, authHeaders } from "@/lib/api";
 import { savedArt } from "@/lib/downloads";
@@ -41,6 +43,7 @@ export function Cover({
   style?: StyleProp<ViewStyle>;
 }) {
   const reduced = useReducedMotion();
+  const attempt = useRetryOnFail(path);
   const box: ViewStyle = {
     width: size ?? "100%",
     aspectRatio,
@@ -60,6 +63,9 @@ export function Cover({
   return (
     <View style={[box, style]}>
       <Image
+        // A new image view for each try: one that failed won't ask for the same source again.
+        key={attempt.count}
+        onError={attempt.failed}
         source={imageSource(path)}
         // Memory too, so covers scrolled back into view aren't decoded again; the memory cache is size-capped.
         cachePolicy="memory-disk"
@@ -71,4 +77,37 @@ export function Cover({
       />
     </View>
   );
+}
+
+const RETRY_MS = 5_000;
+const RETRY_MAX_MS = 60_000;
+
+/**
+ * A cover that failed to load (offline, signed out, the server restarting) tries again when the
+ * connection comes back, when the app comes back to the front, and every so often in between.
+ * Without this it stayed blank for as long as its screen stayed open, which for a tab is until
+ * the app restarts.
+ */
+export function useRetryOnFail(path: string | null) {
+  const [state, setState] = useState({ path, count: 0, failed: false });
+  // A different cover starts over.
+  const current = state.path === path ? state : { path, count: 0, failed: false };
+  const { failed, count } = current;
+  useEffect(() => {
+    if (!failed) return;
+    const retry = () => setState({ path, count: count + 1, failed: false });
+    const timer = setTimeout(retry, Math.min(RETRY_MAX_MS, RETRY_MS * 2 ** count));
+    const offline = onlineManager.subscribe((online) => {
+      if (online) retry();
+    });
+    const app = AppState.addEventListener("change", (s) => {
+      if (s === "active") retry();
+    });
+    return () => {
+      clearTimeout(timer);
+      offline();
+      app.remove();
+    };
+  }, [failed, count, path]);
+  return { count, failed: () => setState({ path, count, failed: true }) };
 }

@@ -1,13 +1,13 @@
 import { memo, useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { Image } from "expo-image";
+import { Image, type ImageStyle } from "expo-image";
 import { albumCover, duration, plural, type PlaylistDetail, playlistCoverTiles, type PlaylistSummary } from "@murmur/shared/client";
 import { absolute, authHeaders } from "@/lib/api";
 import { addToPlaylist, createPlaylist, usePlaylists } from "@/lib/data";
 import { isPlayingFrom } from "@/player/engine";
 import { useTheme } from "@/theme";
-import { Cover } from "./cover";
+import { Cover, useRetryOnFail } from "./cover";
 import { PlusIcon } from "./icons";
 import { Mixer, useNowPlaying } from "./mixer";
 import { Sheet, SheetItem } from "./sheet";
@@ -42,17 +42,30 @@ export function PlaylistCover({ playlist, size, children }: { playlist: Playlist
         // A full-height half needs the larger image to stay sharp.
         const path = albumCover(cover.albumId, cover.coverHash, h === 1 ? 600 : undefined)!;
         return (
-          <Image
+          <MosaicTile
             key={cover.albumId}
-            source={{ uri: absolute(path), headers: authHeaders(), cacheKey: path }}
-            cachePolicy="memory-disk"
-            contentFit="cover"
+            path={path}
             style={{ position: "absolute", left: `${x * 100}%`, top: `${y * 100}%`, width: `${w * 100}%`, height: `${h * 100}%` }}
           />
         );
       })}
       {children}
     </View>
+  );
+}
+
+/** One album in a playlist's cover; one that failed to load tries again, as covers do. */
+function MosaicTile({ path, style }: { path: string; style: ImageStyle }) {
+  const attempt = useRetryOnFail(path);
+  return (
+    <Image
+      key={attempt.count}
+      onError={attempt.failed}
+      source={{ uri: absolute(path), headers: authHeaders(), cacheKey: path }}
+      cachePolicy="memory-disk"
+      contentFit="cover"
+      style={style}
+    />
   );
 }
 

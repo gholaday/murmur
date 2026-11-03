@@ -12,7 +12,7 @@ import { useCast } from "@/player/cast";
 import { type Playable, skipBy, toggle, trackStep, usePlayer, usePlayerSelect, usePositionSelect } from "@/player/engine";
 import { closeVideo, skipVideo, toggleVideo, useVideo, useVideoHost, useVideoPositionSelect, useVideoSelect, videoPlayer } from "@/player/video";
 import { fonts, mixColor, useTheme } from "@/theme";
-import { Cover } from "./cover";
+import { Cover, useRetryOnFail } from "./cover";
 import { CastIcon, CloseIcon, NextChapterIcon, PauseIcon, PlayIcon, PrevChapterIcon, SkipBackIcon, SkipForwardIcon } from "./icons";
 import { Marquee } from "./marquee";
 import { BarFill, BufferingRing } from "./player-controls";
@@ -31,6 +31,7 @@ export function MiniPlayer() {
   const sub = t.isDark ? undefined : { color: t.text2 };
   const tint = useAnimatedStyle(() => ({ backgroundColor: withTiming(surface, { duration: 400 }) }));
   const castDevice = useCast().device;
+  const backdrop = useRetryOnFail(item?.coverPath ?? null);
   const video = useVideoSelect((v) => !!v.item);
   if (video) return <VideoMiniPlayer />;
   if (!item) return null;
@@ -59,6 +60,8 @@ export function MiniPlayer() {
       {item.coverPath ? (
         // The cover blurred behind the card, so its colours bleed across it.
         <Image
+          key={backdrop.count}
+          onError={backdrop.failed}
           pointerEvents="none"
           source={{ uri: absolute(item.coverPath), headers: authHeaders(), cacheKey: item.coverPath }}
           cachePolicy="disk"

@@ -2,7 +2,7 @@ import { StyleSheet, View } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "@/theme";
-import { imageSource } from "./cover";
+import { imageSource, useRetryOnFail } from "./cover";
 
 /**
  * Header backdrop for book and show pages and the player: a blurred copy of the artwork, so its
@@ -28,11 +28,14 @@ export function HeroBackdrop({
   fadeFrom?: string;
 }) {
   const t = useTheme();
+  const attempt = useRetryOnFail(path);
   return (
     <View pointerEvents="none" style={{ position: "absolute", top, left: 0, right: 0, height, overflow: "hidden" }}>
       <View style={[StyleSheet.absoluteFill, { backgroundColor: color ?? t.surface2, opacity: 0.18 }]} />
       {path ? (
         <Image
+          key={attempt.count}
+          onError={attempt.failed}
           // A feed's own artwork (a full URL) loads directly, without our sign-in.
           source={imageSource(path)}
           cachePolicy="disk"

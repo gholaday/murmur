@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AppState, type StyleProp, type TextStyle, View, type ViewProps, type ViewStyle } from "react-native";
-import { useIsFocused } from "expo-router";
+import { useIsFocused, useNavigation, usePreventRemove } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import MaskedViewClass from "@react-native-masked-view/masked-view";
 import Animated, {
@@ -79,17 +79,31 @@ const LOOP_MS = 12000;
 const HOLD_MS = LOOP_MS * 0.15;
 const TITLE_GAP = 40;
 const FADE = 16;
+/** Closes already let through, so titles sharing a screen carry each one on once. */
+const resumed = new WeakSet<object>();
 
 /**
  * A title that scrolls sideways when it doesn't fit, fading out at both edges into whatever is
  * behind it (a tinted player, a sheet), so a long one can be read in a tight row. With reduced
- * motion it ends in an ellipsis instead.
+ * motion, or while its screen isn't in front, it ends in an ellipsis instead.
  */
 export function MarqueeText({ text, variant, style }: { text: string; variant?: "title" | "bodyStrong" | "small"; style?: StyleProp<TextStyle> }) {
   const reduced = useReducedMotion();
+  const focused = useIsFocused();
+  const navigation = useNavigation();
+  const [closing, setClosing] = useState(false);
   const [box, setBox] = useState(0);
   const [full, setFull] = useState(0);
-  const moving = !reduced && box > 0 && full - TITLE_GAP > box + 1;
+  const moving = focused && !closing && !reduced && box > 0 && full - TITLE_GAP > box + 1;
+  // Android draws a closing screen from a snapshot, where the mask comes out as a black box. So
+  // the close waits while the plain title takes its place (which also lifts this hold), then
+  // carries on.
+  usePreventRemove(moving, ({ data }) => {
+    setClosing(true);
+    if (resumed.has(data.action)) return;
+    resumed.add(data.action);
+    requestAnimationFrame(() => requestAnimationFrame(() => navigation.dispatch(data.action)));
+  });
   const x = useSharedValue(0);
   useEffect(() => {
     cancelAnimation(x);
