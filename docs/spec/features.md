@@ -1,5 +1,11 @@
 # Features
 
+## Search
+
+- One search for books, authors and series, the podcasts you follow and their episodes, music, and movies, shows and TV episodes, from the Search pill in the bottom bar (the sidebar on wide screens)
+- Matches any part of a word, ignoring case and accents, in names, people, descriptions, episode notes and chapter titles; names count most
+- Tabs narrow it to one kind; recent searches show while the box is empty; offline, the app searches what's downloaded
+
 ## Audiobooks
 
 - Library with covers, sorted and filtered by author, series, recently added and progress

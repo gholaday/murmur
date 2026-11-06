@@ -1,18 +1,20 @@
 import { useMemo, useState } from "react";
-import { FlatList, TextInput, View } from "react-native";
+import { FlatList, View } from "react-native";
 import { type MovieSummary, percentDone, type ShowSummary, sortWatch, type WatchCard, type WatchPoster, WATCH_SORTS } from "@murmur/shared/client";
-import { CloseIcon, FilterIcon, SearchIcon } from "@/components/icons";
+import { FilterIcon } from "@/components/icons";
 import { GAP, gridRows, PAD, Shelf, useGridWidth, useShelfWidth } from "@/components/library";
 import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, Skeleton } from "@/components/skeleton";
-import { Chips, IconButton } from "@/components/ui";
+import Animated from "react-native-reanimated";
+import { TextTabs, useTabFade } from "@/components/text-tabs";
+import { IconButton } from "@/components/ui";
 import { type PosterItem, PosterCard, StillCard, useWatchSort, WatchSortSheet } from "@/components/watch";
 import { useDownloads } from "@/lib/downloads";
 import { useOnline } from "@/lib/query";
 import { useSession } from "@/lib/session";
 import { openMovie, openTvShow, useMovies, useShows, useWatchHome } from "@/lib/watch";
-import { fonts, useTheme } from "@/theme";
+import { useTheme } from "@/theme";
 
 type Tab = "home" | "movies" | "shows" | "watched";
 
@@ -63,8 +65,7 @@ export default function Watch() {
   const shelfWidth = useShelfWidth();
   const admin = !!useSession().user?.isAdmin;
   const [tab, setTab] = useState<Tab>("home");
-  const [searching, setSearching] = useState(false);
-  const [query, setQuery] = useState("");
+  const tabFade = useTabFade(tab);
   const [sortOpen, setSortOpen] = useState(false);
   const sort = useWatchSort();
   const home = useWatchHome();
@@ -82,11 +83,9 @@ export default function Watch() {
     const list = [...(movies.data ?? []).map(movieItem), ...(shows.data ?? []).map(showItem)].filter((i) => online || saved.has(`${i.kind}-${i.id}`));
     return sortWatch(list, sort, (i) => i);
   }, [movies.data, shows.data, online, downloads, sort]);
-  const q = query.trim().toLowerCase();
 
   const rows = useMemo((): Row[] => {
     const grid = (list: PosterItem[]): Row[] => gridRows(list).map((r) => ({ kind: "grid", key: `${r[0]!.kind}-${r[0]!.id}`, items: r }));
-    if (q) return grid((tab === "home" ? all : all.filter(inTab(tab))).filter((i) => i.title.toLowerCase().includes(q)));
     if (tab !== "home") return grid(all.filter(inTab(tab)));
     // Home's shelves are the server's; offline it's just the downloads.
     if (!online) return grid(all);
@@ -108,7 +107,7 @@ export default function Watch() {
     if (recentMovies.length) out.push({ kind: "shelf", key: "movies", title: "Recently added movies", items: recentMovies });
     if (recentShows.length) out.push({ kind: "shelf", key: "shows", title: "Recently added shows", items: recentShows });
     return out;
-  }, [all, home.data, q, tab, online]);
+  }, [all, home.data, tab, online]);
 
   // No movies or shows folder on the server yet: just the title and a note.
   const noFolder = home.data?.enabled === false;
@@ -120,42 +119,15 @@ export default function Watch() {
       <PageTitle
         title="Watch"
         right={
-          noFolder ? null : (
-            <>
-              <IconButton
-                label={searching ? "Close search" : "Search"}
-                onPress={() => {
-                  setSearching((s) => !s);
-                  setQuery("");
-                }}
-              >
-                {searching ? <CloseIcon color={t.text} /> : <SearchIcon color={t.text} />}
-              </IconButton>
-              {/* Home's shelves are in the server's order; the other views have a sort. */}
-              {tab !== "home" ? (
-                <IconButton label={`Sort, ${WATCH_SORTS.find((s) => s.id === sort)?.label}`} onPress={() => setSortOpen(true)}>
-                  <FilterIcon color={t.text} />
-                </IconButton>
-              ) : null}
-            </>
-          )
+          // Home's shelves are in the server's order; the other views have a sort.
+          !noFolder && tab !== "home" ? (
+            <IconButton label={`Sort, ${WATCH_SORTS.find((s) => s.id === sort)?.label}`} onPress={() => setSortOpen(true)}>
+              <FilterIcon color={t.text} />
+            </IconButton>
+          ) : null
         }
       />
-      {searching && !noFolder ? (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, height: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: t.surface }}>
-          <SearchIcon size={20} color={t.muted} />
-          <TextInput
-            autoFocus
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search movies and shows"
-            placeholderTextColor={t.faint}
-            selectionColor={t.accent}
-            style={{ flex: 1, color: t.text, fontFamily: fonts.medium, fontSize: 15 }}
-          />
-        </View>
-      ) : null}
-      {noFolder ? null : <Chips gap={8} options={TABS} value={tab} onPick={setTab} />}
+      {noFolder ? null : <TextTabs options={TABS} value={tab} onPick={setTab} style={{ marginTop: -14 }} />}
     </View>
   );
 
@@ -173,8 +145,6 @@ export default function Watch() {
     <Empty title="Nothing downloaded" />
   ) : all.length === 0 ? (
     <Empty title="Nothing to watch yet">Movies and shows show up here once the scan finds them.</Empty>
-  ) : q ? (
-    <Empty>{`Nothing matches "${query.trim()}".`}</Empty>
   ) : tab === "watched" ? (
     <Empty title="Nothing watched yet">{"Movies you finish, and shows you've seen every episode of, go here."}</Empty>
   ) : tab === "home" ? (
@@ -183,7 +153,7 @@ export default function Watch() {
     <Empty title={tab === "movies" ? "No movies yet" : "No shows yet"}>They show up here once the scan finds them.</Empty>
   );
 
-  const gridView = q || tab !== "home";
+  const gridView = tab !== "home" || !online;
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <FlatList
@@ -193,11 +163,13 @@ export default function Watch() {
         refreshControl={refresh}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={header}
-        ListEmptyComponent={empty}
+        ListEmptyComponent={<Animated.View style={tabFade}>{empty}</Animated.View>}
         ItemSeparatorComponent={gridView ? RowGap : undefined}
         windowSize={7}
         maxToRenderPerBatch={8}
-        renderItem={({ item: row, index }) =>
+        renderItem={({ item: row, index }) => (
+          <Animated.View style={tabFade}>
+          {
           row.kind === "grid" ? (
             <View style={{ flexDirection: "row", columnGap: GAP }}>
               {row.items.map((i) => (
@@ -213,8 +185,9 @@ export default function Watch() {
                   : row.items.map((i) => <PosterCard key={i.id} item={i} width={shelfWidth} onPress={() => open(i)} />)}
               </Shelf>
             </View>
-          )
-        }
+          )}
+          </Animated.View>
+        )}
       />
       <WatchSortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
     </View>

@@ -1,31 +1,29 @@
 import { useCallback, useMemo, useState } from "react";
-import { FlatList, TextInput, View } from "react-native";
+import { FlatList, View } from "react-native";
 import { router } from "expo-router";
 import {
   albumInMusic,
   albumInMusicLabel,
-  albumMatches,
   ALBUM_SORTS,
   albumsByArtist,
   type AlbumSummary,
-  artistMatches,
   type ArtistSummary,
   type JumpBackItem,
   plural,
   type PlaylistSummary,
-  songMatches,
   sortAlbums,
   type TrackDto,
 } from "@murmur/shared/client";
-import { BrowseIcon, CloseIcon, FilterIcon, MusicIcon, SearchIcon } from "@/components/icons";
+import { BrowseIcon, FilterIcon, MusicIcon } from "@/components/icons";
 import { GAP, gridRows, Group, PAD, Shelf, useGridWidth, useShelfWidth } from "@/components/library";
-import { Eyebrow } from "@/components/listening";
-import { AlbumAddRow, AlbumCard, AlbumSortSheet, ArtistCard, openArtist, PlayButton, ShuffleButton, SongRow, SongSheet, useAlbumSort } from "@/components/music";
+import { AlbumCard, AlbumSortSheet, ArtistCard, openArtist, PlayButton, ShuffleButton, SongRow, SongSheet, useAlbumSort } from "@/components/music";
 import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { NamePlaylistSheet, NewPlaylistTile, openPlaylist, PlaylistCard } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { Bone, CoverGridBones, ListRowBone, SectionBone, Skeleton } from "@/components/skeleton";
-import { Button, CardLink, Chips, IconButton, Text } from "@/components/ui";
+import Animated from "react-native-reanimated";
+import { TextTabs, useTabFade } from "@/components/text-tabs";
+import { Button, CardLink, IconButton, Text } from "@/components/ui";
 import { createPlaylist, setInMusic, useAlbums, useArtists, useMusicHome, useMusicSummary, usePlaylists, useTracks } from "@/lib/data";
 import { useSession } from "@/lib/session";
 import { playMusic } from "@/player/engine";
@@ -33,12 +31,12 @@ import { fonts, useTheme } from "@/theme";
 
 type View_ = "home" | "albums" | "artists" | "songs" | "playlists";
 
-const VIEWS: { id: View_; label: string; placeholder: string }[] = [
-  { id: "home", label: "Home", placeholder: "Album or artist" },
-  { id: "playlists", label: "Playlists", placeholder: "Playlist" },
-  { id: "albums", label: "Albums", placeholder: "Album or artist" },
-  { id: "artists", label: "Artists", placeholder: "Artist" },
-  { id: "songs", label: "Songs", placeholder: "Song, artist or album" },
+const VIEWS: { id: View_; label: string }[] = [
+  { id: "home", label: "Home" },
+  { id: "playlists", label: "Playlists" },
+  { id: "albums", label: "Albums" },
+  { id: "artists", label: "Artists" },
+  { id: "songs", label: "Songs" },
 ];
 
 type Item =
@@ -46,9 +44,7 @@ type Item =
   // Null is the New playlist tile, first in the grid.
   | { kind: "playlists"; key: string; playlists: (PlaylistSummary | null)[] }
   | { kind: "artist"; key: string; artist: ArtistSummary; albums: AlbumSummary[] }
-  | { kind: "song"; key: string; track: TrackDto; toggle?: boolean }
-  | { kind: "head"; key: string; title: string }
-  | { kind: "addAlbum"; key: string; album: AlbumSummary }
+  | { kind: "song"; key: string; track: TrackDto }
   // Home's shelves.
   | { kind: "shelfTitle"; key: string; title: string }
   | { kind: "jump"; key: string; items: JumpBackItem[] }
@@ -65,18 +61,13 @@ const ON_REPEAT_ROWS = 5;
 // Defined once: an inline component here would be a new type each render.
 const RowGap = () => <View style={{ height: 18 }} />;
 
-/**
- * Your music: the albums, artists and songs you've added. Everything else is under Browse, and a
- * search also shows matches from there that you could add.
- */
+/** Your music: the albums, artists and songs you've added. Everything else is under Browse. */
 export default function Music() {
   const t = useTheme();
   const top = useTopInset();
   const width = useGridWidth();
   const shelfWidth = useShelfWidth();
   const [picked, setPicked] = useState<View_>("home");
-  const [searching, setSearching] = useState(false);
-  const [query, setQuery] = useState("");
   const [sortOpen, setSortOpen] = useState(false);
   const [song, setSong] = useState<TrackDto | null>(null);
   const [naming, setNaming] = useState(false);
@@ -88,12 +79,12 @@ export default function Music() {
   const noFolder = summary.data?.enabled === false;
   // The first-visit screen is for someone with no songs and no playlists either.
   const nothingYet = noFolder || (mine?.tracks === 0 && !playlists.data?.length);
-  const q = query.trim().toLowerCase();
   const albums = useAlbums("mine");
   const home = useMusicHome();
   // A server from before Home has none: no chip, and Albums first.
   const noHome = home.data === null;
   const view: View_ = noHome && picked === "home" ? "albums" : picked;
+  const tabFade = useTabFade(view);
   const views = noHome ? VIEWS.filter((v) => v.id !== "home") : VIEWS;
   // Home lists the first few; a tap queues the whole list from that song.
   const repeatAll = useMemo(() => home.data?.onRepeat ?? [], [home.data]);
@@ -102,9 +93,8 @@ export default function Music() {
   const [seen, setSeen] = useState<Set<View_>>(() => new Set(["albums"]));
   const artists = useArtists("mine", seen.has("artists"));
   const tracks = useTracks("mine", seen.has("songs"));
-  // Everything else: for "Add all" when you have nothing yet, and "More to add" while searching.
-  const allAlbums = useAlbums("all", nothingYet || !!q);
-  const allTracks = useTracks("all", !!q);
+  // Everything else: for "Add all" when you have nothing yet.
+  const allAlbums = useAlbums("all", nothingYet);
 
   // Your own songs play the whole list from that one. One function for every row keeps the rows' memo.
   const playOwn = useCallback(
@@ -118,22 +108,18 @@ export default function Music() {
     [repeatAll],
   );
 
-  // Home with a search shows album results, like Albums.
-  const current =
-    view === "home" ? (q ? albums : home) : view === "albums" ? albums : view === "artists" ? artists : view === "songs" ? tracks : playlists;
+  const current = view === "home" ? home : view === "albums" ? albums : view === "artists" ? artists : view === "songs" ? tracks : playlists;
   const refresh = usePullRefresh(() => Promise.all([summary.refetch(), current.refetch()]));
 
   const items = useMemo((): Item[] => {
     const out: Item[] = [];
     if (view === "playlists") {
-      // Only your playlists; there's nothing to add from elsewhere.
-      const list = (playlists.data ?? []).filter((p) => p.name.toLowerCase().includes(q));
-      // New playlist leads the grid, except while searching.
-      const tiles = q || !playlists.data ? list : [null, ...list];
+      // New playlist leads the grid.
+      const tiles = playlists.data ? [null, ...playlists.data] : [];
       for (const row of gridRows(tiles)) out.push({ kind: "playlists", key: row[0]?.id ?? "new", playlists: row });
       return out;
     }
-    if (view === "home" && !q) {
+    if (view === "home") {
       // Each shelf is left out when it has nothing.
       const h = home.data;
       if (!h) return out;
@@ -154,26 +140,17 @@ export default function Music() {
       if (newAlbums.length) out.push({ kind: "shelfTitle", key: "t:new", title: "New albums" }, { kind: "albumShelf", key: "new", albums: newAlbums });
       return out;
     }
-    if (view === "albums" || view === "home") {
-      const list = sortAlbums(albums.data ?? [], sort).filter((a) => albumMatches(a, q));
-      for (const row of gridRows(list)) out.push({ kind: "albums", key: row[0]!.id, albums: row });
+    if (view === "albums") {
+      for (const row of gridRows(sortAlbums(albums.data ?? [], sort))) out.push({ kind: "albums", key: row[0]!.id, albums: row });
     } else if (view === "artists") {
       // Each artist's albums come from the album list already loaded.
       const byArtist = albumsByArtist(albums.data ?? []);
-      for (const a of (artists.data ?? []).filter((x) => artistMatches(x, q))) out.push({ kind: "artist", key: a.id, artist: a, albums: byArtist.get(a.id) ?? [] });
+      for (const a of artists.data ?? []) out.push({ kind: "artist", key: a.id, artist: a, albums: byArtist.get(a.id) ?? [] });
     } else {
-      for (const s of (tracks.data ?? []).filter((x) => songMatches(x, q))) out.push({ kind: "song", key: s.id, track: s });
+      for (const s of tracks.data ?? []) out.push({ kind: "song", key: s.id, track: s });
     }
-    if (!q) return out;
-
-    // Searching: what you could add, after your own matches.
-    const more: Item[] = [
-      ...(allAlbums.data ?? []).filter((a) => albumInMusic(a) !== "all" && albumMatches(a, q)).map((a): Item => ({ kind: "addAlbum", key: `add:${a.id}`, album: a })),
-      ...(allTracks.data ?? []).filter((s) => !s.inMusic && songMatches(s, q)).map((s): Item => ({ kind: "song", key: `add:${s.id}`, track: s, toggle: true })),
-    ];
-    if (!more.length) return out;
-    return [...(out.length ? [{ kind: "head", key: "head:mine", title: "In your music" } as Item] : []), ...out, { kind: "head", key: "head:more", title: "More to add" }, ...more];
-  }, [view, albums.data, artists.data, tracks.data, playlists.data, allAlbums.data, allTracks.data, home.data, onRepeat, q, sort]);
+    return out;
+  }, [view, albums.data, artists.data, tracks.data, playlists.data, home.data, onRepeat, sort]);
 
   const pick = (next: View_) => {
     setPicked(next);
@@ -185,46 +162,17 @@ export default function Music() {
       <PageTitle
         title="Music"
         right={
-          nothingYet ? null : (
-            <>
-              <IconButton
-                label={searching ? "Close search" : "Search"}
-                onPress={() => {
-                  setSearching((s) => !s);
-                  setQuery("");
-                }}
-              >
-                {searching ? <CloseIcon color={t.text} /> : <SearchIcon color={t.text} />}
-              </IconButton>
-              {/* Only albums have a sort; artists and songs are A to Z. */}
-              {view === "albums" ? (
-                <IconButton label={`Sort albums, ${ALBUM_SORTS.find((s) => s.id === sort)?.label}`} onPress={() => setSortOpen(true)}>
-                  <FilterIcon color={t.text} />
-                </IconButton>
-              ) : null}
-            </>
-          )
+          // Only albums have a sort; artists and songs are A to Z.
+          !nothingYet && view === "albums" ? (
+            <IconButton label={`Sort albums, ${ALBUM_SORTS.find((s) => s.id === sort)?.label}`} onPress={() => setSortOpen(true)}>
+              <FilterIcon color={t.text} />
+            </IconButton>
+          ) : null
         }
       />
-      {searching ? (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, height: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: t.surface }}>
-          <SearchIcon size={20} color={t.muted} />
-          <TextInput
-            autoFocus
-            value={query}
-            onChangeText={setQuery}
-            placeholder={VIEWS.find((v) => v.id === view)!.placeholder}
-            placeholderTextColor={t.faint}
-            selectionColor={t.accent}
-            style={{ flex: 1, color: t.text, fontFamily: fonts.medium, fontSize: 15 }}
-          />
-        </View>
-      ) : null}
-      {nothingYet || q ? null : <BrowseRow notAdded={(summary.data?.albums ?? 0) - (mine?.albums ?? 0)} fresh={summary.data?.newAlbums ?? 0} />}
-      {nothingYet ? null : (
-        <Chips gap={8} options={views} value={view} onPick={pick} />
-      )}
-      {view === "songs" && !q && tracks.data?.length ? (
+      {nothingYet ? null : <TextTabs options={views} value={view} onPick={pick} style={{ marginTop: -14 }} />}
+      {nothingYet ? null : <BrowseRow notAdded={(summary.data?.albums ?? 0) - (mine?.albums ?? 0)} fresh={summary.data?.newAlbums ?? 0} />}
+      {view === "songs" && tracks.data?.length ? (
         <View style={{ flexDirection: "row", gap: 10 }}>
           <PlayButton label="Play all" from={{ kind: "songs", refId: null }} onPress={() => playSongs(tracks.data, -1)} />
           <ShuffleButton from={{ kind: "songs", refId: null }} onPlay={() => playSongs(tracks.data, -1, true)} />
@@ -239,7 +187,7 @@ export default function Music() {
     <StartHere total={summary.data?.albums ?? 0} all={allAlbums.data} />
   ) : current.isPending ? (
     <Skeleton>
-      {view === "home" && !q ? (
+      {view === "home" ? (
         <View style={{ marginTop: -28 }}>
           <SectionBone />
           <View style={{ flexDirection: "row", columnGap: GAP }}>
@@ -252,7 +200,7 @@ export default function Music() {
             <ListRowBone key={i} thumb={44} />
           ))}
         </View>
-      ) : view === "albums" || view === "home" || view === "playlists" ? (
+      ) : view === "albums" || view === "playlists" ? (
         <CoverGridBones count={6} />
       ) : view === "artists" ? (
         [0, 1].map((i) => (
@@ -268,9 +216,7 @@ export default function Music() {
   ) : current.isError ? (
     <Empty title="Couldn't load your music">{current.error.message}</Empty>
   ) : view === "playlists" ? (
-    <Empty>{q ? `Nothing matches "${query.trim()}".` : "Make a playlist, then add songs to it from the menu on any song."}</Empty>
-  ) : q ? (
-    <Empty>{`Nothing matches "${query.trim()}".`}</Empty>
+    <Empty>Make a playlist, then add songs to it from the menu on any song.</Empty>
   ) : view === "home" ? (
     <Empty>Play something and it shows up here.</Empty>
   ) : (
@@ -280,30 +226,32 @@ export default function Music() {
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <FlatList
-        data={nothingYet && !q ? [] : items}
+        data={nothingYet ? [] : items}
         keyExtractor={(i) => i.key}
         contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24, flexGrow: 1 }}
         refreshControl={refresh}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={header}
-        ListEmptyComponent={empty}
+        ListEmptyComponent={<Animated.View style={tabFade}>{empty}</Animated.View>}
         // With no playlists, the grid is just the New playlist tile, with the note under it.
         ListFooterComponent={
-          view === "playlists" && !q && playlists.data?.length === 0 ? <Empty>Make a playlist, then add songs to it from the menu on any song.</Empty> : undefined
+          view === "playlists" && playlists.data?.length === 0 ? <Empty>Make a playlist, then add songs to it from the menu on any song.</Empty> : undefined
         }
-        ItemSeparatorComponent={(view === "albums" || view === "playlists") && !q ? RowGap : undefined}
+        ItemSeparatorComponent={view === "albums" || view === "playlists" ? RowGap : undefined}
         windowSize={7}
         maxToRenderPerBatch={8}
-        renderItem={({ item, index }) =>
+        renderItem={({ item, index }) => (
+          <Animated.View style={tabFade}>
+          {
           item.kind === "albums" ? (
-            <View style={{ flexDirection: "row", columnGap: GAP, marginBottom: q ? 18 : 0 }}>
+            <View style={{ flexDirection: "row", columnGap: GAP }}>
               {item.albums.map((a) => (
                 // Albums with only some songs added say how many, instead of the artist.
                 <AlbumCard key={a.id} album={a} width={width} sub={albumInMusic(a) === "some" ? albumInMusicLabel(a) : undefined} />
               ))}
             </View>
           ) : item.kind === "playlists" ? (
-            <View style={{ flexDirection: "row", columnGap: GAP, marginBottom: q ? 18 : 0 }}>
+            <View style={{ flexDirection: "row", columnGap: GAP }}>
               {item.playlists.map((p) =>
                 p ? <PlaylistCard key={p.id} playlist={p} width={width} /> : <NewPlaylistTile key="new" width={width} onPress={() => setNaming(true)} />,
               )}
@@ -315,12 +263,6 @@ export default function Music() {
                 <AlbumCard key={a.id} album={a} width={shelfWidth} sub={a.year} />
               ))}
             </Group>
-          ) : item.kind === "head" ? (
-            <View style={{ marginTop: 20, marginBottom: 4 }}>
-              <Eyebrow>{item.title}</Eyebrow>
-            </View>
-          ) : item.kind === "addAlbum" ? (
-            <AlbumAddRow album={item.album} />
           ) : item.kind === "shelfTitle" ? (
             <View style={{ marginTop: index === 0 ? -12 : 0 }}>
               <SectionTitle title={item.title} />
@@ -350,10 +292,11 @@ export default function Music() {
           ) : item.kind === "repeat" ? (
             <SongRow track={item.track} onPlay={playRepeat} onMore={setSong} />
           ) : (
-            // Your own songs play the whole list from that one; songs you could add open their album.
-            <SongRow track={item.track} toggle={item.toggle} onPlay={item.toggle ? undefined : playOwn} onMore={setSong} />
-          )
-        }
+            // Your own songs play the whole list from that one.
+            <SongRow track={item.track} onPlay={playOwn} onMore={setSong} />
+          )}
+          </Animated.View>
+        )}
       />
       <AlbumSortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
       <SongSheet track={song} onClose={() => setSong(null)} />

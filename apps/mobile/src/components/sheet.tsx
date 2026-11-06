@@ -287,8 +287,11 @@ export function Sheet({
   );
 }
 
-/** The sheet draws edge to edge, so Android doesn't resize it for the keyboard; it lifts itself instead. */
-function useKeyboardHeight() {
+/**
+ * The keyboard's height, 0 while it's down. Screens draw edge to edge, so Android doesn't resize
+ * them for the keyboard: sheets lift themselves by this, and lists pad their end with it.
+ */
+export function useKeyboardHeight() {
   const [height, setHeight] = useState(0);
   useEffect(() => {
     const show = Keyboard.addListener("keyboardDidShow", (e) => setHeight(Dimensions.get("screen").height - e.endCoordinates.screenY));

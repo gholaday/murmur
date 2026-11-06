@@ -64,6 +64,7 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | `up_next` | Per user: the queue as one running list of episodes and songs, with the one playing |
 | `play_next` | Per user: the ordered Play next books |
 | `episode_files`, `episode_ads`, `ad_scans` | The episode cache and ad times (see [Podcasts and ad detection](podcasts.md)) |
+| `search_index`, `search_rows` | Search everywhere: a contentless FTS5 trigram index over what the `search_source` view says each thing is found by: its name, its people or show, and longer text (descriptions, episode notes and chapter titles). Triggers on every table the view reads queue the changed thing on `search_dirty`, whose own trigger rewrites its rows, so no write path can miss it |
 
 **API** (all under `/api`, JSON, token or cookie auth)
 
@@ -74,6 +75,7 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | Book editing (admin) | `GET /books/:id/edit`, `PUT /books/:id/details`, `PUT /books/:id/chapters`, `POST/DELETE /books/:id/cover`, `POST /books/:id/rescan`, `GET/POST/DELETE /books/:id/match` |
 | Streaming | `GET /stream/book/:id/:fileIndex`, `GET /stream/episode/:id` (range requests) |
 | Podcasts | `GET/POST /podcasts`, `GET /podcasts/search?q=` (directory search, marks podcasts you follow), `GET /podcasts/preview?feedUrl=` (reads a feed without subscribing), `DELETE /podcasts/:id`, `GET /podcasts/:id/episodes`, `POST /podcasts/:id/refresh`, OPML import and export |
+| Search | `GET /search?q=&kind=` (`all`, `books`, `podcasts`, `music` or `watch`): books, authors and series, podcasts you follow and their episodes, artists, albums and songs, and movies, shows and TV episodes, each group best match first and built like its list. Matches any part of a word, ignoring case and accents; names count most, then people, then descriptions, notes and chapter titles. Searches under 3 characters match the start of a name or of a word in it. Hidden tabs are left out |
 | Progress | `GET /progress?since=`, `PUT /progress` (batched, newest update wins) |
 | Bookmarks | `GET /bookmarks` (the whole list; clients replace theirs), `PUT /bookmarks` (batched, newest update wins), `DELETE /bookmarks/:id` |
 | Queue | `GET /up-next`, `PUT /up-next` (the whole list), `PATCH /up-next` (where it's at), `POST /up-next` (add one item, or several in order) |

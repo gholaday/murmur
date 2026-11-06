@@ -71,6 +71,7 @@
 /api/podcasts/preview GET
 /api/podcasts/search GET
 /api/progress GET PUT
+/api/search GET
 /api/server/ads/retry POST
 /api/server/cache GET PUT
 /api/server/version GET

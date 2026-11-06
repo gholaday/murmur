@@ -13,9 +13,9 @@ import {
   type WatchPoster,
   type WatchSort,
 } from "@murmur/shared/client";
-import { CloseIcon, FilterIcon, SearchIcon } from "../icons";
+import { FilterIcon } from "../icons";
 import { ChoiceSheet } from "../sheet";
-import { Chip, Chips, EmptyState, ScrollRow, SearchBox, SectionTitle, useSavedChoice } from "../ui";
+import { Chip, Chips, EmptyState, ScrollRow, SectionTitle, useSavedChoice } from "../ui";
 import { PosterCard, StillCard } from "./cards";
 
 export type WatchTab = "home" | "movies" | "shows" | "watched";
@@ -28,7 +28,6 @@ const TABS: Array<{ id: WatchTab; label: string }> = [
 
 type Item = { kind: "movie"; m: MovieSummary } | { kind: "show"; s: ShowSummary };
 
-const titleOf = (i: Item) => (i.kind === "movie" ? i.m.title : i.s.title);
 const summaryOf = (i: Item) => (i.kind === "movie" ? i.m : i.s);
 
 /** The Movies, Shows and Watched sort, kept in this browser. */
@@ -82,21 +81,17 @@ export function WatchView({
 }) {
   const params = useSearchParams();
   const tab = TABS.find((t) => t.id === params.get("tab"))?.id ?? "home";
-  const [searching, setSearching] = useState(false);
-  const [query, setQuery] = useState("");
   const [sort, setSort] = useWatchSort();
   const [sortOpen, setSortOpen] = useState(false);
   // Same as the library tabs: no server round trip, and Next keeps useSearchParams in step.
   const show = (next: WatchTab) => window.history.pushState(null, "", next === "home" ? "/watch" : `/watch?tab=${next}`);
 
   const all = sortWatch<Item>([...movies.map((m) => ({ kind: "movie" as const, m })), ...shows.map((s) => ({ kind: "show" as const, s }))], sort, summaryOf);
-  const q = query.trim().toLowerCase();
   const byTab: Record<Exclude<WatchTab, "home">, Item[]> = {
     movies: all.filter((i) => i.kind === "movie"),
     shows: all.filter((i) => i.kind === "show"),
     watched: all.filter(watchedOf),
   };
-  const searched = q ? (tab === "home" ? all : byTab[tab]).filter((i) => titleOf(i).toLowerCase().includes(q)) : null;
   const toItems = (posters: WatchPoster[]): Item[] =>
     posters.flatMap((p): Item[] => {
       if (p.kind === "movie") {
@@ -132,17 +127,6 @@ export function WatchView({
       <div className="page-head">
         <h1 className="page-title">Watch</h1>
         <div className="head-actions">
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label={searching ? "Close search" : "Search"}
-            onClick={() => {
-              setSearching((s) => !s);
-              setQuery("");
-            }}
-          >
-            {searching ? <CloseIcon /> : <SearchIcon />}
-          </button>
           {tab !== "home" ? (
             <button type="button" className="icon-btn" aria-label={`Sort, ${WATCH_SORTS.find((s) => s.id === sort)?.label}`} onClick={() => setSortOpen(true)}>
               <FilterIcon />
@@ -151,7 +135,6 @@ export function WatchView({
         </div>
       </div>
       <ChoiceSheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort" choices={WATCH_SORTS} value={sort} onPick={setSort} />
-      {searching ? <SearchBox value={query} onChange={setQuery} placeholder="Search movies and shows" label="Search movies and shows" /> : null}
       <Chips kind="tabs" label="Watch">
         {TABS.map((t) => (
           <Chip key={t.id} selected={tab === t.id} onClick={() => show(t.id)}>
@@ -160,16 +143,9 @@ export function WatchView({
         ))}
       </Chips>
 
+      <div key={tab} className="view-fade">
       {all.length === 0 ? (
         <EmptyState title="Nothing to watch yet">Movies and shows show up here once the scan finds them.</EmptyState>
-      ) : searched ? (
-        searched.length ? (
-          <section className="section">
-            <PosterGrid items={searched} />
-          </section>
-        ) : (
-          <EmptyState>Nothing matches &quot;{query.trim()}&quot;.</EmptyState>
-        )
       ) : tab === "home" ? (
         <>
           {!home.continueWatching.length && !home.nextEpisodes.length && !nextInCollection.length && !moreLike?.items.length && !recentMovies.length && !recentShows.length ? (
@@ -229,6 +205,7 @@ export function WatchView({
       ) : (
         <EmptyState title={tab === "movies" ? "No movies yet" : "No shows yet"}>They show up here once the scan finds them.</EmptyState>
       )}
+      </div>
     </>
   );
 }

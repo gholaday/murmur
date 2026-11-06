@@ -6,8 +6,9 @@ The layout follows the familiar podcast-app pattern: bottom tabs, a persistent m
 
 | Tab or screen | Contents |
 | --- | --- |
-| Books | Home shelves, then books by title, author or series, and finished; search and filters |
-| Podcasts | Subscribed shows with unplayed counts and new episodes; search or add a show by RSS URL |
+| Search | The pill in the bottom bar: books, authors and series, podcasts and episodes, music, and Watch in one search, with a tab per kind and recent searches; offline it searches what's downloaded |
+| Books | Home shelves, then books by title, author or series, and finished; sort and filters |
+| Podcasts | Subscribed shows with unplayed counts and new episodes; find a show by name or add one by RSS URL |
 | Music | Your albums, artists, songs and playlists, with Browse for the rest |
 | You | Downloaded at the top in the app (what's saved on the phone, with its size), then the listening stats card and settings: account, appearance, playback, server, tabs, and admin settings |
 | Book, show, album, artist or playlist page | Header with cover and colour band, description, chapters, episodes or songs, download and play buttons |

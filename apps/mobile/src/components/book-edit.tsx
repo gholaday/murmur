@@ -21,7 +21,8 @@ import { PROVIDER_NAME, SheetHead, useBookMatch } from "./match";
 import { Sheet } from "./sheet";
 import { Bone, Skeleton } from "./skeleton";
 import { toast } from "./toast";
-import { Button, Caption, Chips, EditFoot, IconButton, Text } from "./ui";
+import { TextTabs } from "./text-tabs";
+import { Button, Caption, EditFoot, IconButton, Text } from "./ui";
 
 // A book's Edit for admins, like the web's: details, cover, chapters, match and files. Details and
 // chapters are saved with Save; cover, match and file actions apply at once.
@@ -200,7 +201,7 @@ function BookEdit({ bookId, title, startTab, open, onClose }: { bookId: string; 
     <Sheet open={open} onClose={onClose} head={head} foot={foot} tall>
       <View style={{ gap: 14, paddingBottom: 8 }}>
         <View style={{ paddingHorizontal: 12 }}>
-          <Chips options={TABS} value={tab} onPick={setTab} label="Edit" wrap />
+          <TextTabs options={TABS} value={tab} onPick={setTab} label="Edit" />
         </View>
         {tab === "match" ? (
           match.body

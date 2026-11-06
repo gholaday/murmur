@@ -130,7 +130,7 @@ export function StatsPage({ kinds }: { kinds: StatsKind[] }) {
         <EmptyState title="No plays yet">Play something and your stats start here.</EmptyState>
       ) : (
         <>
-          <Chips kind="radio" label="Period">
+          <Chips kind="tabs" label="Period">
             {STATS_PERIOD_CHOICES.map((x) => (
               <Chip key={x.id} selected={period === x.id} onClick={() => setPeriod(x.id)}>
                 {x.label}

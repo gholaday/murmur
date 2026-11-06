@@ -9,7 +9,8 @@ import { BottomMiniPlayer } from "@/components/mini-player";
 import { BackRow, Empty, useBottomPad, useTopInset } from "@/components/page";
 import { ListRowBone, Skeleton } from "@/components/skeleton";
 import { toast } from "@/components/toast";
-import { Chips, IconButton, SearchBox, Text } from "@/components/ui";
+import { TextTabs } from "@/components/text-tabs";
+import { IconButton, SearchBox, Text } from "@/components/ui";
 import { addToPlaylist, keys, updatePlaylist, usePlaylist, useRecentTracks, useTrackSearch } from "@/lib/data";
 import { queryClient } from "@/lib/query";
 import { useTheme } from "@/theme";
@@ -97,7 +98,7 @@ export default function AddSongsScreen() {
         </Text>
       </View>
       <SearchBox value={query} onChange={setQuery} placeholder="Search songs, albums or artists" />
-      <Chips gap={8} options={VIEWS} value={view} onPick={setView} />
+      <TextTabs options={VIEWS} value={view} onPick={setView} />
     </View>
   );
 

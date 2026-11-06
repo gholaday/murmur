@@ -10,7 +10,8 @@ import { Card } from "@/components/settings";
 import { SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
-import { Chips, IconButton, RoundButton, Text } from "@/components/ui";
+import { TextTabs } from "@/components/text-tabs";
+import { IconButton, RoundButton, Text } from "@/components/ui";
 import { ArtBar, QualityButton, startEpisodeDownload, Still, SubtitleRow, VideoDownloadButton, WatchHero, WidePlayButton } from "@/components/watch";
 import { WatchActions } from "@/components/watch-edit";
 import { useDownloads } from "@/lib/downloads";
@@ -147,9 +148,13 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
         ) : null}
 
         {show.seasonList.length > 1 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -PAD, marginTop: 24, marginBottom: 8 }} contentContainerStyle={{ paddingHorizontal: PAD }}>
-            <Chips gap={8} label="Seasons" options={show.seasonList.map((s) => ({ id: s.season, label: seasonName(s.season) }))} value={season} onPick={setSeason} />
-          </ScrollView>
+          <TextTabs
+            label="Seasons"
+            options={show.seasonList.map((s) => ({ id: s.season, label: seasonName(s.season) }))}
+            value={season}
+            onPick={setSeason}
+            style={{ marginTop: 24, marginBottom: 8 }}
+          />
         ) : (
           <SectionTitle title={seasonName(season)} />
         )}

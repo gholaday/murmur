@@ -13,6 +13,7 @@ export * from "./library";
 export * from "./music";
 export * from "./player";
 export * from "./podcasts";
+export * from "./search";
 export * from "./settings";
 export * from "./shelves";
 export * from "./similar";

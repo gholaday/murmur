@@ -176,6 +176,13 @@
       "when": 1793462374305,
       "tag": "0024_lowly_nomad",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1793987229552,
+      "tag": "0025_search_index",
+      "breakpoints": true
     }
   ]
 }

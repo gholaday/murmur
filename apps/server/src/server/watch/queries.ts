@@ -553,6 +553,46 @@ export async function watchHome(ctx: AppContext, userId: number): Promise<WatchH
   return { enabled: true, continueWatching, nextEpisodes, nextInCollection, moreLike, recentlyAdded };
 }
 
+/** Search hits: movies and shows as posters, TV episodes as cards, each in the order given; gone ones are left out. */
+export async function watchSearchHits(
+  ctx: AppContext,
+  userId: number,
+  ids: { movies: string[]; shows: string[]; episodes: string[] },
+): Promise<{ posters: WatchPoster[]; episodes: WatchCard[] }> {
+  if (!watchEnabled(ctx)) return { posters: [], episodes: [] };
+  const progress = progressFor(ctx, userId);
+  const [movies, shows] = await Promise.all([
+    ids.movies.length ? listMovies(ctx, userId) : [],
+    ids.shows.length ? listShows(ctx, userId) : [],
+  ]);
+  const movieById = new Map(movies.map((m) => [m.id, m]));
+  const showById = new Map(shows.map((s) => [s.id, s]));
+  const posters: WatchPoster[] = [
+    ...ids.movies.flatMap((id) => {
+      const m = movieById.get(id);
+      return m ? [{ kind: "movie" as const, id, title: m.title, year: m.year, posterHash: m.posterHash, color: m.color, watched: !!m.progress?.finished, addedAt: m.addedAt }] : [];
+    }),
+    ...ids.shows.flatMap((id) => {
+      const s = showById.get(id);
+      return s ? [{ kind: "show" as const, id, title: s.title, year: s.year, posterHash: s.posterHash, color: s.color, watched: s.episodes > 0 && s.watched === s.episodes, addedAt: s.addedAt }] : [];
+    }),
+  ];
+  const rows = ids.episodes.length
+    ? (ctx.sqlite
+        .prepare(
+          `SELECT ${EPISODE_COLUMNS}, s.title AS show_title, s.backdrop_hash AS show_backdrop, s.poster_hash AS show_poster
+           FROM videos v JOIN shows s ON s.id = v.show_id ${EPISODE_JOIN} WHERE v.id IN (SELECT value FROM json_each(?)) AND ${LIVE}`,
+        )
+        .all(JSON.stringify(ids.episodes)) as Array<VideoRow & { show_title: string; show_backdrop: string | null; show_poster: string | null }>)
+    : [];
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const episodes = ids.episodes.flatMap((id) => {
+    const r = byId.get(id);
+    return r ? [episodeCard(toEpisode(r, progress), { title: r.show_title, backdrop_hash: r.show_backdrop, poster_hash: r.show_poster })] : [];
+  });
+  return { posters, episodes };
+}
+
 /** A movie version's or episode's still. */
 export function videoStillHash(ctx: AppContext, id: string): string | null {
   const row = ctx.sqlite

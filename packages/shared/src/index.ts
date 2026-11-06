@@ -3,6 +3,7 @@ import { BOOKMARK_NOTE_MAX } from "./bookmarks";
 import { clampSpeed } from "./player";
 import type { TrackDto } from "./music";
 import type { VideoStatus } from "./video-addon";
+import { SEARCH_KINDS } from "./search";
 import { BOOK_SECTION_IDS } from "./shelves";
 
 // ---------- Request schemas (validated on the server, reused by clients) ----------
@@ -103,6 +104,11 @@ export const listeningReportSchema = z.object({
     )
     .min(1)
     .max(500),
+});
+
+export const searchQuerySchema = z.object({
+  q: z.string().trim().max(200).default(""),
+  kind: z.enum(SEARCH_KINDS).default("all"),
 });
 
 export const statsQuerySchema = z.object({
@@ -811,6 +817,7 @@ export * from "./music";
 export * from "./player";
 export * from "./podcasts";
 export * from "./proxied";
+export * from "./search";
 export * from "./settings";
 export * from "./shelves";
 export * from "./similar";

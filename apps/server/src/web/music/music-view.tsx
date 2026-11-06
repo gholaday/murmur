@@ -10,18 +10,15 @@ import {
   albumCover,
   albumInMusic,
   albumInMusicLabel,
-  albumMatches,
   albumsByArtist,
   apiPaths,
   type ArtistSummary,
   artistImage,
-  artistMatches,
   type MusicHomeDto,
   type MusicSummaryDto,
   type PlaylistSummary,
   plural,
   songLength,
-  songMatches,
   songSub,
   sortAlbums,
   type TrackDto,
@@ -29,25 +26,25 @@ import {
 import { api } from "../api";
 import { Cover } from "../cover";
 import { Mixer } from "../mixer";
-import { ChevronIcon, CloseIcon, FilterIcon, FolderIcon, MusicIcon, PauseIcon, PlayIcon, ProfileIcon, SearchIcon } from "../icons";
+import { ChevronIcon, FilterIcon, FolderIcon, MusicIcon, PauseIcon, PlayIcon, ProfileIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
 import { type MusicSource, useNowPlaying, usePlayerControls, usePlayerSelect } from "../player/engine";
 import { GroupGrid } from "../library/library";
 import { ChoiceSheet } from "../sheet";
 import { SongRowsSkeleton } from "../skeletons";
-import { Chip, Chips, EmptyState, ScrollRow, SearchBox, SectionTitle, useSavedChoice } from "../ui";
+import { Chip, Chips, EmptyState, ScrollRow, SectionTitle, useSavedChoice } from "../ui";
 import { AlbumCardMenu } from "./album-menu";
 import { AlbumBadge, MineToggle, useMineChange } from "./mine";
 import { NewPlaylistButton, PlaylistCard } from "./playlist-view";
 import { SongMenuButton } from "./song-menu";
 
 export type MusicTab = "home" | "albums" | "artists" | "songs" | "playlists";
-const TABS: Array<{ id: MusicTab; label: string; placeholder: string }> = [
-  { id: "home", label: "Home", placeholder: "Album or artist" },
-  { id: "playlists", label: "Playlists", placeholder: "Playlist" },
-  { id: "albums", label: "Albums", placeholder: "Album or artist" },
-  { id: "artists", label: "Artists", placeholder: "Artist" },
-  { id: "songs", label: "Songs", placeholder: "Song, artist or album" },
+const TABS: Array<{ id: MusicTab; label: string }> = [
+  { id: "home", label: "Home" },
+  { id: "playlists", label: "Playlists" },
+  { id: "albums", label: "Albums" },
+  { id: "artists", label: "Artists" },
+  { id: "songs", label: "Songs" },
 ];
 const SORT_KEY = "murmur.albumSort";
 
@@ -130,22 +127,6 @@ export function SongRow({
   );
 }
 
-/** An album as a list row, for search results, with its + / check. */
-function AlbumRow({ album }: { album: AlbumSummary }) {
-  return (
-    <div className="list-row">
-      <Link href={`/music/album/${album.id}`} className="list-row-link">
-        <Cover src={albumCover(album.id, album.coverHash)} color={album.coverColor} title={album.title} className="thumb" />
-        <span className="list-row-main">
-          <span className="list-row-title">{album.title}</span>
-          <span className="list-row-sub">{`Album, ${album.artist}`}</span>
-        </span>
-      </Link>
-      <MineToggle title={album.title} added={albumInMusic(album) === "all"} change={{ albumIds: [album.id] }} />
-    </div>
-  );
-}
-
 /** The way into Browse, above the chips. */
 function BrowseRow({ summary }: { summary: MusicSummaryDto }) {
   const notAdded = summary.albums - summary.mine.albums;
@@ -207,67 +188,11 @@ function EmptyMusic({ total }: { total: number }) {
   );
 }
 
-// Every album, for search: kept a minute, so opening search again doesn't fetch them all again.
-let albumsCache: { at: number; list: Promise<AlbumSummary[]> } | null = null;
-function allAlbums(): Promise<AlbumSummary[]> {
-  if (!albumsCache || Date.now() - albumsCache.at > 60_000) {
-    const list = api<AlbumSummary[]>(apiPaths.albums("all"));
-    albumsCache = { at: Date.now(), list };
-    list.catch(() => (albumsCache = null));
-  }
-  return albumsCache.list;
-}
-
-/** Search on the Music tab also looks through everything not in your music yet; `onFound` says whether it found any. */
-function MoreToAdd({ q, onFound }: { q: string; onFound: (found: boolean) => void }) {
-  const [albums, setAlbums] = useState<AlbumSummary[] | null>(null);
-  const [songs, setSongs] = useState<TrackDto[]>([]);
-  useEffect(() => {
-    allAlbums().then(setAlbums, () => setAlbums([]));
-  }, []);
-  useEffect(() => {
-    // An older search that answers late mustn't replace this one's songs.
-    let stale = false;
-    const timer = setTimeout(() => {
-      api<TrackDto[]>(apiPaths.tracks("all", q)).then(
-        (s) => !stale && setSongs(s),
-        () => !stale && setSongs([]),
-      );
-    }, 250);
-    return () => {
-      stale = true;
-      clearTimeout(timer);
-    };
-  }, [q]);
-  const moreAlbums = (albums ?? []).filter((a) => albumInMusic(a) !== "all" && albumMatches(a, q)).slice(0, 6);
-  // Songs by title only: their album and artist already show above.
-  const moreSongs = songs.filter((t) => !t.inMusic && t.title.toLowerCase().includes(q)).slice(0, 20);
-  const found = moreAlbums.length + moreSongs.length > 0;
-  useEffect(() => {
-    onFound(found);
-    return () => onFound(false);
-  }, [found, onFound]);
-  if (!found) return null;
-  return (
-    <section className="section">
-      <h2 className="section-title">More to add</h2>
-      <div className="list">
-        {moreAlbums.map((a) => (
-          <AlbumRow key={a.id} album={a} />
-        ))}
-        {moreSongs.map((t) => (
-          <SongRow key={t.id} track={t} sub={songSub(t)} toggle />
-        ))}
-      </div>
-    </section>
-  );
-}
-
 /** How many On repeat songs Home lists. */
 const ON_REPEAT_ROWS = 5;
 
 /** A round artist photo (else one of their covers, else a person icon) with the name and album count under it; opens the artist. */
-function ArtistCard({ artist }: { artist: ArtistSummary }) {
+export function ArtistCard({ artist }: { artist: ArtistSummary }) {
   const src = artistImage(artist);
   return (
     <Link href={`/music/artist/${artist.id}`} className="card card-link artist-card">
@@ -375,12 +300,7 @@ export function MusicView({
   const [tab, setTab] = useState<MusicTab>(initialTab);
   const [sort, setSort] = useAlbumSort();
   const [sortOpen, setSortOpen] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const [query, setQuery] = useState("");
   const [songs, setSongs] = useState<TrackDto[] | null>(null);
-  // Set when a search also finds things to add, so your own matches get a heading of their own.
-  const [moreFound, setMoreFound] = useState(false);
-  const q = query.trim().toLowerCase();
 
   // Songs load the first time they're shown, and again when your music changes.
   useEffect(() => {
@@ -416,35 +336,13 @@ export function MusicView({
     );
   }
 
-  const shownAlbums = sorted.filter((a) => albumMatches(a, q));
-  const shownArtists = artists.filter((a) => artistMatches(a, q));
-  const shownSongs = (songs ?? []).filter((t) => songMatches(t, q));
-  const shownPlaylists = playlists.filter((p) => p.name.toLowerCase().includes(q));
-  const ownFound = {
-    home: shownAlbums.length,
-    albums: shownAlbums.length,
-    artists: shownArtists.length,
-    playlists: shownPlaylists.length,
-    songs: shownSongs.length,
-  }[tab] > 0;
-  const songsSource: MusicSource = { kind: "songs", refId: null, title: "Your songs", tracks: shownSongs };
+  const songsSource: MusicSource = { kind: "songs", refId: null, title: "Your songs", tracks: songs ?? [] };
 
   return (
     <>
       <div className="page-head">
         <h1 className="page-title">Music</h1>
         <div className="head-actions">
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label={searching ? "Close search" : "Search"}
-            onClick={() => {
-              setSearching((s) => !s);
-              setQuery("");
-            }}
-          >
-            {searching ? <CloseIcon /> : <SearchIcon />}
-          </button>
           {tab === "albums" ? (
             <button type="button" className="icon-btn" aria-label={`Sort albums, ${ALBUM_SORTS.find((s) => s.id === sort)?.label}`} onClick={() => setSortOpen(true)}>
               <FilterIcon />
@@ -453,11 +351,7 @@ export function MusicView({
         </div>
       </div>
 
-      {searching ? (
-        <SearchBox value={query} onChange={setQuery} placeholder={TABS.find((t) => t.id === tab)!.placeholder} label="Search music" />
-      ) : (
-        <BrowseRow summary={summary} />
-      )}
+      <BrowseRow summary={summary} />
 
       <Chips kind="tabs" label="Music view">
         {TABS.map((t) => (
@@ -467,24 +361,18 @@ export function MusicView({
         ))}
       </Chips>
 
-      <div style={{ marginTop: 16 }}>
-        {/* Only over results of its own, so it never sits above "Nothing matches". */}
-        {q && moreFound && ownFound ? <h2 className="section-title">In your music</h2> : null}
-        {tab === "home" && !q ? (
+      <div key={tab} className="view-fade" style={{ marginTop: 16 }}>
+        {tab === "home" ? (
           <MusicHome home={home} />
-        ) : tab === "albums" || tab === "home" ? (
-          shownAlbums.length ? (
-            <div className="grid">
-              {shownAlbums.map((a) => (
-                <AlbumCard key={a.id} album={a} sub={albumInMusic(a) === "some" ? albumInMusicLabel(a) : undefined} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState>{`Nothing matches "${query.trim()}".`}</EmptyState>
-          )
+        ) : tab === "albums" ? (
+          <div className="grid">
+            {sorted.map((a) => (
+              <AlbumCard key={a.id} album={a} sub={albumInMusic(a) === "some" ? albumInMusicLabel(a) : undefined} />
+            ))}
+          </div>
         ) : tab === "artists" ? (
-          shownArtists.length ? (
-            shownArtists.map((a) => (
+          artists.length ? (
+            artists.map((a) => (
               // Like the Books tab's authors: the name opens the artist, then a row of their albums.
               <GroupGrid key={a.id} title={a.name} noun="album" count={a.albumCount} onOpen={() => router.push(`/music/artist/${a.id}`)}>
                 {(byArtist.get(a.id) ?? []).map((al) => (
@@ -493,26 +381,22 @@ export function MusicView({
               </GroupGrid>
             ))
           ) : (
-            <EmptyState>{q ? `Nothing matches "${query.trim()}".` : "Nothing here yet."}</EmptyState>
+            <EmptyState>Nothing here yet.</EmptyState>
           )
         ) : tab === "playlists" ? (
           <>
-            {/* New playlist is the first tile; a search shows only what matches. */}
-            {shownPlaylists.length || !q ? (
-              <div className="grid">
-                {q ? null : <NewPlaylistButton />}
-                {shownPlaylists.map((p) => (
-                  <PlaylistCard key={p.id} playlist={p} />
-                ))}
-              </div>
-            ) : null}
-            {shownPlaylists.length ? null : (
-              <EmptyState>{q ? `Nothing matches "${query.trim()}".` : "Make a playlist, then add songs to it from the menu on any song."}</EmptyState>
-            )}
+            {/* New playlist is the first tile. */}
+            <div className="grid">
+              <NewPlaylistButton />
+              {playlists.map((p) => (
+                <PlaylistCard key={p.id} playlist={p} />
+              ))}
+            </div>
+            {playlists.length ? null : <EmptyState>Make a playlist, then add songs to it from the menu on any song.</EmptyState>}
           </>
         ) : songs === null ? (
           <SongRowsSkeleton />
-        ) : shownSongs.length ? (
+        ) : songs.length ? (
           <>
             <div className="songs-actions">
               <button type="button" className="btn btn-primary" onClick={() => (songsFrom ? player.toggle() : player.playMusic(songsSource, -1))}>
@@ -522,15 +406,14 @@ export function MusicView({
               <ShuffleButton source={songsSource} size={20} />
             </div>
             <div className="list">
-              {shownSongs.map((t, i) => (
+              {songs.map((t, i) => (
                 <SongRow key={t.id} track={t} onPlay={() => player.playMusic(songsSource, i)} />
               ))}
             </div>
           </>
         ) : (
-          <EmptyState>{q ? `Nothing matches "${query.trim()}".` : "Nothing here yet."}</EmptyState>
+          <EmptyState>Nothing here yet.</EmptyState>
         )}
-        {q ? <MoreToAdd q={q} onFound={setMoreFound} /> : null}
       </div>
 
       <AlbumSortSheet open={sortOpen} onClose={() => setSortOpen(false)} sort={sort} onPick={setSort} />

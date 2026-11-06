@@ -56,6 +56,7 @@ import { BarFill, CastButton, SkipButton, Tile } from "@/components/player-contr
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
 import { MixerBars } from "@/components/mixer";
+import { TextTabs } from "@/components/text-tabs";
 import { Caption, Chips, CountPill, IconButton, Text } from "@/components/ui";
 import { UpNextSheet } from "@/components/up-next";
 import { newBookmark, useBookmarks } from "@/lib/bookmarks";
@@ -552,12 +553,12 @@ function PlayerScreen({ item }: { item: Playable }) {
         open={sheet === "chapters"}
         onClose={() => setSheet(null)}
         head={
-          <View style={{ gap: 12 }}>
+          <View style={{ gap: 4 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Text variant="heading">{chaptersTab === "chapters" ? "Chapters" : "Bookmarks"}</Text>
               {chaptersTab === "chapters" || bookmarks.length ? <CountPill count={chaptersTab === "chapters" ? item.chapters.length : bookmarks.length} /> : null}
             </View>
-            <Chips
+            <TextTabs
               label="Chapters or bookmarks"
               options={[
                 { id: "chapters" as const, label: "Chapters" },

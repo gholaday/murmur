@@ -170,6 +170,27 @@ select.input { appearance: none; }
 }
 .chip[aria-pressed="true"], .chip[aria-current="true"] { background: var(--accent); color: var(--on-accent); font-weight: 700; }
 .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+/* Rows that switch views are text tabs: the selected one in text colour, underlined in accent over a hairline. */
+.chips[role="tablist"] { position: relative; gap: 24px; box-shadow: inset 0 -1px var(--line); }
+.tab-ink { position: absolute; left: 0; bottom: 0; height: 2px; border-radius: 1px; background: var(--accent); pointer-events: none; }
+.tab-ink-moves { transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) { .tab-ink-moves { transition: none; } }
+/* What a text tab shows fades in when the tab changes, like a page does. */
+.view-fade { animation: fade-in 220ms ease-out both; }
+.chips[role="tablist"] .chip {
+  flex-shrink: 0;
+  height: 44px;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: inset 0 -2px transparent;
+  transition: color 0.15s, box-shadow 0.15s;
+}
+.chips[role="tablist"] .chip:hover { color: var(--text); }
+.chips[role="tablist"] .chip[aria-pressed="true"] { background: none; color: var(--text); }
 .chip-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 
 /* Checkboxes in the app's colours; toggles inside .switch keep their own look. */
@@ -228,14 +249,16 @@ select.input { appearance: none; }
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--nav);
   border-top: 1px solid var(--line);
-  display: grid;
-  /* One column per shown tab: Podcasts and Music can be switched off. */
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  /* One column per shown tab: Podcasts, Music and Watch can be switched off. */
+  display: flex;
+  padding-left: 4px;
+  padding-right: 4px;
 }
 .tabs-brand { display: none; }
 .tab {
   position: relative;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -244,9 +267,59 @@ select.input { appearance: none; }
   color: #9a9aa0;
   font-size: 11px;
   font-weight: 600;
+  white-space: nowrap;
 }
 .tab[aria-current="page"] { color: var(--accent); font-weight: 700; }
 .tab-count { position: absolute; top: 8px; left: calc(50% + 6px); }
+
+/*
+ * Search is the first tab. Opening it on a phone grows its box out of the tab across the bar:
+ * the other tabs give up their width and fade, and the X slides in at the end. Closing runs
+ * it backwards. Wide screens keep a plain sidebar item and put the box on the page.
+ */
+.dock-search { position: relative; flex: 1 1 0; min-width: 0; display: flex; }
+.dock-search > .tab-search { flex: 1 1 0; transition: opacity 0.18s; }
+.dock-field {
+  position: absolute;
+  left: 4px;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s;
+}
+.dock-close { flex: 0 0 0; align-self: center; width: auto; min-width: 0; overflow: hidden; opacity: 0; pointer-events: none; }
+.tabs .tab-hideable, .dock-search, .dock-close { transition: flex-grow 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), flex-basis 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s; }
+.tabs.searching .dock-search { flex-grow: 6; }
+.tabs.searching .tab-hideable { flex-grow: 0; opacity: 0; pointer-events: none; }
+.tabs.searching .dock-search > .tab-search { opacity: 0; pointer-events: none; }
+.tabs.searching .dock-field { opacity: 1; pointer-events: auto; transition-delay: 0.06s; }
+.tabs.searching .dock-close { flex-basis: 44px; opacity: 1; pointer-events: auto; }
+@media (prefers-reduced-motion: reduce) {
+  .tabs .tab-hideable, .dock-search, .dock-close, .dock-field, .dock-search > .tab-search { transition: none; }
+}
+
+/* The search page's box: wide screens only, as phones use the bottom bar's. */
+.search-bar { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
+@media (max-width: 899px) { .page > .search-bar { display: none; } }
+.search-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 24px;
+  background: var(--surface-2);
+  color: var(--muted);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.search-field input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 15px; font-weight: 600; outline: none; }
+.search-field input::-webkit-search-cancel-button { display: none; }
+.recent-row .list-row-play { color: var(--muted); }
+.recent-row .list-row-title { color: var(--text); font-weight: 600; }
 
 @media (min-width: 900px) {
   :root { --side-w: 220px; }
@@ -260,10 +333,15 @@ select.input { appearance: none; }
     border-right: 1px solid var(--line);
     display: flex;
     flex-direction: column;
+    align-items: stretch;
     gap: 4px;
   }
   .tabs-brand { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 800; letter-spacing: -0.4px; padding: 0 12px 20px; }
-  .tab { flex-direction: row; justify-content: flex-start; gap: 14px; height: 46px; padding: 0 12px; border-radius: 12px; font-size: 14px; }
+  .tab { flex: none; align-self: auto; flex-direction: row; justify-content: flex-start; gap: 14px; height: 46px; padding: 0 12px; border-radius: 12px; font-size: 14px; }
+  .dock-search { display: contents; }
+  .dock-search > .tab-search { flex: none; }
+  .dock-field, .dock-close { display: none; }
+  .tabs.searching .tab-hideable, .tabs.searching .dock-search > .tab-search { opacity: 1; pointer-events: auto; }
   .tab:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
   .tab[aria-current="page"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
   .tab-count { position: static; margin-left: auto; }
@@ -626,8 +704,9 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--tex
 .show-actions .btn-tint { background: color-mix(in srgb, var(--tint) 40%, var(--surface-2)); color: var(--text); }
 
 .subtabs { display: flex; gap: 24px; border-bottom: 1px solid var(--line); margin-top: 8px; align-items: center; }
-.subtab { height: 46px; font-size: 14px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; }
-.subtab[aria-selected="true"] { color: var(--text); font-weight: 700; border-bottom-color: var(--accent); }
+/* The same text tabs as view-switching chip rows, inside sheets and dialogs. */
+.subtab { height: 44px; font-size: 15px; font-weight: 700; color: var(--muted); border-bottom: 2px solid transparent; }
+.subtab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
 .subtabs .muted { margin-left: auto; }
 /* A show's episode list heading. It stays at the top while you scroll a long list, with
    the search box when it's open, on the page's background so rows pass under it. */

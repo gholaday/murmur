@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { FlatList, PixelRatio, Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
+import { FlatList, PixelRatio, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { Redirect, router } from "expo-router";
 import Animated, { FadeIn as EnterFade, LayoutAnimationConfig } from "react-native-reanimated";
 import {
@@ -19,7 +19,6 @@ import {
   type ShelfId,
   shelfBooks,
   shelfSub,
-  matchesBook,
   seriesLabel,
   sortBooks,
   timeLeft,
@@ -27,7 +26,7 @@ import {
 import { BookActions, BookCard } from "@/components/book-card";
 import { Cover } from "@/components/cover";
 import { Mixer, useNowPlaying } from "@/components/mixer";
-import { CloseIcon, CustomizeIcon, DragIcon, FilterIcon, SearchIcon } from "@/components/icons";
+import { CustomizeIcon, DragIcon, FilterIcon } from "@/components/icons";
 import { Empty, PageTitle, useTopInset } from "@/components/page";
 import { SmallButton, useHealth } from "@/components/settings";
 import { BookSortSheet, useBookSort } from "@/components/book-sort";
@@ -36,16 +35,17 @@ import { CoverGridBones, FadeIn, SectionBone, Skeleton, useJustLoaded } from "@/
 import { useCardMenu } from "@/components/sheet";
 import { DragHandle, SortableList, SortableScrollProvider, useSortableScroll } from "@/components/sortable-list";
 import { GAP, gridRows, Group, openAllBooks, openGroup, openShelf, PAD, safeShelf, safeShelfTitle, Shelf, todayKey, useGridWidth, useShelfWidth } from "@/components/library";
-import { Bar, Button, Chips, CountPill, IconButton, Text } from "@/components/ui";
+import { TextTabs, useTabFade } from "@/components/text-tabs";
+import { Bar, Button, CountPill, IconButton, Text } from "@/components/ui";
 import { saveBookSections, useBookSections, useBooks, useTabPrefs } from "@/lib/data";
 import { withLongPressHaptic } from "@/lib/haptics";
 import { isCurrent } from "@/player/engine";
-import { fonts, useTheme } from "@/theme";
+import { useTheme } from "@/theme";
 
 type Tab = "books" | "authors" | "series" | "finished";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "books", label: "Books" },
+  { id: "books", label: "Home" },
   { id: "authors", label: "Authors" },
   { id: "series", label: "Series" },
   { id: "finished", label: "Finished" },
@@ -67,16 +67,14 @@ function Library() {
   const sort = useBookSort();
   const [sortOpen, setSortOpen] = useState(false);
   const refresh = usePullRefresh(books.refetch);
-  const [searching, setSearching] = useState(false);
-  const [query, setQuery] = useState("");
   const [customizing, setCustomizing] = useState(false);
   const fade = useJustLoaded(!books.isPending);
+  const tabFade = useTabFade(tab);
 
   const list = useMemo(() => books.data ?? [], [books.data]);
   // Why the library is empty, such as the first scan still running.
   const health = useHealth(books.isSuccess && list.length === 0).data;
   const sorted = useMemo(() => sortBooks(list, sort), [list, sort]);
-  const q = query.trim().toLowerCase();
 
   const groups = useMemo((): BookGroup[] => {
     if (tab === "authors") {
@@ -120,83 +118,35 @@ function Library() {
               <IconButton
                 label={customizing ? "Done customizing" : "Customize"}
                 accessibilityState={{ selected: customizing }}
-                onPress={() => {
-                  setCustomizing((c) => !c);
-                  setSearching(false);
-                  setQuery("");
-                }}
+                onPress={() => setCustomizing((c) => !c)}
                 style={customizing ? { backgroundColor: t.accent, borderRadius: 22 } : undefined}
               >
                 <CustomizeIcon color={customizing ? t.onAccent : t.text} />
               </IconButton>
             ) : null}
-            <IconButton
-              label={searching ? "Close search" : "Search"}
-              onPress={() => {
-                setSearching((s) => !s);
-                setQuery("");
-                setCustomizing(false);
-              }}
-            >
-              {searching ? <CloseIcon color={t.text} /> : <SearchIcon color={t.text} />}
-            </IconButton>
             <IconButton label="Sort" onPress={() => setSortOpen(true)}>
               <FilterIcon color={t.text} />
             </IconButton>
           </>
         }
       />
-      {searching ? (
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 8,
-            height: 48,
-            paddingHorizontal: 14,
-            borderRadius: 14,
-            backgroundColor: t.surface,
-            marginBottom: 12,
-          }}
-        >
-          <SearchIcon size={20} color={t.muted} />
-          <TextInput
-            autoFocus
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Title, author, narrator or series"
-            placeholderTextColor={t.faint}
-            selectionColor={t.accent}
-            style={{ flex: 1, color: t.text, fontFamily: fonts.medium, fontSize: 15 }}
-          />
-        </View>
-      ) : null}
-      {!q ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }} style={{ marginHorizontal: -PAD }}>
-          <View style={{ width: PAD - 8 }} />
-          <Chips
-            gap={8}
-            options={TABS}
-            value={tab}
-            onPick={(id) => {
-              setTab(id);
-              setCustomizing(false);
-            }}
-          />
-          <View style={{ width: PAD - 8 }} />
-        </ScrollView>
-      ) : null}
+      <TextTabs
+        memoryKey="books"
+        options={TABS}
+        value={tab}
+        onPick={(id) => {
+          setTab(id);
+          setCustomizing(false);
+        }}
+      />
     </View>
   );
 
-
-  // The views below are different lists, and a header inside one would remount with it. While
-  // searching it sits above them, so the search box stays the same input as the results change.
-  const listHeader = searching ? undefined : header;
+  const listHeader = header;
   const plain = (body: React.ReactNode) => (
     <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24 }} refreshControl={refresh} keyboardShouldPersistTaps="handled">
       {listHeader}
-      <FadeIn when={fade}>{body}</FadeIn>
+      <FadeIn when={fade} style={tabFade}>{body}</FadeIn>
     </ScrollView>
   );
 
@@ -215,25 +165,6 @@ function Library() {
     content = plain(<Empty title="Couldn't load your library">{books.error.message}</Empty>);
   } else if (list.length === 0) {
     content = plain(<Empty title="No books yet">{health ? emptyLibraryReason(health.scan) : null}</Empty>);
-  } else if (q) {
-    content = (
-      <VirtualList
-        header={<View style={{ height: 8 }} />}
-        data={gridRows(sorted.filter((b) => matchesBook(b, q)))}
-        keyOf={(r) => r[0]!.id}
-        fade={fade}
-        refresh={refresh}
-        separator={RowGap}
-        empty={<Empty>{`Nothing matches "${query.trim()}".`}</Empty>}
-        render={(r) => (
-          <View style={{ flexDirection: "row", columnGap: GAP }}>
-            {r.map((b) => (
-              <BookCard key={b.id} book={b} width={cardWidth} sub={seriesLabel(b.series, b.seriesPosition) ?? b.author} />
-            ))}
-          </View>
-        )}
-      />
-    );
   } else if (tab === "books") {
     content = (
       <BooksTab
@@ -241,6 +172,7 @@ function Library() {
         books={list}
         sorted={sorted}
         fade={fade}
+        tabFade={tabFade}
         refresh={refresh}
         customizing={customizing}
         onCustomize={() => setCustomizing(true)}
@@ -254,6 +186,7 @@ function Library() {
         data={groups}
         keyOf={(g) => g.name}
         fade={fade}
+        tabFade={tabFade}
         refresh={refresh}
         render={(g) => (
           <Group title={g.name} count={g.books.length} sub={g.sub} side={g.side} onOpen={g.open}>
@@ -276,6 +209,7 @@ function Library() {
         data={finishedRows}
         keyOf={(r) => r[0]!.id}
         fade={fade}
+        tabFade={tabFade}
         refresh={refresh}
         separator={RowGap}
         render={(r) => (
@@ -293,13 +227,14 @@ function Library() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      {searching ? <View style={{ paddingHorizontal: PAD }}>{header}</View> : null}
       {content}
       <BookSortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
     </View>
   );
 
 }
+
+type TabFade = ReturnType<typeof useTabFade>;
 
 // Defined once: an inline component here would be a new type each render, remounting every gap.
 const RowGap = () => <View style={{ height: 18 }} />;
@@ -316,7 +251,7 @@ type BookGroup = {
 
 /**
  * A virtualised list under the page header, so long libraries only mount the rows near the
- * screen. Used by the Authors, Series and Finished views, and search.
+ * screen. Used by the Authors, Series and Finished views.
  */
 function VirtualList<T>({
   header,
@@ -324,18 +259,18 @@ function VirtualList<T>({
   keyOf,
   render,
   fade,
+  tabFade,
   refresh,
   separator,
-  empty,
 }: {
   header?: React.ReactElement;
   data: T[];
   keyOf: (item: T) => string;
   render: (item: T) => React.ReactNode;
   fade: boolean;
+  tabFade: TabFade;
   refresh: React.ReactElement<React.ComponentProps<typeof RefreshControl>>;
   separator?: React.ComponentType;
-  empty?: React.ReactElement;
 }) {
   return (
     <FlatList
@@ -345,11 +280,14 @@ function VirtualList<T>({
       refreshControl={refresh}
       keyboardShouldPersistTaps="handled"
       ListHeaderComponent={header}
-      ListEmptyComponent={empty}
       ItemSeparatorComponent={separator}
       windowSize={7}
       maxToRenderPerBatch={6}
-      renderItem={({ item }) => <FadeIn when={fade}>{render(item)}</FadeIn>}
+      renderItem={({ item }) => (
+        <FadeIn when={fade} style={tabFade}>
+          {render(item)}
+        </FadeIn>
+      )}
     />
   );
 }
@@ -365,6 +303,7 @@ function BooksTab({
   books,
   sorted,
   fade,
+  tabFade,
   refresh,
   customizing,
   onCustomize,
@@ -373,6 +312,7 @@ function BooksTab({
   books: BookSummary[];
   sorted: BookSummary[];
   fade: boolean;
+  tabFade: TabFade;
   refresh: React.ReactElement<React.ComponentProps<typeof RefreshControl>>;
   customizing: boolean;
   onCustomize: () => void;
@@ -482,7 +422,7 @@ function BooksTab({
     <SortableScrollProvider value={scroll}>
       <Animated.ScrollView {...scrollProps} contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24 }} refreshControl={refresh}>
         {header}
-        <FadeIn when={fade}>
+        <FadeIn when={fade} style={tabFade}>
           <SortableList
             items={customizing ? sections : shown}
             keyOf={(s) => s.id}

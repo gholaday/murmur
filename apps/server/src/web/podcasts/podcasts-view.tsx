@@ -30,7 +30,7 @@ import { EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle } from "../u
 import { ChoiceSheet, Sheet } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
-function PodcastCard({ podcast: p }: { podcast: PodcastSummary }) {
+export function PodcastCard({ podcast: p }: { podcast: PodcastSummary }) {
   const { current, playing } = useNowPlaying((n) => n.type === "episode" && n.podcastId === p.id);
   return (
     <Link href={`/podcasts/${p.id}`} className={`card${current ? " playing" : ""}`} title={p.title}>

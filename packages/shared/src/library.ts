@@ -116,7 +116,8 @@ export function matchesBook(b: BookSummary, q: string) {
 }
 
 
-const searchKey = (s: string) =>
+/** Lower case, without accents or punctuation, single-spaced: for comparing names as people type them. */
+export const searchKey = (s: string) =>
   s
     .toLowerCase()
     .normalize("NFKD")

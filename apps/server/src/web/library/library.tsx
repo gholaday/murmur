@@ -13,7 +13,6 @@ import {
   bySeriesOrder,
   continueListening,
   groupBy,
-  matchesBook,
   seriesLabel,
   SHELF_SIZE,
   SHELF_TITLES,
@@ -32,18 +31,18 @@ import { api } from "../api";
 import { Cover } from "../cover";
 import { Mixer } from "../mixer";
 import { useNowPlaying } from "../player/engine";
-import { CustomizeIcon, DragIcon, FilterIcon, SearchIcon } from "../icons";
+import { CustomizeIcon, DragIcon, FilterIcon } from "../icons";
 import { EditBookDialog, type EditTab } from "../book/edit-dialog";
 import { ChoiceSheet } from "../sheet";
 import { useSortable } from "../sortable";
-import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle, useSavedChoice } from "../ui";
+import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SectionTitle, useSavedChoice } from "../ui";
 import { BookActionsContext, BookCard } from "./book-card";
 import { PlayNextList } from "./play-next-list";
 
 type Tab = "books" | "authors" | "series" | "finished";
 
 const TABS: Array<{ id: Tab; label: string }> = [
-  { id: "books", label: "Books" },
+  { id: "books", label: "Home" },
   { id: "authors", label: "Authors" },
   { id: "series", label: "Series" },
   { id: "finished", label: "Finished" },
@@ -145,8 +144,6 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
   const shelfParam = params.get("shelf");
   const shelf = shelfParam && shelfParam in SHELF_TITLES ? (shelfParam as ShelfId) : null;
   const allBooks = shelfParam === "all";
-  const [query, setQuery] = useState("");
-  const [searching, setSearching] = useState(false);
   const [sort, setSort] = useSavedChoice<Sort>(LIBRARY_SORT_KEY, "added", BOOK_SORTS);
   const [sortOpen, setSortOpen] = useState(false);
   const [sections, setSections] = useState(savedSections);
@@ -211,7 +208,6 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
     all: books.length,
   };
   const sorted = useMemo(() => sortBooks(books, sort), [books, sort]);
-  const q = query.trim().toLowerCase();
 
   const sortSheet = <ChoiceSheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort books" choices={BOOK_SORTS} value={sort} onPick={setSort} />;
 
@@ -344,42 +340,18 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
               className={`icon-btn ${customizing ? "accent" : ""}`}
               aria-label={customizing ? "Done customizing" : "Customize"}
               aria-pressed={customizing}
-              onClick={() => {
-                setCustomizing((c) => !c);
-                setSearching(false);
-                setQuery("");
-              }}
+              onClick={() => setCustomizing((c) => !c)}
             >
               <CustomizeIcon />
             </button>
           ) : null}
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Search"
-            aria-pressed={searching}
-            onClick={() => {
-              setSearching((s) => !s);
-              setQuery("");
-              setCustomizing(false);
-            }}
-          >
-            <SearchIcon />
-          </button>
           <button type="button" className="icon-btn" aria-label="Sort" onClick={() => setSortOpen(true)}>
             <FilterIcon />
           </button>
         </div>
       </div>
 
-      {searching ? (
-        <SearchBox value={query} onChange={setQuery} placeholder="Title, author, narrator or series" label="Search library" />
-      ) : null}
-
-      {q ? (
-        <SearchResults books={sorted.filter((b) => matchesBook(b, q))} query={query} />
-      ) : (
-        <>
+      <>
           <Chips kind="tabs" label="Library view">
             {TABS.map((t) => (
               <Chip
@@ -395,6 +367,7 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
             ))}
           </Chips>
 
+          <div key={tab} className="view-fade">
           {tab === "books" ? (
             <>
               <BookSections
@@ -452,8 +425,8 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
           {tab === "finished" ? (
             <FinishedList books={books.filter((b) => b.progress?.finished)} />
           ) : null}
+          </div>
         </>
-      )}
 
       {sortSheet}
     </>
@@ -581,17 +554,6 @@ function ContinueCard({ book: b }: { book: BookSummary }) {
         <div className="card-sub">{timeLeft(b.durationSec, b.progress!.positionSec)}</div>
       </div>
     </Link>
-  );
-}
-
-function SearchResults({ books, query }: { books: BookSummary[]; query: string }) {
-  if (books.length === 0) return <EmptyState>{`Nothing matches "${query.trim()}".`}</EmptyState>;
-  return (
-    <div className="grid">
-      {books.map((b) => (
-        <BookCard key={b.id} book={b} sub={seriesLabel(b.series, b.seriesPosition) ?? b.author} />
-      ))}
-    </div>
   );
 }
 

@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Children, createContext, useContext, useEffect, useRef, useState } from "react";
+import { Children, createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { plural } from "@murmur/shared/client";
 import { BackIcon, ChevronIcon, SearchIcon } from "./icons";
 
@@ -232,9 +232,51 @@ export function Chips({
     <ChipsKindContext.Provider value={kind}>
       <div className="chips" role={role} aria-label={label} style={wrap ? { flexWrap: "wrap" } : undefined}>
         {children}
+        {kind === "tabs" ? <TabInk /> : null}
       </div>
     </ChipsKindContext.Provider>
   );
+}
+
+/**
+ * The selected text tab's underline, one line that slides to the tab picked. It's placed without
+ * moving the first time, so a page opens with it already under its tab.
+ */
+function TabInk() {
+  const ink = useRef<HTMLSpanElement>(null);
+  const placed = useRef(false);
+  useLayoutEffect(() => {
+    const line = ink.current;
+    const row = line?.parentElement;
+    if (!line || !row) return;
+    const place = () => {
+      const tab = row.querySelector<HTMLElement>('[aria-selected="true"]');
+      if (!tab) {
+        line.style.opacity = "0";
+        return;
+      }
+      line.style.opacity = "1";
+      line.style.width = `${tab.offsetWidth}px`;
+      line.style.transform = `translateX(${tab.offsetLeft}px)`;
+      if (!placed.current) {
+        placed.current = true;
+        // Reading the layout commits this first position, so only later moves slide.
+        void line.offsetWidth;
+        line.classList.add("tab-ink-moves");
+      }
+    };
+    place();
+    // Fonts arriving or the row resizing move the tabs; follow them.
+    const observer = new ResizeObserver(place);
+    observer.observe(row);
+    const mutations = new MutationObserver(place);
+    mutations.observe(row, { attributes: true, subtree: true, attributeFilter: ["aria-selected"] });
+    return () => {
+      observer.disconnect();
+      mutations.disconnect();
+    };
+  }, []);
+  return <span ref={ink} className="tab-ink" aria-hidden="true" />;
 }
 
 export function Chip({

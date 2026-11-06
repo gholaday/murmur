@@ -43,7 +43,8 @@ import { ChevronIcon } from "./icons";
 import { PAD } from "./library";
 import { Empty, SectionTitle } from "./page";
 import { FadeIn, useJustLoaded } from "./skeleton";
-import { Caption, Chips, Text } from "./ui";
+import { TextTabs } from "./text-tabs";
+import { Caption, Text } from "./ui";
 
 // What the stats say (periods, labels, sentences, the line and the ring) comes from packages/shared, like the web's.
 
@@ -200,7 +201,7 @@ export function StatsPage() {
   if (s?.firstDay === null) return <Empty title="No plays yet">Play something and your stats start here.</Empty>;
   return (
     <>
-      <Chips wrap options={STATS_PERIOD_CHOICES} value={period} onPick={setPeriod} label="Period" />
+      <TextTabs options={STATS_PERIOD_CHOICES} value={period} onPick={setPeriod} label="Period" />
       {query.isError && !s ? (
         <Text variant="small" style={{ marginTop: 16 }}>
           {"Couldn't load your stats."}

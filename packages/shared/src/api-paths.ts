@@ -1,3 +1,5 @@
+import type { SearchKind } from "./search";
+
 // ---------- URL helpers shared by web and app ----------
 
 export const apiPaths = {
@@ -103,4 +105,7 @@ export const apiPaths = {
   streamSession: (sessionId: string) => `/api/watch/streams/${sessionId}`,
   /** POST `{ paths }` (prefixes of streams and pictures) → CastLinkDto, links a Chromecast can open. */
   cast: "/api/cast",
+  /** SearchResultsDto: books, podcasts, music and Watch at once, or one `kind`. */
+  search: (q: string, kind: SearchKind = "all") =>
+    `/api/search?q=${encodeURIComponent(q)}&kind=${kind}`,
 };

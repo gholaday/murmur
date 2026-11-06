@@ -52,7 +52,7 @@ export function Bone({ width = "100%", height, radius = 6, style }: { width?: Di
  * plays on mount only, so pass `when={false}` for content that mounts later for other reasons
  * (list rows scrolling in, tab switches).
  */
-export function FadeIn({ children, when = true, style }: { children: React.ReactNode; when?: boolean; style?: StyleProp<ViewStyle> }) {
+export function FadeIn({ children, when = true, style }: { children: React.ReactNode; when?: boolean; style?: React.ComponentProps<typeof Animated.View>["style"] }) {
   return (
     <Animated.View entering={when ? FadeInAnimation.duration(FADE_MS) : undefined} style={style}>
       {children}
