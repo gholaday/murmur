@@ -255,7 +255,7 @@ function SentencesView({ stats, kinds, today }: { stats: StatsDto; kinds: StatsK
         <View>
           {days.map((d) => (
             <Row key={d.day} top={d.top} style={{ height: 60 }}>
-              <Text style={{ width: 42, fontFamily: fonts.bold, fontSize: 13, color: d.day === today ? t.accent : t.muted }}>{d.label}</Text>
+              <Text numberOfLines={1} style={{ width: 48, fontFamily: fonts.bold, fontSize: 13, color: d.day === today ? t.accent : t.muted }}>{d.label}</Text>
               <Cover path={statsTopCover(d.top)} title={d.top.title} size={40} radius={6} />
               <Text variant="bodyStrong" numberOfLines={1} style={{ flex: 1 }}>
                 {d.top.title}

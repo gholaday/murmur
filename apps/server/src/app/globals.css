@@ -1299,7 +1299,7 @@ a.episode-show:hover { color: var(--accent); }
 .stats-line-text { flex: 1; min-width: 0; font-size: 16px; font-weight: 700; line-height: 1.35; }
 .stats-line-cover { width: 48px; height: 48px; flex-shrink: 0; border-radius: 8px; object-fit: cover; }
 .stats-day { height: 60px; }
-.stats-day-label { width: 42px; flex-shrink: 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+.stats-day-label { width: 48px; flex-shrink: 0; white-space: nowrap; font-size: 13px; font-weight: 700; color: var(--muted); }
 .stats-day-label.now { color: var(--accent); }
 .stats-day-cover { width: 40px; height: 40px; flex-shrink: 0; border-radius: 6px; object-fit: cover; }
 .stats-day-title { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
