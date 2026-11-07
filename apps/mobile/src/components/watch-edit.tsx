@@ -3,7 +3,7 @@ import { Pressable, TextInput, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { apiPaths, errorText, pastStart, type WatchArtOption, type WatchMatchResult } from "@murmur/shared/client";
 import { absolute, api, authHeaders } from "@/lib/api";
-import { useSession } from "@/lib/session";
+import { useIsAdmin } from "@/lib/session";
 import { invalidateWatch, markWatched, openVideoPlayer, showEpisodes, useMovie, useShow } from "@/lib/watch";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
@@ -54,7 +54,7 @@ export function WatchActions({
   onIdle?: () => void;
   extra?: React.ReactNode;
 }) {
-  const admin = !!useSession().user?.isAdmin;
+  const admin = useIsAdmin();
   const canMatch = useCanMatch();
   // The details, for Resume, watched and Edit; already cached on the page itself.
   const movie = useMovie(kind === "movie" ? id : undefined).data;

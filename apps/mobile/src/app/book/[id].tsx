@@ -1,29 +1,26 @@
-import { memo, useState } from "react";
+import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { apiPaths, type BookDetail, chapterAt, duration, pastStart, plural, timeLeft } from "@murmur/shared/client";
+import { apiPaths, type BookDetail, chapterAt, type ChapterDto, duration, pastStart, plural, timeLeft } from "@murmur/shared/client";
 import { BookmarkRows, openBookmark } from "@/components/bookmarks";
+import { ChapterList } from "@/components/chapters";
 import { Cover } from "@/components/cover";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { HeroBackdrop } from "@/components/hero";
 import { CheckIcon, DownloadIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "@/components/icons";
 import { openGroup, PAD } from "@/components/library";
 import { BackRow, Empty, NestedFallback, useBottomPad, SectionTitle, useTopInset } from "@/components/page";
-import { BookActions } from "@/components/book-card";
+import { BookActions, useBookActions } from "@/components/book-card";
 import { RemoveDownloadSheet } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
-import { toast } from "@/components/toast";
 import { Bar, IconButton, RoundButton, Text } from "@/components/ui";
 import { useBookmarks } from "@/lib/bookmarks";
-import { setPlayNext, useBook } from "@/lib/data";
+import { useBook } from "@/lib/data";
 import { downloadBook, getDownload, removeDownload, useDownload, type Download } from "@/lib/downloads";
 import {
   bookToPlayable,
-  isCurrent,
-  markCurrent,
   play,
   resumeFrom,
-  setFinished,
   toggle,
   useItemPosition,
   usePlayerSelect,
@@ -56,7 +53,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
   const t = useTheme();
   const top = useTopInset();
   const bottomPad = useBottomPad();
-  const current = usePlayerSelect((s) => isCurrent(s, "book", book.id));
+  const { current, finished, onPlayNext, canPlayNext, markFinished, togglePlayNext } = useBookActions(book);
   const playing = usePlayerSelect((s) => s.playing);
   const loading = usePlayerSelect((s) => s.loading);
   const live = useItemPosition("book", book.id) ?? 0;
@@ -64,15 +61,13 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
   const [menu, setMenu] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  // Stable, so the chapter list only redraws when the chapter changes.
+  const playChapter = useCallback((c: ChapterDto) => play(bookToPlayable(book), c.startSec), [book]);
 
-  const finished = !!book.progress?.finished && !current;
   const position = current ? live : book.progress && !book.progress.finished ? book.progress.positionSec : 0;
   const started = pastStart(position);
   const pct = book.durationSec ? Math.min(100, (position / book.durationSec) * 100) : 0;
   const currentChapter = started || current ? chapterAt(book.chapters, position) : -1;
-  // Only a book not yet started can wait on Play next; it leaves the shelf once it starts.
-  const canPlayNext = !started && !current && !book.progress?.finished;
-  const onPlayNext = book.playNext != null;
   const left = timeLeft(book.durationSec, position);
   const [playLabel, playSub] = current
     ? playing
@@ -90,13 +85,6 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
     // The page may show the download's saved copy (offline); where it was last left here is newer.
     play(resumeFrom(bookToPlayable(book)), finished ? 0 : undefined);
     router.push("/player");
-  };
-
-  const mark = (done: boolean) => {
-    setMenu(false);
-    if (current) markCurrent(done);
-    else setFinished("book", book.id, book.durationSec, done);
-    toast.show(done ? "Marked as finished" : "Marked as not finished");
   };
 
   const toggleDownload = () => {
@@ -198,7 +186,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
                 label={onPlayNext ? "Remove from Play next" : "Add to Play next"}
                 active={onPlayNext}
                 filled={onPlayNext}
-                onPress={() => void setPlayNext(book.id, !onPlayNext)}
+                onPress={togglePlayNext}
               >
                 <QueueAddIcon size={22} queued={onPlayNext} color={onPlayNext ? t.onAccent : t.text} />
               </RoundButton>
@@ -211,11 +199,11 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
               )}
             </RoundButton>
             <RoundButton
-              label={book.progress?.finished ? "Mark as not finished" : "Mark as finished"}
-              active={!!book.progress?.finished}
-              onPress={() => mark(!book.progress?.finished)}
+              label={finished ? "Mark as not finished" : "Mark as finished"}
+              active={finished}
+              onPress={() => void markFinished(!finished)}
             >
-              <CheckIcon size={22} color={book.progress?.finished ? t.accent : t.text} />
+              <CheckIcon size={22} color={finished ? t.accent : t.text} />
             </RoundButton>
           </View>
           {started || current ? (
@@ -242,7 +230,12 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
             </>
           ) : null}
 
-          {book.chapters.length > 1 ? <ChapterList book={book} currentChapter={currentChapter} /> : null}
+          {book.chapters.length > 1 ? (
+            <>
+              <SectionTitle title="Chapters" count={book.chapters.length} />
+              <ChapterList chapters={book.chapters} current={currentChapter} onPick={playChapter} />
+            </>
+          ) : null}
         </View>
       </ScrollView>
 
@@ -257,42 +250,3 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
     </View>
   );
 }
-
-/** Memoized so playback ticks only redraw it when the chapter changes, not twice a second. */
-const ChapterList = memo(function ChapterList({ book, currentChapter }: { book: BookDetail; currentChapter: number }) {
-  const t = useTheme();
-  return (
-    <>
-      <SectionTitle title="Chapters" count={book.chapters.length} />
-      {book.chapters.map((c, i) => {
-        const now = i === currentChapter;
-        const done = i < currentChapter;
-        return (
-          <Pressable
-            key={c.index}
-            accessibilityRole="button"
-            accessibilityLabel={`Play ${c.title}`}
-            onPress={() => play(bookToPlayable(book), c.startSec)}
-            style={({ pressed }) => ({
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 14,
-              minHeight: 52,
-              borderBottomWidth: 1,
-              borderBottomColor: t.line,
-              opacity: pressed ? 0.6 : done ? 0.55 : 1,
-            })}
-          >
-            <Text variant="small" style={{ width: 28, color: now ? t.accent : t.muted }}>
-              {i + 1}
-            </Text>
-            <Text numberOfLines={2} style={{ flex: 1, fontFamily: now ? fonts.bold : fonts.medium, color: now ? t.accent : t.text }}>
-              {c.title}
-            </Text>
-            <Text variant="small">{duration(c.endSec - c.startSec)}</Text>
-          </Pressable>
-        );
-      })}
-    </>
-  );
-});

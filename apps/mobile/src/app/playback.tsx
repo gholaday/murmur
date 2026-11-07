@@ -5,7 +5,7 @@ import { Chips } from "@/components/ui";
 import { saveAutoplayNext, saveVideoQuality, useAutoplayNext, useVideoQuality } from "@/lib/data";
 import { useWatchHome } from "@/lib/watch";
 import { AD_MODES, adPrefsStore, useAdDetection, useAdPrefs } from "@/player/ad-prefs";
-import { setSkip, usePlayer } from "@/player/engine";
+import { setSkip, usePlayerSelect } from "@/player/engine";
 
 const seconds = (values: readonly number[]) => values.map((v) => ({ id: v, label: `${v}s` }));
 const SKIP_BACK = seconds(SKIP_BACK_OPTIONS);
@@ -14,7 +14,7 @@ const QUALITIES = (["full", "light"] as const).map((id) => ({ id, label: QUALITY
 
 /** Skip lengths, the quality of converted video, and what happens at ads when the server finds them. */
 export default function PlaybackSettings() {
-  const { skip } = usePlayer();
+  const skip = usePlayerSelect((s) => s.skip);
   const adPrefs = useAdPrefs();
   const adDetection = useAdDetection();
   const watch = !!useWatchHome().data?.enabled;

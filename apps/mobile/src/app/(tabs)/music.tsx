@@ -27,7 +27,7 @@ import Animated from "react-native-reanimated";
 import { TextTabs, useTabFade } from "@/components/text-tabs";
 import { Button, CardLink, IconButton, Text } from "@/components/ui";
 import { createPlaylist, setInMusic, useAlbums, useArtists, useMusicHome, useMusicSummary, usePlaylists, useTracks } from "@/lib/data";
-import { useSession } from "@/lib/session";
+import { useIsAdmin } from "@/lib/session";
 import { playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
@@ -344,7 +344,7 @@ function MusicNote({ title, children, actions }: { title: string; children: stri
 
 /** No music folder set up yet. */
 function NoMusic() {
-  const admin = !!useSession().user?.isAdmin;
+  const admin = useIsAdmin();
   return (
     <MusicNote title="No music yet">
       {admin ? "Mount your music at /music, and your albums show up here." : "Albums show up here once they're added."}

@@ -14,7 +14,7 @@ import { Bone, CoverGridBones, FadeIn, Skeleton, useJustLoaded } from "@/compone
 import { IconButton, Text } from "@/components/ui";
 import { setInMusic, useArtist } from "@/lib/data";
 import { selectHaptic } from "@/lib/haptics";
-import { useSession } from "@/lib/session";
+import { useIsAdmin } from "@/lib/session";
 import { playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
@@ -36,7 +36,7 @@ export default function ArtistScreen() {
   const [song, setSong] = useState<TrackDto | null>(null);
   const [menu, setMenu] = useState(false);
   const [changing, setChanging] = useState(false);
-  const admin = !!useSession().user?.isAdmin;
+  const admin = useIsAdmin();
 
   let body: React.ReactNode;
   if (a) {

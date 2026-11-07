@@ -9,7 +9,7 @@ import { useAlbumColor } from "@/lib/data";
 import { VideoView } from "expo-video";
 import { openVideoPlayer } from "@/lib/watch";
 import { useCast } from "@/player/cast";
-import { type Playable, skipBy, toggle, trackStep, usePlayer, usePlayerSelect, usePositionSelect } from "@/player/engine";
+import { type Playable, skipBy, toggle, trackStep, usePlayerSelect, usePositionSelect } from "@/player/engine";
 import { closeVideo, skipVideo, toggleVideo, useVideo, useVideoHost, useVideoPositionSelect, useVideoSelect, videoPlayer } from "@/player/video";
 import { fonts, mixColor, useTheme } from "@/theme";
 import { Cover, useRetryOnFail } from "./cover";
@@ -21,7 +21,11 @@ import { Text } from "./ui";
 /** Floating player above the tabs; tap to open the full player. */
 export function MiniPlayer() {
   const t = useTheme();
-  const { item, playing, loading, error, skip } = usePlayer();
+  const item = usePlayerSelect((s) => s.item);
+  const playing = usePlayerSelect((s) => s.playing);
+  const loading = usePlayerSelect((s) => s.loading);
+  const error = usePlayerSelect((s) => s.error);
+  const skip = usePlayerSelect((s) => s.skip);
   // Tinted with what's playing, like the web's Now playing card; eases over when the item changes.
   // A song takes its album's colour.
   const albumColor = useAlbumColor(item?.album?.id);

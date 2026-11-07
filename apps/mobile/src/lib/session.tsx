@@ -29,6 +29,9 @@ export function useSession(): Session {
   return ctx;
 }
 
+/** Whether the signed-in user can edit, match and manage the library. */
+export const useIsAdmin = () => !!useSession().user?.isAdmin;
+
 /**
  * Keeps the server URL, token and user. The token is stored in the Android keystore (the iOS keychain) and
  * kept until the server revokes it, so you sign in once per device.

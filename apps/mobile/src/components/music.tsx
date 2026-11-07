@@ -20,16 +20,17 @@ import {
 import { setInMusic, useAlbum } from "@/lib/data";
 import { selectHaptic, withLongPressHaptic } from "@/lib/haptics";
 import { downloadTrack, removeDownload, useDownload, useInAlbumDownload } from "@/lib/downloads";
-import { useSession } from "@/lib/session";
+import { useIsAdmin } from "@/lib/session";
 import { createSavedStore } from "@/lib/store";
 import { addToUpNext, playMusic, isCurrent, isPlayingFrom, isWaiting, removeWaiting, toggle, toggleShuffle, usePlayerSelect } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { CheckIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon, ProfileIcon, ShuffleIcon } from "./icons";
+import { CheckIcon, DragIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon, ProfileIcon, ShuffleIcon } from "./icons";
 import { AlbumMatchSheet } from "./match";
 import { Mixer, MixerBars, useNowPlaying } from "./mixer";
 import { AddToPlaylistSheet } from "./playlists";
 import { Sheet, SheetDivider, SheetItem, useCardMenu, useMenuIdle } from "./sheet";
+import { DragHandle } from "./sortable-list";
 import { toast } from "./toast";
 import { IconButton, Pill, Pills, Text } from "./ui";
 
@@ -54,7 +55,7 @@ export const openArtist = (id: string) => router.push(`/artist/${id}`);
  * play, Up Next, playlist, artist and your music, then for admins Match.
  */
 export function AlbumActions({ album, open, onClose, onIdle }: { album: AlbumSummary; open: boolean; onClose: () => void; onIdle?: () => void }) {
-  const admin = !!useSession().user?.isAdmin;
+  const admin = useIsAdmin();
   // The songs, for playing and adding; already cached on the album page.
   const tracks = useAlbum(album.id).data?.tracks;
   const [adding, setAdding] = useState(false);
@@ -368,6 +369,7 @@ export const SongRow = memo(function SongRow({
   toggle,
   onPlay,
   onMore,
+  sortable,
 }: {
   track: TrackDto;
   toggle?: boolean;
@@ -375,18 +377,20 @@ export const SongRow = memo(function SongRow({
   onPlay?: (track: TrackDto) => void;
   /** The ⋯ button and a long press: the song's menu. */
   onMore?: (track: TrackDto) => void;
+  /** A row in a SortableList (a playlist): a drag handle at the end, and no line under it. */
+  sortable?: boolean;
 }) {
   const t = useTheme();
   const playing = usePlayingSong(track.id);
   const more = onMore ? () => onMore(track) : undefined;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityHint={onPlay ? "Plays this song" : "Opens its album"}
-      onPress={onPlay ? () => onPlay(track) : () => openAlbum(track.albumId)}
-      onLongPress={withLongPressHaptic(more)}
-      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, borderBottomWidth: 1, borderBottomColor: t.line, opacity: pressed ? 0.7 : 1 })}
-    >
+  const press = {
+    accessibilityRole: "button",
+    accessibilityHint: onPlay ? "Plays this song" : "Opens its album",
+    onPress: onPlay ? () => onPlay(track) : () => openAlbum(track.albumId),
+    onLongPress: withLongPressHaptic(more),
+  } as const;
+  const body = (
+    <>
       <View>
         <Cover path={albumCover(track.albumId, track.coverHash)} title="" size={44} radius={6} />
         {playing ? <Mixer thumb radius={6} playing={playing === "playing"} /> : null}
@@ -400,6 +404,28 @@ export const SongRow = memo(function SongRow({
         </Text>
       </View>
       <Length track={track} />
+    </>
+  );
+  // The handle sits outside the pressable part, so a drag never reads as a tap or a long press.
+  if (sortable) {
+    return (
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, minHeight: 64, paddingHorizontal: 8 }}>
+        <Pressable {...press} style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}>
+          {body}
+        </Pressable>
+        {more ? <SongMoreButton track={track} onPress={more} /> : null}
+        <DragHandle label={`Drag to reorder ${track.title}`}>
+          <DragIcon size={20} color={t.muted} />
+        </DragHandle>
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      {...press}
+      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, borderBottomWidth: 1, borderBottomColor: t.line, opacity: pressed ? 0.7 : 1 })}
+    >
+      {body}
       {toggle ? <InMusicToggle track={track} /> : null}
       {more ? <SongMoreButton track={track} onPress={more} last /> : null}
     </Pressable>

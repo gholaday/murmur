@@ -14,7 +14,6 @@ import {
   chapterAt,
   clampSpeed,
   clock,
-  duration,
   type EpisodeAdsDto,
   FALLBACK_TINT,
   MAX_SPEED,
@@ -56,7 +55,7 @@ import { Empty, useTopInset } from "@/components/page";
 import { BarFill, CastButton, SkipButton, Tile } from "@/components/player-controls";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
-import { MixerBars } from "@/components/mixer";
+import { CHAPTER_ROW, ChapterList } from "@/components/chapters";
 import { TextTabs } from "@/components/text-tabs";
 import { Caption, Chips, CountPill, IconButton, Text } from "@/components/ui";
 import { UpNextSheet } from "@/components/up-next";
@@ -575,38 +574,7 @@ function PlayerScreen({ item }: { item: Playable }) {
         noScrollbar
       >
         {chaptersTab === "bookmarks" ? (bookmarks.length ? <BookmarkRows bookmarks={bookmarks} onJump={jumpToBookmark} /> : noBookmarks) : null}
-        {chaptersTab === "chapters" ? item.chapters.map((c, i) => (
-          <Pressable
-            key={c.index}
-            accessibilityRole="button"
-            onPress={choose(() => seek(c.startSec))}
-            style={({ pressed }) => ({
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 12,
-              height: CHAPTER_ROW,
-              paddingHorizontal: 12,
-              borderRadius: 12,
-              backgroundColor: pressed ? t.surface2 : "transparent",
-            })}
-          >
-            <View style={{ width: 26 }}>
-              {i === ci ? (
-                <MixerBars playing={p.playing} color={t.accent} />
-              ) : (
-                <Text variant="small" style={{ color: t.muted }}>
-                  {i + 1}
-                </Text>
-              )}
-            </View>
-            <Text numberOfLines={1} style={{ flex: 1, fontFamily: i === ci ? fonts.bold : fonts.medium, color: i === ci ? t.accent : i < ci ? t.muted : t.text }}>
-              {c.title}
-            </Text>
-            <Text variant="small" style={{ color: t.muted }}>
-              {duration(c.endSec - c.startSec)}
-            </Text>
-          </Pressable>
-        )) : null}
+        {chaptersTab === "chapters" ? <ChapterList chapters={item.chapters} current={ci} playing={p.playing} onPick={(c) => choose(() => seek(c.startSec))()} /> : null}
       </Sheet>
 
       <Sheet
@@ -845,8 +813,6 @@ function MoreItems({ item, close, ads, openAds }: { item: Playable; close: () =>
     </>
   );
 }
-
-const CHAPTER_ROW = 50;
 
 
 function StepButton({ label, disabled, onPress, children }: { label: string; disabled?: boolean; onPress: () => void; children: React.ReactNode }) {

@@ -1,23 +1,20 @@
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { albumCover, type PlaylistDetail, songLength, songSub, type TrackDto } from "@murmur/shared/client";
-import { Cover } from "@/components/cover";
-import { Mixer } from "@/components/mixer";
-import { DragIcon, MoreIcon, PlusIcon } from "@/components/icons";
+import { type PlaylistDetail, type TrackDto } from "@murmur/shared/client";
+import { MoreIcon, PlusIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { ActionButton, addSongsToUpNext, Pills, PlayButton, ShuffleButton, SongMoreButton, SongSheet, usePlayingSong } from "@/components/music";
+import { ActionButton, addSongsToUpNext, Pills, PlayButton, ShuffleButton, SongRow, SongSheet } from "@/components/music";
 import { BackRow, Empty, useBottomPad, useTopInset } from "@/components/page";
 import { NamePlaylistSheet, PlaylistCover, playlistPills } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { ConfirmSheet, Sheet, SheetItem } from "@/components/sheet";
 import { Bone, FadeIn, ListRowBone, Skeleton, useJustLoaded } from "@/components/skeleton";
-import { DragHandle, SortableList, SortableScrollView } from "@/components/sortable-list";
+import { SortableList, SortableScrollView } from "@/components/sortable-list";
 import { toast } from "@/components/toast";
 import { Caption, IconButton, Text } from "@/components/ui";
 import { deletePlaylist, keys, updatePlaylist, usePlaylist } from "@/lib/data";
-import { withLongPressHaptic } from "@/lib/haptics";
 import { queryClient } from "@/lib/query";
 import { type MusicSource, playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
@@ -86,7 +83,7 @@ export default function PlaylistScreen() {
                   const byId = new Map(p.tracks.map((tr) => [tr.id, tr]));
                   setOrder(ids.flatMap((k) => byId.get(k) ?? []));
                 }}
-                renderRow={(tr, i) => <PlaylistSongRow track={tr} onPlay={() => playMusic(source, i)} onMore={() => setSong(tr)} />}
+                renderRow={(tr, i) => <SongRow track={tr} sortable onPlay={() => playMusic(source, i)} onMore={setSong} />}
               />
             </View>
           </>
@@ -207,41 +204,6 @@ export default function PlaylistScreen() {
           />
         </>
       ) : null}
-    </View>
-  );
-}
-
-/** A song in the playlist: cover, title, "Artist, Album", length, ⋯ and a drag handle. */
-function PlaylistSongRow({ track, onPlay, onMore }: { track: TrackDto; onPlay: () => void; onMore: () => void }) {
-  const t = useTheme();
-  const playing = usePlayingSong(track.id);
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, minHeight: 64, paddingHorizontal: 8 }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityHint="Plays the playlist from this song. Long press for more options"
-        onPress={onPlay}
-        onLongPress={withLongPressHaptic(onMore)}
-        style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}
-      >
-        <View>
-          <Cover path={albumCover(track.albumId, track.coverHash)} title="" size={44} radius={6} />
-          {playing ? <Mixer thumb radius={6} playing={playing === "playing"} /> : null}
-        </View>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 15, color: playing ? t.accent : t.text }}>
-            {track.title}
-          </Text>
-          <Text variant="small" numberOfLines={1}>
-            {songSub(track)}
-          </Text>
-        </View>
-        <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: t.muted, fontVariant: ["tabular-nums"] }}>{songLength(track)}</Text>
-      </Pressable>
-      <SongMoreButton track={track} onPress={onMore} />
-      <DragHandle label={`Drag to reorder ${track.title}`}>
-        <DragIcon size={20} color={t.muted} />
-      </DragHandle>
     </View>
   );
 }

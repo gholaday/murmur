@@ -12,7 +12,7 @@ import { IconButton } from "@/components/ui";
 import { type PosterItem, PosterCard, StillCard, useWatchSort, WatchSortSheet } from "@/components/watch";
 import { useDownloads } from "@/lib/downloads";
 import { useOnline } from "@/lib/query";
-import { useSession } from "@/lib/session";
+import { useIsAdmin } from "@/lib/session";
 import { openMovie, openTvShow, useMovies, useShows, useWatchHome } from "@/lib/watch";
 import { useTheme } from "@/theme";
 
@@ -63,7 +63,7 @@ export default function Watch() {
   const top = useTopInset();
   const width = useGridWidth();
   const shelfWidth = useShelfWidth();
-  const admin = !!useSession().user?.isAdmin;
+  const admin = useIsAdmin();
   const [tab, setTab] = useState<Tab>("home");
   const tabFade = useTabFade(tab);
   const [sortOpen, setSortOpen] = useState(false);

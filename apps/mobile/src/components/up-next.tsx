@@ -1,6 +1,6 @@
 import { Pressable, View } from "react-native";
 import { chapterAt, queueEntryView, timeLeft, type UpNextEntry } from "@murmur/shared/client";
-import { clearUpNext, moveUpNext, type Playable, playAt, removeAt, restoreUpNext, toggle, usePlayer, usePlayerSelect, usePosition } from "@/player/engine";
+import { clearUpNext, moveUpNext, type Playable, playAt, removeAt, restoreUpNext, toggle, usePlayerSelect, usePosition } from "@/player/engine";
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { CloseIcon, DragIcon } from "./icons";
@@ -47,7 +47,9 @@ function moved(before: string[], after: string[]): [number, number] | null {
  */
 export function UpNextSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useTheme();
-  const { item, upNext, upNextLoaded } = usePlayer();
+  const item = usePlayerSelect((s) => s.item);
+  const upNext = usePlayerSelect((s) => s.upNext);
+  const upNextLoaded = usePlayerSelect((s) => s.upNextLoaded);
   const { items, index } = upNext;
   const waiting = Math.max(0, items.length - index - 1);
   const keys = rowKeys(items);

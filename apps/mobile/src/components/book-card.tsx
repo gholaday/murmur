@@ -7,8 +7,8 @@ import { fetchBook, setPlayNext } from "@/lib/data";
 import { useDownload } from "@/lib/downloads";
 import { withLongPressHaptic } from "@/lib/haptics";
 import { queryClient } from "@/lib/query";
-import { useSession } from "@/lib/session";
-import { bookToPlayable, isCurrent, markCurrent, play, setFinished, toggle, usePlayer } from "@/player/engine";
+import { useIsAdmin } from "@/lib/session";
+import { bookToPlayable, isCurrent, markCurrent, play, setFinished, toggle, usePlayerSelect } from "@/player/engine";
 import { useTheme } from "@/theme";
 import { BookEditSheet, type BookEditTab } from "./book-edit";
 import { Cover } from "./cover";
@@ -67,16 +67,44 @@ export const BookCard = memo(function BookCard({ book, sub, width }: { book: Boo
 });
 
 /**
+ * What can be done to a book, the same from its card's menu and its page (like the web's): whether
+ * it's the one loaded, marking it finished, and putting it on Play next.
+ */
+export function useBookActions(book: BookSummary) {
+  const current = usePlayerSelect((s) => isCurrent(s, "book", book.id));
+  const onPlayNext = book.playNext != null;
+  return {
+    current,
+    // Playing a finished book starts it over, so while it's loaded it isn't finished.
+    finished: !!book.progress?.finished && !current,
+    onPlayNext,
+    /** A started book is in Continue listening, so it can't go on Play next. */
+    canPlayNext: !current && !bookStarted(book),
+    async markFinished(done: boolean) {
+      try {
+        // The player saves the one it has loaded.
+        if (current) await markCurrent(done);
+        else setFinished("book", book.id, book.durationSec, done);
+        toast.show(done ? "Marked as finished" : "Marked as not finished");
+      } catch (err) {
+        toast.error(errorText(err));
+      }
+    },
+    /** Says so itself, with an Undo, or what went wrong. */
+    togglePlayNext: () => void setPlayNext(book.id, !onPlayNext),
+  };
+}
+
+/**
  * A book's menu, the same from a card's long press and the book page's ⋯ (like the web's): play,
  * Play next and finished, then for admins Edit, Match and Mark as matched.
  */
 export function BookActions({ book, open, onClose, onIdle }: { book: BookSummary; open: boolean; onClose: () => void; onIdle?: () => void }) {
-  const player = usePlayer();
-  const admin = !!useSession().user?.isAdmin;
+  const playing = usePlayerSelect((s) => s.playing);
+  const admin = useIsAdmin();
   const [editing, setEditing] = useState<BookEditTab | null>(null);
   useMenuIdle(open || editing !== null, onIdle);
-  const current = isCurrent(player, "book", book.id);
-  const finished = !!book.progress?.finished;
+  const { current, finished, onPlayNext, canPlayNext, markFinished, togglePlayNext } = useBookActions(book);
 
   const run = (fn: () => Promise<unknown> | void, done?: string) => async () => {
     onClose();
@@ -100,23 +128,14 @@ export function BookActions({ book, open, onClose, onIdle }: { book: BookSummary
     <>
       <Sheet open={open} onClose={onClose} title={book.title}>
         <SheetItem
-          label={current && player.playing ? "Pause" : bookListening(book) ? "Continue" : "Play"}
+          label={current && playing ? "Pause" : bookListening(book) ? "Continue" : "Play"}
           onPress={run(async () => {
             if (current) return toggle();
             play(bookToPlayable(await fetchBook(book.id)), finished ? 0 : undefined);
           })}
         />
-        {/* Started books are in Continue listening instead. */}
-        {bookStarted(book) || current ? null : (
-          <SheetItem label={book.playNext != null ? "Remove from Play next" : "Add to Play next"} onPress={run(() => setPlayNext(book.id, book.playNext == null))} />
-        )}
-        <SheetItem
-          label={finished ? "Mark as not finished" : "Mark as finished"}
-          onPress={run(
-            () => (current ? markCurrent(!finished) : setFinished("book", book.id, book.durationSec, !finished)),
-            finished ? "Marked as not finished" : "Marked as finished",
-          )}
-        />
+        {canPlayNext ? <SheetItem label={onPlayNext ? "Remove from Play next" : "Add to Play next"} onPress={run(togglePlayNext)} /> : null}
+        <SheetItem label={finished ? "Mark as not finished" : "Mark as finished"} onPress={run(() => markFinished(!finished))} />
         {admin ? (
           <>
             <SheetDivider />
