@@ -31,6 +31,21 @@ export function mimeTypeFor(name: string): string {
   return MIME_TYPES[extname(name)] ?? "application/octet-stream";
 }
 
+/** The file name without its extension. */
+export function stem(name: string): string {
+  const ext = extname(name);
+  return ext ? name.slice(0, -ext.length) : name;
+}
+
+/** Trimmed, or null when nothing's left. */
+export const trimOrNull = (s: string | null | undefined): string | null => s?.trim() || null;
+
+/** Without a leading "The", "A" or "An". Expects lower case. */
+export const withoutArticle = (s: string) => s.replace(/^(?:the|a|an)\s+/, "");
+
+/** "CD 1", "Disc 2", "Part 03" subfolders belong to the book or album above them. The number is captured. */
+export const DISC_FOLDER = /^(?:cd|disc|disk|part)\s*(\d+)$/i;
+
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 export const naturalCompare = (a: string, b: string) => collator.compare(a, b);
 
@@ -209,11 +224,6 @@ interface BuildInput {
   readerTxt?: string | null;
 }
 
-function baseName(name: string): string {
-  const ext = extname(name);
-  return ext ? name.slice(0, -ext.length) : name;
-}
-
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
 export function buildBookMetadata({ relDir, files, descTxt, readerTxt }: BuildInput): BookMetadata {
@@ -262,7 +272,7 @@ export function buildBookMetadata({ relDir, files, descTxt, readerTxt }: BuildIn
       }
     } else {
       chapters.push({
-        title: single ? title : (tag(f.probe.tags, "title") ?? baseName(f.name)),
+        title: single ? title : (tag(f.probe.tags, "title") ?? stem(f.name)),
         startSec: round3(start),
         endSec: round3(start + dur),
       });
@@ -285,7 +295,4 @@ export function buildBookMetadata({ relDir, files, descTxt, readerTxt }: BuildIn
   };
 }
 
-function clean(value: string | null | undefined): string | null {
-  const v = value?.replace(/\r\n/g, "\n").trim();
-  return v ? v : null;
-}
+const clean = (value: string | null | undefined) => trimOrNull(value?.replace(/\r\n/g, "\n"));

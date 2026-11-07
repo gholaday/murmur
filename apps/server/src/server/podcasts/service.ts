@@ -1,6 +1,6 @@
-import crypto from "node:crypto";
 import type { Sqlite } from "../db";
 import { HttpError } from "../http";
+import { newId } from "../ids";
 import { storeCover } from "../library/covers";
 import { createLimiter } from "../library/probe";
 import { errorMessage, type Logger } from "../log";
@@ -49,7 +49,6 @@ const MAX_ARTWORK_BYTES = 20 * 1024 * 1024;
 const MAX_BACKOFF_MS = 24 * 60 * 60 * 1000;
 const PREVIEW_CACHE_MS = 10 * 60_000;
 
-const newId = () => crypto.randomBytes(9).toString("base64url");
 const feedHost = (url: string) => {
   try {
     return new URL(url).host;

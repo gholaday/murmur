@@ -1,14 +1,13 @@
-import crypto from "node:crypto";
 import type { PlaylistDetail, PlaylistSummary } from "@murmur/shared";
 import type { AppContext } from "../context";
 import { HttpError } from "../http";
+import { newId } from "../ids";
 import { tracksByIds } from "./queries";
 
 // Playlists belong to one person: nobody else sees them, and every call checks the owner.
 // Songs keep their order in `position`; replacing the order rewrites them all, which is fine
 // at playlist sizes and keeps reorder and remove to one call.
 
-const newId = () => crypto.randomBytes(9).toString("base64url");
 const COVERS = 4;
 
 interface PlaylistRow {

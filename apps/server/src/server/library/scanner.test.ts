@@ -22,6 +22,7 @@ it("finds every folder holding audio, with disc folders joined to their book", a
   file("Brandon Sanderson/Mistborn/Book 1 - The Final Empire/02.mp3");
   file("Tolkien/The Hobbit/CD 1/01.mp3");
   file("Tolkien/The Hobbit/CD 2/01.mp3");
+  file("Tolkien/The Hobbit/CD 2/Bonus/01.mp3"); // below a disc folder: not part of anything
   file("Tolkien/The Hobbit/notes.pdf");
   file("Empty Author/No Audio/cover.jpg");
   file("loose.mp3"); // straight in the library folder: not a book

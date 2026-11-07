@@ -4,20 +4,13 @@ import path from "node:path";
 import { eq, inArray, isNotNull, lt, and } from "drizzle-orm";
 import type { Db } from "../db";
 import { bookFiles, books, chapters } from "../db/schema";
+import { newId } from "../ids";
 import { errorMessage, type Logger } from "../log";
 import { pickCoverImage, storeCover } from "./covers";
 import type { LibraryFolder } from "./folders";
-import {
-  AUDIO_EXTENSIONS,
-  IMAGE_EXTENSIONS,
-  buildBookMetadata,
-  extname,
-  isIgnoredName,
-  naturalCompare,
-  type ScannedAudioFile,
-} from "./parse";
+import { AUDIO_EXTENSIONS, DISC_FOLDER, IMAGE_EXTENSIONS, buildBookMetadata, extname, naturalCompare, type ScannedAudioFile } from "./parse";
 import { createLimiter, createUnreadable, extractEmbeddedCover, probeFile } from "./probe";
-import { runScan } from "./scan-loop";
+import { fileDetails, type FoundFile, runScan, type ScanState, type ScanStats, walkTree } from "./scan-loop";
 import { bumpChanges } from "../changes";
 
 interface ScannerDeps {
@@ -33,45 +26,21 @@ interface ScannerDeps {
   afterScan?: () => Promise<void>;
 }
 
-export interface ScanState {
-  running: boolean;
-  rerunRequested: boolean;
-  lastFinishedAt: number | null;
-  lastDurationMs: number | null;
-  lastError: string | null;
-  lastStats: ScanStats | null;
-}
-
-export interface ScanStats {
-  found: number;
-  added: number;
-  updated: number;
-  moved: number;
-  unchanged: number;
-  missing: number;
-  removed: number;
-  failed: number;
-}
-
-export function createScanState(): ScanState {
-  return { running: false, rerunRequested: false, lastFinishedAt: null, lastDurationMs: null, lastError: null, lastStats: null };
-}
-
-interface FoundFile {
+interface BookFile extends FoundFile {
   name: string; // relative to the book folder, e.g. "CD 1/01.mp3"
-  relPath: string; // relative to the library folder
-  size: number;
-  mtimeMs: number;
 }
 
-interface FoundBook {
+interface BookFiles {
+  relDir: string;
+  audio: BookFile[];
+  images: BookFile[];
+  descTxt: BookFile | null;
+  readerTxt: BookFile | null;
+}
+
+interface FoundBook extends BookFiles {
   folderId: number;
   root: string;
-  relDir: string;
-  audio: FoundFile[];
-  images: FoundFile[];
-  descTxt: FoundFile | null;
-  readerTxt: FoundFile | null;
   signature: string;
   contentKey: string;
 }
@@ -82,28 +51,20 @@ interface FoundBook {
  */
 const SCAN_RULES_VERSION = 2;
 
-/** "CD 1", "Disc 2", "Part 03" subfolders belong to the book above them. */
-const DISC_FOLDER = /^(?:cd|disc|disk|part)\s*\d+$/i;
-/** Folder listings and file stats in flight at once while walking a library. */
-const WALK_CONCURRENCY = 16;
-
 const toPosix = (p: string) => p.split(path.sep).join("/");
 const sha1 = (s: string) => crypto.createHash("sha1").update(s).digest("hex");
 
 class LibraryUnavailableError extends Error {}
 
-// Folder listings and file stats run a few at a time: one by one, a large library on a
-// network share spends most of a scan waiting on round trips.
-const fsLimit = createLimiter(WALK_CONCURRENCY);
-
-async function listDir(abs: string) {
-  return (await fsLimit(() => fs.readdir(abs, { withFileTypes: true }))).filter((e) => !isIgnoredName(e.name));
-}
-
-async function fileInfo(absDir: string, relDir: string, prefix: string, name: string): Promise<FoundFile> {
-  const st = await fsLimit(() => fs.stat(path.join(absDir, name)));
-  const inBook = prefix ? `${prefix}/${name}` : name;
-  return { name: inBook, relPath: relDir ? `${relDir}/${inBook}` : inBook, size: st.size, mtimeMs: Math.floor(st.mtimeMs) };
+/** What a file in a book folder is for, if anything. */
+function bookFileKind(name: string): "audio" | "image" | "desc" | "reader" | null {
+  const ext = extname(name);
+  const lower = name.toLowerCase();
+  if (AUDIO_EXTENSIONS.has(ext)) return "audio";
+  if (IMAGE_EXTENSIONS.has(ext)) return "image";
+  if (lower === "desc.txt" || lower === "description.txt") return "desc";
+  if (lower === "reader.txt" || lower === "narrator.txt") return "reader";
+  return null;
 }
 
 /** Folders to rescan, by library folder id, relative with forward slashes; "" is the whole folder. */
@@ -163,69 +124,55 @@ export async function scanStart(root: string, rel: string): Promise<string> {
  * in it that holds audio files directly.
  */
 export async function walkFolder(folder: LibraryFolder, log: Logger, startRel = ""): Promise<FoundBook[]> {
-  const libraryDir = folder.path;
-
-  /** The book in `relDir`, if it holds audio, then those in its subfolders, in folder order. */
-  async function visit(relDir: string): Promise<FoundBook[]> {
-    const absDir = path.join(libraryDir, relDir);
-    let entries;
-    try {
-      entries = await listDir(absDir);
-    } catch (err) {
-      log.warn("cannot read folder, skipping", { folder: relDir, error: errorMessage(err) });
-      return [];
-    }
-    const book: Omit<FoundBook, "signature" | "contentKey" | "folderId" | "root"> = { relDir, audio: [], images: [], descTxt: null, readerTxt: null };
-    const subdirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
-    const discDirs = subdirs.filter((d) => DISC_FOLDER.test(d)).sort(naturalCompare);
-    const [files, discs] = await Promise.all([
-      Promise.all(entries.filter((e) => e.isFile()).map((e) => classify(absDir, relDir, "", e.name))),
-      Promise.all(
-        discDirs.map(async (disc) => {
-          const absDisc = path.join(absDir, disc);
-          const audio = (await listDir(absDisc)).filter((e) => e.isFile() && AUDIO_EXTENSIONS.has(extname(e.name)));
-          return Promise.all(audio.map((e) => fileInfo(absDisc, relDir, disc, e.name)));
-        }),
-      ),
-    ]);
-    for (const f of files) {
-      if (f?.kind === "audio") book.audio.push(f.file);
-      else if (f?.kind === "image") book.images.push(f.file);
-      else if (f?.kind === "desc") book.descTxt = f.file;
-      else if (f?.kind === "reader") book.readerTxt = f.file;
-    }
-    book.audio.push(...discs.flat());
-    const nested = await Promise.all(
-      subdirs.filter((d) => !(discDirs.length > 0 && DISC_FOLDER.test(d))).map((d) => visit(relDir ? `${relDir}/${d}` : d)),
+  const byDir = new Map<string, BookFiles>();
+  const first = (a: BookFile | null, b: BookFile) => (a && a.name < b.name ? a : b);
+  const bookIn = (relDir: string) => {
+    let book = byDir.get(relDir);
+    if (!book) byDir.set(relDir, (book = { relDir, audio: [], images: [], descTxt: null, readerTxt: null }));
+    return book;
+  };
+  try {
+    await walkTree(
+      folder.path,
+      log,
+      async (rel, files) => {
+        // A disc folder's audio belongs to the book above it, named "CD 1/01.mp3" inside it.
+        // Anything below a disc folder isn't part of the book.
+        const below = (startRel ? rel.slice(startRel.length + 1) : rel).split("/").slice(0, -1);
+        if (rel !== startRel && below.some((p) => DISC_FOLDER.test(p))) return;
+        const parent = path.posix.dirname(rel);
+        const disc = rel !== startRel && DISC_FOLDER.test(path.posix.basename(rel));
+        const relDir = disc ? (parent === "." ? "" : parent) : rel;
+        await Promise.all(
+          files.map(async ({ name, relPath }) => {
+            const kind = bookFileKind(name);
+            if (!kind || (disc && kind !== "audio")) return;
+            const file = { ...(await fileDetails(folder.path, relPath)), name: relPath.slice(relDir ? relDir.length + 1 : 0) };
+            const book = bookIn(relDir);
+            if (kind === "audio") book.audio.push(file);
+            else if (kind === "image") book.images.push(file);
+            // With both desc.txt and description.txt (or reader.txt and narrator.txt), the first name wins.
+            else if (kind === "desc") book.descTxt = first(book.descTxt, file);
+            else book.readerTxt = first(book.readerTxt, file);
+          }),
+        );
+      },
+      startRel,
     );
-    return [...(book.audio.length > 0 && relDir ? [finish(book)] : []), ...nested.flat()];
+  } catch (err) {
+    log.warn("cannot read folder, skipping", { folder: startRel, error: errorMessage(err) });
+    return [];
   }
 
-  async function classify(absDir: string, relDir: string, prefix: string, name: string) {
-    const ext = extname(name);
-    const lower = name.toLowerCase();
-    const kind = AUDIO_EXTENSIONS.has(ext)
-      ? "audio"
-      : IMAGE_EXTENSIONS.has(ext)
-        ? "image"
-        : lower === "desc.txt" || lower === "description.txt"
-          ? "desc"
-          : lower === "reader.txt" || lower === "narrator.txt"
-            ? "reader"
-            : null;
-    return kind ? { kind, file: await fileInfo(absDir, relDir, prefix, name) } : null;
-  }
-
-  function finish(book: Omit<FoundBook, "signature" | "contentKey" | "folderId" | "root">): FoundBook {
-    const all = [...book.audio, ...book.images, book.descTxt, book.readerTxt].filter((f): f is FoundFile => f !== null);
-    const signature = sha1(
-      `rules:${SCAN_RULES_VERSION}\n` + all.map((f) => `${f.name}|${f.size}|${f.mtimeMs}`).sort().join("\n"),
-    );
-    const contentKey = sha1(book.audio.map((f) => `${path.posix.basename(f.name)}|${f.size}`).sort().join("\n"));
-    return { ...book, folderId: folder.id, root: libraryDir, signature, contentKey };
-  }
-
-  return visit(startRel);
+  return [...byDir.values()]
+    .filter((book) => book.relDir && book.audio.length > 0)
+    .sort((a, b) => naturalCompare(a.relDir, b.relDir))
+    .map((book) => {
+      const all = [...book.audio, ...book.images, book.descTxt, book.readerTxt].filter((f): f is BookFile => f !== null);
+      const signature = sha1(`rules:${SCAN_RULES_VERSION}\n` + all.map((f) => `${f.name}|${f.size}|${f.mtimeMs}`).sort().join("\n"));
+      const contentKey = sha1(book.audio.map((f) => `${path.posix.basename(f.name)}|${f.size}`).sort().join("\n"));
+      return { ...book, folderId: folder.id, root: folder.path, signature, contentKey };
+    });
 }
 
 export function createScanner(deps: ScannerDeps) {
@@ -233,7 +180,7 @@ export function createScanner(deps: ScannerDeps) {
   const limit = createLimiter(Math.max(1, deps.probeConcurrency));
   const unreadable = createUnreadable();
 
-  async function readText(root: string, file: FoundFile | null): Promise<string | null> {
+  async function readText(root: string, file: BookFile | null): Promise<string | null> {
     if (!file) return null;
     try {
       return await fs.readFile(path.join(root, file.relPath), "utf8");
@@ -262,7 +209,7 @@ export function createScanner(deps: ScannerDeps) {
 
   /** Probes every file of one book and writes it. Returns false if the book couldn't be read. */
   async function importBook(found: FoundBook, existingId: string | null, now: number): Promise<boolean> {
-    const keyOf = (f: FoundFile) => `${found.folderId}:${f.relPath}`;
+    const keyOf = (f: BookFile) => `${found.folderId}:${f.relPath}`;
     if (found.audio.some((f) => unreadable.skip(keyOf(f), f))) return false;
     let audio: ScannedAudioFile[];
     try {
@@ -291,7 +238,7 @@ export function createScanner(deps: ScannerDeps) {
       readerTxt: await readText(found.root, found.readerTxt),
     });
     const coverHash = await resolveCover(found, audio);
-    const id = existingId ?? crypto.randomBytes(9).toString("base64url");
+    const id = existingId ?? newId();
 
     db.transaction((tx) => {
       const values = {
@@ -379,7 +326,7 @@ export function createScanner(deps: ScannerDeps) {
       : allExisting;
 
     const keyOf = (folderId: number | null, relDir: string) => `${folderId}:${relDir}`;
-    const stats: ScanStats = { found: foundBooks.length, added: 0, updated: 0, moved: 0, unchanged: 0, missing: 0, removed: 0, failed: 0 };
+    const stats = { found: foundBooks.length, added: 0, updated: 0, moved: 0, unchanged: 0, missing: 0, removed: 0, failed: 0 };
     const byPath = new Map(existing.map((b) => [keyOf(b.folderId, b.folderPath), b]));
     const foundPaths = new Set(foundBooks.map((b) => keyOf(b.folderId, toPosix(b.relDir))));
     const claimed = new Set<string>();

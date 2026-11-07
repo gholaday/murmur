@@ -1,7 +1,7 @@
 import fs, { type FileHandle } from "node:fs/promises";
 import { type IAudioMetadata, type IChapter, type IOptions, parseFromTokenizer } from "music-metadata";
 import { AbstractTokenizer, EndOfStreamError, type IRandomAccessFileInfo, type IReadChunkOptions } from "strtok3";
-import type { ProbedChapter, ProbeResult } from "./parse";
+import { type ProbedChapter, type ProbeResult, trimOrNull } from "./parse";
 
 /**
  * music-metadata's own file reader treats any short read as the end of the file. Network
@@ -138,7 +138,7 @@ function chaptersOf(meta: IAudioMetadata, durationSec: number): ProbedChapter[] 
       startSec: starts[i]!,
       // Not every format stores chapter ends; a chapter then runs to the next one.
       endSec: chapterSeconds(c, "end", meta.format.sampleRate) ?? starts[i + 1] ?? durationSec,
-      title: c.title?.trim() || null,
+      title: trimOrNull(c.title),
     }))
     .filter((c) => Number.isFinite(c.startSec) && c.endSec > c.startSec);
 }

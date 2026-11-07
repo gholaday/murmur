@@ -2,7 +2,7 @@ import { bookIssues, type LibraryAdminDto, type ScanStatusDto } from "@murmur/sh
 import { listBooks } from "./books";
 import type { AppContext } from "./context";
 import { listAlbums } from "./music/queries";
-import type { ScanState } from "./library/scanner";
+import type { ScanState } from "./library/scan-loop";
 import { watchSummary } from "./watch/queries";
 
 const scanOf = (s: ScanState): ScanStatusDto => ({ running: s.running, lastFinishedAt: s.lastFinishedAt, lastError: s.lastError });

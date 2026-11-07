@@ -25,7 +25,7 @@ Audiobooks/
 
 Murmur only reads this folder. It never renames, moves or edits your files.
 
-**Music (optional)** goes in a folder of its own. Albums and artists come from the songs' tags, so any layout works. Untagged songs are read as `Artist/Album/01 - Title.mp3`, with `CD 1` or `Disc 2` folders counted as part of the album above them. A `cover.jpg`, `folder.jpg` or `front.jpg` in the album folder is used as the cover, otherwise the embedded art.
+**Music (optional)** goes in a folder of its own. Albums and artists come from the songs' tags, so any layout works. Untagged songs are read as `Artist/Album/01 - Title.mp3`, with `CD 1`, `Disc 2` or `Part 3` folders counted as part of the album above them. A `cover.jpg`, `folder.jpg` or `front.jpg` in the album folder is used as the cover, otherwise the embedded art.
 
 **Movies and TV shows (optional)** go in folders of their own, one for movies and one for shows, laid out the way Plex reads them:
 

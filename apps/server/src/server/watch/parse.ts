@@ -5,7 +5,7 @@
 import crypto from "node:crypto";
 import { XMLParser } from "fast-xml-parser";
 import { type ProbedSubtitleTrack, sidecarTags, SUBTITLE_EXTENSIONS } from "@murmur/shared";
-import { extname } from "../library/parse";
+import { extname, stem, withoutArticle } from "../library/parse";
 
 const VIDEO_EXTENSIONS = new Set([".mkv", ".mp4", ".m4v", ".mov", ".webm", ".avi", ".ts"]);
 
@@ -39,12 +39,6 @@ const EXTRA_FOLDERS = new Set([
 ]);
 /** Plex's extra suffixes on a file name: "Movie (2019)-trailer.mp4". */
 const EXTRA_SUFFIX = /-(?:trailer|sample|behindthescenes|deleted|featurette|interview|scene|short|other)$/i;
-
-/** The file name without its extension. */
-export function stem(name: string): string {
-  const dot = name.lastIndexOf(".");
-  return dot > 0 ? name.slice(0, dot) : name;
-}
 
 /** Trailers, samples and other extras: not movies or episodes in their own right. */
 export function isExtra(relPath: string): boolean {
@@ -96,11 +90,7 @@ const tidy = (s: string) => s.replace(/[\s\-–(]+$/, "").trim();
 
 /** For sorting: lower case, without a leading "The", "A" or "An". */
 export function sortTitle(title: string): string {
-  return title
-    .normalize("NFKC")
-    .toLowerCase()
-    .replace(/^(?:the|a|an)\s+/, "")
-    .trim();
+  return withoutArticle(title.normalize("NFKC").toLowerCase()).trim();
 }
 
 /**

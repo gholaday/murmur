@@ -3,6 +3,8 @@
  * No I/O here, so every rule is unit-tested in parse.test.ts.
  */
 
+import { DISC_FOLDER, stem, trimOrNull as clean } from "../library/parse";
+
 interface TrackInfo {
   title: string;
   /** The song's own artist. */
@@ -20,8 +22,6 @@ export const UNKNOWN_ARTIST = "Unknown artist";
 export const UNKNOWN_ALBUM = "Unknown album";
 export const VARIOUS_ARTISTS = "Various Artists";
 
-/** "CD 1", "Disc 2" folders belong to the album above them. */
-const DISC_FOLDER = /^(?:cd|disc|disk)\s*(\d+)$/i;
 /** "01 - Song", "01. Song", "1-03 Song" (disc 1, track 3), "03 Song". */
 const NUMBERED_NAME = /^(?:(\d{1,2})[-.](?=\d))?(\d{1,3})(?:\s*[-.)_]\s*|\s+)(.+)$/;
 
@@ -40,17 +40,6 @@ const firstNumber = (s: string | undefined): number | null => {
   const n = m ? Number(m[0]) : NaN;
   return Number.isFinite(n) && n > 0 ? n : null;
 };
-
-const clean = (s: string | undefined): string | null => {
-  const v = s?.trim();
-  return v ? v : null;
-};
-
-/** The file name without its extension. */
-function stem(name: string): string {
-  const dot = name.lastIndexOf(".");
-  return dot > 0 ? name.slice(0, dot) : name;
-}
 
 /**
  * Song details from tags, falling back to the path (Artist/Album/01 - Song.mp3) for anything

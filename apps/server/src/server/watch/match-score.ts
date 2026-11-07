@@ -1,3 +1,4 @@
+import { withoutArticle } from "../library/parse";
 import { normalizeText, similarity } from "../metadata/score";
 
 /** A TMDB search result, movie or show, cut down to what matching needs. */
@@ -13,7 +14,7 @@ const LOOK_AT = 5;
 const CLOSE = 0.8;
 
 /** For comparing titles: plain words, no leading article. */
-const titleKey = (s: string) => normalizeText(s).replace(/^(the|a|an) /, "");
+const titleKey = (s: string) => withoutArticle(normalizeText(s));
 
 /** A TMDB id written into a folder or file name, Plex's `{tmdb-603}` or Jellyfin's `[tmdbid-603]`. */
 export function tmdbIdFromName(name: string): number | null {

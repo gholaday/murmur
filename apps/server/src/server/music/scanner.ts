@@ -1,14 +1,13 @@
-import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { Sqlite } from "../db";
+import { newId } from "../ids";
 import { errorMessage, type Logger } from "../log";
 import { pickCoverImage, storeCover } from "../library/covers";
 import type { LibraryFolder } from "../library/folders";
 import { AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, extname, mimeTypeFor } from "../library/parse";
 import { createLimiter, createUnreadable, extractEmbeddedCover, probeFile } from "../library/probe";
-import { fileDetails, runScan, walkTree } from "../library/scan-loop";
-import type { ScanState } from "../library/scanner";
+import { emptyStats, fileDetails, fileRows, type FoundFile, runScan, type ScanState, walkTree } from "../library/scan-loop";
 import { nameKey, sortName, trackInfo } from "./parse";
 import { bumpChanges } from "../changes";
 
@@ -28,27 +27,11 @@ interface MusicScannerDeps {
   afterScan?: () => Promise<void>;
 }
 
-interface FoundFile {
-  relPath: string;
-  size: number;
-  mtimeMs: number;
-}
-
 interface Walked {
   audio: FoundFile[];
   /** Image names by folder (relative, forward slashes), for album covers. */
   images: Map<string, string[]>;
 }
-
-interface TrackRow {
-  id: string;
-  rel_path: string;
-  size: number;
-  mtime_ms: number;
-  missing_since: number | null;
-}
-
-const newId = () => crypto.randomBytes(9).toString("base64url");
 
 /** Every audio file under a music folder, and the images next to them. */
 async function walk(root: string, log: Logger): Promise<Walked> {
@@ -71,6 +54,7 @@ export function createMusicScanner(deps: MusicScannerDeps) {
   const { sqlite, log, state } = deps;
   const probeLimit = createLimiter(Math.max(1, deps.probeConcurrency));
   const unreadable = createUnreadable();
+  const rows = fileRows(sqlite, "tracks");
 
   const findArtist = sqlite.prepare("SELECT id FROM artists WHERE name_key = ?");
   const insertArtist = sqlite.prepare("INSERT INTO artists (id, name, name_key, sort_name, created_at) VALUES (?, ?, ?, ?, ?)");
@@ -183,11 +167,9 @@ export function createMusicScanner(deps: MusicScannerDeps) {
 
   async function runOnce() {
     const now = Date.now();
-    const stats = { found: 0, added: 0, updated: 0, unchanged: 0, missing: 0, removed: 0, failed: 0 };
+    const stats = emptyStats();
     const problems: string[] = [];
     const images = new Map<number, Map<string, string[]>>();
-    const setMissing = sqlite.prepare("UPDATE tracks SET missing_since = ? WHERE id = ? AND missing_since IS NULL");
-    const clearMissing = sqlite.prepare("UPDATE tracks SET missing_since = NULL WHERE id = ?");
 
     for (const folder of deps.folders()) {
       let walked: Walked;
@@ -200,18 +182,13 @@ export function createMusicScanner(deps: MusicScannerDeps) {
       }
       images.set(folder.id, walked.images);
       stats.found += walked.audio.length;
-      const existing = new Map(
-        (sqlite.prepare("SELECT id, rel_path, size, mtime_ms, missing_since FROM tracks WHERE folder_id = ?").all(folder.id) as TrackRow[]).map(
-          (r) => [r.rel_path, r],
-        ),
-      );
+      const existing = rows.inFolder(folder.id);
       await Promise.all(
         walked.audio.map(async (file) => {
           const row = existing.get(file.relPath);
           existing.delete(file.relPath);
-          if (row && row.size === file.size && row.mtime_ms === file.mtimeMs) {
+          if (rows.unchanged(row, file)) {
             stats.unchanged++;
-            if (row.missing_since !== null) clearMissing.run(row.id);
             return;
           }
           if (await importTrack(folder, file, now)) {
@@ -220,16 +197,11 @@ export function createMusicScanner(deps: MusicScannerDeps) {
           } else stats.failed++;
         }),
       );
-      for (const gone of existing.values()) {
-        stats.missing++;
-        setMissing.run(now, gone.id);
-      }
+      stats.missing += rows.markMissing(existing.values(), now);
     }
 
     // Gone long enough, or their folder was removed: delete them, then anything left empty.
-    stats.removed = sqlite
-      .prepare("DELETE FROM tracks WHERE folder_id IS NULL OR (missing_since IS NOT NULL AND missing_since < ?)")
-      .run(now - deps.missingGraceMs).changes;
+    stats.removed = rows.removeExpired(now, deps.missingGraceMs);
     sqlite.prepare("DELETE FROM albums WHERE id NOT IN (SELECT album_id FROM tracks)").run();
     sqlite
       .prepare("DELETE FROM artists WHERE id NOT IN (SELECT artist_id FROM albums) AND id NOT IN (SELECT artist_id FROM tracks)")
@@ -248,10 +220,7 @@ export function createMusicScanner(deps: MusicScannerDeps) {
       log,
       name: "music scan",
       afterScan: deps.afterScan,
-      once: async () => {
-        const { stats, problems } = await runOnce();
-        return { stats: { ...stats, moved: 0 }, problems };
-      },
+      once: runOnce,
     });
   }
 

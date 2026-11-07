@@ -1,5 +1,5 @@
 import type { MatchCandidate } from "@murmur/shared";
-import { stripNoise } from "../library/parse";
+import { stripNoise, withoutArticle } from "../library/parse";
 
 // Deterministic scoring for Match: the same book and candidate always get the same score,
 // and every point can be explained. Weights follow docs/spec/metadata.md ("How matching stays consistent").
@@ -18,12 +18,12 @@ export function normalizeText(s: string): string {
 
 /** Title for comparing: no "(Unabridged)", series numbers, leading articles or ": A Novel". */
 export function cleanTitle(s: string): string {
-  return normalizeText(
+  return withoutArticle(normalizeText(
     stripNoise(s)
       .replace(/^\s*(book|vol\.?|volume|part)\s*\d+(\.\d+)?\s*[-–:.]\s*/i, "")
       .replace(/[:\-–]\s*a novel\s*$/i, "")
       .replace(/\(\s*(book|vol\.?|volume)\s*\d+[^)]*\)/gi, ""),
-  ).replace(/^(the|a|an) /, "");
+  ));
 }
 
 /**

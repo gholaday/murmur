@@ -79,7 +79,7 @@ export async function folderList(db: Db, sqlite: Sqlite, kind: FolderKind = "boo
     books: "SELECT library_folder_id AS id, COUNT(*) AS n FROM books WHERE missing_since IS NULL GROUP BY library_folder_id",
     music: "SELECT folder_id AS id, COUNT(DISTINCT album_id) AS n FROM tracks WHERE missing_since IS NULL GROUP BY folder_id",
     movies: "SELECT folder_id AS id, COUNT(DISTINCT movie_id) AS n FROM videos WHERE kind = 'movie' AND missing_since IS NULL GROUP BY folder_id",
-    shows: "SELECT folder_id AS id, COUNT(*) AS n FROM shows GROUP BY folder_id",
+    shows: "SELECT folder_id AS id, COUNT(DISTINCT show_id) AS n FROM videos WHERE kind = 'episode' AND missing_since IS NULL GROUP BY folder_id",
   };
   const rows = sqlite.prepare(counts[kind]).all() as Array<{ id: number | null; n: number }>;
   const byFolder = new Map(rows.map((r) => [r.id, r.n]));

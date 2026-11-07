@@ -1,14 +1,13 @@
-import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { Sqlite } from "../db";
+import { newId } from "../ids";
 import { errorMessage, type Logger } from "../log";
 import type { LibraryFolder } from "../library/folders";
-import { IMAGE_EXTENSIONS, extname } from "../library/parse";
+import { IMAGE_EXTENSIONS, extname, stem } from "../library/parse";
 import { HttpError } from "../http";
 import { createLimiter, createUnreadable } from "../library/probe";
-import { fileDetails, runScan, walkTree } from "../library/scan-loop";
-import type { ScanState } from "../library/scanner";
+import { emptyStats, type FileRow, fileDetails, fileRows, type FoundFile, runScan, type ScanState, walkTree } from "../library/scan-loop";
 import { storeArt } from "./art";
 import { grabStill, probeVideo, videoProblem } from "./video-addon";
 import { bumpChanges } from "../changes";
@@ -25,7 +24,6 @@ import {
   parseNfo,
   pickArt,
   sortTitle,
-  stem,
   subtitleFilesFor,
   type NfoInfo,
   type SubtitleFile,
@@ -48,12 +46,6 @@ interface WatchScannerDeps {
   matchPending?: () => Promise<void>;
 }
 
-interface FoundFile {
-  relPath: string;
-  size: number;
-  mtimeMs: number;
-}
-
 interface Walked {
   videos: FoundFile[];
   /** Image and .nfo names by folder (relative, forward slashes, "" for the top). */
@@ -62,16 +54,10 @@ interface Walked {
   subtitles: Map<string, string[]>;
 }
 
-interface VideoRow {
-  id: string;
-  rel_path: string;
-  size: number;
-  mtime_ms: number;
+interface VideoRow extends FileRow {
   subtitle_tracks: string;
-  missing_since: number | null;
 }
 
-const newId = () => crypto.randomBytes(9).toString("base64url");
 const dirOf = (relPath: string) => {
   const d = path.posix.dirname(relPath);
   return d === "." ? "" : d;
@@ -102,6 +88,7 @@ export function createWatchScanner(deps: WatchScannerDeps) {
   const { sqlite, log, state } = deps;
   const probeLimit = createLimiter(Math.max(1, deps.probeConcurrency));
   const unreadable = createUnreadable();
+  const rows = fileRows<VideoRow>(sqlite, "videos", ["subtitle_tracks"]);
 
   const upsertVideo = sqlite.prepare(`
     INSERT INTO videos (id, kind, folder_id, rel_path, movie_id, edition, show_id, season, episode, title, sort_title,
@@ -368,7 +355,7 @@ export function createWatchScanner(deps: WatchScannerDeps) {
 
   async function runOnce() {
     const now = Date.now();
-    const stats = { found: 0, added: 0, updated: 0, unchanged: 0, missing: 0, removed: 0, failed: 0 };
+    const stats = emptyStats();
     const problems: string[] = [];
     const folders = deps.folders();
     if (folders.movies.length + folders.shows.length === 0) return { stats, problems };
@@ -381,8 +368,6 @@ export function createWatchScanner(deps: WatchScannerDeps) {
 
     pendingParents.clear();
     const extrasByFolder = new Map<number, Map<string, string[]>>();
-    const setMissing = sqlite.prepare("UPDATE videos SET missing_since = ? WHERE id = ? AND missing_since IS NULL");
-    const clearMissing = sqlite.prepare("UPDATE videos SET missing_since = NULL WHERE id = ?");
     const setSubtitles = sqlite.prepare("UPDATE videos SET subtitle_tracks = ? WHERE id = ?");
     const kinds = [
       ...folders.movies.map((f) => ["movie", f] as const),
@@ -399,11 +384,7 @@ export function createWatchScanner(deps: WatchScannerDeps) {
       }
       extrasByFolder.set(folder.id, walked.extras);
       stats.found += walked.videos.length;
-      const existing = new Map(
-        (sqlite.prepare("SELECT id, rel_path, size, mtime_ms, subtitle_tracks, missing_since FROM videos WHERE folder_id = ?").all(folder.id) as VideoRow[]).map(
-          (r) => [r.rel_path, r],
-        ),
-      );
+      const existing = rows.inFolder(folder.id);
       const versions = new Map<string, number>();
       for (const v of walked.videos) versions.set(movieKey(v.relPath), (versions.get(movieKey(v.relPath)) ?? 0) + 1);
       await Promise.all(
@@ -414,9 +395,8 @@ export function createWatchScanner(deps: WatchScannerDeps) {
           const key = movieKey(file.relPath);
           const alone = kind === "movie" && key !== file.relPath && versions.get(key) === 1;
           const subtitles = subtitleFilesFor(file.relPath, walked.subtitles, alone);
-          if (row && row.size === file.size && row.mtime_ms === file.mtimeMs) {
+          if (rows.unchanged(row, file)) {
             stats.unchanged++;
-            if (row.missing_since !== null) clearMissing.run(row.id);
             // A subtitle dropped in beside a video doesn't change the video, so it's checked every scan.
             const stored = JSON.parse(row.subtitle_tracks) as StoredSubtitle[];
             if (JSON.stringify(subtitleFiles(stored)) !== JSON.stringify(subtitles)) {
@@ -432,16 +412,11 @@ export function createWatchScanner(deps: WatchScannerDeps) {
           } else if (result === "failed") stats.failed++;
         }),
       );
-      for (const gone of existing.values()) {
-        stats.missing++;
-        setMissing.run(now, gone.id);
-      }
+      stats.missing += rows.markMissing(existing.values(), now);
     }
 
     // Gone long enough, or their folder was removed: delete them, then shows left empty.
-    stats.removed = sqlite
-      .prepare("DELETE FROM videos WHERE folder_id IS NULL OR (missing_since IS NOT NULL AND missing_since < ?)")
-      .run(now - deps.missingGraceMs).changes;
+    stats.removed = rows.removeExpired(now, deps.missingGraceMs);
     sqlite.prepare("DELETE FROM shows WHERE folder_id IS NULL OR id NOT IN (SELECT show_id FROM videos WHERE show_id IS NOT NULL)").run();
     sqlite.prepare("DELETE FROM movies WHERE folder_id IS NULL OR id NOT IN (SELECT movie_id FROM videos WHERE movie_id IS NOT NULL)").run();
     await pruneSubtitles({ sqlite });
@@ -468,7 +443,7 @@ export function createWatchScanner(deps: WatchScannerDeps) {
       once: async () => {
         const { stats, problems } = await runOnce();
         if (problems.length) log.warn("watch scan held back", { problems: problems.join(" ") });
-        return { stats: { ...stats, moved: 0 }, problems };
+        return { stats, problems };
       },
     });
   }
