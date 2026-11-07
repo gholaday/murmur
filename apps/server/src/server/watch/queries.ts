@@ -19,7 +19,6 @@ import type {
 import { collectionOrder, type CollectionMovie, flatKeys, nextInCollection, rankSimilar } from "@murmur/shared";
 import { stringList } from "../books";
 import type { AppContext } from "../context";
-import { env } from "../env";
 import { shelf } from "../shelf";
 import { HttpError } from "../http";
 import { coverColors } from "../library/covers";
@@ -147,7 +146,7 @@ const movieVersions = (ctx: AppContext, movieId: string): VideoRow[] =>
 
 /** Header tints for posters, by hash. */
 type Colors = Map<string, string>;
-const colorsFor = (hashes: Array<string | null>): Promise<Colors> => coverColors(env.coversDir, hashes);
+const colorsFor = (hashes: Array<string | null>): Promise<Colors> => coverColors(hashes);
 const colorOf = (colors: Colors, hash: string | null) => (hash ? (colors.get(hash) ?? null) : null);
 
 /** Each movie with a live version, its first version (the one Play starts) picked by SQLite. */

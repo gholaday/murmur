@@ -35,7 +35,7 @@ function getProviders(ctx: AppContext): Providers {
 }
 
 async function loadBook(ctx: AppContext, bookId: string): Promise<BookDetail> {
-  const book = await getBook(ctx, bookId, 0);
+  const book = await getBook(ctx, bookId, null);
   if (!book) throw new HttpError(404, "Book not found.");
   return book;
 }

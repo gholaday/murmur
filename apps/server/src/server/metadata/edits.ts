@@ -64,7 +64,7 @@ function writeOverride(ctx: AppContext, bookId: string, patch: Partial<OverrideR
 }
 
 export async function getEditInfo(ctx: AppContext, bookId: string): Promise<BookEditInfo> {
-  const book = await getBook(ctx, bookId, 0);
+  const book = await getBook(ctx, bookId, null);
   if (!book) throw new HttpError(404, "Book not found.");
   const s = scannedRow(ctx, bookId);
   const o = overrideRow(ctx, bookId);
@@ -146,7 +146,7 @@ export function saveDetails(ctx: AppContext, bookId: string, input: BookEditInpu
 
 /** Saves hand-edited chapters, or goes back to the files' chapters when given null. */
 export async function saveChapters(ctx: AppContext, bookId: string, input: ChaptersEditInput) {
-  const book = await getBook(ctx, bookId, 0);
+  const book = await getBook(ctx, bookId, null);
   if (!book) throw new HttpError(404, "Book not found.");
   if (!input.chapters) {
     writeOverride(ctx, bookId, { chapters: null });

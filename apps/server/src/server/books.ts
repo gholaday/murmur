@@ -47,11 +47,11 @@ const SUMMARY_COLUMNS = `
   p.position_sec AS p_position, p.finished AS p_finished, p.updated_at AS p_updated, p.speed AS p_speed,
   pn.position AS play_next, o.genres`;
 
-/** Takes the user's id twice: once for progress, once for Play next. */
+/** Takes @user for the person's place and Play next; a null @user (Match, edits) has neither. */
 const JOINS = `
   LEFT JOIN book_overrides o ON o.book_id = b.id
-  LEFT JOIN progress p ON p.user_id = ? AND p.item_type = 'book' AND p.item_id = b.id
-  LEFT JOIN play_next pn ON pn.user_id = ? AND pn.book_id = b.id`;
+  LEFT JOIN progress p ON p.user_id = @user AND p.item_type = 'book' AND p.item_id = b.id
+  LEFT JOIN play_next pn ON pn.user_id = @user AND pn.book_id = b.id`;
 
 function toSummary(r: BookRow, colors: Map<string, string>): BookSummary {
   return {
@@ -82,16 +82,36 @@ function toSummary(r: BookRow, colors: Map<string, string>): BookSummary {
   };
 }
 
-/** One query for the whole library, newest first. */
-export async function listBooks(ctx: AppContext, userId: number): Promise<BookSummary[]> {
+/** Books shown in the library: here, or missing for less than the grace period (marked missing). */
+const SHOWN = "(b.missing_since IS NULL OR b.missing_since > @since)";
+const shownSince = () => Date.now() - env.missingGraceMs;
+
+/**
+ * You > Library's book counts for admins, counted in SQL: everything shown, those with a problem
+ * (bookIssues: no cover, no author, files missing) and those not matched.
+ */
+export function bookCounts(ctx: AppContext): { total: number; attention: number; unmatched: number } {
+  return ctx.sqlite
+    .prepare(
+      `SELECT COUNT(*) FILTER (WHERE b.missing_since IS NULL) AS total,
+              COUNT(*) FILTER (WHERE COALESCE(o.cover_hash, b.cover_hash) IS NULL OR NULLIF(COALESCE(o.author, b.author), '') IS NULL
+                                     OR b.missing_since IS NOT NULL) AS attention,
+              COUNT(*) FILTER (WHERE NOT (o.provider IS NOT NULL OR COALESCE(o.marked_matched, 0) = 1)) AS unmatched
+       FROM books b LEFT JOIN book_overrides o ON o.book_id = b.id WHERE ${SHOWN}`,
+    )
+    .get({ since: shownSince() }) as { total: number; attention: number; unmatched: number };
+}
+
+/** One query for the whole library, newest first. `userId` null leaves out anyone's place. */
+export async function listBooks(ctx: AppContext, userId: number | null): Promise<BookSummary[]> {
   const rows = ctx.sqlite
     .prepare(
       `SELECT ${SUMMARY_COLUMNS} FROM books b ${JOINS}
-       WHERE b.missing_since IS NULL OR b.missing_since > ?
+       WHERE ${SHOWN}
        ORDER BY b.added_at DESC, b.title`,
     )
-    .all(userId, userId, Date.now() - env.missingGraceMs) as BookRow[];
-  const colors = await coverColors(env.coversDir, rows.map((r) => r.cover_hash));
+    .all({ user: userId, since: shownSince() }) as BookRow[];
+  const colors = await coverColors(rows.map((r) => r.cover_hash));
   return rows.map((r) => toSummary(r, colors));
 }
 
@@ -99,21 +119,22 @@ export async function listBooks(ctx: AppContext, userId: number): Promise<BookSu
 export async function booksByIds(ctx: AppContext, ids: string[], userId: number): Promise<BookSummary[]> {
   if (ids.length === 0) return [];
   const rows = ctx.sqlite
-    .prepare(`SELECT ${SUMMARY_COLUMNS} FROM books b ${JOINS} WHERE b.id IN (${ids.map(() => "?").join(",")})`)
-    .all(userId, userId, ...ids) as BookRow[];
-  const colors = await coverColors(env.coversDir, rows.map((r) => r.cover_hash));
+    .prepare(`SELECT ${SUMMARY_COLUMNS} FROM books b ${JOINS} WHERE b.id IN (SELECT value FROM json_each(@ids))`)
+    .all({ user: userId, ids: JSON.stringify(ids) }) as BookRow[];
+  const colors = await coverColors(rows.map((r) => r.cover_hash));
   return rows.map((r) => toSummary(r, colors));
 }
 
-export async function getBook(ctx: AppContext, id: string, userId: number): Promise<BookDetail | null> {
+/** A book with its files and chapters. `userId` null (Match, edits) leaves out anyone's place. */
+export async function getBook(ctx: AppContext, id: string, userId: number | null): Promise<BookDetail | null> {
   const row = ctx.sqlite
     .prepare(
       `SELECT ${SUMMARY_COLUMNS}, NULLIF(COALESCE(o.description, b.description), '') AS description,
          NULLIF(COALESCE(o.year, b.year), '') AS year, b.asin, o.chapters AS o_chapters,
          o.provider AS o_provider, o.provider_id AS o_provider_id, o.matched_at AS o_matched_at
-       FROM books b ${JOINS} WHERE b.id = ?`,
+       FROM books b ${JOINS} WHERE b.id = @id`,
     )
-    .get(userId, userId, id) as
+    .get({ user: userId, id }) as
     | (BookRow & {
         description: string | null;
         year: string | null;
@@ -128,7 +149,7 @@ export async function getBook(ctx: AppContext, id: string, userId: number): Prom
   const files = ctx.sqlite
     .prepare("SELECT idx, duration_sec, start_sec, mime_type FROM book_files WHERE book_id = ? ORDER BY idx")
     .all(id) as Array<{ idx: number; duration_sec: number; start_sec: number; mime_type: string }>;
-  const colors = await coverColors(env.coversDir, [row.cover_hash]);
+  const colors = await coverColors([row.cover_hash]);
   return {
     ...toSummary(row, colors),
     description: row.description,

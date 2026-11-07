@@ -42,7 +42,7 @@ export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<Rea
     folders: user.isAdmin ? await folderList(ctx.db, ctx.sqlite) : [],
     adsEnabled: adsEnabled(),
     cache: user.isAdmin ? cacheStatus(ctx) : null,
-    libraryAdmin: user.isAdmin ? await libraryAdmin(ctx, user.id) : null,
+    libraryAdmin: user.isAdmin ? libraryAdmin(ctx) : null,
     server: {
       version: env.version,
       devBuild: env.devBuild,

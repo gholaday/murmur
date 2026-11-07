@@ -12,7 +12,6 @@ import type {
 } from "@murmur/shared";
 import { NEW_ALBUM_DAYS } from "@murmur/shared";
 import type { AppContext } from "../context";
-import { env } from "../env";
 import { coverColors } from "../library/covers";
 
 // Read side of music: everything the Music tab, Browse, album and artist pages show. Songs whose
@@ -99,7 +98,7 @@ const PLAY_ORDER = "COALESCE(t.disc_no, 1), t.track_no IS NULL, t.track_no, t.ti
 const MAX_TRACKS = 5000;
 
 async function toAlbums(rows: AlbumRow[]): Promise<AlbumSummary[]> {
-  const colors = await coverColors(env.coversDir, rows.map((r) => r.cover_hash));
+  const colors = await coverColors(rows.map((r) => r.cover_hash));
   return rows.map((r) => ({
     id: r.id,
     title: r.title,
@@ -149,7 +148,18 @@ export function musicSummary(ctx: AppContext, userId: number): MusicSummaryDto {
   return { enabled: ctx.music.folders().length > 0, ...all, mine };
 }
 
-export function listAlbums(ctx: AppContext, userId: number, scope: MusicScope, sort: AlbumSort): Promise<AlbumSummary[]> {
+/** You > Library's album counts for admins: every album with songs here, and those not matched. */
+export function albumCounts(ctx: AppContext): { albums: number; unmatched: number } {
+  return ctx.sqlite
+    .prepare(
+      `SELECT COUNT(*) AS albums, COUNT(*) FILTER (WHERE NOT a.matched) AS unmatched
+       FROM ${ALBUMS} a WHERE EXISTS (SELECT 1 FROM tracks t WHERE t.album_id = a.id AND t.missing_since IS NULL)`,
+    )
+    .get() as { albums: number; unmatched: number };
+}
+
+/** `userId` null (Match all) leaves out whose songs are in their music; "mine" needs someone. */
+export function listAlbums(ctx: AppContext, userId: number | null, scope: MusicScope, sort: AlbumSort): Promise<AlbumSummary[]> {
   const where = scope === "mine" ? `WHERE ${MINE_ALBUMS}` : "";
   return toAlbums(ctx.sqlite.prepare(`${ALBUM_SELECT} ${where} GROUP BY a.id ORDER BY ${ALBUM_ORDER[sort]}`).all({ user: userId }) as AlbumRow[]);
 }
@@ -173,7 +183,8 @@ export function listNewAlbums(ctx: AppContext, userId: number, since: number): P
   );
 }
 
-export async function getAlbum(ctx: AppContext, userId: number, id: string): Promise<AlbumDetail | null> {
+/** An album with its songs. `userId` null (Match) leaves out whose songs are in their music. */
+export async function getAlbum(ctx: AppContext, userId: number | null, id: string): Promise<AlbumDetail | null> {
   const [album] = await toAlbums(ctx.sqlite.prepare(`${ALBUM_SELECT} WHERE a.id = @id GROUP BY a.id`).all({ user: userId, id }) as AlbumRow[]);
   if (!album) return null;
   const tracks = ctx.sqlite.prepare(`${TRACK_SELECT} AND t.album_id = @id ORDER BY ${PLAY_ORDER}`).all({ user: userId, id }) as TrackRow[];

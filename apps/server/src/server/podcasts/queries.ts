@@ -1,7 +1,6 @@
 import type { EpisodeDto, EpisodeWithShow, PodcastDetail, PodcastSummary } from "@murmur/shared";
 import { adsEnabled } from "../ads";
 import type { Sqlite } from "../db";
-import { env } from "../env";
 import { coverColors } from "../library/covers";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -60,7 +59,7 @@ function toSummary(r: PodcastRow, colors: Map<string, string>): PodcastSummary {
 
 export async function listPodcasts(sqlite: Sqlite, userId: number): Promise<PodcastSummary[]> {
   const rows = sqlite.prepare(`${PODCAST_SELECT} ORDER BY latest_published_at DESC`).all(userId) as PodcastRow[];
-  const colors = await coverColors(env.coversDir, rows.map((r) => r.cover_hash));
+  const colors = await coverColors(rows.map((r) => r.cover_hash));
   return rows.map((r) => toSummary(r, colors));
 }
 
@@ -68,7 +67,7 @@ export async function listPodcasts(sqlite: Sqlite, userId: number): Promise<Podc
 export async function getPodcast(sqlite: Sqlite, podcastId: string, userId: number): Promise<PodcastDetail | null> {
   const r = sqlite.prepare(`${PODCAST_SELECT} WHERE p.id = ?`).get(userId, podcastId) as PodcastRow | undefined;
   if (!r) return null;
-  const colors = await coverColors(env.coversDir, [r.cover_hash]);
+  const colors = await coverColors([r.cover_hash]);
   return {
     ...toSummary(r, colors),
     description: r.description,
@@ -113,10 +112,12 @@ const EPISODE_WITH_SHOW_COLUMNS = `${EPISODE_COLUMNS},
   p.title AS podcast_title, p.cover_hash AS podcast_cover_hash, s.speed`;
 
 // Every episode query goes through the user's subscription, which doubles as the access check.
-const EPISODE_JOINS = `
+// `progress` is LEFT JOIN, or JOIN for only the episodes the user has started.
+const episodeJoins = (progress: "LEFT JOIN" | "JOIN") => `
   JOIN subscriptions s ON s.podcast_id = e.podcast_id AND s.user_id = ?
   JOIN podcasts p ON p.id = e.podcast_id
-  LEFT JOIN progress pr ON pr.user_id = s.user_id AND pr.item_type = 'episode' AND pr.item_id = e.id`;
+  ${progress} progress pr ON pr.user_id = s.user_id AND pr.item_type = 'episode' AND pr.item_id = e.id`;
+const EPISODE_JOINS = episodeJoins("LEFT JOIN");
 
 function toEpisode(e: EpisodeRow): EpisodeDto {
   return {
@@ -140,7 +141,7 @@ function toEpisode(e: EpisodeRow): EpisodeDto {
 }
 
 async function withShow(rows: EpisodeWithShowRow[]): Promise<EpisodeWithShow[]> {
-  const colors = await coverColors(env.coversDir, rows.map((r) => r.podcast_cover_hash));
+  const colors = await coverColors(rows.map((r) => r.podcast_cover_hash));
   return rows.map((r) => ({
     ...toEpisode(r),
     podcastTitle: r.podcast_title,
@@ -195,7 +196,7 @@ export function listNewEpisodes(sqlite: Sqlite, userId: number, limit: number): 
 export function listContinueEpisodes(sqlite: Sqlite, userId: number, limit: number): Promise<EpisodeWithShow[]> {
   const rows = sqlite
     .prepare(
-      `SELECT ${EPISODE_WITH_SHOW_COLUMNS} FROM episodes e ${EPISODE_JOINS.replace("LEFT JOIN progress", "JOIN progress")}
+      `SELECT ${EPISODE_WITH_SHOW_COLUMNS} FROM episodes e ${episodeJoins("JOIN")}
        WHERE ${IS_STARTED} ORDER BY pr.updated_at DESC LIMIT ?`,
     )
     .all(userId, limit) as EpisodeWithShowRow[];

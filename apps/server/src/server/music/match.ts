@@ -46,7 +46,7 @@ function getProviders(sqlite: Sqlite): MusicProviders {
 }
 
 async function loadAlbum(ctx: AppContext, albumId: string): Promise<AlbumDetail> {
-  const album = await getAlbum(ctx, 0, albumId);
+  const album = await getAlbum(ctx, null, albumId);
   if (!album) throw new HttpError(404, "Album not found.");
   return album;
 }

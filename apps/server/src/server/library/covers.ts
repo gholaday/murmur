@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp, { type OutputInfo, type Sharp } from "sharp";
+import { env } from "../env";
 
 const COVER_SIZES = [200, 600] as const;
 export type CoverSize = (typeof COVER_SIZES)[number];
@@ -120,12 +121,12 @@ function tintFor(hex: string): string {
   return `#${[rr, gg, bb].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, "0")).join("")}`;
 }
 
-/** Header tints for many covers at once; unknown hashes are left out. */
-export async function coverColors(coversDir: string, hashes: Iterable<string | null>): Promise<Map<string, string>> {
+/** Header tints for many covers at once, from the covers folder; unknown hashes are left out. */
+export async function coverColors(hashes: Iterable<string | null>): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   for (const hash of new Set(hashes)) {
     if (!hash) continue;
-    const meta = await coverMeta(coversDir, hash);
+    const meta = await coverMeta(env.coversDir, hash);
     if (meta) out.set(hash, tintFor(meta.color));
   }
   return out;

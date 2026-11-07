@@ -33,7 +33,7 @@ export function albumMatchAllStatus(): AlbumMatchAllDto | null {
 
 export async function startAlbumMatchAll(ctx: AppContext, fields: AlbumMatchAllField[]): Promise<AlbumMatchAllDto> {
   if (holder.job?.dto.running) throw new HttpError(409, "A match is already running.");
-  const albums = (await listAlbums(ctx, 0, "all", "artist")).filter((a) => !a.matched);
+  const albums = (await listAlbums(ctx, null, "all", "artist")).filter((a) => !a.matched);
   if (albums.length === 0) throw new HttpError(400, "Every album is already matched.");
   const job: Job = {
     stop: false,
