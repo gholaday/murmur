@@ -171,7 +171,7 @@ export const PosterCard = memo(function PosterCard({
   );
 });
 
-export const STILL_CARD_WIDTH = 220;
+const STILL_CARD_WIDTH = 220;
 
 /**
  * A card in Continue watching or Next episodes: the still with how far you are, the movie or

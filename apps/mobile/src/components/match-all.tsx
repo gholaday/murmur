@@ -143,7 +143,7 @@ const ALBUMS: Kind = {
   }),
 };
 
-export type MatchAll = ReturnType<typeof useMatchAll>;
+type MatchAll =ReturnType<typeof useMatchAll>;
 
 /** A run's state and actions, for the pieces below; the screen lays them out so the bar can stick. */
 export function useMatchAll(which: "books" | "albums") {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { FlatList, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { albumCover, type PlaylistDetail, songMatches, songSub, type TrackDto } from "@murmur/shared/client";
@@ -13,6 +13,7 @@ import { TextTabs } from "@/components/text-tabs";
 import { IconButton, SearchBox, Text } from "@/components/ui";
 import { addToPlaylist, keys, updatePlaylist, usePlaylist, useRecentTracks, useTrackSearch } from "@/lib/data";
 import { queryClient } from "@/lib/query";
+import { useDebounced } from "@/lib/search";
 import { useTheme } from "@/theme";
 
 const VIEWS = [
@@ -23,16 +24,6 @@ const VIEWS = [
 type View_ = (typeof VIEWS)[number]["id"];
 
 const SONG_ROW = 64;
-
-/** Waits until the text has stopped changing for a moment, so a search doesn't run on every key. */
-function useDebounced(value: string, ms: number) {
-  const [settled, setSettled] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setSettled(value), ms);
-    return () => clearTimeout(timer);
-  }, [value, ms]);
-  return settled;
-}
 
 /**
  * Add songs to a playlist: search your songs, what you've played lately, or everything on the

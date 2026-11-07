@@ -39,7 +39,7 @@ export function selectHaptic() {
 }
 
 /** A long press that opens a row's or card's menu. */
-export function longPressHaptic() {
+function longPressHaptic() {
   if (isIOS) ios(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
   else android(AndroidHaptics.Long_Press);
 }

@@ -5,7 +5,7 @@ import { normalizeText, similarity } from "../metadata/score";
 // and each point has a reason. Albums are usually well tagged, so title, artist and song count
 // do most of the work; the song count is what tells a deluxe edition from the plain one.
 
-export interface LocalAlbum {
+interface LocalAlbum {
   title: string;
   artist: string;
   trackCount: number;

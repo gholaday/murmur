@@ -85,7 +85,7 @@ export const openTvShow = (id: string) => router.push({ pathname: "/tv/[id]", pa
  */
 export type WatchTarget = ({ kind: "movie"; id: string; version?: string } | { kind: "episode"; id: string; showId: string }) & { quality?: VideoQuality };
 
-export function watchParams(target: WatchTarget): Record<string, string> {
+function watchParams(target: WatchTarget): Record<string, string> {
   const q: Record<string, string> = target.quality ? { q: target.quality } : {};
   return target.kind === "movie"
     ? { kind: "movie", id: target.id, ...(target.version ? { v: target.version } : {}), ...q }

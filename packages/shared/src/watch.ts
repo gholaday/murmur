@@ -321,7 +321,6 @@ export interface EpisodePlayDto {
 /** A video counts as watched once you're this far through. */
 export const WATCHED_AT = 0.92;
 
-export type WatchArtKind = "poster" | "backdrop" | "still";
 
 /** What a device can play, asked by the player (on the web, `MediaSource.isTypeSupported`). */
 export interface PlaybackSupport {
@@ -363,7 +362,7 @@ export function codecName(codec: string): string {
 }
 
 /** "Stereo", "5.1": a track's channels the way a person says them. */
-export function channelsLabel(channels: number | null): string | null {
+function channelsLabel(channels: number | null): string | null {
   if (!channels) return null;
   return channels === 1 ? "Mono" : channels === 2 ? "Stereo" : channels === 6 ? "5.1" : channels === 8 ? "7.1" : `${channels} channels`;
 }
@@ -377,11 +376,10 @@ export type PlaybackPlan =
    */
   | { kind: "remux" | "transcode"; track: number; audio: RemuxAudio };
 
-export type RemuxAudio = "copy" | "aac";
-export type StreamVideo = "copy" | "h264";
+type RemuxAudio = "copy" | "aac";
+type StreamVideo = "copy" | "h264";
 /** How a converted picture is made: full is up to 1080p, light is up to 720p and easier on a small server. */
 export type VideoQuality = "full" | "light";
-export const VIDEO_QUALITIES: VideoQuality[] = ["full", "light"];
 
 /** Sound an MP4 can carry as it is; anything else is converted to AAC. */
 const mp4Audio = (codec: string) => codec.startsWith("mp4a") || ["ac-3", "ec-3", "opus", "flac"].includes(codec);

@@ -43,7 +43,6 @@ export const light: typeof dark = {
 };
 
 export type Theme = typeof dark;
-export type ThemeMode = ThemeChoice;
 
 export const fonts = {
   regular: "PlusJakartaSans_400Regular",
@@ -61,7 +60,7 @@ export function mixColor(a: string, b: string, amount: number): string {
   return `#${pa.map((v, i) => Math.round(v * amount + pb[i]! * (1 - amount)).toString(16).padStart(2, "0")).join("")}`;
 }
 
-const mode = createSavedStore<ThemeMode>("murmur.theme", "dark");
+const mode = createSavedStore<ThemeChoice>("murmur.theme", "dark");
 
 export const setThemeMode = mode.set;
 

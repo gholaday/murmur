@@ -31,7 +31,7 @@ const subscribe = (l: () => void) => {
 };
 const NONE: CastState = { available: false, device: null };
 
-export const castStore = { get: () => state, subscribe };
+const castStore = { get: () => state, subscribe };
 
 export function useCast(): CastState {
   return useSyncExternalStore(subscribe, castStore.get, () => NONE);
@@ -100,7 +100,7 @@ async function castUrl(path: string, prefixes: string[]): Promise<string> {
 // ---------- The player's stand-in for <audio> and <video> ----------
 
 /** What the TV shows while it plays. */
-export interface CastDescription {
+interface CastDescription {
   title: string;
   subtitle: string | null;
   /** An API path to the cover or backdrop, or null. */

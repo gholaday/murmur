@@ -15,9 +15,9 @@ import { Bone, Skeleton } from "./skeleton";
 import { toast } from "./toast";
 import { Button, Chips, EditFoot, Field, Text } from "./ui";
 
-export type WatchEditTab = "details" | "artwork" | "match";
+type WatchEditTab ="details" | "artwork" | "match";
 
-export interface WatchEditable {
+interface WatchEditable {
   id: string;
   title: string;
   year: string | null;
@@ -31,7 +31,7 @@ export interface WatchEditable {
 }
 
 /** TMDB is set up on the server, so Match and the picture suggestions work. */
-export const useCanMatch = () => !!useHealth().data?.watch?.tmdb;
+const useCanMatch =() => !!useHealth().data?.watch?.tmdb;
 
 /**
  * A movie or show's menu, the same from a poster's long press and the page's ⋯ (like the web's):
@@ -116,7 +116,7 @@ export function WatchActions({
  * Edit for a movie or show, like the web's: its details, its pictures, and Match. What's saved
  * here wins over the files and TMDB from then on.
  */
-export function WatchEditSheet({ kind, item, tab, onClose }: { kind: "movie" | "show"; item: WatchEditable; tab: WatchEditTab | null; onClose: () => void }) {
+function WatchEditSheet({ kind, item, tab, onClose }: { kind: "movie" | "show"; item: WatchEditable; tab: WatchEditTab | null; onClose: () => void }) {
   // Each opening starts afresh on the tab it was opened on; the sheet keeps it while it slides away.
   const [state, setState] = useState({ open: false, tab: "details" as WatchEditTab, round: 0 });
   if ((tab !== null) !== state.open) setState({ open: tab !== null, tab: tab ?? state.tab, round: tab !== null ? state.round + 1 : state.round });

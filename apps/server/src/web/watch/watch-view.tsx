@@ -18,7 +18,7 @@ import { ChoiceSheet } from "../sheet";
 import { Chip, Chips, EmptyState, ScrollRow, SectionTitle, useSavedChoice } from "../ui";
 import { PosterCard, StillCard } from "./cards";
 
-export type WatchTab = "home" | "movies" | "shows" | "watched";
+type WatchTab = "home" | "movies" | "shows" | "watched";
 const TABS: Array<{ id: WatchTab; label: string }> = [
   { id: "home", label: "Home" },
   { id: "movies", label: "Movies" },

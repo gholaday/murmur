@@ -6,7 +6,7 @@ import { Sheet, SheetItem } from "./sheet";
 // shows on the other.
 const sortStore = createSavedStore<BookSort>(LIBRARY_SORT_KEY, "added");
 
-export const setBookSort = sortStore.set;
+const setBookSort =sortStore.set;
 
 export const useBookSort = sortStore.useValue;
 

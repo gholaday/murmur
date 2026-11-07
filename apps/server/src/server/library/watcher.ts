@@ -2,7 +2,7 @@ import { watch, type FSWatcher } from "chokidar";
 import { errorMessage, type Logger } from "../log";
 import { isIgnoredName } from "./parse";
 
-export type WatchMode = "events" | "polling" | "periodic-only";
+type WatchMode = "events" | "polling" | "periodic-only";
 
 interface WatcherOptions {
   folders: string[];

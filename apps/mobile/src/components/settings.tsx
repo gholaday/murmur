@@ -211,7 +211,7 @@ export function RolePill({ admin }: { admin: boolean }) {
 }
 
 /** App-styled checkbox: a rounded square that fills with the accent colour when ticked. */
-export function Checkbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function Checkbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   const t = useTheme();
   return (
     <Pressable
@@ -508,7 +508,7 @@ type FolderKind = keyof typeof FOLDER_KINDS;
 const folderKey = (kind: FolderKind) => [...libraryKeys.folders, kind];
 const useFolders = (kind: FolderKind) => useQuery({ queryKey: folderKey(kind), queryFn: () => api<LibraryFolderDto[]>(FOLDER_KINDS[kind].url) });
 
-export const useLibraryAdmin = () =>
+const useLibraryAdmin = () =>
   useQuery({
     queryKey: libraryKeys.admin,
     queryFn: () => api<LibraryAdminDto>("/api/library/admin"),

@@ -24,7 +24,7 @@ export function QualitySheet({ open, value, onClose, onPick }: { open: boolean; 
 }
 
 /** Your setting, read once per page. */
-export function useDefaultQuality(): VideoQuality {
+function useDefaultQuality(): VideoQuality {
   const [quality, setQuality] = useState<VideoQuality>("full");
   useEffect(() => {
     api<UserPrefs>(apiPaths.prefs).then((p) => setQuality(p.videoQuality), () => undefined);
@@ -33,7 +33,7 @@ export function useDefaultQuality(): VideoQuality {
 }
 
 /** Whether this browser would have the server convert the file's picture; false until it's checked (it needs the browser). */
-export function useConverts(file: VideoFileInfo | null): boolean {
+function useConverts(file: VideoFileInfo | null): boolean {
   const [converts, setConverts] = useState(false);
   useEffect(() => {
     setConverts(!!file && playbackPlan(file, browserSupport(file)).kind === "transcode");

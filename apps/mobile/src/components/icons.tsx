@@ -267,21 +267,10 @@ export const DragIcon = (p: IconProps) => (
     <Path d="M5 9h14M5 15h14" />
   </Icon>
 );
-export const ArchiveIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <Rect x="3" y="4" width="18" height="5" rx="1" />
-    <Path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4" />
-  </Icon>
-);
 export const RefreshIcon = (p: IconProps) => (
   <Icon {...p}>
     <Path d="M20 12a8 8 0 1 1-2.3-5.6" />
     <Path d="M20 4v4h-4" />
-  </Icon>
-);
-export const SparkIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <Path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6" />
   </Icon>
 );
 export const QueueAddIcon = ({ queued, ...p }: IconProps & { queued?: boolean }) => (
@@ -302,11 +291,5 @@ export const PlayedIcon = ({ played, checkColor, ...p }: IconProps & { played?: 
   <Icon {...p}>
     <Circle cx="12" cy="12" r="9" fill={played ? p.color : "none"} />
     <Path d="M8 12.5l2.7 2.7L16 10" stroke={played ? checkColor : p.color} />
-  </Icon>
-);
-export const SettingsIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <Circle cx="12" cy="12" r="3" />
-    <Path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
   </Icon>
 );

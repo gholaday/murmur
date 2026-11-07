@@ -1,7 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
 import { parseClock, parsePscChapters } from "./chapters";
 
-export interface ParsedEpisode {
+interface ParsedEpisode {
   guid: string;
   title: string;
   description: string | null;
@@ -82,7 +82,7 @@ function httpUrl(value: string | null): string | null {
   }
 }
 
-export function parseXml(xml: string): unknown {
+function parseXml(xml: string): unknown {
   return parser.parse(xml);
 }
 
@@ -187,7 +187,7 @@ export function parseFeed(xml: string): ParsedFeed {
 
 // ---------- OPML ----------
 
-export interface OpmlFeed {
+interface OpmlFeed {
   title: string | null;
   feedUrl: string;
 }

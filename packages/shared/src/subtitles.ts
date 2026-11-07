@@ -13,7 +13,7 @@ export const TEXT_SUBTITLE_CODECS = ["subrip", "webvtt", "mov_text"];
 export const SUBTITLE_EXTENSIONS = [".srt", ".vtt"];
 
 /** What `videoSubtitleKey` holds to say subtitles were turned off. */
-export const SUBTITLES_OFF = "off";
+const SUBTITLES_OFF = "off";
 
 /** Where the subtitle language is remembered, per movie and per show. */
 export const videoSubtitleKey = (key: string) => `murmur.videoSubtitle.${key}`;

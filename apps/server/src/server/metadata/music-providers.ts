@@ -33,7 +33,7 @@ function deezerError(body: unknown): string | null {
 /** Lucene phrase for a MusicBrainz query, with its special characters escaped. */
 const phrase = (s: string) => `"${s.replace(/[\\"]/g, "\\$&")}"`;
 
-export interface SourceSong {
+interface SourceSong {
   title: string;
   /** Null when the album is one disc or the source doesn't say. */
   discNo: number | null;
@@ -46,7 +46,7 @@ export interface AlbumDetail extends UnscoredAlbum {
   songs: SourceSong[];
 }
 
-export interface ArtistHit {
+interface ArtistHit {
   providerId: string;
   name: string;
   fans: number;

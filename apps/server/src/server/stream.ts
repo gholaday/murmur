@@ -75,7 +75,7 @@ export async function streamFile(req: Request, file: string, mimeType: string): 
 }
 
 /** What a growing-file stream needs from a download in progress. */
-export interface GrowingFile {
+interface GrowingFile {
   size: number | null;
   done: number;
   finished: boolean;

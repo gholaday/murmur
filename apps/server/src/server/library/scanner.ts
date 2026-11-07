@@ -20,7 +20,7 @@ import { createLimiter, createUnreadable, extractEmbeddedCover, probeFile } from
 import { runScan } from "./scan-loop";
 import { bumpChanges } from "../changes";
 
-export interface ScannerDeps {
+interface ScannerDeps {
   db: Db;
   /** The library folders to read, looked up at the start of every scan. */
   folders: () => LibraryFolder[];
@@ -64,7 +64,7 @@ interface FoundFile {
   mtimeMs: number;
 }
 
-export interface FoundBook {
+interface FoundBook {
   folderId: number;
   root: string;
   relDir: string;
@@ -90,7 +90,7 @@ const WALK_CONCURRENCY = 16;
 const toPosix = (p: string) => p.split(path.sep).join("/");
 const sha1 = (s: string) => crypto.createHash("sha1").update(s).digest("hex");
 
-export class LibraryUnavailableError extends Error {}
+class LibraryUnavailableError extends Error {}
 
 // Folder listings and file stats run a few at a time: one by one, a large library on a
 // network share spends most of a scan waiting on round trips.
@@ -107,7 +107,7 @@ async function fileInfo(absDir: string, relDir: string, prefix: string, name: st
 }
 
 /** Folders to rescan, by library folder id, relative with forward slashes; "" is the whole folder. */
-export type ScanScopes = Map<number, string[]>;
+type ScanScopes = Map<number, string[]>;
 
 /**
  * The changed paths grouped by library folder, relative to it, with paths inside another

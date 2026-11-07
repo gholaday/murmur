@@ -1,6 +1,6 @@
 import { apiPaths } from "./api-paths";
 import { clock, duration } from "./format";
-import type { ChapterDto, PlayType, QueueEntry, QueueRef } from "./index";
+import type { ChapterDto, PlayType, QueueEntry } from "./index";
 import { REPEAT_MODES, type RepeatMode } from "./music";
 
 // Player rules shared by the web player and the app's, so both behave the same.
@@ -85,7 +85,7 @@ export const ADS_POLL_MS = 60_000;
 // ---------- Mark played on the cover ----------
 
 /** An episode's "Mark played" button shows on the cover this long before its end. */
-export const MARK_PLAYED_AT_SEC = 180;
+const MARK_PLAYED_AT_SEC = 180;
 
 /**
  * Whether an episode's "Mark played" button shows on the cover: in its last few minutes, so it
@@ -101,7 +101,8 @@ export function showMarkPlayed(type: PlayType, durationSec: number, position: nu
 
 // ---------- Up Next ----------
 
-export const queueRef = (e: QueueEntry): QueueRef => ({ itemType: e.itemType, itemId: e.itemId });
+/** A playable item as a reference: what's saved as now playing, and what the queue holds. */
+export type PlayRef = { itemType: PlayType; itemId: string };
 
 /** What an Up Next row shows. `kind` is the author or show, which sits above the title. */
 export function queueEntryView(e: QueueEntry) {

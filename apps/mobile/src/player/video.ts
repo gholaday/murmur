@@ -43,7 +43,7 @@ import { createStore } from "@/lib/store";
 import { CastPlayer, onCastDevice } from "./cast";
 import { getPlayerState, onPlayerChange, stop as stopAudio } from "./engine";
 import { artworkFile } from "./lock-screen";
-import { countWatching, queueProgress, unsentProgress } from "./progress";
+import { listening, queueProgress, unsentProgress } from "./progress";
 
 // The video being watched, kept outside the screens so it plays on in the mini player, like the
 // audio engine. One expo-video player for the whole app; screens show it with a VideoView.
@@ -83,7 +83,7 @@ export interface VideoItem {
   quality: VideoQuality | null;
 }
 
-export interface VideoState {
+interface VideoState {
   item: VideoItem | null;
   playing: boolean;
   /** Starting, or waiting for the next piece: the play button's ring turns. */
@@ -230,7 +230,7 @@ function timeUpdate(currentTime: number, playing: boolean) {
   if (it && playing && Math.abs(position - it.startAt) > VIDEO_PLAYER.touchedAfterSec) touched = true;
   // Watch time for the stats, counted like listening: the smaller of the clock and the picture's moves.
   const now = Date.now();
-  if (it && playing && watchedAt) countWatching(it.progressId, (now - watchedAt) / 1000, position - before, 1);
+  if (it && playing && watchedAt) listening.add("video", it.progressId, (now - watchedAt) / 1000, position - before, 1);
   watchedAt = playing ? now : 0;
 }
 

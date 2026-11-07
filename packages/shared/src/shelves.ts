@@ -22,7 +22,7 @@ export const SHELF_TITLES: Record<ShelfId, string> = {
 };
 
 /** Short listens are under this long. */
-export const SHORT_LISTEN_SEC = 5 * 3600;
+const SHORT_LISTEN_SEC = 5 * 3600;
 
 /** How many books a shelf shows before its full list. */
 export const SHELF_SIZE = 12;
@@ -70,7 +70,7 @@ export function nextInSeries(books: BookSummary[]): BookSummary[] {
  * The books you lined up with Add to Play next, in your order. The server takes a book off
  * once it's started; started ones are left out here too, until that change arrives.
  */
-export function playNextBooks(books: BookSummary[]): BookSummary[] {
+function playNextBooks(books: BookSummary[]): BookSummary[] {
   return books.filter((b) => b.playNext !== null && present(b) && !started(b)).sort((a, b) => a.playNext! - b.playNext!);
 }
 

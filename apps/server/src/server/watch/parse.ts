@@ -7,7 +7,7 @@ import { XMLParser } from "fast-xml-parser";
 import { type ProbedSubtitleTrack, sidecarTags, SUBTITLE_EXTENSIONS } from "@murmur/shared";
 import { extname } from "../library/parse";
 
-export const VIDEO_EXTENSIONS = new Set([".mkv", ".mp4", ".m4v", ".mov", ".webm", ".avi", ".ts"]);
+const VIDEO_EXTENSIONS = new Set([".mkv", ".mp4", ".m4v", ".mov", ".webm", ".avi", ".ts"]);
 
 export const isVideoFile = (name: string) => VIDEO_EXTENSIONS.has(extname(name));
 
@@ -59,7 +59,7 @@ export function isExtra(relPath: string): boolean {
 const QUALITY = /\b(?:2160p|1080p|1080i|720p|576p|480p|4k|uhd|bluray|blu-ray|bdrip|brrip|web-?dl|webrip|hdtv|dvdrip|remux|x264|x265|h\.?264|h\.?265|hevc|hdr|hdr10|10bit|proper|repack)\b.*$/i;
 const YEAR = /\b(?:19|20)\d{2}\b/g;
 
-export interface NameYear {
+interface NameYear {
   title: string;
   year: string | null;
 }
@@ -220,7 +220,7 @@ export function editionOf(fileName: string): string | null {
   return hit === "Directors Cut" ? "Director's Cut" : (hit ?? null);
 }
 
-export interface EpisodeInfo {
+interface EpisodeInfo {
   /** The show's folder, relative to the shows folder. */
   showPath: string;
   season: number;

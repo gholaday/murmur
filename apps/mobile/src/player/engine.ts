@@ -24,6 +24,7 @@ import {
   offersGoBack,
   parseSkip,
   PLAY_COUNTS_AFTER_SEC,
+  type PlayRef,
   type PlayType,
   previousIndex,
   type ProgressItem,
@@ -63,7 +64,7 @@ import { flush, listening, queuePlay, queueProgress, saveListening, unsentProgre
 // progress saving carry on whatever screen is showing (or with the screen off).
 // Mirrors the web player's engine (apps/server/src/web/player/engine.tsx).
 
-export interface PlayableFile {
+interface PlayableFile {
   path: string;
   startSec: number;
   durationSec: number;
@@ -88,10 +89,7 @@ export interface Playable {
   speed: number;
 }
 
-/** What was playing, saved on this phone so a restart picks it up. */
-type PlayRef = { itemType: PlayType; itemId: string };
-
-/** The same, with where it had got to: details saved earlier may be behind. */
+/** What was playing, with where it had got to: details saved earlier may be behind. */
 type SavedPlace = PlayRef & { at?: number };
 
 export function bookToPlayable(b: BookDetail): Playable {
@@ -134,7 +132,7 @@ export function episodeToPlayable(e: EpisodeWithShow): Playable {
 }
 
 /** A song: always from the start, at 1x, with no position kept. */
-export function trackToPlayable(t: TrackDto): Playable {
+function trackToPlayable(t: TrackDto): Playable {
   return {
     type: "track",
     id: t.id,
@@ -157,7 +155,7 @@ export function trackToPlayable(t: TrackDto): Playable {
  * Loads an item's details, falling back to the download's saved copy offline. Progress not yet
  * sent to the server (listened offline) is newer than either, so it wins.
  */
-export async function loadPlayable(ref: PlayRef): Promise<Playable> {
+async function loadPlayable(ref: PlayRef): Promise<Playable> {
   return resumeFrom(await loadPlayableDetails(ref));
 }
 

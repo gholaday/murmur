@@ -7,12 +7,11 @@ import type { StatsType } from "./index";
 // server is.
 
 export type StatsPeriod = "week" | "month" | "year" | "all";
-export const STATS_PERIODS: StatsPeriod[] = ["week", "month", "year", "all"];
 
 /** Listening under this on a day doesn't count toward a streak, or an episode played or watched. */
 export const COUNTS_AS_LISTENED_SEC = 60;
 /** A song counts as played after this much of it. */
-export const COUNTS_AS_SONG_SEC = 30;
+const COUNTS_AS_SONG_SEC = 30;
 /** The least time in a period for something to be named or counted as watched. Shorter time still adds to the totals. */
 export const STATS_MIN_SEC = { book: 300, podcast: 300, album: 180, song: COUNTS_AS_SONG_SEC, tvshow: 300, movie: 600 } as const;
 /** How many things a period's top list shows. */
@@ -62,14 +61,14 @@ function monthEnd(year: number, month: number): string {
 
 // ---------- Periods ----------
 
-export interface StatsBucket {
+interface StatsBucket {
   key: string;
   label: string;
   from: string;
   to: string;
 }
 
-export interface PeriodRange {
+interface PeriodRange {
   from: string;
   to: string;
   /** The same stretch of the period before, up to the same point, or null for all time. */
@@ -248,7 +247,7 @@ export const STATS_PERIOD_CHOICES: Array<{ id: StatsPeriod; label: string; last:
 
 export const STATS_KIND_LABEL: Record<StatsKind, string> = { book: "Books", episode: "Podcasts", music: "Music", watch: "Watch" };
 
-export const STATS_TOP_LABEL: Record<StatsTop["kind"], string> = { book: "Book", podcast: "Podcast", album: "Album", song: "Song", movie: "Movie", tvshow: "Show" };
+const STATS_TOP_LABEL: Record<StatsTop["kind"], string> = { book: "Book", podcast: "Podcast", album: "Album", song: "Song", movie: "Movie", tvshow: "Show" };
 
 /** The time of these kinds; a kind the server leaves out counts as nothing, not NaN. */
 export const statsSum = (split: Partial<StatsSplit> | null | undefined, kinds: StatsKind[]): number => kinds.reduce((s, k) => s + (split?.[k] ?? 0), 0);
@@ -317,7 +316,7 @@ export function statsTopCover(t: StatsTop): string | null {
 
 // ---------- Recording on the device ----------
 
-export interface ListeningItem {
+interface ListeningItem {
   day: string;
   itemType: StatsType;
   itemId: string;

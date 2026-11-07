@@ -15,6 +15,7 @@ Murmur is a self-hosted audiobook, podcast and music server with a web player an
 - Keep it fast and light. It should just work, every time.
 - Optional features (ad detection, music) fail on their own: if one breaks, everything else keeps working.
 - Logic that the web and the app both need goes in `packages/shared`, not in two copies.
+- Delete code that nothing uses, and don't export what only its own file uses.
 
 ## Commits and releases
 

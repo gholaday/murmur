@@ -120,7 +120,7 @@ export const TONEMAP = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,
  * everything from the keyframe up to the exact second (a whole 4K group of pictures, otherwise).
  * HDR frames are shrunk first and then tone mapped, or grabbed as they are if this ffmpeg can't.
  */
-export async function grabFrame(file: string, atSec: number, hdr = false): Promise<Buffer> {
+async function grabFrame(file: string, atSec: number, hdr = false): Promise<Buffer> {
   const grab = (filter: string) =>
     run(
       env.ffmpegPath,

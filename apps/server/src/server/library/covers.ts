@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import sharp, { type OutputInfo, type Sharp } from "sharp";
 
-export const COVER_SIZES = [200, 600] as const;
+const COVER_SIZES = [200, 600] as const;
 export type CoverSize = (typeof COVER_SIZES)[number];
 const LARGEST = Math.max(...COVER_SIZES);
 
@@ -15,7 +15,7 @@ export function coverFile(coversDir: string, hash: string, size: CoverSize): str
   return path.join(coversDir, `${hash}-${size}.webp`);
 }
 
-export interface CoverMeta {
+interface CoverMeta {
   /** Main colour as #rrggbb, used to tint page headers. */
   color: string;
   /** Width of the original image, when known; Match only replaces a cover with a larger one. */
@@ -120,7 +120,7 @@ export async function saveCoverMeta(coversDir: string, hash: string, color: stri
  * The cover colour made usable as a header tint behind light text: same hue,
  * lightness capped so a white or pastel cover still gives a dark, readable header.
  */
-export function tintFor(hex: string): string {
+function tintFor(hex: string): string {
   const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);

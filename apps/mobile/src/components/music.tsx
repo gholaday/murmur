@@ -35,7 +35,7 @@ import { IconButton, Pill, Pills, Text } from "./ui";
 // Shared by the Music tab, Album and Artist screens. The text helpers (songSub, albumPills and so
 // on) live in @murmur/shared, so the web and the app say the same thing.
 
-export const openAlbum = (id: string) => router.push(`/album/${id}`);
+const openAlbum =(id: string) => router.push(`/album/${id}`);
 
 /** An album's or playlist's songs into Up Next in order, to play next. */
 export const addSongsToUpNext = (tracks: TrackDto[]) =>
@@ -478,43 +478,8 @@ export function TrackRow({
   );
 }
 
-/** An album you haven't fully added, as a search result: cover, title, "Album, artist" and a + button. */
-export function AlbumAddRow({ album }: { album: AlbumSummary }) {
-  const t = useTheme();
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, borderBottomWidth: 1, borderBottomColor: t.line }}>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => openAlbum(album.id)}
-        style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}
-      >
-        <Cover path={albumCover(album.id, album.coverHash)} title="" color={album.coverColor} size={44} radius={6} />
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 15 }}>
-            {album.title}
-          </Text>
-          <Text variant="small" numberOfLines={1}>
-            {`Album, ${album.artist}`}
-          </Text>
-        </View>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Add ${album.title} to your music`}
-        onPress={() => {
-          selectHaptic();
-          void setInMusic({ albums: [album] }, true);
-        }}
-        style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: t.line, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.6 : 1 })}
-      >
-        <PlusIcon size={18} color={t.text} />
-      </Pressable>
-    </View>
-  );
-}
-
 /** Adds one song to your music (+), or takes it out (✓ in the accent colour). */
-export function InMusicToggle({ track }: { track: TrackDto }) {
+function InMusicToggle({ track }: { track: TrackDto }) {
   const t = useTheme();
   const on = track.inMusic;
   return (
@@ -540,7 +505,7 @@ function Length({ track }: { track: TrackDto }) {
 
 /** The accent Play button over an album, playlist or your songs. */
 /** Where the songs on a screen play from: an album, a playlist, or Songs (refId null). */
-export type MusicRef = { kind: UpNextSource["kind"]; refId: string | null };
+type MusicRef = { kind: UpNextSource["kind"]; refId: string | null };
 
 /**
  * Play for an album, list or Songs. While music from that same place is loaded, it pauses and

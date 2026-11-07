@@ -36,10 +36,10 @@ const same = (a: QueueRef, b: QueueRef) => a.itemType === b.itemType && a.itemId
 const isSourceSong = (e: UpNextRef) => e.itemType === "track" && !e.added;
 
 /** What's still to come after the item playing. */
-export const upcoming = <E extends UpNextRef>(l: UpNextList<E>): E[] => l.items.slice(l.index + 1);
+const upcoming = <E extends UpNextRef>(l: UpNextList<E>): E[] => l.items.slice(l.index + 1);
 
 /** The item playing, if it's in the list. */
-export const playingItem = <E extends UpNextRef>(l: UpNextList<E>): E | undefined => l.items[l.index];
+const playingItem = <E extends UpNextRef>(l: UpNextList<E>): E | undefined => l.items[l.index];
 
 /**
  * Starting an album, artist, your songs or a playlist: its songs replace the list, from `index`

@@ -11,7 +11,7 @@ export const GAP = 14;
  * Every grid of covers (books, albums, podcasts, playlists) is this many across, and every
  * sideways shelf shows two and a half (useShelfWidth), so books and albums are always one size.
  */
-export const GRID_COLUMNS = 3;
+const GRID_COLUMNS = 3;
 
 /** Width of one cover in a grid. */
 export function useGridWidth() {

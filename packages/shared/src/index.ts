@@ -11,7 +11,7 @@ import { BOOK_SECTION_IDS } from "./shelves";
 /** A playback speed. Anything out of range, like one saved under the old 3× limit, is brought into it. */
 const speedSchema = z.number().positive().transform(clampSpeed);
 
-export const credentialsSchema = z.object({
+const credentialsSchema = z.object({
   username: z.string().trim().min(1).max(64),
   password: z.string().min(1).max(256),
 });
@@ -21,25 +21,22 @@ export const loginSchema = credentialsSchema.extend({
   client: z.enum(["web", "app"]).default("web"),
   deviceName: z.string().trim().max(100).optional(),
 });
-export type LoginInput = z.input<typeof loginSchema>;
 
 export const setupSchema = credentialsSchema.extend({
   password: z.string().min(8).max(256),
 });
-export type SetupInput = z.input<typeof setupSchema>;
 
 export const createUserSchema = setupSchema.extend({
   isAdmin: z.boolean().default(false),
 });
-export type CreateUserInput = z.input<typeof createUserSchema>;
 
-export const itemTypeSchema = z.enum(["book", "episode"]);
+const itemTypeSchema = z.enum(["book", "episode"]);
 export type ItemType = z.infer<typeof itemTypeSchema>;
 /** Everything the player plays: books and episodes keep a position, songs (tracks) don't. */
-export const playTypeSchema = z.enum(["book", "episode", "track"]);
+const playTypeSchema = z.enum(["book", "episode", "track"]);
 export type PlayType = z.infer<typeof playTypeSchema>;
 /** What counts towards the stats: the audio player's items, and videos (a movie or a TV episode). */
-export const statsTypeSchema = z.enum(["book", "episode", "track", "video"]);
+const statsTypeSchema = z.enum(["book", "episode", "track", "video"]);
 export type StatsType = z.infer<typeof statsTypeSchema>;
 
 export const progressItemSchema = z.object({
@@ -59,7 +56,6 @@ export type ProgressItem = z.input<typeof progressItemSchema>;
 export const progressBatchSchema = z.object({
   items: z.array(progressItemSchema).min(1).max(500),
 });
-export type ProgressBatch = z.input<typeof progressBatchSchema>;
 
 export const bookmarkSchema = z.object({
   /** Made on the device, so a retry can't double up. */
@@ -124,19 +120,16 @@ export const statsQuerySchema = z.object({
 export const subscribeSchema = z.object({
   feedUrl: z.url({ protocol: /^https?$/ }).trim().max(2000),
 });
-export type SubscribeInput = z.input<typeof subscribeSchema>;
 
 export const podcastSettingsSchema = z.object({
   /** Your own playback speed for the show. */
   speed: speedSchema.optional(),
 });
-export type PodcastSettingsInput = z.input<typeof podcastSettingsSchema>;
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(256),
   newPassword: z.string().min(8).max(256),
 });
-export type ChangePasswordInput = z.input<typeof changePasswordSchema>;
 
 export const albumSortSchema = z.enum(["added", "name", "artist", "year"]).catch("added");
 /** Match for a movie or show: the TMDB title picked. */
@@ -229,7 +222,7 @@ export const playlistAddSchema = z.object({ trackIds: trackIdsSchema.min(1) });
 export const artistPhotoSchema = z.object({ providerId: z.string().min(1).max(64).nullable() });
 
 /** Up Next holds episodes and songs; books line up on the Play next shelf instead. */
-export const queueRefSchema = z.object({
+const queueRefSchema = z.object({
   itemType: z.enum(["episode", "track"]),
   itemId: z.string().min(1).max(64),
 });
@@ -243,7 +236,6 @@ export const queueAddSchema = z.union([
   queueRefSchema.extend({ at: addAtSchema }),
   z.object({ items: z.array(queueRefSchema).min(1).max(2000), at: addAtSchema }),
 ]);
-export type QueueAddInput = z.input<typeof queueAddSchema>;
 
 /** The Play next shelf in its new order; books not on it are ignored. */
 export const playNextOrderSchema = z.object({ bookIds: z.array(z.string().min(1).max(64)).max(1000) });
@@ -251,7 +243,7 @@ export const playNextOrderSchema = z.object({ bookIds: z.array(z.string().min(1)
 export const archiveSchema = z.object({ archived: z.boolean() });
 
 /** Your own settings, saved on the server so every device shows the same. Send only what changed. */
-export const userPrefsSchema = z.object({
+const userPrefsSchema = z.object({
   /** The Books tab's sections, top to bottom. */
   bookSections: z
     .array(z.object({ id: z.enum(BOOK_SECTION_IDS), hidden: z.boolean() }))
@@ -271,17 +263,16 @@ export const userPrefsPatchSchema = userPrefsSchema.partial();
 export type UserPrefsPatch = z.input<typeof userPrefsPatchSchema>;
 
 /** Server-wide settings, admin only. */
-export const serverSettingsSchema = z.object({
+const serverSettingsSchema = z.object({
   /** Newest episodes of each followed show kept on the server; 0 turns prefetching off. */
   episodesPerShow: z.number().int().min(0).max(20),
 });
 export type ServerSettings = z.infer<typeof serverSettingsSchema>;
 export const serverSettingsPatchSchema = serverSettingsSchema.partial();
 
-export const AD_KINDS = ["inserted", "host_read", "promo"] as const;
-export type AdKind = (typeof AD_KINDS)[number];
+const AD_KINDS = ["inserted", "host_read", "promo"] as const;
 
-export const adSpanSchema = z.object({
+const adSpanSchema = z.object({
   startSec: z.number().min(0),
   endSec: z.number().min(0),
   kind: z.enum(AD_KINDS).catch("inserted"),
@@ -316,7 +307,7 @@ export const addonStatusSchema = z.object({
 });
 export type AddonStatus = z.infer<typeof addonStatusSchema>;
 
-export const matchFieldSchema = z.enum([
+const matchFieldSchema = z.enum([
   "title",
   "author",
   "narrator",
@@ -420,7 +411,7 @@ export interface BookSummary {
   genres: string[];
 }
 
-export interface BookFileDto {
+interface BookFileDto {
   index: number;
   durationSec: number;
   /** Where this file starts on the book's continuous timeline. */
@@ -601,7 +592,7 @@ export interface BulkMatchChange {
 }
 
 /** Where one book stands in a bulk match. */
-export type BulkMatchItemStatus = "pending" | "applied" | "review" | "none";
+type BulkMatchItemStatus = "pending" | "applied" | "review" | "none";
 
 export interface BulkMatchItem {
   bookId: string;
@@ -664,7 +655,7 @@ export interface BookEditValues {
   description: string | null;
 }
 
-export interface BookFileInfo {
+interface BookFileInfo {
   /** Path inside the book's folder. */
   name: string;
   size: number;

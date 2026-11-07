@@ -31,7 +31,7 @@ export interface TmdbDetails {
   seasons: number[];
 }
 
-export interface TmdbEpisode {
+interface TmdbEpisode {
   season: number;
   episode: number;
   title: string | null;

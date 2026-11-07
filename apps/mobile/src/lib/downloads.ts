@@ -29,7 +29,7 @@ import { createStore } from "./store";
 const INDEX_KEY = "murmur.downloads";
 
 /** "podcast" is a podcast episode; "show" is a TV show's episode. */
-export type DownloadType = "book" | "podcast" | "album" | "track" | "movie" | "show";
+type DownloadType = "book" | "podcast" | "album" | "track" | "movie" | "show";
 
 /** The download type of something the audio player plays. */
 export const downloadTypeOf = (itemType: ItemType): DownloadType => (itemType === "episode" ? "podcast" : itemType);

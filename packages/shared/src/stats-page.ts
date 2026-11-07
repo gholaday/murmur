@@ -92,7 +92,7 @@ export function statsYears(s: StatsDto, kinds: StatsKind[]): Array<{ year: numbe
   return (s.years ?? []).map((y) => ({ year: y.year, sec: statsSum(y.split, kinds) })).filter((y) => y.sec > 0);
 }
 
-export interface StatsLine {
+interface StatsLine {
   text: string;
   /** What it names, for its cover and where it opens; none for a streak. */
   top: StatsTop | null;
@@ -150,7 +150,7 @@ export function statsSinceLine(s: StatsDto, today: string): string | null {
   return `You've been here ${plural(Math.max(1, months), "month")}.`;
 }
 
-export interface StatsDayRow {
+interface StatsDayRow {
   day: string;
   label: string;
   time: string;
@@ -188,7 +188,7 @@ export function statsSpark(s: StatsDto, kinds: StatsKind[], today: string): { va
   return { values: s.period === "month" ? rollingAverage(values, MONTH_SMOOTHING) : values, slots: s.bars.length };
 }
 
-export interface StatsAxisLabel {
+interface StatsAxisLabel {
   text: string;
   /** Where it sits along the line, from 0 to 1. */
   at: number;
@@ -226,7 +226,7 @@ const round = (n: number) => Math.round(n * 10) / 10;
 
 // ---------- The ring ----------
 
-export interface StatsRingDay {
+interface StatsRingDay {
   day: string;
   /** How long the spoke is, from 0 to 1. Zero is a stub, and so is every day to come. */
   value: number;

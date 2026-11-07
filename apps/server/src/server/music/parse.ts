@@ -3,7 +3,7 @@
  * No I/O here, so every rule is unit-tested in parse.test.ts.
  */
 
-export interface TrackInfo {
+interface TrackInfo {
   title: string;
   /** The song's own artist. */
   artist: string;

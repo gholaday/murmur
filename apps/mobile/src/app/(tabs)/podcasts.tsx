@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -25,6 +25,7 @@ import { Button, Field, IconButton, Text } from "@/components/ui";
 import { api } from "@/lib/api";
 import { keys, useContinueEpisodes, useNewEpisodes, usePodcasts } from "@/lib/data";
 import { queryClient } from "@/lib/query";
+import { useDebounced } from "@/lib/search";
 import { useTheme } from "@/theme";
 
 export default function Podcasts() {
@@ -237,13 +238,8 @@ function PodcastSearch({
   onPreview: (feedUrl: string, artworkUrl: string | null) => void;
 }) {
   const t = useTheme();
-  const [term, setTerm] = useState(text.trim());
+  const term = useDebounced(text.trim(), 350);
   const [adding, setAdding] = useState<string | null>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setTerm(text.trim()), 350);
-    return () => clearTimeout(timer);
-  }, [text]);
 
   const search = useQuery({
     queryKey: ["podcast-search", term],

@@ -9,15 +9,15 @@ import { coverColor, MAX_INPUT_PIXELS, saveCoverMeta } from "../library/covers";
 // Posters (2:3) and wide pictures (16:9: backdrops and stills), stored beside the square covers
 // in the covers folder and served the same way. Only the shape and sizes differ.
 
-export type ArtShape = "poster" | "wide";
-export type ArtSize = "small" | "large";
+type ArtShape = "poster" | "wide";
+type ArtSize = "small" | "large";
 
 const SIZES: Record<ArtShape, Record<ArtSize, [number, number]>> = {
   poster: { small: [200, 300], large: [400, 600] },
   wide: { small: [320, 180], large: [960, 540] },
 };
 
-export function artFile(coversDir: string, hash: string, shape: ArtShape, size: ArtSize): string {
+function artFile(coversDir: string, hash: string, shape: ArtShape, size: ArtSize): string {
   const [w, h] = SIZES[shape][size];
   return path.join(coversDir, `${hash}-${w}x${h}.webp`);
 }

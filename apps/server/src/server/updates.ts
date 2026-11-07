@@ -10,7 +10,7 @@ import { createLogger, errorMessage } from "./log";
 const RELEASES_URL = "https://api.github.com/repos/gholaday/murmur/releases/latest";
 const CHECK_MS = 6 * 60 * 60_000;
 
-export interface UpdateInfo {
+interface UpdateInfo {
   /** The newest release, like "0.2.7". */
   latest: string;
   url: string;

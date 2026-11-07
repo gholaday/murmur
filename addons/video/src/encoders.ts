@@ -11,7 +11,7 @@ import { createLogger } from "./log";
 const log = createLogger("watch-encoders");
 
 export type Encoder = VideoAddonHealth["encoder"];
-export const ENCODERS: readonly Encoder[] = ["nvenc", "qsv", "vaapi", "amf", "videotoolbox", "cpu"];
+const ENCODERS: readonly Encoder[] = ["nvenc", "qsv", "vaapi", "amf", "videotoolbox", "cpu"];
 
 /** Converted pictures are H.264 High 4.2: 1080p at up to 60 frames, which everything plays. */
 export const H264_CODEC = "avc1.64002A";

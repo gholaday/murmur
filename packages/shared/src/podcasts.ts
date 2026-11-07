@@ -57,7 +57,7 @@ export function matchesEpisode(e: EpisodeDto, query: string): boolean {
 export const KEEP_PER_SHOW_OPTIONS = [0, 1, 3, 5, 10];
 
 /** The add-on reports every minute or so; this long without a word counts as not connected. */
-export const ADDON_SILENT_MS = 15 * 60_000;
+const ADDON_SILENT_MS = 15 * 60_000;
 
 /** The ad detection lines in server settings. `now` is when the status was fetched. */
 export function adScanStatus(ads: EpisodeCacheStatusDto["ads"], now: number) {

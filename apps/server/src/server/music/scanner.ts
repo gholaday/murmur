@@ -15,7 +15,7 @@ import { bumpChanges } from "../changes";
 // The music scanner. Unlike books, music is read file by file: a song is probed only when
 // its size or modified time changed, and albums come from the tags, not from folders.
 
-export interface MusicScannerDeps {
+interface MusicScannerDeps {
   sqlite: Sqlite;
   /** The music folders, looked up at the start of every scan. */
   folders: () => LibraryFolder[];

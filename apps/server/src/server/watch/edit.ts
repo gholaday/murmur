@@ -12,8 +12,8 @@ import { tmdbThumbUrl } from "./tmdb";
 // Edit for movies and shows. What an admin types or picks counts as local, like an .nfo or a
 // poster beside the files: a later match leaves it alone.
 
-export type WatchKind = "movie" | "show";
-export type ArtKind = "poster" | "backdrop";
+type WatchKind = "movie" | "show";
+type ArtKind = "poster" | "backdrop";
 
 const MAX_ART_BYTES = 20 * 1024 * 1024;
 const tableOf = (kind: WatchKind) => (kind === "movie" ? "movies" : "shows");
@@ -30,7 +30,7 @@ export function saveWatchDetails(ctx: AppContext, kind: WatchKind, id: string, i
 }
 
 /** Puts an image on as the poster or backdrop, kept as your own so a match never replaces it. */
-export async function setWatchArt(ctx: AppContext, kind: WatchKind, id: string, which: ArtKind, image: Buffer) {
+async function setWatchArt(ctx: AppContext, kind: WatchKind, id: string, which: ArtKind, image: Buffer) {
   if (image.length > MAX_ART_BYTES) throw new HttpError(400, "That image is over 20 MB.");
   let hash: string;
   try {
@@ -71,7 +71,7 @@ export async function removeWatchArt(ctx: AppContext, kind: WatchKind, id: strin
   void ctx.watch.scanner.scan();
 }
 
-export async function setWatchArtFromUrl(ctx: AppContext, kind: WatchKind, id: string, which: ArtKind, url: string) {
+async function setWatchArtFromUrl(ctx: AppContext, kind: WatchKind, id: string, which: ArtKind, url: string) {
   let res: Response;
   try {
     res = await safeFetch(url, { signal: AbortSignal.timeout(20_000), headers: { "User-Agent": `Murmur/${env.version}` } });
@@ -83,7 +83,7 @@ export async function setWatchArtFromUrl(ctx: AppContext, kind: WatchKind, id: s
   await setWatchArt(ctx, kind, id, which, await readCapped(res, MAX_ART_BYTES, "That image"));
 }
 
-export async function setWatchArtFromTmdb(ctx: AppContext, kind: WatchKind, id: string, which: ArtKind, tmdbPath: string) {
+async function setWatchArtFromTmdb(ctx: AppContext, kind: WatchKind, id: string, which: ArtKind, tmdbPath: string) {
   const tmdb = requireTmdb(ctx);
   try {
     await setWatchArt(ctx, kind, id, which, await tmdb.image(tmdbPath, which === "poster" ? "w780" : "w1280"));

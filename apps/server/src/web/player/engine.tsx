@@ -12,6 +12,7 @@ import {
   type ChapterDto,
   type EpisodeWithShow,
   type ItemType,
+  type PlayRef,
   type PlayType,
   type TrackDto,
   albumCover,
@@ -205,9 +206,6 @@ export function trackToPlayable(t: TrackDto): Playable {
     speed: 1,
   };
 }
-
-/** What was playing, saved on this device so a reload picks it up. */
-export type PlayRef = { itemType: PlayType; itemId: string };
 
 async function loadPlayable(ref: PlayRef): Promise<Playable> {
   if (ref.itemType === "book") return bookToPlayable(await api<BookDetail>(`/api/books/${ref.itemId}`));

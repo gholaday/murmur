@@ -44,9 +44,6 @@ export function saveListening(now: boolean) {
   void flush(false, now);
 }
 
-/** Time spent watching a movie or episode (by its progress id), for the stats. */
-export const countWatching = (id: string, wallSec: number, movedSec: number, speed: number) => listening.add("video", id, wallSec, movedSec, speed);
-
 let flushing = false;
 let flushAgain = false;
 let refreshAfterFlush = false;

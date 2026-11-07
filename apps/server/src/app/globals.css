@@ -137,9 +137,6 @@ select.input { appearance: none; }
 .btn-danger { color: var(--danger); }
 .btn-big { height: 50px; border-radius: 25px; gap: 10px; font-size: 15px; font-weight: 800; }
 /* Action with quieter detail beside it, e.g. "Continue  6h 2m left". */
-.btn-stack { display: flex; align-items: baseline; gap: 8px; line-height: 1; }
-.btn-stack > span:first-child { font-size: 17px; }
-.btn-stack-sub { font-size: 13px; font-weight: 600; opacity: 0.7; }
 .btn-round { width: 50px; height: 50px; border-radius: 25px; padding: 0; background: var(--surface-2); display: inline-flex; align-items: center; justify-content: center; }
 .btn-round[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
 .btn-round:disabled { opacity: 0.4; cursor: default; }
@@ -191,7 +188,6 @@ select.input { appearance: none; }
 }
 .chips[role="tablist"] .chip:hover { color: var(--text); }
 .chips[role="tablist"] .chip[aria-pressed="true"] { background: none; color: var(--text); }
-.chip-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 
 /* Checkboxes in the app's colours; toggles inside .switch keep their own look. */
 :where(input[type="checkbox"]):not(.switch input) {
@@ -270,7 +266,6 @@ select.input { appearance: none; }
   white-space: nowrap;
 }
 .tab[aria-current="page"] { color: var(--accent); font-weight: 700; }
-.tab-count { position: absolute; top: 8px; left: calc(50% + 6px); }
 
 /*
  * Search is the first tab. Opening it on a phone grows its box out of the tab across the bar:
@@ -346,7 +341,6 @@ select.input { appearance: none; }
   .tabs.searching .tab-hideable, .tabs.searching .dock-search > .tab-search { opacity: 1; pointer-events: auto; }
   .tab:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
   .tab[aria-current="page"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
-  .tab-count { position: static; margin-left: auto; }
   .shell .page { margin-left: calc(var(--side-w) + max(0px, (100vw - var(--side-w) - 1080px) / 2)); padding-bottom: 48px; }
   .shell.has-player .page { padding-bottom: calc(var(--mini-h) + 48px); }
 }
@@ -368,9 +362,9 @@ select.input { appearance: none; }
 .group-head { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 /*
  * Number badges share one shape and come in two colours: grey (.count-pill) counts what's in
- * a list; solid accent (.tab-count, .badge-count, .episode-more) flags something new or waiting.
+ * a list; solid accent (.badge-count, .episode-more) flags something new or waiting.
  */
-.count-pill, .tab-count, .badge-count, .episode-more {
+.count-pill, .badge-count, .episode-more {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -385,8 +379,7 @@ select.input { appearance: none; }
   white-space: nowrap;
 }
 .count-pill { background: var(--chip); color: var(--muted); margin-left: 8px; vertical-align: 3px; }
-.tab-count, .badge-count, .episode-more { background: var(--accent); color: var(--on-accent); }
-.section-link { font-size: 12px; font-weight: 700; color: var(--accent); }
+.badge-count, .episode-more { background: var(--accent); color: var(--on-accent); }
 .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.6px; text-transform: uppercase; }
 
 /* ---------- Loading ---------- */
@@ -1510,7 +1503,6 @@ button.track-title:hover { color: var(--accent); }
 @media (min-width: 600px) { .watch-card { width: 280px; } }
 .watch-card .cover { border-radius: 10px; }
 .watch-card-sub { display: flex; justify-content: space-between; gap: 8px; margin-top: -4px; font-size: 12px; color: var(--muted); white-space: nowrap; }
-.pill-danger { color: var(--danger); }
 .file-details { display: flex; flex-direction: column; gap: 10px; }
 .file-details .pills { justify-content: flex-start; }
 /* Long rip names scroll sideways instead of wrapping. */

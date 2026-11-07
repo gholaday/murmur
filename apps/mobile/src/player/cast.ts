@@ -24,7 +24,7 @@ import { createStore } from "@/lib/store";
 // through a CastPlayer instead of their own player, so progress, ads, chapters and Up Next carry
 // on. If the native module is missing or no device is found, nothing shows and playback is as before.
 
-export interface CastStatus {
+interface CastStatus {
   /** A Chromecast was found on the network, or one is connected. */
   available: boolean;
   /** The connected device's name. */
@@ -147,7 +147,7 @@ async function castUrl(path: string, prefixes: string[]): Promise<string> {
 // ---------- The players' stand-in ----------
 
 /** What the TV shows while it plays. */
-export interface CastAbout {
+interface CastAbout {
   title: string;
   subtitle: string | null;
   /** An API path to the cover or backdrop, or null. */
@@ -157,13 +157,13 @@ export interface CastAbout {
 }
 
 /** A subtitle track the TV can show. */
-export interface CastSubtitle {
+interface CastSubtitle {
   name: string;
   language: string | null;
   path: string;
 }
 
-export interface CastEvents {
+interface CastEvents {
   /** The media is on the TV (or was already, on a reconnect) at `position`. */
   loaded(): void;
   time(): void;

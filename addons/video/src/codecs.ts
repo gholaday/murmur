@@ -4,7 +4,7 @@
  */
 import type { ProbedVideo } from "@murmur/shared";
 
-export interface FfprobeStream {
+interface FfprobeStream {
   index: number;
   codec_type?: string;
   codec_name?: string;
@@ -99,7 +99,7 @@ export function audioCodecString(s: FfprobeStream): string {
   }
 }
 
-export function hdrKind(s: FfprobeStream): ProbedVideo["hdr"] {
+function hdrKind(s: FfprobeStream): ProbedVideo["hdr"] {
   if (s.side_data_list?.some((d) => /dovi|dolby vision/i.test(d.side_data_type ?? "")) || /^dv(he|h1|av)/i.test(s.codec_tag_string ?? "")) {
     return "dolby-vision";
   }

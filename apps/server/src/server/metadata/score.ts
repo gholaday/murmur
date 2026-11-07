@@ -29,7 +29,7 @@ export function cleanTitle(s: string): string {
 /**
  * Person names compared loosely: "J.R.R. Tolkien" = "J. R. R. Tolkien" = "Tolkien, J.R.R.".
  */
-export function normalizeName(s: string): string {
+function normalizeName(s: string): string {
   let name = s.trim();
   const comma = /^([^\s,]+),\s*([^,]+)$/.exec(name);
   if (comma) name = `${comma[2]} ${comma[1]}`;
@@ -111,7 +111,7 @@ function fmtDuration(sec: number) {
 }
 
 /** Duration agreement: within 2% is full marks, 15% or more apart is none. */
-export function durationScore(localSec: number, candidateSec: number): number {
+function durationScore(localSec: number, candidateSec: number): number {
   const diff = Math.abs(localSec - candidateSec) / localSec;
   if (diff <= 0.02) return 1;
   if (diff >= 0.15) return 0;

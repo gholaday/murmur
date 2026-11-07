@@ -36,7 +36,7 @@ export const naturalCompare = (a: string, b: string) => collator.compare(a, b);
 
 // ---------- Folder names ----------
 
-export interface ParsedTitleFolder {
+interface ParsedTitleFolder {
   title: string;
   position: number | null;
   year: string | null;
@@ -95,7 +95,7 @@ export function stripNoise(value: string): string {
     .trim();
 }
 
-export interface ParsedBookPath {
+interface ParsedBookPath {
   author: string | null;
   series: string | null;
   title: string;
@@ -160,7 +160,7 @@ function leadingInt(value: string | null): number | null {
 
 const ASIN_PATTERN = /\b(B0[A-Z0-9]{8})\b/;
 
-export function findAsin(relDir: string, tags: Record<string, string>): string | null {
+function findAsin(relDir: string, tags: Record<string, string>): string | null {
   const fromTag = tag(tags, "asin", "audible_asin", "audibleasin");
   if (fromTag && ASIN_PATTERN.test(fromTag)) return fromTag;
   return ASIN_PATTERN.exec(relDir)?.[1] ?? null;
@@ -170,7 +170,7 @@ export function findAsin(relDir: string, tags: Record<string, string>): string |
  * Orders the files of a multi-file book. Disc and track tags are only trusted when
  * every file has them and no two files collide; otherwise natural filename order.
  */
-export function orderAudioFiles<T extends { name: string; probe: ProbeResult }>(files: T[]): T[] {
+function orderAudioFiles<T extends { name: string; probe: ProbeResult }>(files: T[]): T[] {
   const keyed = files.map((f) => ({
     f,
     disc: leadingInt(tag(f.probe.tags, "disc", "discnumber")) ?? 1,
@@ -188,7 +188,7 @@ export function orderAudioFiles<T extends { name: string; probe: ProbeResult }>(
 
 // ---------- Book metadata ----------
 
-export interface BookMetadata {
+interface BookMetadata {
   title: string;
   author: string | null;
   narrator: string | null;
@@ -202,7 +202,7 @@ export interface BookMetadata {
   chapters: Array<{ title: string; startSec: number; endSec: number }>;
 }
 
-export interface BuildInput {
+interface BuildInput {
   relDir: string;
   files: ScannedAudioFile[];
   descTxt?: string | null;

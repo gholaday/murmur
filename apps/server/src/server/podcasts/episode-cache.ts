@@ -90,7 +90,7 @@ export class Download {
   }
 }
 
-export type CachedAudio =
+type CachedAudio =
   | { kind: "ready"; file: string; mimeType: string }
   | { kind: "growing"; download: Download; file: string; mimeType: string };
 

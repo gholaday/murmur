@@ -3,7 +3,7 @@
 // only while something is running, and reload a kind's lists when its count moves.
 
 export type ChangeKind = "books" | "music" | "watch";
-export const CHANGE_KINDS: readonly ChangeKind[] = ["books", "music", "watch"];
+const CHANGE_KINDS: readonly ChangeKind[] = ["books", "music", "watch"];
 export const CHANGES_HEADER = "x-murmur-changes";
 
 export interface Changes extends Record<ChangeKind, number> {
@@ -19,7 +19,7 @@ const IDLE_MS = 10 * 60_000;
 
 export const formatChanges = (c: Changes) => `${c.boot}.${c.books}.${c.music}.${c.watch}.${c.busy ? 1 : 0}`;
 
-export function parseChanges(token: string | null | undefined): Changes | null {
+function parseChanges(token: string | null | undefined): Changes | null {
   const [boot, books, music, watch, busy] = token?.split(".") ?? [];
   if (!boot || busy === undefined) return null;
   return { boot, books: Number(books), music: Number(music), watch: Number(watch), busy: busy === "1" };

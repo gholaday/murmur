@@ -32,7 +32,7 @@ export interface VideoSubtitlesDto {
 }
 
 /** One video and the choices for a stream or download of it. */
-export const videoSourceSchema = z.object({
+const videoSourceSchema = z.object({
   videoId: z.string().min(1),
   file: z.string().min(1),
   /** RFC 6381, as the file has it. */
@@ -75,7 +75,7 @@ export type VideoStatus = { problem: string; working?: never } | { problem: null
 /** The header that names a stream's or download's owner on the add-on's file requests. */
 export const VIDEO_OWNER_HEADER = "x-murmur-owner";
 
-export type ByteRange = { start: number; end: number } | "unsatisfiable" | null;
+type ByteRange = { start: number; end: number } | "unsatisfiable" | null;
 
 /** Parses a single `bytes=` range. Multi-range requests are served as the whole file. */
 export function parseRange(header: string | null, size: number): ByteRange {

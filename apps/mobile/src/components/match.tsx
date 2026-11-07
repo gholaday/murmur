@@ -535,7 +535,7 @@ function ApplyButton({ count, busy, onPress }: { count: number; busy: boolean; o
   return <Button label={count ? `Apply ${plural(count, "field")}` : "Pick a field"} busy={busy} disabled={count === 0} onPress={onPress} />;
 }
 
-export function SearchInput({
+function SearchInput({
   value,
   onChange,
   placeholder,
@@ -569,7 +569,7 @@ export function SearchInput({
   );
 }
 
-export function SearchButton({ disabled, onPress }: { disabled: boolean; onPress: () => void }) {
+function SearchButton({ disabled, onPress }: { disabled: boolean; onPress: () => void }) {
   return <Button label="Search" kind="secondary" disabled={disabled} onPress={onPress} style={{ height: 48, paddingHorizontal: 18 }} />;
 }
 

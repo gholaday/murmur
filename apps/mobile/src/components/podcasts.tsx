@@ -10,7 +10,7 @@ import { NumberBadge, Text } from "./ui";
 
 // The sort is shared by the Podcasts tab and its full list, so both show the same order.
 const sortStore = createStore<PodcastSort>("latest");
-export const setSort = sortStore.set;
+const setSort =sortStore.set;
 export const useSort = sortStore.useValue;
 
 export function SortSheet({ open, onClose }: { open: boolean; onClose: () => void }) {

@@ -143,12 +143,6 @@ export const PlayedIcon = ({ played, ...p }: IconProps & { played?: boolean }) =
     <path d="M8 12.5l2.7 2.7L16 10" stroke={played ? "var(--on-accent)" : "currentColor"} />
   </Icon>
 );
-export const SettingsIcon =(p: IconProps) => (
-  <Icon {...p}>
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </Icon>
-);
 export const ProfileIcon = (p: IconProps) => (
   <Icon {...p}>
     <circle cx="12" cy="8" r="4" />
@@ -234,11 +228,6 @@ export const AdsCheckedIcon = (p: IconProps) => (
     <path d="M9 12l2 2 4-4" />
   </Icon>
 );
-export const DownloadIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
-  </Icon>
-);
 export const SkipBackIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M4 12a8 8 0 1 0 2.3-5.6" />
@@ -291,21 +280,10 @@ export const DragIcon = (p: IconProps) => (
     <path d="M5 9h14M5 15h14" />
   </Icon>
 );
-export const ArchiveIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <rect x="3" y="4" width="18" height="5" rx="1" />
-    <path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4" />
-  </Icon>
-);
 export const RefreshIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M20 12a8 8 0 1 1-2.3-5.6" />
     <path d="M20 4v4h-4" />
-  </Icon>
-);
-export const SparkIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6" />
   </Icon>
 );
 

@@ -18,7 +18,7 @@ export function cameThroughProxy(header: (name: string) => string | null | undef
  * The shortest ADDON_SECRET Murmur and the add-ons accept: anyone who guesses it can use an
  * add-on as Murmur would. `openssl rand -hex 32` gives 64 characters.
  */
-export const ADDON_SECRET_MIN_LENGTH = 32;
+const ADDON_SECRET_MIN_LENGTH = 32;
 
 /** Why an ADDON_SECRET can't be used, or null when it's long enough (or not set at all). */
 export function addonSecretProblem(secret: string): string | null {

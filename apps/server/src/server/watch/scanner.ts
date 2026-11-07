@@ -35,7 +35,7 @@ import { pruneSubtitles, type StoredSubtitle, subtitleFiles, withSubtitleFiles }
 // The Watch scanner. Like music it goes file by file: a video is probed only when its size or
 // modified time changed. Movies and shows have their own folders, so nothing is guessed.
 
-export interface WatchScannerDeps {
+interface WatchScannerDeps {
   sqlite: Sqlite;
   /** The movies and shows folders, looked up at the start of every scan. */
   folders: () => { movies: LibraryFolder[]; shows: LibraryFolder[] };

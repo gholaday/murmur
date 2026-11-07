@@ -7,7 +7,7 @@ import type { ScanState, ScanStats } from "./scanner";
 
 /** What's shared by the book, music and watch scanners: running one pass at a time, and walking a folder. */
 
-export interface ScanPass {
+interface ScanPass {
   stats: ScanStats;
   problems: string[];
   /** The log line, when it isn't `<name> finished`. */
@@ -51,7 +51,7 @@ export async function runScan(opts: { state: ScanState; log: Logger; name: strin
 
 const fsLimit = createLimiter(16);
 
-export interface WalkedFile {
+interface WalkedFile {
   name: string;
   relPath: string;
 }

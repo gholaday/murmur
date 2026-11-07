@@ -28,7 +28,7 @@ function cgroupCpus(): number | null {
 }
 
 /** CPUs ffmpeg may use: the container's quota where there is one, else the machine's cores. At least 1. */
-export function cpuCount(): number {
+function cpuCount(): number {
   cached ??= Math.max(1, Math.min(cgroupCpus() ?? Infinity, os.availableParallelism()));
   return cached;
 }

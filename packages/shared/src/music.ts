@@ -190,7 +190,7 @@ export type AlbumMatchField = "cover" | "title" | "year" | "genre" | "tracks";
 /** Match all takes these; songs are only ever matched one album at a time. */
 export type AlbumMatchAllField = Exclude<AlbumMatchField, "tracks">;
 
-export interface AlbumMatchSong {
+interface AlbumMatchSong {
   /** "1", or "2-3" on a multi-disc album. */
   number: string | null;
   title: string;
@@ -336,7 +336,6 @@ const has = (q: string, ...fields: Array<string | null>) => fields.some((f) => f
 
 /** `q` is the trimmed, lower-cased search; empty matches everything. */
 export const albumMatches = (a: AlbumSummary, q: string) => !q || has(q, a.title, a.artist);
-export const artistMatches = (a: ArtistSummary, q: string) => !q || has(q, a.name);
 export const songMatches = (t: TrackDto, q: string) => !q || has(q, t.title, t.artist, t.album);
 
 const byText = collator.compare;
@@ -363,7 +362,7 @@ export function albumsByArtist(albums: AlbumSummary[]): Map<string, AlbumSummary
 }
 
 /** One album cover in a playlist's cover, placed as fractions of the square. */
-export interface CoverTile<T> {
+interface CoverTile<T> {
   cover: T;
   x: number;
   y: number;

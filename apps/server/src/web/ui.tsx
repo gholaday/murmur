@@ -352,7 +352,7 @@ export function SettingSub({ error, children }: { error?: boolean; children: Rea
   return <span className={`setting-sub ${error ? "error" : ""}`}>{children}</span>;
 }
 
-export function StatusDot({ warn }: { warn?: boolean }) {
+function StatusDot({ warn }: { warn?: boolean }) {
   return <span className={`status-dot ${warn ? "warn" : ""}`} />;
 }
 

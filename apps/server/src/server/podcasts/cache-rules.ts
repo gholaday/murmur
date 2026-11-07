@@ -1,6 +1,6 @@
 import type { AdSpan } from "@murmur/shared";
 
-export interface CachedFileInfo {
+interface CachedFileInfo {
   episodeId: string;
   size: number;
   /** Last played, or when it finished downloading if never played. */

@@ -20,7 +20,7 @@ class FeedStatusError extends Error {
  * Why a feed couldn't be loaded, in plain words for people to read. The raw error can name
  * addresses on the server's own network or quote the parser, so it goes to the log only.
  */
-export function feedProblem(err: unknown): string {
+function feedProblem(err: unknown): string {
   if (err instanceof FeedParseError || err instanceof HttpError) return err.message;
   if (err instanceof FeedStatusError) {
     if (err.status === 404 || err.status === 410) return "The feed isn't at that address any more.";

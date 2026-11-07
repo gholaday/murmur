@@ -4,9 +4,9 @@ import { pastStart } from "./shelves";
 // Bookmark rules shared by the web player and the app's.
 
 /** A bookmark lands this much listening before the tap: you tap after you hear the thing. */
-export const BOOKMARK_EARLY_SEC = 10;
+const BOOKMARK_EARLY_SEC = 10;
 /** The player's bookmark icon is filled this close to one, and tapping it then acts on that one. */
-export const BOOKMARK_NEAR_SEC = 15;
+const BOOKMARK_NEAR_SEC = 15;
 /** The −15s and +15s buttons on the note sheet. */
 export const BOOKMARK_NUDGE_SEC = 15;
 export const BOOKMARK_NOTE_MAX = 500;
@@ -38,9 +38,9 @@ export function thirdTile(type: PlayType, multiChapter: boolean): "chapters" | "
 // ---------- Go back ----------
 
 /** A jump shorter than this doesn't offer Go back. */
-export const GO_BACK_MIN_SEC = 30;
+const GO_BACK_MIN_SEC = 30;
 /** After this much listening from the jump, the new spot is your place. */
-export const GO_BACK_HOLD_SEC = 300;
+const GO_BACK_HOLD_SEC = 300;
 
 /**
  * Your real place while you listen somewhere else after opening a bookmark. Progress isn't saved
