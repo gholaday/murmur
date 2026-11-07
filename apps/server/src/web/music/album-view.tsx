@@ -18,6 +18,7 @@ import {
   songNumber,
   songSub,
 } from "@murmur/shared/client";
+import { useAdmin } from "../admin";
 import { Cover } from "../cover";
 import { MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
@@ -30,12 +31,8 @@ import { AlbumMenuItems, useAlbumMenuSheets } from "./album-menu";
 import { ArtistPhotoDialog } from "./match";
 import { MineToggle, useMineChange } from "./mine";
 import { SongMenuButton } from "./song-menu";
-import { AlbumCard, SongRow } from "./music-view";
-
-/** Back to wherever you came from, or the Music tab when opened directly; `children` go on the right. */
-export function MusicBackRow({ children }: { children?: React.ReactNode }) {
-  return <BackRow fallback="/music">{children}</BackRow>;
-}
+import { AlbumCard } from "./music-view";
+import { SongRow } from "./song-row";
 
 export function AlbumView({ album }: { album: AlbumDetail }) {
   const send = useMineChange();
@@ -66,11 +63,11 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
 
   return (
     <>
-      <MusicBackRow>
+      <BackRow fallback="/music">
         <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMenu(true)}>
           <MoreIcon />
         </button>
-      </MusicBackRow>
+      </BackRow>
       {/* Cover beside the title, as in the app. */}
       <div className="show-hero">
         <Cover src={albumCover(album.id, album.coverHash, 600)} color={album.coverColor} title={album.title} subtitle={album.artist} large />
@@ -158,8 +155,9 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
   );
 }
 
-export function ArtistView({ artist, isAdmin }: { artist: ArtistDetail; isAdmin: boolean }) {
+export function ArtistView({ artist }: { artist: ArtistDetail }) {
   const router = useRouter();
+  const { isAdmin } = useAdmin();
   const send = useMineChange();
   const p = usePlayerControls();
   const [busy, setBusy] = useState(false);
@@ -171,13 +169,13 @@ export function ArtistView({ artist, isAdmin }: { artist: ArtistDetail; isAdmin:
 
   return (
     <>
-      <MusicBackRow>
+      <BackRow fallback="/music">
         {isAdmin ? (
           <button type="button" className="icon-btn" aria-label="Artist options" onClick={() => setMenu(true)}>
             <MoreIcon />
           </button>
         ) : null}
-      </MusicBackRow>
+      </BackRow>
       <div className="artist-head">
         <Cover className="artist-photo" src={artistImage(artist, 600)} color={null} title={artist.name} />
         <div style={{ minWidth: 0 }}>

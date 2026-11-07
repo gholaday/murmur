@@ -7,7 +7,8 @@ import { apiPaths, hasKind, parseRecent, plural, storageKeys, withRecent, type S
 import { api } from "../api";
 import { CloseIcon, SearchIcon } from "../icons";
 import { BookCard } from "../library/book-card";
-import { AlbumCard, ArtistCard, SongRow } from "../music/music-view";
+import { AlbumCard, ArtistCard } from "../music/music-view";
+import { SongRow } from "../music/song-row";
 import { EpisodeRow } from "../podcasts/episode-row";
 import { usePlayerControls } from "../player/engine";
 import { PodcastCard } from "../podcasts/podcasts-view";

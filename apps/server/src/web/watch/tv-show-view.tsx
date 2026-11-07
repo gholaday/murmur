@@ -18,9 +18,9 @@ import {
   type VideoQuality,
   FALLBACK_TINT,
 } from "@murmur/shared/client";
-import { CheckIcon, MoreIcon, PlayedIcon, PlayIcon } from "../icons";
+import { CheckIcon, PlayedIcon, PlayIcon } from "../icons";
 import { setManyFinished } from "../progress";
-import { BackButton, Chip, Chips, Description, SettingsCard } from "../ui";
+import { Chip, Chips, Description, HeroBar, SettingsCard } from "../ui";
 import { playHref, Poster, Still } from "./cards";
 import { useAdmin } from "../admin";
 import { MenuSheet } from "../card-menu";
@@ -115,12 +115,7 @@ export function TvShowView({ show }: { show: ShowDetail }) {
           } as React.CSSProperties
         }
       >
-        <div className="hero-bar">
-          <BackButton fallback="/watch" />
-          <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMenu(true)}>
-            <MoreIcon />
-          </button>
-        </div>
+        <HeroBar fallback="/watch" onMore={() => setMenu(true)} />
         <div className="show-hero">
           <Poster kind="show" id={show.id} hash={show.posterHash} color={show.color} title={show.title} sub={show.year} />
           <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>

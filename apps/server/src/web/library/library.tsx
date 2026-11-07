@@ -31,12 +31,12 @@ import { api } from "../api";
 import { Cover } from "../cover";
 import { Mixer } from "../mixer";
 import { useNowPlaying } from "../player/engine";
-import { CustomizeIcon, DragIcon, FilterIcon } from "../icons";
-import { EditBookDialog, type EditTab } from "../book/edit-dialog";
+import { CustomizeIcon, FilterIcon } from "../icons";
+import { BookActions } from "../book/book-actions";
 import { ChoiceSheet } from "../sheet";
-import { useSortable } from "../sortable";
+import { DragHandle, reorder, useSortable } from "../sortable";
 import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SectionTitle, useSavedChoice } from "../ui";
-import { BookActionsContext, BookCard } from "./book-card";
+import { BookCard } from "./book-card";
 import { PlayNextList } from "./play-next-list";
 
 type Tab = "books" | "authors" | "series" | "finished";
@@ -84,7 +84,6 @@ export function GroupGrid({
 interface LibraryProps {
   books: BookSummary[];
   emptyReason: string;
-  isAdmin: boolean;
   /** The server's date (YYYY-MM-DD), which seeds the daily Not started shuffle. */
   today: string;
   /** Your Books tab layout: section order and which are hidden. */
@@ -93,31 +92,9 @@ interface LibraryProps {
 
 export function Library(props: LibraryProps) {
   return (
-    <BookActions isAdmin={props.isAdmin}>
+    <BookActions>
       <LibraryView {...props} />
     </BookActions>
-  );
-}
-
-/** Book cards' menu actions, with the Edit dialog they open for admins. */
-export function BookActions({ isAdmin, children }: { isAdmin: boolean; children: React.ReactNode }) {
-  const router = useRouter();
-  const [editing, setEditing] = useState<{ id: string; tab: EditTab } | null>(null);
-  const actions = useMemo(() => ({ isAdmin, edit: (id: string, tab: EditTab) => setEditing({ id, tab }) }), [isAdmin]);
-  return (
-    <BookActionsContext.Provider value={actions}>
-      {children}
-      {isAdmin && editing ? (
-        <EditBookDialog
-          key={`${editing.id}:${editing.tab}`}
-          bookId={editing.id}
-          tab={editing.tab}
-          open
-          onClose={() => setEditing(null)}
-          onChanged={() => router.refresh()}
-        />
-      ) : null}
-    </BookActionsContext.Provider>
   );
 }
 
@@ -131,7 +108,7 @@ function safeShelf(id: ShelfId, books: BookSummary[], day: string): BookSummary[
   }
 }
 
-function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections: savedSections }: LibraryProps) {
+function LibraryView({ books, emptyReason, today: serverToday, sections: savedSections }: LibraryProps) {
   // The shelves' daily shuffle follows this device's day, like the app; the server's only fills
   // the first render.
   const [today, setToday] = useState(serverToday);
@@ -456,14 +433,7 @@ function BookSections({
   /** More like names its book. */
   titleOf: (id: BookSectionId) => string;
 }) {
-  const move = (from: number, to: number) => {
-    if (from === to || to < 0 || to >= sections.length) return;
-    const next = [...sections];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved!);
-    onChange(next);
-  };
-  const sortable = useSortable(move);
+  const sortable = useSortable((from, to) => onChange(reorder(sections, from, to)));
 
   return (
     <div ref={sortable.listRef} className={sortable.sorting ? "sorting" : undefined}>
@@ -500,23 +470,7 @@ function BookSections({
                   >
                     {s.hidden ? "Show" : "Hide"}
                   </button>
-                  <button
-                    type="button"
-                    className="icon-btn drag-handle"
-                    aria-label={`Reorder ${title}. Use arrow keys to move.`}
-                    onKeyDown={(ev) => {
-                      if (ev.key === "ArrowUp") {
-                        ev.preventDefault();
-                        move(i, i - 1);
-                      } else if (ev.key === "ArrowDown") {
-                        ev.preventDefault();
-                        move(i, i + 1);
-                      }
-                    }}
-                    {...sortable.handleProps(i)}
-                  >
-                    <DragIcon />
-                  </button>
+                  <DragHandle label={title} {...sortable.handleProps(i)} />
                 </div>
               </div>
               <div className={`section-body ${s.hidden ? "collapsed" : ""}`}>

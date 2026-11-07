@@ -11,5 +11,5 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
   const book = await getBook(ctx, (await params).id, user.id);
   if (!book) notFound();
   const bookmarks = listBookmarks(ctx, user.id).filter((b) => b.itemType === "book" && b.itemId === book.id);
-  return <BookView book={book} bookmarks={bookmarks} isAdmin={user.isAdmin} />;
+  return <BookView book={book} bookmarks={bookmarks} />;
 }

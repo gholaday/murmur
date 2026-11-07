@@ -19,7 +19,7 @@ import { Cover } from "../cover";
 import { DownIcon } from "../icons";
 import { Sheet } from "../sheet";
 import { Chip, Chips, EmptyState } from "../ui";
-import { BookActionsContext } from "./book-card";
+import { BookActionsContext } from "../book/book-actions";
 
 const PATH = apiPaths.libraryMatch;
 const POLL_MS = 1500;

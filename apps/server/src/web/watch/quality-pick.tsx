@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiPaths, playbackPlan, QUALITY_LABEL, qualityMatters, type UserPrefs, type VideoFileInfo, type VideoQuality } from "@murmur/shared/client";
-import { api } from "../api";
+import { playbackPlan, QUALITY_LABEL, qualityMatters, type VideoFileInfo, type VideoQuality } from "@murmur/shared/client";
 import { Sheet, SheetItem } from "../sheet";
+import { useQualityPref } from "./quality-pref";
 import { browserSupport } from "./support";
 
 // The quality a converted picture is made at, picked per viewing like Plex: a button before Play
@@ -23,15 +23,6 @@ export function QualitySheet({ open, value, onClose, onPick }: { open: boolean; 
   );
 }
 
-/** Your setting, read once per page. */
-function useDefaultQuality(): VideoQuality {
-  const [quality, setQuality] = useState<VideoQuality>("full");
-  useEffect(() => {
-    api<UserPrefs>(apiPaths.prefs).then((p) => setQuality(p.videoQuality), () => undefined);
-  }, []);
-  return quality;
-}
-
 /** Whether this browser would have the server convert the file's picture; false until it's checked (it needs the browser). */
 function useConverts(file: VideoFileInfo | null): boolean {
   const [converts, setConverts] = useState(false);
@@ -47,7 +38,7 @@ function useConverts(file: VideoFileInfo | null): boolean {
  */
 export function QualityPick({ file, value, onChange }: { file: VideoFileInfo | null; value: VideoQuality | null; onChange: (q: VideoQuality) => void }) {
   const [open, setOpen] = useState(false);
-  const fallback = useDefaultQuality();
+  const fallback = useQualityPref().quality;
   const converts = useConverts(file);
   if (!converts || !file || !qualityMatters(file)) return null;
   const current = value ?? fallback;

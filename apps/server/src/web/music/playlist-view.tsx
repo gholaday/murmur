@@ -13,20 +13,17 @@ import {
   type PlaylistSummary,
   playlistCoverTiles,
   plural,
-  songLength,
-  songSub,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { Mixer } from "../mixer";
-import { DragIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
+import { MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
 import { type MusicSource, usePlayerControls, usePlayerSelect } from "../player/engine";
 import { ConfirmSheet, Sheet, SheetItem } from "../sheet";
-import { useSortable } from "../sortable";
-import { EmptyState } from "../ui";
-import { MusicBackRow } from "./album-view";
-import { SongMenuButton } from "./song-menu";
+import { reorder, useSortable } from "../sortable";
+import { BackRow, EmptyState } from "../ui";
+import { SongRow } from "./song-row";
 
 /** The playlist's album covers sharing one square (playlistCoverTiles), or a tile with the name when it has none. */
 export function PlaylistCover({ playlist, large }: { playlist: PlaylistSummary; large?: boolean }) {
@@ -169,14 +166,7 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
     void save({ trackIds: next.map((t) => t.id) }).then((ok) => ok || setPlaylist(before));
   };
 
-  const move = (from: number, to: number) => {
-    if (from === to || to < 0 || to >= tracks.length) return;
-    const next = [...tracks];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved!);
-    setOrder(next);
-  };
-  const sortable = useSortable(move);
+  const sortable = useSortable((from, to) => setOrder(reorder(tracks, from, to)));
 
   const remove = (id: string) => {
     const before = tracks;
@@ -200,11 +190,11 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
 
   return (
     <>
-      <MusicBackRow>
+      <BackRow fallback="/music">
         <button type="button" className="icon-btn" aria-label="Playlist options" onClick={() => setMenu(true)}>
           <MoreIcon />
         </button>
-      </MusicBackRow>
+      </BackRow>
       <div className="show-hero">
         <PlaylistCover playlist={playlist} large />
         <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>
@@ -231,55 +221,25 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
           </div>
           <section className="section">
             <div ref={sortable.listRef} className={`list ${sortable.sorting ? "sorting" : ""}`}>
-              {tracks.map((t, i) => {
-                const row = sortable.rowProps(i);
-                return (
-                  <div key={t.id} data-row className={`queue-row${nowId === t.id ? " playing" : ""} ${row.className}`} style={row.style}>
-                    <button type="button" className="list-row-play" onClick={() => player.playMusic(source, i)}>
-                      <span className="thumb-wrap">
-                        <Cover src={albumCover(t.albumId, t.coverHash)} color={null} title={t.album} className="thumb" />
-                        {nowId === t.id ? <Mixer playing={playing} thumb /> : null}
-                      </span>
-                      <span className="list-row-main">
-                        <span className="list-row-title">{t.title}</span>
-                        <span className="list-row-sub">{songSub(t)}</span>
-                      </span>
-                    </button>
-                    <span className="muted small">{songLength(t)}</span>
-                    <SongMenuButton
-                      track={t}
-                      extra={(close) => (
-                        <SheetItem
-                          danger
-                          onClick={() => {
-                            close();
-                            remove(t.id);
-                          }}
-                        >
-                          Remove from this playlist
-                        </SheetItem>
-                      )}
-                    />
-                    <button
-                      type="button"
-                      className="icon-btn drag-handle"
-                      aria-label={`Reorder ${t.title}. Use arrow keys to move.`}
-                      onKeyDown={(ev) => {
-                        if (ev.key === "ArrowUp") {
-                          ev.preventDefault();
-                          move(i, i - 1);
-                        } else if (ev.key === "ArrowDown") {
-                          ev.preventDefault();
-                          move(i, i + 1);
-                        }
+              {tracks.map((t, i) => (
+                <SongRow
+                  key={t.id}
+                  track={t}
+                  onPlay={() => player.playMusic(source, i)}
+                  sortable={{ list: sortable, index: i }}
+                  menuExtra={(close) => (
+                    <SheetItem
+                      danger
+                      onClick={() => {
+                        close();
+                        remove(t.id);
                       }}
-                      {...sortable.handleProps(i)}
                     >
-                      <DragIcon />
-                    </button>
-                  </div>
-                );
-              })}
+                      Remove from this playlist
+                    </SheetItem>
+                  )}
+                />
+              ))}
             </div>
           </section>
         </>

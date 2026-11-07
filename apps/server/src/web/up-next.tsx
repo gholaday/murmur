@@ -4,13 +4,13 @@ import { toast } from "sonner";
 import { useEffect, useRef } from "react";
 import { chapterAt, queueEntryView, timeLeft, type UpNextEntry } from "@murmur/shared/client";
 import { Cover } from "./cover";
-import { CloseIcon, DragIcon } from "./icons";
+import { CloseIcon } from "./icons";
 import { Marquee } from "./marquee";
 import { Mixer } from "./mixer";
-import { type Playable, usePlayer, usePosition } from "./player/engine";
+import { type Playable, usePlayerControls, usePlayerSelect, usePosition } from "./player/engine";
 import { Sheet } from "./sheet";
 import { QueueRowsSkeleton } from "./skeletons";
-import { useSortable } from "./sortable";
+import { DragHandle, useSortable } from "./sortable";
 import { EmptyState } from "./ui";
 
 /**
@@ -19,7 +19,8 @@ import { EmptyState } from "./ui";
  */
 function BookRow({ item }: { item: Playable }) {
   const position = usePosition();
-  const { playing, toggle } = usePlayer();
+  const playing = usePlayerSelect((p) => p.playing);
+  const { toggle } = usePlayerControls();
   const where = item.chapters[chapterAt(item.chapters, position)]?.title ?? item.subtitle;
   return (
     <section>
@@ -47,13 +48,13 @@ function BookRow({ item }: { item: Playable }) {
  * what's next follows it. Any row plays when tapped (the playing one pauses), and moves or comes out.
  */
 export function UpNextSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const player = usePlayer();
-  const { upNext, item } = player;
+  const player = usePlayerControls();
+  const upNext = usePlayerSelect((p) => p.upNext);
+  const upNextLoaded = usePlayerSelect((p) => p.upNextLoaded);
+  const item = usePlayerSelect((p) => p.item);
   const { items, index } = upNext;
   const waiting = items.length - index - 1;
-  const sortable = useSortable((from, to) => {
-    if (from !== to && to >= 0 && to < items.length) player.moveItem(from, to);
-  });
+  const sortable = useSortable(player.moveItem);
 
   // Opens on the item playing, with a little of what played above it.
   const playingRow = useRef<HTMLDivElement>(null);
@@ -83,7 +84,7 @@ export function UpNextSheet({ open, onClose }: { open: boolean; onClose: () => v
       }
     >
       {item?.type === "book" ? <BookRow item={item} /> : null}
-      {!player.upNextLoaded ? (
+      {!upNextLoaded ? (
         <QueueRowsSkeleton />
       ) : items.length === 0 ? (
         item?.type === "book" ? null : <EmptyState title="The queue is empty" />
@@ -118,21 +119,22 @@ function UpNextRow({
   rowRef?: React.Ref<HTMLDivElement>;
   sortable: ReturnType<typeof useSortable>;
 }) {
-  const player = usePlayer();
+  const player = usePlayerControls();
   const v = queueEntryView(entry);
   const row = sortable.rowProps(index);
   const playingNow = state === "playing";
+  const playing = usePlayerSelect((p) => playingNow && p.playing);
   return (
     <div ref={rowRef} data-row className={`queue-row ${state === "next" ? "" : state} ${row.className}`} style={row.style}>
       <button
         type="button"
         className="list-row-play now-row"
         onClick={() => (playingNow ? player.toggle() : player.playAt(index))}
-        aria-label={`${playingNow && player.playing ? "Pause" : "Play"} ${v.title}`}
+        aria-label={`${playing ? "Pause" : "Play"} ${v.title}`}
       >
         <span className="thumb-wrap">
           <Cover className="thumb" src={v.cover} color={v.color} title={v.title} />
-          {playingNow ? <Mixer playing={player.playing} thumb resume /> : null}
+          {playingNow ? <Mixer playing={playing} thumb resume /> : null}
         </span>
         <span className="list-row-main">
           <Marquee className="list-row-title" text={v.title} />
@@ -145,23 +147,7 @@ function UpNextRow({
       <button type="button" className="icon-btn dim" aria-label={`Remove ${v.title}`} onClick={() => player.removeAt(index)}>
         <CloseIcon size={18} />
       </button>
-      <button
-        type="button"
-        className="icon-btn drag-handle"
-        aria-label={`Reorder ${v.title}. Use arrow keys to move.`}
-        onKeyDown={(ev) => {
-          if (ev.key === "ArrowUp") {
-            ev.preventDefault();
-            player.moveItem(index, Math.max(0, index - 1));
-          } else if (ev.key === "ArrowDown") {
-            ev.preventDefault();
-            player.moveItem(index, index + 1);
-          }
-        }}
-        {...sortable.handleProps(index)}
-      >
-        <DragIcon />
-      </button>
+      <DragHandle label={v.title} {...sortable.handleProps(index)} />
     </div>
   );
 }

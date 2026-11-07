@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Cover } from "../cover";
 import { Marquee } from "../marquee";
-import { MixerBars } from "../mixer";
+import { ChapterList } from "../chapter-list";
 import {
   bookFinished,
   type BookmarkDto,
@@ -14,7 +14,6 @@ import {
   chapterAt,
   clampSpeed,
   clock,
-  duration,
   MAX_SPEED,
   MIN_SPEED,
   showMarkPlayed,
@@ -51,7 +50,7 @@ import {
   SkipForwardIcon,
 } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
-import { Chip, Chips, EmptyState } from "../ui";
+import { Chip, Chips, CountPill, EmptyState } from "../ui";
 import { UpNextSheet } from "../up-next";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } from "./ad-prefs";
 import { CastButton } from "../cast/cast-button";
@@ -564,7 +563,7 @@ export function FullPlayer() {
           <QueueIcon size={20} />
           <span>
             Queue
-            {waiting ? <span className="count-pill">{waiting}</span> : null}
+            {waiting ? <CountPill count={waiting} /> : null}
           </span>
         </button>
       </div>
@@ -612,22 +611,7 @@ export function FullPlayer() {
             noBookmarks
           )
         ) : (
-          <ol className="chapter-list">
-            {item.chapters.map((c, i) => (
-              <li key={c.index}>
-                <button
-                  type="button"
-                  className={i < ci ? "done" : undefined}
-                  aria-current={i === ci || undefined}
-                  onClick={choose(() => p.seek(c.startSec))}
-                >
-                  <span className="chapter-num">{i === ci ? <MixerBars playing={p.playing} /> : i + 1}</span>
-                  <span className="chapter-title">{c.title}</span>
-                  <span className="muted small">{duration(c.endSec - c.startSec)}</span>
-                </button>
-              </li>
-            ))}
-          </ol>
+          <ChapterList chapters={item.chapters} current={ci} playing={p.playing} onPick={(sec) => choose(() => p.seek(sec))()} />
         )}
       </Sheet>
 

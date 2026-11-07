@@ -18,12 +18,6 @@ export default async function LibraryPage() {
   // en-CA formats as YYYY-MM-DD in the server's time zone (TZ).
   const today = new Date().toLocaleDateString("en-CA");
   return (
-    <Library
-      books={books}
-      emptyReason={emptyReason}
-      isAdmin={user.isAdmin}
-      today={today}
-      sections={prefs.bookSections}
-    />
+    <Library books={books} emptyReason={emptyReason} today={today} sections={prefs.bookSections} />
   );
 }

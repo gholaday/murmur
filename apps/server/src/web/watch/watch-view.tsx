@@ -13,6 +13,7 @@ import {
   type WatchPoster,
   type WatchSort,
 } from "@murmur/shared/client";
+import { useAdmin } from "../admin";
 import { FilterIcon } from "../icons";
 import { ChoiceSheet } from "../sheet";
 import { Chip, Chips, EmptyState, ScrollRow, SectionTitle, useSavedChoice } from "../ui";
@@ -72,13 +73,12 @@ export function WatchView({
   home,
   movies,
   shows,
-  isAdmin,
 }: {
   home: WatchHomeDto;
   movies: MovieSummary[];
   shows: ShowSummary[];
-  isAdmin: boolean;
 }) {
+  const { isAdmin } = useAdmin();
   const params = useSearchParams();
   const tab = TABS.find((t) => t.id === params.get("tab"))?.id ?? "home";
   const [sort, setSort] = useWatchSort();

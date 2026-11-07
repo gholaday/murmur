@@ -3,9 +3,9 @@
 import { useMemo, useState } from "react";
 import { ALBUM_SORTS, type AlbumSummary, albumInMusic, albumMatches, isNewAlbum, type MusicSummaryDto, plural, sortAlbums } from "@murmur/shared/client";
 import { CloseIcon, FilterIcon, SearchIcon } from "../icons";
-import { Chip, Chips, EmptyState, SearchBox } from "../ui";
-import { MusicBackRow } from "./album-view";
-import { AlbumCard, AlbumSortSheet, useAlbumSort } from "./music-view";
+import { ChoiceSheet } from "../sheet";
+import { BackRow, Chip, Chips, EmptyState, SearchBox } from "../ui";
+import { AlbumCard, useAlbumSort } from "./music-view";
 
 type Filter = "all" | "not" | "new";
 const FILTERS: Array<{ id: Filter; label: string }> = [
@@ -48,7 +48,7 @@ export function BrowseView({ summary, albums }: { summary: MusicSummaryDto; albu
 
   return (
     <>
-      <MusicBackRow />
+      <BackRow fallback="/music" />
       <div className="page-head">
         <div>
           <h1 className="page-title">Browse</h1>
@@ -86,7 +86,7 @@ export function BrowseView({ summary, albums }: { summary: MusicSummaryDto; albu
 
       <div style={{ marginTop: 16 }}>{grid}</div>
 
-      <AlbumSortSheet open={sortOpen} onClose={() => setSortOpen(false)} sort={sort} onPick={setSort} />
+      <ChoiceSheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort albums" choices={ALBUM_SORTS} value={sort} onPick={setSort} />
     </>
   );
 }

@@ -45,15 +45,6 @@ export function PodcastCard({ podcast: p }: { podcast: PodcastSummary }) {
   );
 }
 
-/** A section heading that opens the full list, with its count. */
-function SectionHead({ title, count, noun, onOpen }: { title: string; count: number; noun: string; onOpen: () => void }) {
-  return (
-    <div className="section-head">
-      <SectionTitle title={title} count={count} noun={noun} onOpen={onOpen} />
-    </div>
-  );
-}
-
 export function PodcastsView({
   podcasts,
   continueEpisodes,
@@ -189,7 +180,9 @@ export function PodcastsView({
       ) : (
         <>
           <section className="section" style={{ marginTop: 0 }}>
-            <SectionHead title={PODCAST_LIST_TITLES.podcasts} count={podcasts.length} noun="podcast" onOpen={() => open("podcasts")} />
+            <div className="section-head">
+              <SectionTitle title={PODCAST_LIST_TITLES.podcasts} count={podcasts.length} noun="podcast" onOpen={() => open("podcasts")} />
+            </div>
             <ScrollRow>
               {shows.map((p) => (
                 <PodcastCard key={p.id} podcast={p} />
@@ -199,7 +192,9 @@ export function PodcastsView({
 
           {continueEpisodes.length ? (
             <section className="section">
-              <SectionHead title={PODCAST_LIST_TITLES.continue} count={continueEpisodes.length} noun="episode" onOpen={() => open("continue")} />
+              <div className="section-head">
+                <SectionTitle title={PODCAST_LIST_TITLES.continue} count={continueEpisodes.length} noun="episode" onOpen={() => open("continue")} />
+              </div>
               <div>
                 {continueEpisodes.slice(0, PODCAST_SECTION_SIZE).map((e) => (
                   <EpisodeRow key={e.id} episode={e} showThumb onChanged={refresh} />
@@ -210,7 +205,9 @@ export function PodcastsView({
 
           {groups.length ? (
             <section className="section">
-              <SectionHead title={PODCAST_LIST_TITLES.new} count={newEpisodes.length} noun="episode" onOpen={() => open("new")} />
+              <div className="section-head">
+                <SectionTitle title={PODCAST_LIST_TITLES.new} count={newEpisodes.length} noun="episode" onOpen={() => open("new")} />
+              </div>
               <div>
                 {groups.slice(0, PODCAST_SECTION_SIZE).map((g) => (
                   <EpisodeRow key={g.episode.id} episode={g.episode} showThumb newCount={g.count} onChanged={refresh} />

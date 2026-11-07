@@ -35,7 +35,6 @@ export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<Rea
     video: movieFolders.length + showFolders.length > 0 ? videoStatus(await videoHealth()) : null,
     watch: watchSummary(ctx),
     tabs: prefs.tabs,
-    videoQuality: prefs.videoQuality,
     autoplayNext: prefs.autoplayNext,
     user,
     users,

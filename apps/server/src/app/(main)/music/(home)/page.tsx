@@ -20,7 +20,6 @@ export default async function MusicPage({ searchParams }: { searchParams: Promis
       artists={listArtists(ctx, user.id, "mine")}
       playlists={playlists}
       tab={MUSIC_TABS.find((t) => t.id === tab)?.id ?? "home"}
-      isAdmin={user.isAdmin}
     />
   );
 }

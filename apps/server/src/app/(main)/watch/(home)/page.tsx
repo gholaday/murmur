@@ -8,5 +8,5 @@ export default async function WatchPage() {
   const user = await requirePageUser();
   const ctx = await getContext();
   const [home, movies, shows] = await Promise.all([watchHome(ctx, user.id), listMovies(ctx, user.id), listShows(ctx, user.id)]);
-  return <WatchView home={home} movies={movies} shows={shows} isAdmin={user.isAdmin} />;
+  return <WatchView home={home} movies={movies} shows={shows} />;
 }

@@ -8,8 +8,8 @@ import { apiPaths, type BookSummary, duration, errorText } from "@murmur/shared/
 import { api } from "../api";
 import { setPlayNext } from "../book/play-next";
 import { Cover } from "../cover";
-import { CloseIcon, DragIcon } from "../icons";
-import { useSortable } from "../sortable";
+import { CloseIcon } from "../icons";
+import { DragHandle, reorder, useSortable } from "../sortable";
 import { EmptyState, NestedHead } from "../ui";
 
 /** The whole Play next shelf, dragged into the order the books should come in. */
@@ -18,19 +18,15 @@ export function PlayNextList({ books }: { books: BookSummary[] }) {
   const [order, setOrder] = useState(books);
   useEffect(() => setOrder(books), [books]);
 
-  const move = (from: number, to: number) => {
-    if (from === to || to < 0 || to >= order.length) return;
+  const sortable = useSortable((from, to) => {
     const previous = order;
-    const next = [...order];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved!);
+    const next = reorder(order, from, to);
     setOrder(next);
     api(apiPaths.playNextOrder, { method: "PUT", body: { bookIds: next.map((b) => b.id) } }).catch((err: unknown) => {
       setOrder(previous);
       toast.error(errorText(err));
     });
-  };
-  const sortable = useSortable(move);
+  });
 
   return (
     <>
@@ -59,23 +55,7 @@ export function PlayNextList({ books }: { books: BookSummary[] }) {
                 >
                   <CloseIcon size={20} />
                 </button>
-                <button
-                  type="button"
-                  className="icon-btn drag-handle"
-                  aria-label={`Reorder ${b.title}. Use arrow keys to move.`}
-                  onKeyDown={(ev) => {
-                    if (ev.key === "ArrowUp") {
-                      ev.preventDefault();
-                      move(i, i - 1);
-                    } else if (ev.key === "ArrowDown") {
-                      ev.preventDefault();
-                      move(i, i + 1);
-                    }
-                  }}
-                  {...sortable.handleProps(i)}
-                >
-                  <DragIcon />
-                </button>
+                <DragHandle label={b.title} {...sortable.handleProps(i)} />
               </div>
             );
           })}

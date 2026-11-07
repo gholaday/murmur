@@ -69,6 +69,7 @@ import { setFinished } from "../progress";
 import { Sheet, SheetItem } from "../sheet";
 import { playHref, Still } from "./cards";
 import { QualitySheet } from "./quality-pick";
+import { useQualityPref } from "./quality-pref";
 import { readSubtitle, saveSubtitle, SubtitleSheet } from "./subtitle-pick";
 import { browserSupport, isSafari } from "./support";
 import { useVideo } from "./video-session";
@@ -294,6 +295,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   const qualityRef = useRef<VideoQuality>(item.quality);
   const [qualityOpen, setQualityOpen] = useState(false);
   const [qualityShown, setQualityShown] = useState<VideoQuality>(item.quality);
+  const saveQualityPref = useQualityPref().save;
   const volume = useVolume();
   /** Bumped to start a new stream session, at `resumeAt` (a seek past what's been made). */
   const [restartKey, setRestartKey] = useState(0);
@@ -589,9 +591,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
 
   /** The lighter conversion from the "too slow" note: saved to your settings too, so the next video starts there. */
   const lowerQuality = () => {
-    void api(apiPaths.prefs, { method: "PUT", body: { videoQuality: "light" } }).catch((err: unknown) => {
-      if (refused(err)) toast.error("Couldn't save the lighter quality to your settings.");
-    });
+    saveQualityPref("light");
     pickQuality("light");
   };
 

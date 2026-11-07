@@ -37,6 +37,7 @@ import { usePlayerControls, usePlayerSelect } from "../player/engine";
 import { forgetBookmarks } from "../bookmarks";
 import { ConfirmSheet, Sheet } from "../sheet";
 import { applyTheme, currentTheme } from "../theme";
+import { useQualityPref } from "../watch/quality-pref";
 import { BackRow, Chip, Chips, Setting, SettingLink, SettingsCard, SettingSub, SwitchRow } from "../ui";
 import { SECTIONS, type SettingsSection } from "./sections";
 import { StatsCard } from "./stats";
@@ -55,7 +56,6 @@ export function ProfileView({
   libraryAdmin,
   server,
   tabs,
-  videoQuality,
   autoplayNext,
   musicFolders,
   movieFolders,
@@ -77,7 +77,6 @@ export function ProfileView({
   video: VideoStatus | null;
   music: MusicSummaryDto;
   tabs: UserPrefs["tabs"];
-  videoQuality: UserPrefs["videoQuality"];
   autoplayNext: boolean;
   user: UserDto;
   users: UserDto[];
@@ -110,7 +109,7 @@ export function ProfileView({
           ) : section === "appearance" ? (
             <ThemePicker />
           ) : section === "playback" ? (
-            <PlaybackCard adsEnabled={adsEnabled} watch={watch.enabled} videoQuality={videoQuality} autoplayNext={autoplayNext} />
+            <PlaybackCard adsEnabled={adsEnabled} watch={watch.enabled} autoplayNext={autoplayNext} />
           ) : section === "server" ? (
             <>
               <VersionCard version={server.version} devBuild={server.devBuild} updates={server.updates} />
@@ -176,30 +175,21 @@ export function ProfileView({
 function PlaybackCard({
   adsEnabled,
   watch,
-  videoQuality,
   autoplayNext,
 }: {
   adsEnabled: boolean;
   watch: boolean;
-  videoQuality: UserPrefs["videoQuality"];
   autoplayNext: boolean;
 }) {
   const { setSkip } = usePlayerControls();
   const skip = usePlayerSelect((p) => p.skip);
   const adPrefs = useAdPrefs();
-  const [quality, setQuality] = useState(videoQuality);
+  const { quality, save: pickQuality } = useQualityPref();
   const [nextOn, setNextOn] = useState(autoplayNext);
   const toggleNext = (on: boolean) => {
     setNextOn(on);
     api(apiPaths.prefs, { method: "PUT", body: { autoplayNext: on } }).catch((err: unknown) => {
       setNextOn(!on);
-      toast.error(errorText(err));
-    });
-  };
-  const pickQuality = (q: UserPrefs["videoQuality"]) => {
-    setQuality(q);
-    api(apiPaths.prefs, { method: "PUT", body: { videoQuality: q } }).catch((err: unknown) => {
-      setQuality(quality);
       toast.error(errorText(err));
     });
   };

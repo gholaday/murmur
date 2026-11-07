@@ -19,10 +19,10 @@ import {
   type WatchPoster,
   FALLBACK_TINT,
 } from "@murmur/shared/client";
-import { CheckIcon, ChevronIcon, MoreIcon, PlayIcon } from "../icons";
+import { CheckIcon, ChevronIcon, PlayIcon } from "../icons";
 import { setFinished } from "../progress";
 import { Sheet, SheetItem } from "../sheet";
-import { BackButton, Description, ScrollRow, SectionTitle, SettingsCard } from "../ui";
+import { Description, HeroBar, ScrollRow, SectionTitle, SettingsCard } from "../ui";
 import { playHref, Poster, PosterCard } from "./cards";
 import { useAdmin } from "../admin";
 import { MenuSheet } from "../card-menu";
@@ -116,12 +116,7 @@ export function MovieView({ movie }: { movie: MovieDetail }) {
           } as React.CSSProperties
         }
       >
-        <div className="hero-bar">
-          <BackButton fallback="/watch" />
-          <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMenu(true)}>
-            <MoreIcon />
-          </button>
-        </div>
+        <HeroBar fallback="/watch" onMore={() => setMenu(true)} />
         <div className="show-hero">
           <Poster kind="movie" id={movie.id} hash={movie.posterHash} color={movie.color} title={movie.title} sub={movie.year} />
           <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>

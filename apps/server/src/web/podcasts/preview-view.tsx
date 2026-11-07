@@ -16,7 +16,7 @@ import {
 import { api } from "../api";
 import { Cover } from "../cover";
 import { PlusIcon } from "../icons";
-import { BackButton, BackRow, Description, EmptyState, SectionTitle } from "../ui";
+import { BackRow, HeroBar, Description, EmptyState, SectionTitle } from "../ui";
 
 const PAGE = 20;
 
@@ -52,9 +52,7 @@ export function PreviewView({ preview, error }: { preview?: PodcastPreview; erro
   return (
     <>
       <div className="hero" style={{ "--tint": FALLBACK_TINT.show } as React.CSSProperties}>
-        <div className="hero-bar">
-          <BackButton fallback="/podcasts" />
-        </div>
+        <HeroBar fallback="/podcasts" />
         <div className="show-hero">
           <Cover src={preview.artworkUrl} color={null} title={preview.title} large />
           <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingBottom: 4, minWidth: 0 }}>

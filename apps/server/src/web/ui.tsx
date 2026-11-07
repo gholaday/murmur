@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Children, createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { plural } from "@murmur/shared/client";
-import { BackIcon, ChevronIcon, SearchIcon } from "./icons";
+import { BackIcon, ChevronIcon, MoreIcon, SearchIcon } from "./icons";
 
 /**
  * A sideways row (`shelf` or `row-scroll`) with arrows that page it left and right. They only
@@ -97,7 +97,7 @@ export function Description({ text, longerThan = 220, lines }: { text: string; l
 }
 
 /** Goes back, or to `fallback` when the page was opened directly. */
-export function BackButton({ fallback = "/", onClick }: { fallback?: string; onClick?: () => void }) {
+function BackButton({ fallback = "/", onClick }: { fallback?: string; onClick?: () => void }) {
   const router = useRouter();
   return (
     <button
@@ -117,6 +117,20 @@ export function BackRow({ fallback, onClick, children }: { fallback?: string; on
     <div className="hero-bar back-row">
       <BackButton fallback={fallback} onClick={onClick} />
       {children}
+    </div>
+  );
+}
+
+/** The top row of a page with a hero (a book, show, movie): the back arrow, and More on the right. */
+export function HeroBar({ fallback, onMore }: { fallback?: string; onMore?: () => void }) {
+  return (
+    <div className="hero-bar">
+      <BackButton fallback={fallback} />
+      {onMore ? (
+        <button type="button" className="icon-btn" aria-label="More options" onClick={onMore}>
+          <MoreIcon />
+        </button>
+      ) : null}
     </div>
   );
 }

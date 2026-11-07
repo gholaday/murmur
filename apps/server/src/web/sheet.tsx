@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { CountPill } from "./ui";
 
 /**
  * A bottom sheet on phones and a centred dialog on wide screens, built on <dialog>
@@ -44,7 +45,7 @@ export function Sheet({
           <div>
             <div className="sheet-title">
               {title}
-              {count ? <span className="count-pill">{count}</span> : null}
+              {count ? <CountPill count={count} /> : null}
             </div>
             {sub ? <div className="page-sub">{sub}</div> : null}
           </div>

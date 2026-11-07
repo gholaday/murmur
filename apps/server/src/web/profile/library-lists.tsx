@@ -3,7 +3,7 @@
 import { type AlbumSummary, type BookSummary, bookIssues, type LibraryList } from "@murmur/shared/client";
 import { BulkMatch } from "../library/bulk-match";
 import { BookCard } from "../library/book-card";
-import { BookActions } from "../library/library";
+import { BookActions } from "../book/book-actions";
 import { AlbumMatchAll } from "../music/match-all";
 import { AlbumCard } from "../music/music-view";
 import { EmptyState, NestedHead } from "../ui";
@@ -40,7 +40,7 @@ function BookList({ list, books }: { list: "attention" | "unmatched"; books: Boo
     <EmptyState>{list === "unmatched" ? "Every book is matched." : "Nothing to fix here."}</EmptyState>
   );
   return (
-    <BookActions isAdmin>
+    <BookActions>
       {list === "unmatched" ? <BulkMatch unmatched={shown.filter((b) => b.missingSince === null).length}>{grid}</BulkMatch> : grid}
     </BookActions>
   );

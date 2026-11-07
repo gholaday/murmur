@@ -5,14 +5,19 @@ import { Cover } from "../cover";
 import { chapterAt, clock, timeLeft } from "@murmur/shared/client";
 import { useCast } from "../cast/cast";
 import { CastIcon, NextChapterIcon, PauseIcon, PlayIcon, PrevChapterIcon, SkipBackIcon, SkipForwardIcon } from "../icons";
-import { type Playable, usePlayer, usePlayerControls, usePosition, useTint } from "./engine";
+import { type Playable, usePlayerControls, usePlayerSelect, usePosition, useTint } from "./engine";
 
 /**
  * Floating player above the tabs. On desktop it grows on hover to reveal a seek bar,
  * so you can scrub without opening the full player.
  */
 export function MiniPlayer() {
-  const { item, playing, loading, error, toggle, skipBy, skip, setExpanded, trackStep } = usePlayer();
+  const item = usePlayerSelect((p) => p.item);
+  const playing = usePlayerSelect((p) => p.playing);
+  const loading = usePlayerSelect((p) => p.loading);
+  const error = usePlayerSelect((p) => p.error);
+  const skip = usePlayerSelect((p) => p.skip);
+  const { toggle, skipBy, setExpanded, trackStep } = usePlayerControls();
   const castDevice = useCast().device;
   const [scrub, setScrub] = useState<number | null>(null);
   const tint = useTint(item);

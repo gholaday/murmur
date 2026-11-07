@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { DragIcon } from "./icons";
 
 const DROP_MS = 180;
 /** Distance from the top or bottom of the scroll area where dragging scrolls it. */
@@ -27,10 +28,28 @@ interface Drag {
   dropping: boolean;
 }
 
+/** `list` with the item at `from` moved to `to`. */
+export function reorder<T>(list: readonly T[], from: number, to: number): T[] {
+  const next = [...list];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved!);
+  return next;
+}
+
+/** The handle a row is dragged by, or moved with the arrow keys; pass it `handleProps(i)`. */
+export function DragHandle({ label, ...props }: { label: string } & ReturnType<ReturnType<typeof useSortable>["handleProps"]>) {
+  return (
+    <button type="button" className="icon-btn drag-handle" aria-label={`Reorder ${label}. Use arrow keys to move.`} {...props}>
+      <DragIcon />
+    </button>
+  );
+}
+
 /**
  * Drag-to-reorder for a vertical list. The lifted row follows the pointer and the rows it
  * passes slide out of the way; on release it settles into its slot before `onMove` runs.
- * Rows need `data-row` and the `rowProps(i)`; the drag handle gets `handleProps(i)`.
+ * Rows need `data-row` and the `rowProps(i)`; the drag handle is a DragHandle with
+ * `handleProps(i)`. `onMove` only gets real moves: two different places, both in the list.
  */
 export function useSortable(onMove: (from: number, to: number) => void) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -122,6 +141,14 @@ export function useSortable(onMove: (from: number, to: number) => void) {
     },
     onPointerUp: finish,
     onPointerCancel: finish,
+    // Arrow keys move the row one place at a time.
+    onKeyDown: (ev: React.KeyboardEvent<HTMLElement>) => {
+      const to = ev.key === "ArrowUp" ? i - 1 : ev.key === "ArrowDown" ? i + 1 : null;
+      if (to === null) return;
+      ev.preventDefault();
+      const count = listRef.current?.querySelectorAll("[data-row]").length ?? 0;
+      if (to >= 0 && to < count) onMove(i, to);
+    },
   });
 
   const rowProps = (i: number): { className: string; style?: React.CSSProperties } => {

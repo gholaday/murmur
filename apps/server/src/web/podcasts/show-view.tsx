@@ -8,9 +8,9 @@ import { api } from "../api";
 import { BookmarkRows } from "../bookmark-rows";
 import { usePodcastBookmarks } from "../bookmarks";
 import { Cover } from "../cover";
-import { BookmarkIcon, CheckIcon, FilterIcon, LockIcon, MoreIcon, SearchIcon } from "../icons";
+import { BookmarkIcon, CheckIcon, FilterIcon, LockIcon, SearchIcon } from "../icons";
 import { usePlayerControls } from "../player/engine";
-import { BackButton, Description, EmptyState, SearchBox, SectionTitle } from "../ui";
+import { CountPill, Description, EmptyState, HeroBar, SearchBox, SectionTitle } from "../ui";
 import { ConfirmSheet, Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
@@ -103,12 +103,7 @@ export function ShowView({
   return (
     <>
       <div className="hero" style={{ "--tint": podcast.coverColor ?? FALLBACK_TINT.show } as React.CSSProperties}>
-        <div className="hero-bar">
-          <BackButton fallback="/podcasts" />
-          <button type="button" className="icon-btn" aria-label="More options" onClick={() => setSheet("menu")}>
-            <MoreIcon />
-          </button>
-        </div>
+        <HeroBar fallback="/podcasts" onMore={() => setSheet("menu")} />
         <div className="show-hero">
           <Cover
             src={podcast.coverHash ? apiPaths.podcastCoverUrl(podcast.id, podcast.coverHash, 600) : null}
@@ -143,7 +138,7 @@ export function ShowView({
             <button type="button" className="btn btn-tint" onClick={() => setSheet("bookmarks")}>
               <BookmarkIcon size={16} />
               Bookmarks
-              <span className="count-pill">{bookmarks.length}</span>
+              <CountPill count={bookmarks.length} />
             </button>
           ) : null}
         </div>

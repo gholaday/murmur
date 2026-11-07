@@ -18,37 +18,32 @@ import {
   type MusicSummaryDto,
   type PlaylistSummary,
   plural,
-  songLength,
-  songSub,
   sortAlbums,
   type TrackDto,
   MUSIC_TABS,
   type MusicTab,
   storageKeys,
 } from "@murmur/shared/client";
+import { useAdmin } from "../admin";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { Mixer } from "../mixer";
 import { ChevronIcon, FilterIcon, FolderIcon, MusicIcon, PauseIcon, PlayIcon, ProfileIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
-import { type MusicSource, useNowPlaying, usePlayerControls, usePlayerSelect } from "../player/engine";
+import { type MusicSource, usePlayerControls, usePlayerSelect } from "../player/engine";
 import { GroupGrid } from "../library/library";
 import { ChoiceSheet } from "../sheet";
 import { SongRowsSkeleton } from "../skeletons";
 import { Chip, Chips, EmptyState, ScrollRow, SectionTitle, useSavedChoice } from "../ui";
 import { AlbumCardMenu } from "./album-menu";
-import { AlbumBadge, MineToggle, useMineChange } from "./mine";
+import { AlbumBadge, useMineChange } from "./mine";
 import { NewPlaylistButton, PlaylistCard } from "./playlist-view";
-import { SongMenuButton } from "./song-menu";
+import { SongRow } from "./song-row";
 
 const TABS = MUSIC_TABS;
 
 /** The album sort, kept in this browser and shared by the Music tab and Browse. */
 export const useAlbumSort = () => useSavedChoice<AlbumSort>(storageKeys.albumSort, "added", ALBUM_SORTS);
-
-export function AlbumSortSheet({ open, onClose, sort, onPick }: { open: boolean; onClose: () => void; sort: AlbumSort; onPick: (s: AlbumSort) => void }) {
-  return <ChoiceSheet open={open} onClose={onClose} title="Sort albums" choices={ALBUM_SORTS} value={sort} onPick={onPick} />;
-}
 
 /** Cover with title and a sub line; `badge` puts the add / added button on the cover. */
 export function AlbumCard({ album, sub, badge }: { album: AlbumSummary; sub?: string | null; badge?: boolean }) {
@@ -73,55 +68,6 @@ export function AlbumCard({ album, sub, badge }: { album: AlbumSummary; sub?: st
   );
 }
 
-/**
- * A song with its album's cover, title, "Artist, Album" and length. With `onPlay` the row plays it,
- * otherwise it opens the album; `toggle` adds the + / check.
- */
-export function SongRow({
-  track,
-  sub,
-  toggle,
-  onPlay,
-  menuExtra,
-}: {
-  track: TrackDto;
-  sub?: string;
-  toggle?: boolean;
-  onPlay?: () => void;
-  /** More items for the song's ⋯ menu, such as removing it from a playlist. */
-  menuExtra?: (close: () => void) => React.ReactNode;
-}) {
-  const { current, playing } = useNowPlaying((n) => n.type === "track" && n.id === track.id);
-  const body = (
-    <>
-      <span className="thumb-wrap">
-        <Cover src={albumCover(track.albumId, track.coverHash)} color={null} title={track.album} className="thumb" />
-        {current ? <Mixer playing={playing} thumb /> : null}
-      </span>
-      <span className="list-row-main">
-        <span className="list-row-title">{track.title}</span>
-        <span className="list-row-sub">{sub ?? songSub(track)}</span>
-      </span>
-    </>
-  );
-  return (
-    <div className={`list-row${current ? " playing" : ""}`}>
-      {onPlay ? (
-        <button type="button" className="list-row-play" onClick={onPlay}>
-          {body}
-        </button>
-      ) : (
-        <Link href={`/music/album/${track.albumId}`} className="list-row-link">
-          {body}
-        </Link>
-      )}
-      <span className="muted small">{songLength(track)}</span>
-      {toggle ? <MineToggle title={track.title} added={track.inMusic} change={{ trackIds: [track.id] }} /> : null}
-      <SongMenuButton track={track} extra={menuExtra} />
-    </div>
-  );
-}
-
 /** The way into Browse, above the chips. */
 function BrowseRow({ summary }: { summary: MusicSummaryDto }) {
   const notAdded = summary.albums - summary.mine.albums;
@@ -141,7 +87,8 @@ function BrowseRow({ summary }: { summary: MusicSummaryDto }) {
 }
 
 /** No music folder set up yet. */
-function NoMusic({ isAdmin }: { isAdmin: boolean }) {
+function NoMusic() {
+  const { isAdmin } = useAdmin();
   return (
     <div className="music-empty">
       <span className="music-empty-icon">
@@ -279,7 +226,6 @@ export function MusicView({
   artists,
   playlists,
   tab: initialTab,
-  isAdmin,
 }: {
   summary: MusicSummaryDto;
   home: MusicHomeDto;
@@ -287,7 +233,6 @@ export function MusicView({
   artists: ArtistSummary[];
   playlists: PlaylistSummary[];
   tab: MusicTab;
-  isAdmin: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -325,7 +270,7 @@ export function MusicView({
             <EmptyMusic total={summary.albums} />
           </>
         ) : (
-          <NoMusic isAdmin={isAdmin} />
+          <NoMusic />
         )}
       </>
     );
@@ -411,7 +356,7 @@ export function MusicView({
         )}
       </div>
 
-      <AlbumSortSheet open={sortOpen} onClose={() => setSortOpen(false)} sort={sort} onPick={setSort} />
+      <ChoiceSheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort albums" choices={ALBUM_SORTS} value={sort} onPick={setSort} />
     </>
   );
 }

@@ -4,21 +4,23 @@ import { getPrefs } from "@/server/prefs";
 import { requirePageUser } from "@/server/session";
 import { PlayerProvider } from "@/web/player/engine";
 import { Shell } from "@/web/shell";
+import { QualityPrefProvider } from "@/web/watch/quality-pref";
 import { VideoProvider } from "@/web/watch/video-session";
 
 /** Everything behind sign-in shares one player, so audio keeps going between pages. */
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
   const user = await requirePageUser();
   const ctx = await getContext();
+  const prefs = getPrefs(ctx, user.id);
   return (
     <AdminProvider isAdmin={user.isAdmin} tmdb={!!ctx.watch.tmdb}>
-      <PlayerProvider>
-        <VideoProvider>
-          <Shell tabs={getPrefs(ctx, user.id).tabs}>
-            {children}
-          </Shell>
-        </VideoProvider>
-      </PlayerProvider>
+      <QualityPrefProvider initial={prefs.videoQuality}>
+        <PlayerProvider>
+          <VideoProvider>
+            <Shell tabs={prefs.tabs}>{children}</Shell>
+          </VideoProvider>
+        </PlayerProvider>
+      </QualityPrefProvider>
     </AdminProvider>
   );
 }

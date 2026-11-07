@@ -2,67 +2,48 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { memo, useCallback, useState } from "react";
-import { toast } from "sonner";
-import { apiPaths, type BookDetail, type BookmarkDto, bookStarted, type ChapterDto, chapterAt, duration, errorText, FALLBACK_TINT, pastStart, plural, timeLeft } from "@murmur/shared/client";
+import { useCallback, useState } from "react";
+import { apiPaths, type BookDetail, type BookmarkDto, chapterAt, duration, FALLBACK_TINT, pastStart, plural, timeLeft } from "@murmur/shared/client";
+import { useAdmin } from "../admin";
 import { BookmarkRows } from "../bookmark-rows";
 import { useBookmarks } from "../bookmarks";
 import { MenuSheet } from "../card-menu";
+import { ChapterList } from "../chapter-list";
 import { Cover } from "../cover";
-import { CheckIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "../icons";
-import { bookToPlayable, usePlayer, usePosition } from "../player/engine";
-import { setFinished } from "../progress";
-import { BookMenuItems } from "../library/book-card";
-import { BackButton, Description, SectionTitle } from "../ui";
+import { CheckIcon, PauseIcon, PlayIcon, QueueAddIcon } from "../icons";
+import { bookToPlayable, usePlayerControls, usePlayerSelect, usePosition } from "../player/engine";
+import { Description, HeroBar, SectionTitle } from "../ui";
+import { BookMenuItems, useBookActions } from "./book-actions";
 import { EditBookDialog, type EditTab } from "./edit-dialog";
-import { setPlayNext } from "./play-next";
 
-export function BookView({ book, bookmarks: firstBookmarks, isAdmin }: { book: BookDetail; bookmarks: BookmarkDto[]; isAdmin: boolean }) {
+export function BookView({ book, bookmarks: firstBookmarks }: { book: BookDetail; bookmarks: BookmarkDto[] }) {
   const router = useRouter();
-  const player = usePlayer();
+  const player = usePlayerControls();
+  const { isAdmin } = useAdmin();
   const bookmarks = useBookmarks("book", book.id, firstBookmarks);
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState<EditTab | null>(null);
+  const { current, playing, finished, canPlayNext, onPlayNext, markFinished, togglePlayNext } = useBookActions(book);
+  const loading = usePlayerSelect((p) => current && p.loading);
 
-  const current = player.isCurrent("book", book.id);
   // Only follow the playhead while this book is the one playing.
   const livePosition = usePosition(current);
-  const finished = !!book.progress?.finished && !current;
   const position = current ? livePosition : book.progress && !book.progress.finished ? book.progress.positionSec : 0;
   const started = pastStart(position);
   const pct = book.durationSec ? Math.min(100, (position / book.durationSec) * 100) : 0;
   const currentChapter = started || current ? chapterAt(book.chapters, position) : -1;
-  const onPlayNext = book.playNext !== null;
-  // A started book is in Continue listening, so it can't go on Play next.
-  const canPlayNext = !current && !bookStarted(book);
-  const playable = () => bookToPlayable(book);
-  const { play } = player;
-  const playChapter = useCallback((startSec: number) => play(bookToPlayable(book), startSec), [play, book]);
+  const playChapter = useCallback((startSec: number) => player.play(bookToPlayable(book), startSec), [player, book]);
 
   // Starting the book opens the full player; pausing and resuming leave it as it is.
   const onPlay = () => {
     if (current) return player.toggle();
-    player.play(playable(), finished ? 0 : undefined);
+    player.play(bookToPlayable(book), finished ? 0 : undefined);
     player.setExpanded(true);
-  };
-
-  const mark = async (done: boolean) => {
-    setMenu(false);
-    // The player saves the one it has loaded; the refresh below waits for either save.
-    if (current) await player.markCurrent(done);
-    else await setFinished("book", book.id, book.durationSec, done);
-    toast(done ? "Marked as finished" : "Marked as not finished");
-    router.refresh();
-  };
-
-  const togglePlayNext = () => {
-    setMenu(false);
-    void setPlayNext(book.id, !onPlayNext, () => router.refresh()).catch((err: unknown) => toast.error(errorText(err)));
   };
 
   const left = timeLeft(book.durationSec, position);
   const [playLabel, playSub] = current
-    ? [player.playing ? "Pause" : "Resume", left]
+    ? [playing ? "Pause" : "Resume", left]
     : finished
       ? ["Play", duration(book.durationSec)]
       : started
@@ -82,12 +63,7 @@ export function BookView({ book, bookmarks: firstBookmarks, isAdmin }: { book: B
           } as React.CSSProperties
         }
       >
-        <div className="hero-bar">
-          <BackButton />
-          <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMenu(true)}>
-            <MoreIcon />
-          </button>
-        </div>
+        <HeroBar onMore={() => setMenu(true)} />
         <div className="book-hero">
           <Cover
             src={coverSrc}
@@ -130,9 +106,9 @@ export function BookView({ book, bookmarks: firstBookmarks, isAdmin }: { book: B
           className="btn btn-primary btn-big"
           aria-label={`${playLabel}, ${playSub}`}
           onClick={onPlay}
-          data-loading={(current && player.loading) || undefined}
+          data-loading={loading || undefined}
         >
-          {current && player.playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
+          {current && playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
           <span>{playSub}</span>
         </button>
         {canPlayNext ? (
@@ -151,7 +127,7 @@ export function BookView({ book, bookmarks: firstBookmarks, isAdmin }: { book: B
           className="btn-round"
           aria-label={finished ? "Mark as not finished" : "Mark as finished"}
           aria-pressed={finished}
-          onClick={() => void mark(!finished)}
+          onClick={() => void markFinished(!finished)}
         >
           <CheckIcon />
         </button>
@@ -176,14 +152,19 @@ export function BookView({ book, bookmarks: firstBookmarks, isAdmin }: { book: B
       ) : null}
 
       {book.chapters.length > 1 ? (
-        <ChapterList chapters={book.chapters} currentChapter={currentChapter} onPlay={playChapter} />
+        <section className="section">
+          <div className="section-head">
+            <SectionTitle title="Chapters" count={book.chapters.length} noun="chapter" />
+          </div>
+          <ChapterList chapters={book.chapters} current={currentChapter} onPick={playChapter} />
+        </section>
       ) : null}
 
       <MenuSheet
         open={menu}
         onClose={() => setMenu(false)}
         title={book.title}
-        items={(choose) => <BookMenuItems book={book} isAdmin={isAdmin} edit={(_, tab) => setEditing(tab)} choose={choose} />}
+        items={(choose) => <BookMenuItems book={book} edit={(_, tab) => setEditing(tab)} choose={choose} />}
       />
 
       {isAdmin && editing ? (
@@ -199,36 +180,3 @@ export function BookView({ book, bookmarks: firstBookmarks, isAdmin }: { book: B
     </>
   );
 }
-
-/**
- * Memoized so a long book's chapter list redraws when the chapter changes, not on every
- * playhead tick while the rest of the page follows the time.
- */
-const ChapterList = memo(function ChapterList({
-  chapters,
-  currentChapter,
-  onPlay,
-}: {
-  chapters: ChapterDto[];
-  currentChapter: number;
-  onPlay: (startSec: number) => void;
-}) {
-  return (
-    <section className="section">
-      <div className="section-head">
-        <SectionTitle title="Chapters" count={chapters.length} noun="chapter" />
-      </div>
-      <ol className="chapter-list">
-        {chapters.map((c, i) => (
-          <li key={c.index} className={i < currentChapter ? "done" : ""}>
-            <button type="button" aria-current={i === currentChapter || undefined} onClick={() => onPlay(c.startSec)}>
-              <span className="chapter-num">{i + 1}</span>
-              <span className="chapter-title">{c.title}</span>
-              <span className="muted small">{duration(c.endSec - c.startSec)}</span>
-            </button>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-});
