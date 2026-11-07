@@ -16,6 +16,7 @@ import {
   clock,
   duration,
   type EpisodeAdsDto,
+  FALLBACK_TINT,
   MAX_SPEED,
   MIN_SPEED,
   SLEEP_MINUTES,
@@ -184,7 +185,7 @@ function PlayerScreen({ item }: { item: Playable }) {
   const spanLen = Math.max(1, span.end - span.start);
   const within = (at: number) => Math.min(spanLen, Math.max(0, at - span.start));
   const speed = speedDraft ?? p.speed;
-  const tint = item.color ?? albumColor ?? "#3b4a6e";
+  const tint = item.color ?? albumColor ?? FALLBACK_TINT.artwork;
   // The page's tint, strongest at the top; the blurred cover fades into it a little lower down.
   const tintTop = mixColor(tint, t.bg, t.isDark ? 0.42 : 0.36);
   const tintBottom = mixColor(tint, t.bg, t.isDark ? 0.1 : 0.12);

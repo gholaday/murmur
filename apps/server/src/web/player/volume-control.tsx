@@ -49,7 +49,7 @@ function MuteButton({ size, quiet = false }: { size?: number; quiet?: boolean })
 /**
  * The video player's: a speaker button that slides a short volume slider out beside it on hover. It's this device's
  * volume, shared by the audio and video players; phones set volume with their own buttons, so
- * they don't get one (see .vol in globals.css).
+ * they don't get one (see .vol in watch/watch.css).
  */
 export function VolumeControl({ size }: { size?: number }) {
   const volume = useVolume();

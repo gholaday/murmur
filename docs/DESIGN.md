@@ -2,7 +2,7 @@
 
 Murmur is quiet and dark by default, close to a podcast app: covers do the colour work, one periwinkle accent marks what is selected or playing, and everything else stays out of the way. Follow what already exists. A new screen reuses these tokens and components before it invents anything, on the web and in the Android app alike.
 
-The values below come from [`apps/server/src/app/globals.css`](../apps/server/src/app/globals.css) (web) and [`apps/mobile/src/theme.ts`](../apps/mobile/src/theme.ts) (app), which are the source of truth. Change a value there and here together.
+The values below come from [`apps/server/src/web/base.css`](../apps/server/src/web/base.css) (web) and [`apps/mobile/src/theme.ts`](../apps/mobile/src/theme.ts) (app), which are the source of truth. Change a value there and here together.
 
 ## Writing
 
@@ -36,15 +36,15 @@ Dark is the default theme; light follows the system or a choice under You > Appe
 | `accent` | `#8e9bff` | `#4f5bd5` | Selected chips and tabs, primary buttons, progress, links, the playing row, new badges, focus rings |
 | `on-accent` | `#141833` | `#ffffff` | Text and icons on an `accent` fill |
 | `danger` | `#ff8a8a` | `#c43c3c` | Destructive actions and errors |
-| `stat-2` | `#f2a65a` | `#b8620f` | Podcasts in the listening stats |
-| `stat-3` | `#4fb39a` | `#1e7a63` | Music in the listening stats |
-| `stat-4` | `#e27fae` | `#b03a72` | Watch in the listening stats |
+| `stat-episode` | `#f2a65a` | `#b8620f` | Podcasts in the listening stats (`stat-book` is `accent`) |
+| `stat-music` | `#4fb39a` | `#1e7a63` | Music in the listening stats |
+| `stat-watch` | `#e27fae` | `#b03a72` | Watch in the listening stats |
 | `nav` | `#17181b` | `#ffffff` | The tab bar and sidebar |
 | `tab-inactive` | `#9a9aa0` | `#8a8984` | Unselected tabs. Only 3.5:1 on light `nav` |
 
 Fixed colours used in both themes: `#5ccf8a` success and `#f0b45a` warning (status dots, match scores; both read poorly on white, so pair them with words), and the ad colours `#ef9f27`, `#ba7517` (already played) and `#412402` (text on the Skip ad button).
 
-**How to use them.** Build every screen from the same grounds: `bg` for the page, `surface` for raised cards and sheets, `surface-2` for buttons and the mini player, `chip` for chips and pills. `accent` is the only hue in the chrome. `stat-2`, `stat-3` and `stat-4` only tell podcasts, music and Watch apart in the stats.
+**How to use them.** Build every screen from the same grounds: `bg` for the page, `surface` for raised cards and sheets, `surface-2` for buttons and the mini player, `chip` for chips and pills. `accent` is the only hue in the chrome. `stat-episode`, `stat-music` and `stat-watch` only tell podcasts, music and Watch apart in the stats.
 
 **Covers carry the colour.** A book, show or album header tints its background from the cover, with a blurred copy bleeding out behind it; the full player, the now-playing card and the mini player tint the same way. Don't add brand colour around covers.
 
@@ -108,7 +108,7 @@ Murmur draws its own line icons in the Lucide style: 24px viewBox, 2px round str
 
 ## Components
 
-Web class names are in `globals.css`; the app has matching components under `apps/mobile/src/components/`. On the web, use the React components in [`apps/server/src/web/ui.tsx`](../apps/server/src/web/ui.tsx) where one exists instead of writing the class names out, and add a new one there when a pattern repeats.
+Web class names are in a stylesheet beside each feature (`web/player/player.css`, `web/watch/watch.css`), loaded in order by `app/globals.css`; the app has matching components under `apps/mobile/src/components/`. On the web, use the React components in [`apps/server/src/web/ui.tsx`](../apps/server/src/web/ui.tsx) where one exists instead of writing the class names out, and add a new one there when a pattern repeats.
 
 - **Button** (`.btn`, `.btn-primary`, `.btn-big`, `.btn-round`, `.btn-outline`, `.btn-small`, `.btn-danger`). One primary big button per screen (Play, Continue, Make playlist), usually with a round Shuffle beside it. While that book, album or playlist is the one playing, Play reads Pause, or Resume when paused. Starting it opens the full player; Pause and Resume stay on the page. Plain buttons for secondary actions, outline for a quiet add action under a list. Labels are verbs that say what happens, never "OK" or "Submit".
 - **Icon button** (`.icon-btn`). 44px round, one 24px icon, an `aria-label`. For search, sort, ⋯ and the back arrow. Use a text button when no familiar icon says the action.
@@ -150,7 +150,7 @@ Web class names are in `globals.css`; the app has matching components under `app
 - **Stats** (`StatsCard`, `StatsPage`, `.stats-*`; the rules are in `stats-page.ts` in shared). On You, one card: this week's total and comparison, a chevron and a sparkline. The card opens Stats, a nested screen with Week, Month, Year and All time text tabs, each fading in.
   - **Sparkline** (`.stats-spark`). One `accent` line with a faint fill and a dot at today, and a `track` line for the days to come. Under it (`.stats-axis`), the first and last day, and Month's 15th, in small `muted` text, and Today in `text`, which takes the place of any label it would crowd. Month's is a rolling average.
   - **Sentences.** The lead is Stats total type with the main kind in its colour. Week's rows are the day, a cover, what you played most and the time, with Today in `accent`. Month's are a cover, a sentence in 16 / 700 and a chevron. Rows part with `line` hairlines.
-  - **Ring** (`.stats-ring`). A spoke per day, 2.2 wide with round caps, in `accent`, `stat-2`, `stat-3` or `stat-4` by the week's main kind; `track` stubs for days with nothing played and days to come; a `text` line at today; the total in the middle and Jan, Apr, Jul and Oct around it, up to 440 wide. Year has the legend below it, which is also the filter: picking a kind outlines it in its colour, fades the others and turns the ring, total and Top to that kind. All time has year tiles below it instead (`.stats-years`): 44 high, sharing the row and scrolling sideways once there are too many to fit, with the picked one in `accent`.
+  - **Ring** (`.stats-ring`). A spoke per day, 2.2 wide with round caps, in `stat-book` (the accent), `stat-episode`, `stat-music` or `stat-watch` by the week's main kind; `track` stubs for days with nothing played and days to come; a `text` line at today; the total in the middle and Jan, Apr, Jul and Oct around it, up to 440 wide. Year has the legend below it, which is also the filter: picking a kind outlines it in its colour, fades the others and turns the ring, total and Top to that kind. All time has year tiles below it instead (`.stats-years`): 44 high, sharing the row and scrolling sideways once there are too many to fit, with the picked one in `accent`.
   - **Top** (`.stats-top-strip`). The period's top things as square covers with the kind as a small uppercase label, scrolling sideways on a phone and a grid with room.
   - A hidden tab leaves its kind out everywhere, the total included; with only books left there's no legend. With no listening at all, the screen is just its empty state.
 - **Episode rows** (`.episode-row`). A 16:9 still with a progress bar, then the title over "S1 E2, 31m" in a smaller muted line, both sitting on the still's bottom edge, and a watched toggle on the right. The video player's Next episodes list uses the same row and scrolls with a thin bar and no arrows; on short windows the picture shrinks so a row and a half still show.

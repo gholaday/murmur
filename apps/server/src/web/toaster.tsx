@@ -34,8 +34,8 @@ export function Toaster() {
     <div ref={layer} popover="manual" className="toast-layer">
       <Sonner
         position="top-center"
-        offset={{ top: 66 }}
-        mobileOffset={{ top: "calc(env(safe-area-inset-top) + 66px)" }}
+        offset={{ top: "var(--toast-top)" }}
+        mobileOffset={{ top: "calc(env(safe-area-inset-top) + var(--toast-top))" }}
         duration={2500}
         gap={8}
         toastOptions={{ className: "toast" }}
@@ -47,7 +47,7 @@ export function Toaster() {
             "--error-bg": "var(--surface-2)",
             "--error-text": "var(--danger)",
             "--error-border": "var(--line)",
-            "--border-radius": "14px",
+            "--border-radius": "var(--radius)",
             fontFamily: "inherit",
           } as React.CSSProperties
         }

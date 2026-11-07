@@ -24,6 +24,7 @@ import {
   speedText,
   thirdTile,
   timeLeft,
+  FALLBACK_TINT,
 } from "@murmur/shared/client";
 import { BookmarkNoteSheet, BookmarkRows } from "../bookmark-rows";
 import { newBookmark, useBookmarks } from "../bookmarks";
@@ -54,12 +55,10 @@ import { Chip, Chips, EmptyState } from "../ui";
 import { UpNextSheet } from "../up-next";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } from "./ad-prefs";
 import { CastButton } from "../cast/cast-button";
+import { cssMs, isNarrow } from "../css-vars";
 import { useCast } from "../cast/cast";
 import { playableHref, usePlayer, usePosition, useTint } from "./engine";
 import { VolumeRow } from "./volume-control";
-
-/** Matches the `sink` animation in globals.css. */
-const CLOSE_MS = 200;
 
 /**
  * On a phone, pulling the player's top bar or cover down drags the whole player with your finger;
@@ -70,7 +69,7 @@ export function usePullToClose(onClose: () => void) {
   const [pulled, setPulled] = useState(false);
   const drag = useRef<{ y: number; t: number; dy: number; v: number } | null>(null);
   const settle = (el: HTMLElement, transform: string, easing: string) => {
-    el.style.transition = `transform ${CLOSE_MS}ms ${easing}`;
+    el.style.transition = `transform ${cssMs("--player-close")}ms ${easing}`;
     el.style.transform = transform;
   };
   const end = (e: React.PointerEvent, cancelled: boolean) => {
@@ -87,13 +86,13 @@ export function usePullToClose(onClose: () => void) {
     if (!cancelled && (d.dy > el.clientHeight * 0.25 || d.v > 0.5)) {
       settle(el, "translateY(100%)", "ease-in");
       setPulled(true);
-      setTimeout(onClose, CLOSE_MS);
+      setTimeout(onClose, cssMs("--player-close"));
     } else settle(el, "", "ease-out");
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   };
   const handlers = {
     onPointerDown: (e: React.PointerEvent) => {
-      if (e.button !== 0 || !window.matchMedia("(max-width: 899px)").matches) return;
+      if (e.button !== 0 || !isNarrow()) return;
       drag.current = { y: e.clientY, t: e.timeStamp, dy: 0, v: 0 };
     },
     onPointerMove: (e: React.PointerEvent) => {
@@ -147,7 +146,7 @@ export function FullPlayer() {
   const position = usePosition(expanded || closing);
   useEffect(() => {
     if (!closing) return;
-    const t = setTimeout(() => setClosing(false), CLOSE_MS);
+    const t = setTimeout(() => setClosing(false), cssMs("--player-close"));
     return () => clearTimeout(t);
   }, [closing]);
 
@@ -227,7 +226,7 @@ export function FullPlayer() {
       aria-label="Player"
       style={
         {
-          "--tint": tint ?? "#3b4a6e",
+          "--tint": tint ?? FALLBACK_TINT.artwork,
           "--art": item.coverPathLarge ? `url("${item.coverPathLarge}")` : "none",
         } as React.CSSProperties
       }

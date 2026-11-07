@@ -24,6 +24,7 @@ export * from "./stats";
 export * from "./stats-page";
 export * from "./storage-keys";
 export * from "./subtitles";
+export * from "./tints";
 export * from "./up-next";
 export * from "./versions";
 export * from "./watch";

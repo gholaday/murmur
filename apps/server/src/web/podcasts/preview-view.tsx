@@ -11,6 +11,7 @@ import {
   type PodcastSummary,
   shortDate,
   apiPaths,
+  FALLBACK_TINT,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
@@ -50,7 +51,7 @@ export function PreviewView({ preview, error }: { preview?: PodcastPreview; erro
 
   return (
     <>
-      <div className="hero" style={{ "--tint": "#1b3532" } as React.CSSProperties}>
+      <div className="hero" style={{ "--tint": FALLBACK_TINT.show } as React.CSSProperties}>
         <div className="hero-bar">
           <BackButton fallback="/podcasts" />
         </div>

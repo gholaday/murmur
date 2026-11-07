@@ -49,7 +49,7 @@ import { Caption, Text } from "./ui";
 
 // What the stats say (periods, labels, sentences, the line and the ring) comes from packages/shared, like the web's.
 
-/** Books use the accent; the other kinds' colours match the web's --stat-2 to --stat-4. */
+/** Books use the accent; the other kinds' colours match the web's --stat-episode, --stat-music and --stat-watch. */
 const STAT_COLORS = {
   dark: { episode: "#f2a65a", music: "#4fb39a", watch: "#e27fae" },
   light: { episode: "#b8620f", music: "#1e7a63", watch: "#b03a72" },

@@ -39,6 +39,7 @@ import {
   type VideoSubtitleTrack,
   WATCHED_AT,
   cueAt,
+  FALLBACK_TINT,
 } from "@murmur/shared/client";
 import { toast } from "sonner";
 import { api, refused } from "../api";
@@ -1006,7 +1007,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         pull.ref.current = el;
       }}
       className={mini ? "mini vp-mini" : `vp ${item.next.length ? "vp-has-next" : ""} ${controls ? "vp-show" : ""} ${fullscreen || sideways ? "vp-over" : ""} ${pull.pulled ? "pulled" : ""}`}
-      style={{ "--tint": item.color ?? "#3b4a6e" } as React.CSSProperties}
+      style={{ "--tint": item.color ?? FALLBACK_TINT.artwork } as React.CSSProperties}
       role={mini ? "region" : undefined}
       aria-label={mini ? "Now watching" : undefined}
       onPointerMove={(e) => e.pointerType === "mouse" && poke()}

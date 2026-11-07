@@ -1,0 +1,95 @@
+/* ---------- Page headings ---------- */
+
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.page-title { font-size: 30px; font-weight: 800; letter-spacing: -0.5px; }
+.page-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.head-actions { display: flex; gap: 4px; align-items: center; color: #c9c7c2; }
+
+.section { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.section-title { font-size: 17px; font-weight: 700; }
+.group-title { text-align: left; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-title:hover { color: var(--accent); }
+/* Nested pages: the back arrow sits on its own row above the title. */
+.back-row { margin: -12px 0 4px -8px; }
+.group-head { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/*
+ * Number badges share one shape and come in two colours: grey (.count-pill) counts what's in
+ * a list; solid accent (.badge-count, .episode-more) flags something new or waiting.
+ */
+.count-pill, .badge-count, .episode-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.count-pill { background: var(--chip); color: var(--muted); margin-left: 8px; vertical-align: 3px; }
+.badge-count, .episode-more { background: var(--accent); color: var(--on-accent); }
+.eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.6px; text-transform: uppercase; }
+
+/* ---------- Loading ---------- */
+
+/* Each page's content fades in as it arrives, after its placeholder. */
+.page > * { animation: fade-in 220ms ease-out both; }
+.page > .skeleton { animation: none; }
+@keyframes fade-in { from { opacity: 0; } }
+.skeleton { pointer-events: none; }
+.skeleton .cover { box-shadow: none; }
+.skel { position: relative; overflow: hidden; border-radius: 8px; background: var(--surface-2); }
+.skel::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 7%, transparent), transparent);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer { to { transform: translateX(100%); } }
+.skel-cover { width: 100%; aspect-ratio: 1 / 1; }
+.skel-line { height: 12px; border-radius: 6px; }
+.skel-pill { height: 36px; border-radius: 18px; }
+.spinner { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--track); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
+.spinner.small { width: 18px; height: 18px; border-width: 2px; }
+.loading-center { display: flex; justify-content: center; padding: 48px 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+/* Covers fade in once loaded; ones already in the cache show at once (see Cover). */
+img.cover { transition: opacity 250ms ease; }
+img.cover.pending { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .page > *, .skel::after { animation: none; }
+  img.cover { transition: none; }
+}
+
+.empty { padding: 48px 16px; text-align: center; color: var(--muted); }
+.empty strong { display: block; color: var(--text); font-size: 17px; margin-bottom: 6px; }
+
+/* ---------- Covers ---------- */
+
+.cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--tint, var(--surface-2));
+}
+.cover-fallback {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--tint) 85%, #fff 15%), var(--tint));
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+  overflow: hidden;
+  color: #fffdf8;
+}
+.cover-fallback-title { font-size: 12px; font-weight: 800; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.cover-fallback-sub { font-size: 10px; color: #ede6da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cover-fallback-large { padding: 20px; }
+.cover-fallback-large .cover-fallback-title { font-size: 26px; }
+.cover-fallback-large .cover-fallback-sub { font-size: 14px; }

@@ -3,7 +3,7 @@
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { addTo, apiPaths, type BookmarkDto, type EpisodeDto, type EpisodeWithShow, errorText, matchesEpisode, plural, type PodcastDetail, shortDate } from "@murmur/shared/client";
+import { addTo, apiPaths, type BookmarkDto, type EpisodeDto, type EpisodeWithShow, errorText, FALLBACK_TINT, matchesEpisode, plural, type PodcastDetail, shortDate } from "@murmur/shared/client";
 import { api } from "../api";
 import { BookmarkRows } from "../bookmark-rows";
 import { usePodcastBookmarks } from "../bookmarks";
@@ -102,7 +102,7 @@ export function ShowView({
 
   return (
     <>
-      <div className="hero" style={{ "--tint": podcast.coverColor ?? "#1b3532" } as React.CSSProperties}>
+      <div className="hero" style={{ "--tint": podcast.coverColor ?? FALLBACK_TINT.show } as React.CSSProperties}>
         <div className="hero-bar">
           <BackButton fallback="/podcasts" />
           <button type="button" className="icon-btn" aria-label="More options" onClick={() => setSheet("menu")}>
@@ -134,7 +134,7 @@ export function ShowView({
             ) : null}
           </div>
         </div>
-        <div className="show-actions" style={{ "--tint": podcast.coverColor ?? "#1b3532" } as React.CSSProperties}>
+        <div className="show-actions" style={{ "--tint": podcast.coverColor ?? FALLBACK_TINT.show } as React.CSSProperties}>
           <button type="button" className="btn btn-primary" onClick={() => setSheet("unsubscribe")}>
             <CheckIcon size={16} />
             Subscribed

@@ -1,0 +1,49 @@
+/* ---------- Sheets ---------- */
+
+.sheet {
+  border: 0;
+  padding: 0;
+  margin: auto auto 0;
+  width: 100%;
+  max-width: 520px;
+  max-height: 85dvh;
+  border-radius: 20px 20px 0 0;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.sheet::backdrop { background: rgba(0, 0, 0, 0.5); }
+.sheet[open] { animation: rise 0.18s ease-out; }
+@media (min-width: 700px) { .sheet { margin: auto; border-radius: 20px; } }
+/* The title row stays put and only what's under it scrolls, so a long list keeps its title and actions in view. */
+.sheet-body { max-height: 85dvh; display: flex; flex-direction: column; padding: 18px 0 calc(20px + env(safe-area-inset-bottom)); }
+.sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 0 20px 14px; }
+.sheet-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 10px; padding: 0 20px; }
+.sheet-title { font-size: 17px; font-weight: 800; padding-bottom: 4px; }
+.sheet-head .sheet-title { padding: 0; }
+.sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: 12px;
+  text-align: left;
+  font-size: 15px;
+}
+/* Rows have no lines between them, as in the app; a menu's only line is the divider before its admin items. */
+.sheet-item:hover:not(:disabled) { background: var(--surface-2); }
+/* Opening a sheet focuses its first row: highlight it as on hover rather than ringing it. */
+.sheet-item:focus-visible, .chapter-list button:focus-visible { outline: none; background: var(--surface-2); }
+/* The row's text lines up with the sheet title; its hover reaches past it. */
+.sheet-scroll > .sheet-item { width: auto; margin-inline: -12px; }
+.sheet .menu-sep { margin: 0; }
+.sheet-item[aria-current="true"] { color: var(--accent); font-weight: 700; }
+.sheet-item.danger { color: var(--danger); }
+.sheet-item-grow { flex: 1; min-width: 0; }
+.sheet .chapter-list { max-height: 60dvh; overflow-y: auto; }
+/* Sheets scroll without a bar, as in the app. */
+.sheet-scroll, .sheet .chapter-list { scrollbar-width: none; }
+.sheet-scroll::-webkit-scrollbar, .sheet .chapter-list::-webkit-scrollbar { display: none; }

@@ -17,6 +17,7 @@ import {
   type VideoQuality,
   versionLabel,
   type WatchPoster,
+  FALLBACK_TINT,
 } from "@murmur/shared/client";
 import { CheckIcon, ChevronIcon, MoreIcon, PlayIcon } from "../icons";
 import { setFinished } from "../progress";
@@ -110,7 +111,7 @@ export function MovieView({ movie }: { movie: MovieDetail }) {
         className="hero"
         style={
           {
-            "--tint": movie.color ?? "#2a3550",
+            "--tint": movie.color ?? FALLBACK_TINT.page,
             "--art": heroArt ? `url("${heroArt}")` : "none",
           } as React.CSSProperties
         }

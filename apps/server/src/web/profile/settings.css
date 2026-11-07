@@ -1,0 +1,35 @@
+/* ---------- Forms and settings ---------- */
+
+.form { display: flex; flex-direction: column; gap: 12px; }
+.form-row { display: flex; gap: 8px; }
+.form-row .input { flex: 1; }
+.label { font-size: 13px; font-weight: 600; color: var(--text-2); display: flex; flex-direction: column; gap: 6px; }
+.card-box { background: var(--surface); border-radius: var(--radius); padding: 4px 16px; }
+.card-box + .card-box { margin-top: 12px; }
+.setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; border-bottom: 1px solid var(--line); }
+.setting:last-child,
+.setting:has(+ dialog:last-child),
+.setting:has(+ .error + dialog:last-child) { border-bottom: 0; }
+.role-pill { flex-shrink: 0; height: 24px; padding: 0 10px; border-radius: 12px; display: inline-flex; align-items: center; background: var(--chip); color: var(--text-2); font-size: 12px; font-weight: 700; }
+.role-pill.admin { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.setting-text { display: flex; flex-direction: column; min-width: 0; }
+.setting-title { font-size: 15px; font-weight: 600; }
+.setting-sub { font-size: 12px; color: var(--muted); }
+.status-dot { width: 8px; height: 8px; border-radius: 4px; background: #5ccf8a; display: inline-block; margin-right: 6px; }
+.status-dot.warn { background: #f0b45a; }
+/* You: settings rows that open their own page, like the app. */
+.setting-link:hover .setting-title { color: var(--accent); }
+.setting-value { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 14px; }
+.setting-value span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.setting-value .i { flex-shrink: 0; }
+.settings-page { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.settings-page .section-title { margin-top: 16px; }
+.settings-page > .btn { align-self: flex-start; }
+.folder-path { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+
+.login { max-width: 360px; margin: 14vh auto; padding: 0 20px; display: flex; flex-direction: column; gap: 12px; }
+.login h1 { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+/* An input with an icon button inside its right end, like Show password. */
+.input-with-button { position: relative; display: block; }
+.input-with-button .input { width: 100%; padding-right: 48px; box-sizing: border-box; }
+.input-with-button .icon-btn { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); color: var(--muted); }

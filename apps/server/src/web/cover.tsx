@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- covers are pre-sized WebP from our own server */
 
+import { FALLBACK_TINT } from "@murmur/shared/client";
 import { useLayoutEffect, useRef, useState } from "react";
 
 /**
@@ -22,7 +23,7 @@ export function Cover({
   className?: string;
   large?: boolean;
 }) {
-  const style = { "--tint": color ?? "#3b4a6e" } as React.CSSProperties;
+  const style = { "--tint": color ?? FALLBACK_TINT.artwork } as React.CSSProperties;
   if (src) return <CoverImage key={src} src={src} className={className} style={style} />;
   return (
     <div className={`cover cover-fallback ${large ? "cover-fallback-large" : ""} ${className}`} style={style} aria-hidden="true">

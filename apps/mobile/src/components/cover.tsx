@@ -3,6 +3,7 @@ import { AppState, View, type StyleProp, type ViewStyle } from "react-native";
 import { Image } from "expo-image";
 import { onlineManager } from "@tanstack/react-query";
 import { useReducedMotion } from "react-native-reanimated";
+import { FALLBACK_TINT } from "@murmur/shared/client";
 import { absolute, authHeaders } from "@/lib/api";
 import { savedArt } from "@/lib/downloads";
 import { fonts } from "@/theme";
@@ -49,7 +50,7 @@ export function Cover({
     aspectRatio,
     borderRadius: radius,
     overflow: "hidden",
-    backgroundColor: color ?? "#2a3550",
+    backgroundColor: color ?? FALLBACK_TINT.page,
   };
   if (!path) {
     return (

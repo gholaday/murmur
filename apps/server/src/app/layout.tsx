@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { cookies } from "next/headers";
-import { THEME_COOKIE, isThemeChoice } from "@/web/theme";
+import { THEME_COOKIE, THEME_SCRIPT, isThemeChoice } from "@/web/theme";
 import { Toaster } from "@/web/toaster";
 import { Tooltips } from "@/web/tooltip";
 import "./globals.css";
@@ -29,9 +29,19 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Rendered on the server from a cookie so a chosen theme never flashes the other one first.
   const saved = (await cookies()).get(THEME_COOKIE)?.value;
-  const theme = isThemeChoice(saved) && saved !== "system" ? saved : undefined;
+  const choice = isThemeChoice(saved) ? saved : "system";
   return (
-    <html lang="en" className={sans.variable} data-theme={theme}>
+    // The theme script fills in data-theme for "System" before React hydrates, so the attribute differs.
+    <html
+      lang="en"
+      className={sans.variable}
+      data-theme={choice === "system" ? undefined : choice}
+      data-theme-choice={choice}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body>
         {children}
         <Toaster />

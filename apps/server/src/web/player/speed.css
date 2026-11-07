@@ -1,0 +1,26 @@
+/* Speed: a slider with quick − / + buttons, popping up above the Speed tile. */
+.speed-wrap { position: relative; display: grid; }
+.speed-wrap[hidden] { display: none; }
+.speed-scrim { position: fixed; inset: 0; z-index: 1; }
+.speed-pop {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  bottom: calc(100% + 8px);
+  width: min(320px, calc(100vw - 40px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  animation: rise 0.14s ease-out;
+}
+.speed-head { display: flex; align-items: baseline; justify-content: space-between; padding: 0 4px; }
+.speed-value { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.speed-reset { font-size: 13px; font-weight: 700; color: var(--accent); }
+.speed-row { display: flex; align-items: center; gap: 10px; }
+.speed-slider { flex: 1; }
+.speed-step { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; background: color-mix(in srgb, var(--text) 9%, transparent); display: flex; align-items: center; justify-content: center; }
+.speed-step:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 16%, transparent); }

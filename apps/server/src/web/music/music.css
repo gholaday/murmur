@@ -1,0 +1,58 @@
+/* ---------- Music ---------- */
+
+.thumb.round { border-radius: 50%; }
+.pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.pill { height: 24px; padding: 0 10px; border-radius: 12px; display: inline-flex; align-items: center; gap: 5px; background: var(--chip); color: var(--text-2); font-size: 12px; font-weight: 600; }
+.track-list { list-style: none; margin: 0; padding: 0; }
+.track-list li { display: flex; align-items: center; gap: 12px; min-height: 52px; border-bottom: 1px solid var(--line); }
+/* Centered in a fixed slot at the title's size, so one- and two-digit numbers and the mixer line up. */
+.track-num { width: 28px; text-align: center; font-size: 15px; font-weight: 500; line-height: 1; color: var(--muted); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.track-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.track-title { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.track-artist { font-size: 12px; color: var(--muted); }
+.track-artist:hover { color: var(--accent); }
+.pill .i { color: var(--accent); stroke-width: 3; }
+.show-hero .pills { justify-content: flex-start; }
+.list-row-link { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; }
+.list-row-link:hover .list-row-title { color: var(--accent); }
+
+/* Your music: the Browse row, add buttons and the first-visit screen. */
+.browse-row { display: flex; align-items: center; gap: 14px; padding: 14px; margin-bottom: 14px; border-radius: var(--radius); background: var(--surface); }
+.browse-row:hover { background: var(--surface-2); }
+/* White on a near-white page needs an edge to read as a card. */
+:root[data-theme="light"] .browse-row { box-shadow: inset 0 0 0 1px var(--line); }
+.browse-row > .i { color: var(--muted); flex-shrink: 0; }
+.browse-row-icon { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--surface-2); color: var(--accent); }
+.new-pill { height: 22px; padding: 0 8px; border-radius: 11px; display: inline-flex; align-items: center; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 800; white-space: nowrap; }
+.add-badge {
+  position: absolute; right: 8px; bottom: 8px; z-index: 2; width: 36px; height: 36px; border-radius: 18px;
+  display: flex; align-items: center; justify-content: center; background: #f3f1ec; color: #141833; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.add-badge[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.add-badge .i, .song-toggle .i { stroke-width: 2.4; }
+.song-toggle { color: var(--muted); flex-shrink: 0; margin-right: -8px; }
+.song-toggle[aria-pressed="true"] { color: var(--accent); }
+/* Add songs to a playlist: a circled plus, filled in as an accent check once added. */
+.add-song-info { display: flex; gap: 12px; align-items: center; flex: 1; min-width: 0; }
+.add-song { color: var(--text-2); flex-shrink: 0; margin-right: -8px; }
+.add-song[aria-pressed="true"] { color: var(--accent); }
+.btn-outline { background: none; border: 1px solid var(--track); }
+.add-all { width: 100%; height: 44px; margin-top: 12px; gap: 8px; }
+@media (min-width: 600px) { .add-all { width: auto; padding: 0 22px; } }
+.music-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 48px 16px; text-align: center; }
+.music-empty h2 { font-size: 20px; font-weight: 800; }
+.music-empty p { color: var(--muted); font-size: 14px; line-height: 1.5; max-width: 320px; margin: 0; }
+.music-empty .btn-big { width: 100%; max-width: 300px; }
+.music-empty .btn-big:last-child { background: var(--surface-2); }
+.music-empty-icon { width: 72px; height: 72px; border-radius: 36px; display: flex; align-items: center; justify-content: center; background: var(--surface); color: var(--accent); }
+
+button.track-title { text-align: left; color: inherit; }
+button.track-title:hover { color: var(--accent); }
+.track-list li.playing .track-title, .track-list li.playing .track-num { color: var(--accent); }
+.list-row-play { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; }
+.list-row-play:hover .list-row-title, .list-row.playing .list-row-title, .queue-row.playing .list-row-title { color: var(--accent); }
+.playlist-cover { position: relative; overflow: hidden; aspect-ratio: 1; }
+.playlist-cover img { position: absolute; object-fit: cover; display: block; }
+.songs-actions { display: flex; gap: 10px; margin-bottom: 8px; }
+.songs-actions .btn { flex: 1; max-width: 200px; height: 44px; }
+.songs-actions .btn-round { width: 44px; height: 44px; }

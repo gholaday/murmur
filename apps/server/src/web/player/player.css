@@ -1,0 +1,241 @@
+/* ---------- Mini player ---------- */
+
+.mini {
+  position: fixed;
+  z-index: 25;
+  left: 8px;
+  right: 8px;
+  bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + 8px);
+  height: var(--mini-h);
+  border-radius: var(--radius);
+  /* Tinted by the playing cover, like the Now playing card; plain surface without one. */
+  background: color-mix(in srgb, var(--tint, var(--surface-2)) 30%, var(--surface-2));
+  transition: background-color 400ms ease;
+  isolation: isolate;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px 0 10px;
+  overflow: hidden;
+}
+/* The cover blurred behind the card, so its colours bleed across it. */
+.mini::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -40px;
+  background: var(--art, none) center / cover;
+  filter: blur(24px) saturate(1.4);
+  opacity: 0.28;
+  pointer-events: none;
+}
+.mini-row { display: flex; align-items: center; gap: 2px; height: var(--mini-h); flex-shrink: 0; }
+.mini-skip { width: 44px; height: 44px; position: relative; display: flex; align-items: center; justify-content: center; color: var(--text-2); border-radius: 22px; flex-shrink: 0; }
+.mini-skip:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.mini-skip svg { stroke-width: 1.7; }
+.mini-skip span { position: absolute; font-size: 9px; font-weight: 800; padding-top: 2px; }
+/* The seek bar only appears when the desktop player grows on hover. */
+.mini-seek { display: none; align-items: center; gap: 10px; padding: 0 6px 10px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mini-scrubber { flex: 1; }
+.mini-scrubber::-webkit-slider-runnable-track { background: linear-gradient(to right, var(--accent) var(--pct), var(--track) var(--pct)); }
+.mini-scrubber::-moz-range-track { background: linear-gradient(to right, var(--accent) var(--pct), var(--track) var(--pct)); }
+.mini-scrubber::-webkit-slider-thumb { background: var(--accent); transform: scale(0); transition: transform 0.12s; }
+.mini-scrubber::-moz-range-thumb { background: var(--accent); }
+.mini-seek:hover .mini-scrubber::-webkit-slider-thumb, .mini-scrubber:focus-visible::-webkit-slider-thumb { transform: scale(1); }
+.mini-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; height: 100%; }
+.mini-cover { width: 44px; border-radius: 6px; flex-shrink: 0; }
+.mini-cover .cover-fallback-title { font-size: 7px; }
+.mini-cover .cover-fallback-sub { display: none; }
+.mini-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mini-title { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-split { display: flex; gap: 14px; }
+.mini-split > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mini-time { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.mini-bar { position: absolute; left: 0; bottom: 0; width: 100%; height: 2px; background: var(--accent); transform-origin: left; }
+@media (min-width: 900px) {
+  .mini {
+    left: calc(var(--side-w) + 16px);
+    right: 16px;
+    bottom: 16px;
+    max-width: 880px;
+    margin: 0 auto;
+    transform-origin: bottom center;
+    transition: height 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  }
+}
+@media (min-width: 900px) and (hover: hover) {
+  /* :focus-visible, not :focus-within, so a mouse click on the bar doesn't keep it open;
+     keyboard users still get it while tabbing through. */
+  .mini:hover, .mini:has(:focus-visible) { height: calc(var(--mini-h) + 30px); transform: scale(1.015); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); }
+  .mini:hover .mini-seek, .mini:has(:focus-visible) .mini-seek { display: flex; }
+  .mini:hover .mini-bar, .mini:has(:focus-visible) .mini-bar { opacity: 0; }
+}
+
+[data-loading] { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.55; } }
+
+/* ---------- Full player ---------- */
+
+.player {
+  --tint-top: 42%;
+  --tint-bottom: 10%;
+  /* Ad breaks on the seek bar. */
+  --ad: #ef9f27;
+  --ad-heard: #ba7517;
+  --on-ad: #412402;
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  isolation: isolate;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--tint) var(--tint-top), var(--bg)), color-mix(in srgb, var(--tint) var(--tint-bottom), var(--bg)));
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  overflow-x: hidden;
+  overflow-y: auto;
+  animation: rise 0.22s ease-out;
+}
+/* Starts below the top bar, so "Playing from" and its buttons stay on plain tint. */
+.player-bleed {
+  position: absolute;
+  z-index: -1;
+  top: calc(env(safe-area-inset-top) + 64px);
+  left: 0;
+  right: 0;
+  height: 520px;
+  background: var(--art) center top / min(100%, 560px) auto no-repeat;
+  filter: blur(60px) saturate(1.5);
+  opacity: 0.75;
+  mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 50%, transparent);
+  pointer-events: none;
+}
+@keyframes rise { from { transform: translateY(24px); opacity: 0; } }
+.player.closing { animation: sink var(--player-close) ease-in forwards; pointer-events: none; }
+@keyframes sink { to { transform: translateY(24px); opacity: 0; } }
+/* Pulled down on a phone: it has already slid away, so it skips the sink. */
+.player.pulled { animation: none; pointer-events: none; }
+@media (max-width: 899px) { .player-pull { touch-action: none; user-select: none; } }
+/* Close on the left, the label centred whatever sits on the right (cast, more). */
+.player-top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 16px 12px 0; }
+.player-top > :first-child { justify-self: start; }
+.player-top-end { justify-self: end; display: flex; gap: 4px; }
+.player-from { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.6px; text-transform: uppercase; text-align: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The cast button while casting, and the mini player's line naming the device. */
+.icon-btn.cast-on { color: var(--accent); }
+.mini-cast { display: flex; align-items: center; gap: 5px; color: var(--accent); }
+.player-main { width: 100%; max-width: 440px; margin: 0 auto; padding: 0 32px; display: flex; flex-direction: column; }
+.player-cover-wrap { position: relative; width: 100%; max-width: 340px; margin: 20px auto 0; }
+.player-cover { width: 100%; border-radius: 16px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
+/* Skip ad and Mark played stack in the cover's corner when both apply. */
+.cover-pills { position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+/* The title block with the volume control at its right, the same on the audio and video players. */
+.player-info-row { display: flex; align-items: flex-end; gap: 8px; padding-top: 26px; }
+.player-info-row .player-info { flex: 1; min-width: 0; padding-top: 0; }
+.player-info-row .icon-btn.on { color: var(--accent); }
+.player-info { padding-top: 26px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.player-title { font-size: 22px; font-weight: 800; line-height: 1.2; width: 100%; min-width: 0; }
+.player-sub { font-size: 14px; color: var(--muted); }
+.player-scrub { padding-top: 20px; }
+.player-times { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 4px; }
+.player-controls { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; }
+.player-controls .icon-btn.dim { color: var(--muted); }
+.player-controls .icon-btn.on { color: var(--accent); }
+.skip-btn { width: 56px; height: 56px; position: relative; display: flex; align-items: center; justify-content: center; }
+.skip-btn svg { stroke-width: 1.6; }
+.skip-btn span { position: absolute; font-size: 11px; font-weight: 800; padding-top: 3px; }
+.play-btn { width: 80px; height: 80px; border-radius: 40px; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center; }
+.player-error { text-align: center; color: var(--danger); }
+/* Four across; fewer (songs have no speed or chapters) stay that size and sit in the middle. */
+.player-tiles { position: relative; width: 100%; max-width: 440px; margin: auto auto 0; padding: 24px 20px 28px; display: flex; justify-content: center; gap: 8px; }
+/*
+ * A floating card: a note with one action and an X, floating over a player so nothing moves
+ * when it comes and goes.
+ */
+.float-card {
+  position: absolute; left: 20px; right: 20px; bottom: calc(100% + 12px); z-index: 2;
+  display: flex; align-items: center; gap: 10px; padding: 4px 2px 4px 14px; border-radius: 14px;
+  background: var(--surface-2); color: var(--text); font-size: 13px; box-shadow: var(--shadow); animation: fade-in 200ms ease-out both;
+}
+.float-card > span { flex: 1; min-width: 0; }
+.float-card .more-link { margin: 0; font-size: 13px; }
+/* Go back: just below the top bar, and fixed so a jump from the tiles in a short window can't leave it off-screen. */
+.player > .float-card { position: fixed; top: calc(env(safe-area-inset-top) + 64px); bottom: auto; left: 16px; right: 16px; max-width: 376px; margin: 0 auto; padding-left: 20px; }
+.player-tiles > * { flex: 0 1 calc((100% - 24px) / 4); min-width: 0; }
+.tile {
+  height: 56px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 16px;
+}
+.tile span { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.tile .count-pill { min-width: 16px; height: 16px; padding: 0 5px; margin-left: 5px; vertical-align: 1px; font-size: 10px; }
+.tile[aria-pressed="true"] { color: var(--accent); }
+.tile[aria-pressed="true"] span { color: var(--accent); }
+
+/*
+ * Light mode: a lighter tint and bleed, frosted white tiles (a grey wash disappears into the
+ * tinted page), and darker sub lines on the tinted mini player.
+ */
+:root[data-theme="light"] .player, :root[data-theme="light"] .vp { --tint-top: 36%; --tint-bottom: 12%; }
+:root[data-theme="light"] .player-bleed { opacity: 0.56; }
+:root[data-theme="light"] .tile { background: rgba(255, 255, 255, 0.65); }
+:root[data-theme="light"] .tile span { color: var(--text-2); }
+:root[data-theme="light"] .mini { background: color-mix(in srgb, var(--tint, var(--surface-2)) 20%, var(--surface-2)); }
+:root[data-theme="light"] .mini::before { opacity: 0.18; }
+:root[data-theme="light"] .mini-sub:not(.error) { color: var(--text-2); }
+:root[data-theme="light"] .player-from { color: var(--text-2); }
+
+.scrubber { width: 100%; height: 20px; margin: 0; appearance: none; background: transparent; cursor: pointer; }
+.scrubber::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--text) var(--pct), color-mix(in srgb, var(--text) 18%, transparent) var(--pct)); }
+.scrubber::-moz-range-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--text) var(--pct), color-mix(in srgb, var(--text) 18%, transparent) var(--pct)); }
+.scrubber::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 8px; background: var(--text); }
+.scrubber::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 8px; background: var(--text); }
+
+/* The seek bar is drawn underneath, for ad breaks and bookmarks to sit on, and the range input only adds the thumb. */
+.scrub-wrap { position: relative; }
+.scrub-track { position: absolute; left: 0; right: 0; top: 8px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 18%, transparent); overflow: hidden; pointer-events: none; }
+.scrub-played { position: absolute; left: 0; top: 0; bottom: 0; background: var(--text); }
+/* Bookmarks on the bar and under the thumb: taller than the bar, so they read over played, unplayed and ad marks alike. Inset to the thumb's travel, so it sits on one. */
+.scrub-bookmarks { position: absolute; left: 8px; right: 8px; top: 4px; height: 12px; pointer-events: none; }
+.scrub-bookmarks span { position: absolute; top: 0; width: 3px; height: 12px; margin-left: -1px; border-radius: 2px; background: var(--accent); }
+.scrub-ad { position: absolute; top: 0; bottom: 0; min-width: 2px; background: linear-gradient(to right, var(--ad-heard) var(--heard), var(--ad) var(--heard)); }
+/*
+ * An episode's chapters as segments over the whole bar, with gaps between: played ones solid, the
+ * current one filling, the rest faint. Ad marks sit on top. Dragging thickens the current segment;
+ * hovering lights a later segment in accent while its title shows in the times row.
+ */
+/* Square segment and ad edges; only the bar's two ends are rounded (the clip, lifted while dragging so the thicker segment shows). */
+.scrub-segs { position: absolute; left: 0; right: 0; top: 8px; height: 4px; pointer-events: none; border-radius: 2px; overflow: hidden; }
+.scrub-wrap.dragging .scrub-segs { overflow: visible; }
+.scrub-seg {
+  position: absolute; top: 0; bottom: 0;
+  background-color: color-mix(in srgb, var(--text) 18%, transparent); transition: transform 0.12s;
+}
+.scrub-seg.played { background-color: var(--text); }
+.scrub-seg.current { background-image: linear-gradient(to right, var(--text) var(--fill), transparent var(--fill)); }
+.scrub-segs .scrub-ad { border-radius: 0; }
+.scrub-wrap.dragging .scrub-seg.current { transform: scaleY(2); }
+.scrub-seg.hovered { background-color: var(--accent); }
+.player-times .player-chapter-line.preview { color: var(--accent); }
+.player-times .player-chapter-line {
+  flex: 1; min-width: 0; padding: 0 12px; font-size: 12px; font-weight: 700; color: var(--text); text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.scrub-wrap .scrubber { position: relative; }
+.scrub-wrap .scrubber::-webkit-slider-runnable-track { background: transparent; }
+.scrub-wrap .scrubber::-moz-range-track { background: transparent; }
+.skip-ad { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px 6px 14px; border-radius: 999px; background: var(--ad); color: var(--on-ad); font-size: 13px; font-weight: 700; animation: fade-in 0.15s ease-out; }
+/* An episode's last few minutes: the same pill as Skip ad, in the accent colour. */
+.finish-pill { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px 6px 14px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 13px; font-weight: 700; animation: fade-in 0.15s ease-out; }
+.sheet-note { margin: -6px 0 0; font-size: 13px; color: var(--muted); }
+.sheet-item-text { display: flex; flex-direction: column; gap: 2px; padding-block: 8px; }
+.sheet-item-sub { font-size: 13px; font-weight: 400; color: var(--muted); }
+.sheet-group { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
+.sheet-group-title { font-size: 14px; font-weight: 700; }

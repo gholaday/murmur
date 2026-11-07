@@ -43,7 +43,8 @@ export function ScrollRow({ className = "shelf", children }: { className?: strin
   };
   return (
     <div className="scroll-row">
-      <div ref={ref} className={className} onScroll={update}>
+      {/* .scroll-track: every sideways row, for its scrollbar and for dragging with the mouse (drag-scroll.ts). */}
+      <div ref={ref} className={`${className} scroll-track`} onScroll={update}>
         {children}
       </div>
       <button type="button" className="scroll-arrow prev" aria-label="Scroll left" tabIndex={-1} hidden={ends.start} onClick={() => page(-1)}>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useState } from "react";
 import { toast } from "sonner";
-import { apiPaths, type BookDetail, type BookmarkDto, bookStarted, type ChapterDto, chapterAt, duration, errorText, pastStart, plural, timeLeft } from "@murmur/shared/client";
+import { apiPaths, type BookDetail, type BookmarkDto, bookStarted, type ChapterDto, chapterAt, duration, errorText, FALLBACK_TINT, pastStart, plural, timeLeft } from "@murmur/shared/client";
 import { BookmarkRows } from "../bookmark-rows";
 import { useBookmarks } from "../bookmarks";
 import { MenuSheet } from "../card-menu";
@@ -77,7 +77,7 @@ export function BookView({ book, bookmarks: firstBookmarks, isAdmin }: { book: B
         className="hero"
         style={
           {
-            "--tint": book.coverColor ?? "#2a3550",
+            "--tint": book.coverColor ?? FALLBACK_TINT.page,
             "--art": coverSrc ? `url("${coverSrc}")` : "none",
           } as React.CSSProperties
         }

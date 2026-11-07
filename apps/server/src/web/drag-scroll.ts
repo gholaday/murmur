@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 
-const ROWS = ".shelf, .row-scroll";
+/** ScrollRow's scrolling element. */
+const ROWS = ".scroll-track";
 /** How far the mouse moves before a press becomes a drag rather than a click. */
 const THRESHOLD = 6;
 

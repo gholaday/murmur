@@ -1,0 +1,18 @@
+/* Toasts (sonner) */
+[data-sonner-toast].toast { font-family: inherit; font-size: 14px; font-weight: 600; box-shadow: var(--shadow); }
+
+/* The toaster's popover (see toaster.tsx): an empty, click-through box in the top layer, so
+   toasts show above open dialogs. The toasts themselves position as usual. */
+.toast-layer[popover] {
+  position: fixed;
+  inset: 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+  pointer-events: none;
+}
+.toast-layer [data-sonner-toast] { pointer-events: auto; }

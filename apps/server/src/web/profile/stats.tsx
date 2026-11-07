@@ -38,8 +38,8 @@ import { Cover } from "../cover";
 import { ChevronIcon } from "../icons";
 import { Chip, Chips, EmptyState, NestedHead } from "../ui";
 
-// The wording and rules are shared with the app; only the colours are the web's.
-const COLOR: Record<StatsKind, string> = { book: "var(--accent)", episode: "var(--stat-2)", music: "var(--stat-3)", watch: "var(--stat-4)" };
+// The wording and rules are shared with the app; only the colours are the web's (--stat-* in web/base.css).
+const color = (kind: StatsKind) => `var(--stat-${kind})`;
 
 /** One period's stats, or null while they load. `year` asks for an earlier year. */
 function useStats(period: StatsPeriod, year?: number) {
@@ -162,7 +162,7 @@ function Headline({ stats, kinds, sub }: { stats: StatsDto; kinds: StatsKind[]; 
         {text}
         {mostly ? (
           <>
-            , mostly <span style={{ color: kind ? COLOR[kind] : undefined }}>{mostly}</span>
+            , mostly <span style={{ color: kind ? color(kind) : undefined }}>{mostly}</span>
           </>
         ) : null}
         .
@@ -230,7 +230,7 @@ function YearView({ stats, kinds, today }: { stats: StatsDto; kinds: StatsKind[]
               key={k}
               type="button"
               className={`stats-legend-item${picked === k ? " on" : picked ? " dim" : ""}`}
-              style={{ "--kind": COLOR[k] } as React.CSSProperties}
+              style={{ "--kind": color(k) } as React.CSSProperties}
               aria-pressed={picked === k}
               onClick={() => setFocus(picked === k ? null : k)}
             >
@@ -297,7 +297,7 @@ function Ring({ stats, kinds, today, year, eyebrow, note }: { stats: StatsDto; k
     <div className="stats-ring">
       <svg viewBox={`0 0 ${RING} ${RING}`} role="img" aria-label={`Every day of ${year} around a ring, longer for more time`}>
         <path className="stats-ring-stub" d={stubs} />
-        {kinds.map((k) => (spokes[k] ? <path key={k} className="stats-ring-spoke" d={spokes[k]} style={{ stroke: COLOR[k] }} /> : null))}
+        {kinds.map((k) => (spokes[k] ? <path key={k} className="stats-ring-spoke" d={spokes[k]} style={{ stroke: color(k) }} /> : null))}
         {now ? <line className="stats-ring-now" {...now} /> : null}
       </svg>
       <div className="stats-ring-middle">
@@ -325,7 +325,7 @@ function TopItems({ stats, picked, kinds, year }: { stats: StatsDto; picked: Sta
           <Link key={`${t.kind}:${t.id}`} className="stats-top-card" href={topHref(t)}>
             <Cover src={statsTopCover(t)} color={null} title={t.title} className="stats-top-cover" />
             <span className="stats-top-kind">
-              <span className="stats-dot small" style={{ background: COLOR[statsTopKind(t)] }} />
+              <span className="stats-dot small" style={{ background: color(statsTopKind(t)) }} />
               {label}
             </span>
             <span className="stats-top-title">{t.title}</span>

@@ -16,6 +16,7 @@ import {
   timeLeft,
   type VideoEpisode,
   type VideoQuality,
+  FALLBACK_TINT,
 } from "@murmur/shared/client";
 import { CheckIcon, MoreIcon, PlayedIcon, PlayIcon } from "../icons";
 import { setManyFinished } from "../progress";
@@ -109,7 +110,7 @@ export function TvShowView({ show }: { show: ShowDetail }) {
         className="hero"
         style={
           {
-            "--tint": show.color ?? "#2a3550",
+            "--tint": show.color ?? FALLBACK_TINT.page,
             "--art": heroArt ? `url("${heroArt}")` : "none",
           } as React.CSSProperties
         }

@@ -17,6 +17,7 @@ import {
   clock,
   codecName,
   episodeLabel,
+  FALLBACK_TINT,
   type MovieDetail,
   QUALITY_LABEL,
   qualityMatters,
@@ -358,7 +359,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
   const tracks = item.file.audioTracks;
   const subtitles = subtitleTracks(item.file);
   const subtitleOn = open && !!v.subtitle;
-  const tint = item.color ?? "#3b4a6e";
+  const tint = item.color ?? FALLBACK_TINT.artwork;
   const tintTop = mixColor(tint, t.bg, t.isDark ? 0.42 : 0.36);
   const tintBottom = mixColor(tint, t.bg, t.isDark ? 0.1 : 0.12);
   const light = sideways ? "#fff" : t.text;
