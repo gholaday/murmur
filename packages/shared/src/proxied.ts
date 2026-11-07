@@ -18,7 +18,19 @@ export function cameThroughProxy(header: (name: string) => string | null | undef
  * The shortest ADDON_SECRET Murmur and the add-ons accept: anyone who guesses it can use an
  * add-on as Murmur would. `openssl rand -hex 32` gives 64 characters.
  */
-const ADDON_SECRET_MIN_LENGTH = 32;
+export const ADDON_SECRET_MIN_LENGTH = 32;
+
+/** The Authorization header every call between Murmur and an add-on carries. */
+export const addonAuthorization = (secret: string) => `Bearer ${secret}`;
+
+/** Whether an Authorization header carries the secret. Takes the same time however much of it matches. */
+export function addonSecretMatches(header: string | null | undefined, secret: string): boolean {
+  const token = header?.startsWith("Bearer ") ? header.slice(7) : "";
+  if (!secret || token.length !== secret.length) return false;
+  let diff = 0;
+  for (let i = 0; i < secret.length; i++) diff |= token.charCodeAt(i) ^ secret.charCodeAt(i);
+  return diff === 0;
+}
 
 /** Why an ADDON_SECRET can't be used, or null when it's long enough (or not set at all). */
 export function addonSecretProblem(secret: string): string | null {

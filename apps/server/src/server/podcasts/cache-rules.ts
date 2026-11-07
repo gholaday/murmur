@@ -1,4 +1,4 @@
-import type { AdSpan } from "@murmur/shared";
+import { ADSCAN_LIMITS, type AdSpan } from "@murmur/shared";
 
 interface CachedFileInfo {
   episodeId: string;
@@ -22,8 +22,7 @@ export function evictionOrder(files: CachedFileInfo[], keep: Set<string>, finish
     });
 }
 
-/** A single ad longer than this is a misreading, not an ad. */
-const MAX_AD_SEC = 300;
+const MAX_AD_SEC = ADSCAN_LIMITS.maxAdSec;
 
 /**
  * Makes ad spans from the add-on safe to act on: drops impossible ones (ending before they

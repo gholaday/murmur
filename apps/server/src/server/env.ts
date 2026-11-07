@@ -1,5 +1,5 @@
 import path from "node:path";
-import { addonSecretProblem } from "@murmur/shared";
+import { addonSecretProblem, VIDEO_ADDON_PORT } from "@murmur/shared";
 import pkg from "../../package.json";
 
 function intEnv(name: string, fallback: number): number {
@@ -42,7 +42,7 @@ export const env = {
   moviesDir: path.resolve(/*turbopackIgnore: true*/ process.env.MOVIES_DIR ?? "/movies"),
   showsDir: path.resolve(/*turbopackIgnore: true*/ process.env.SHOWS_DIR ?? "/shows"),
   /** The video add-on (murmur-video), which reads movies and shows and streams them. Without it Watch stays empty. */
-  videoUrl: (process.env.VIDEO_URL?.trim() || "http://localhost:3001").replace(/\/+$/, ""),
+  videoUrl: (process.env.VIDEO_URL?.trim() || `http://localhost:${VIDEO_ADDON_PORT}`).replace(/\/+$/, ""),
   migrationsDir:path.resolve(/*turbopackIgnore: true*/ process.env.MIGRATIONS_DIR ?? "./drizzle"),
   /** Use polling instead of filesystem events (for network mounts that don't emit events). */
   watchPolling: process.env.WATCH_POLLING === "true",
@@ -56,8 +56,11 @@ export const env = {
   /** Books whose folder is gone stay visible (marked missing) for this long before being hidden. */
   missingGraceMs: intEnv("MISSING_GRACE_DAYS", 7) * 86_400_000,
   probeConcurrency: intEnv("PROBE_CONCURRENCY", 2),
-  /** Where podcast episodes are kept; without a writable folder, episodes are relayed instead. */
-  episodeCacheDir: path.resolve(/*turbopackIgnore: true*/ process.env.EPISODE_CACHE_DIR ?? "/cache"),
+  /**
+   * Where podcast episodes are kept; without a writable folder, episodes are relayed instead.
+   * CACHE_DIR, like the add-ons; EPISODE_CACHE_DIR is its old name, still read.
+   */
+  episodeCacheDir: path.resolve(/*turbopackIgnore: true*/ process.env.CACHE_DIR?.trim() || process.env.EPISODE_CACHE_DIR?.trim() || "/cache"),
   episodeCacheMaxBytes: intEnv("EPISODE_CACHE_MAX_GB", 20) * 1024 ** 3,
   /**
    * Shared with the add-ons: ad detection's endpoints are off unless this is set, and the video

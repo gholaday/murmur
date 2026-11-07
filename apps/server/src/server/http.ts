@@ -1,22 +1,13 @@
 import crypto from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { NextResponse } from "next/server";
+import { HttpError, invalidRequestText } from "@murmur/shared";
 import { ZodError, type ZodType } from "zod";
 import { createLogger, errorMessage } from "./log";
 
 const log = createLogger("http");
 
-export class HttpError extends Error {
-  override readonly name = "HttpError";
-  constructor(
-    readonly status: number,
-    message: string,
-    /** Extra response headers, like `Retry-After` on a 503. */
-    readonly headers?: Record<string, string>,
-  ) {
-    super(message);
-  }
-}
+export { HttpError };
 
 /**
  * Services created at boot live in Next's instrumentation bundle, which has its own copy
@@ -70,11 +61,7 @@ export function route<C>(handler: Handler<C>): Handler<C> {
       return await handler(req, ctx);
     } catch (err) {
       if (isHttpError(err)) return json({ error: err.message }, { status: err.status, headers: err.headers });
-      if (err instanceof ZodError) {
-        const issue = err.issues[0];
-        const where = issue?.path.length ? `${issue.path.join(".")}: ` : "";
-        return json({ error: `${where}${issue?.message ?? "Invalid request."}` }, { status: 400 });
-      }
+      if (err instanceof ZodError) return json({ error: invalidRequestText(err) }, { status: 400 });
       // A cast link carries its token in the path; it stays out of the log.
       const url = req.url.replace(/\/api\/cast\/[^/]+/, "/api/cast/…");
       log.error("unhandled error", { method: req.method, url, error: errorMessage(err) });

@@ -1,25 +1,14 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
-import { cameThroughProxy, parseRange } from "@murmur/shared";
+import { addonSecretMatches, cameThroughProxy, HttpError, invalidRequestText, parseRange } from "@murmur/shared/video";
 import { ZodError, type ZodType } from "zod";
 import { env } from "./env";
 
 // Just enough HTTP for the add-on's few endpoints: errors as `{ error }` JSON with the right status,
 // the same as Murmur's own routes, so Murmur can pass them on to the player as they are.
 
-export class HttpError extends Error {
-  override readonly name = "HttpError";
-  constructor(
-    readonly status: number,
-    message: string,
-    /** Extra response headers, like `Retry-After` on a 503. */
-    readonly headers?: Record<string, string>,
-  ) {
-    super(message);
-  }
-}
+export { HttpError };
 
 export function sendJson(res: ServerResponse, status: number, data: unknown, headers: Record<string, string> = {}) {
   const body = JSON.stringify(data);
@@ -30,10 +19,7 @@ export function sendJson(res: ServerResponse, status: number, data: unknown, hea
 export function sendError(res: ServerResponse, err: unknown) {
   if (res.headersSent) return void res.destroy();
   if (err instanceof HttpError) return sendJson(res, err.status, { error: err.message }, err.headers);
-  if (err instanceof ZodError) {
-    const issue = err.issues[0];
-    return sendJson(res, 400, { error: `${issue?.path.join(".") ?? ""}: ${issue?.message ?? "Invalid request."}` });
-  }
+  if (err instanceof ZodError) return sendJson(res, 400, { error: invalidRequestText(err) });
   // Anything else is logged by the caller; its text can name paths on the server.
   sendJson(res, 500, { error: "Something went wrong in the video add-on." });
 }
@@ -57,11 +43,7 @@ export function refuseProxied(req: IncomingMessage) {
 
 /** Only Murmur, holding the shared secret, gets in. */
 export function requireSecret(req: IncomingMessage) {
-  const header = req.headers.authorization ?? "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-  const a = Buffer.from(token);
-  const b = Buffer.from(env.addonSecret);
-  if (!env.addonSecret || a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new HttpError(401, "Wrong add-on secret.");
+  if (!addonSecretMatches(req.headers.authorization, env.addonSecret)) throw new HttpError(401, "Wrong add-on secret.");
 }
 
 /**

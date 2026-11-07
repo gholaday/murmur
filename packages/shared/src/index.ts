@@ -281,14 +281,30 @@ const adSpanSchema = z.object({
 });
 export type AdSpan = z.infer<typeof adSpanSchema>;
 
+/**
+ * The ad detection add-on's limits. addons/adscan/adscan.py writes the same numbers, and
+ * adscan-contract.test.ts on the server checks they agree.
+ */
+export const ADSCAN_LIMITS = {
+  /** A single ad longer than this is a misreading, not an ad. */
+  maxAdSec: 300,
+  maxAds: 500,
+  maxRetryAfterSec: 2 * 86_400,
+  maxText: 500,
+};
+
 /** What the ad detection add-on sends back about a file it is scanning. */
 export const addonReportSchema = z.discriminatedUnion("status", [
   /** Ads so far (the whole list each time) and how many pieces are done; extends the lease. */
-  z.object({ status: z.literal("progress"), piecesDone: z.number().int().min(0), ads: z.array(adSpanSchema).max(500) }),
-  z.object({ status: z.literal("done"), piecesDone: z.number().int().min(0), ads: z.array(adSpanSchema).max(500) }),
+  z.object({ status: z.literal("progress"), piecesDone: z.number().int().min(0), ads: z.array(adSpanSchema).max(ADSCAN_LIMITS.maxAds) }),
+  z.object({ status: z.literal("done"), piecesDone: z.number().int().min(0), ads: z.array(adSpanSchema).max(ADSCAN_LIMITS.maxAds) }),
   /** Can't finish now (Gemini paused or misconfigured); hand it out again after `retryAfterSec`. */
-  z.object({ status: z.literal("deferred"), retryAfterSec: z.number().int().min(0).max(86_400 * 2), reason: z.string().max(500) }),
-  z.object({ status: z.literal("failed"), error: z.string().max(500) }),
+  z.object({
+    status: z.literal("deferred"),
+    retryAfterSec: z.number().int().min(0).max(ADSCAN_LIMITS.maxRetryAfterSec),
+    reason: z.string().max(ADSCAN_LIMITS.maxText),
+  }),
+  z.object({ status: z.literal("failed"), error: z.string().max(ADSCAN_LIMITS.maxText) }),
 ]);
 export type AddonReport = z.infer<typeof addonReportSchema>;
 
@@ -807,6 +823,7 @@ export * from "./library";
 export * from "./music";
 export * from "./player";
 export * from "./podcasts";
+export * from "./http-error";
 export * from "./proxied";
 export * from "./search";
 export * from "./settings";

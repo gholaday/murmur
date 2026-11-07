@@ -8,8 +8,9 @@ import {
   videoStillSchema,
   videoStreamStartSchema,
   type VideoSubtitlesDto,
+  videoAddonPaths as paths,
   videoSubtitlesSchema,
-} from "@murmur/shared";
+} from "@murmur/shared/video";
 import { cancelDownload, downloadCount, downloadFile, initDownloads, startDownload, stopAllDownloads } from "./downloads";
 import { canToneMap, encoder } from "./encoders";
 import { env } from "./env";
@@ -58,25 +59,26 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
 
   refuseProxied(req);
   // Docker's health check asks from inside the container without the secret; everyone else needs it.
-  if (!(method === "GET" && url.pathname === "/health" && fromInside(req))) requireSecret(req);
-  if (method === "GET" && url.pathname === "/health") return sendJson(res, 200, await health());
+  if (!(method === "GET" && url.pathname === paths.health && fromInside(req))) requireSecret(req);
+  if (method === "GET" && url.pathname === paths.health) return sendJson(res, 200, await health());
 
-  if (method === "POST" && url.pathname === "/probe") {
+  if (method === "POST" && url.pathname === paths.probe) {
     const { file } = await readJson(req, videoFileSchema);
     return sendJson(res, 200, await probeVideo(libraryFile(file)).catch(notMounted));
   }
-  if (method === "POST" && url.pathname === "/still") {
+  if (method === "POST" && url.pathname === paths.still) {
     const { file, durationSec, hdr } = await readJson(req, videoStillSchema);
     const jpeg = await grabStill(libraryFile(file), durationSec, hdr).catch(notMounted);
     res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": jpeg.length });
     return void res.end(jpeg);
   }
-  if (method === "POST" && url.pathname === "/subtitles") {
+  if (method === "POST" && url.pathname === paths.subtitles) {
     const { file, tracks } = await readJson(req, videoSubtitlesSchema);
     return sendJson(res, 200, { tracks: await extractSubtitles(libraryFile(file), tracks).catch(notMounted) } satisfies VideoSubtitlesDto);
   }
 
-  if (parts[0] === "streams") {
+  // `/streams/<id>/<file>` and `/downloads/<id>`, as videoAddonPaths builds them.
+  if (`/${parts[0]}` === paths.streams) {
     if (method === "POST" && parts.length === 1) {
       const body = await readJson(req, videoStreamStartSchema);
       return sendJson(res, 200, await startStream(body.owner, { ...body.src, file: libraryFile(body.src.file) }, body.start));
@@ -98,7 +100,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     }
   }
 
-  if (parts[0] === "downloads") {
+  if (`/${parts[0]}` === paths.downloads) {
     if (method === "POST" && parts.length === 1) {
       const body = await readJson(req, videoDownloadStartSchema);
       return sendJson(res, 200, startDownload(body.owner, { ...body.src, file: libraryFile(body.src.file) }));

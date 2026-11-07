@@ -2,7 +2,7 @@ import { execFile, type ChildProcess } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { VideoSource, VideoStreamStarted } from "@murmur/shared";
+import type { VideoSource, VideoStreamStarted } from "@murmur/shared/video";
 import { threadArgs } from "./cpu";
 import { canToneMap, encoder, type Encoder, encoderFailed, H264_CODEC, h264Args } from "./encoders";
 import { env } from "./env";

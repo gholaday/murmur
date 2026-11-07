@@ -56,7 +56,18 @@ CACHE = Path(os.environ.get("CACHE_DIR", "/cache"))
 STATE = Path(os.environ.get("STATE_DIR", "/state"))
 VOSK_MODEL = os.environ.get("VOSK_MODEL", "/models/vosk-model-small-en-us-0.15")
 IDLE_SEC = 60
+
+# ---------- Murmur's side ----------
+# Murmur's endpoints and limits, all here. apps/server/src/server/adscan-contract.test.ts checks
+# them against Murmur's own, so a change on one side fails the tests until the other follows.
+API_STATUS = "/api/addon/status"
+API_NEXT = "/api/addon/ads/next"
+API_SCAN = "/api/addon/ads/"  # + the scan's file id
+SECRET_MIN_LENGTH = 32
 MAX_AD_SEC = 300
+MAX_ADS = 500
+MAX_RETRY_AFTER_SEC = 2 * 86_400
+MAX_TEXT = 500
 # Gemini's daily quota resets at midnight Pacific time.
 PACIFIC = ZoneInfo("America/Los_Angeles")
 
@@ -116,7 +127,8 @@ def murmur(path: str, body: dict | None = None) -> dict:
                     log("reached Murmur")
                 return json.loads(res.read() or b"{}")
         except urllib.error.HTTPError as e:
-            if e.code == 404 and path.startswith("/api/addon/ads/") and not path.endswith("/next"):
+            # A scan's own endpoint answering 404 means Murmur dropped that scan, not that the add-on is off.
+            if e.code == 404 and path.startswith(API_SCAN) and path != API_NEXT:
                 raise ScanGone() from e
             if e.code in (401, 404):
                 log("Murmur refused the add-on; check ADDON_SECRET is the same on both", status=e.code)
@@ -141,7 +153,7 @@ def heartbeat(force: bool = False) -> None:
         return
     last_beat = time.monotonic()
     try:
-        murmur("/api/addon/status", {"version": VERSION, **status, "geminiRequestsToday": budget.requests_today(),
+        murmur(API_STATUS, {"version": VERSION, **status, "geminiRequestsToday": budget.requests_today(),
                                      "groq": groq_allowance.problem(), "started": not announced})
         announced = True
     except Exception as e:  # a missed heartbeat only makes Settings show "not connected"
@@ -581,7 +593,7 @@ def clean(ads: list[dict], duration: float) -> list[dict]:
             out[-1]["endSec"] = max(out[-1]["endSec"], a["endSec"])
         else:
             out.append(dict(a))
-    return out[:500]
+    return out[:MAX_ADS]
 
 
 # ---------- Scans ----------
@@ -609,7 +621,7 @@ def process(job: dict) -> None:
         # Almost always the cache folder isn't mounted here, or not the same folder as Murmur's.
         log("episode file not found; is Murmur's cache folder mounted at /cache?", episode=job["title"], path=str(audio))
         set_status("error", f"Can't find episodes in {CACHE}. Mount Murmur's cache folder there, read-only.")
-        murmur(f"/api/addon/ads/{file_id}", {"status": "failed", "error": "The episode file isn't in the cache folder."})
+        murmur(f"{API_SCAN}{file_id}", {"status": "failed", "error": "The episode file isn't in the cache folder."})
         return
     work = STATE / str(file_id)
     work.mkdir(parents=True, exist_ok=True)
@@ -654,15 +666,15 @@ def process(job: dict) -> None:
         if ads is not None and deferred is None:
             found += ads
             done = i + 1 == pieces
-            murmur(f"/api/addon/ads/{file_id}", {
+            murmur(f"{API_SCAN}{file_id}", {
                 "status": "done" if done else "progress", "piecesDone": i + 1, "ads": clean(found, duration),
             })
     if deferred is not None:
         # Every piece is transcribed by now, so this episode only needs Gemini when it comes back.
         retry = deferred.seconds if isinstance(deferred, Paused) else 3600
         # Murmur takes whole seconds, up to two days.
-        retry = int(min(max(retry, 0), 2 * 86_400))
-        murmur(f"/api/addon/ads/{file_id}", {"status": "deferred", "retryAfterSec": retry, "reason": str(deferred)[:500]})
+        retry = int(min(max(retry, 0), MAX_RETRY_AFTER_SEC))
+        murmur(f"{API_SCAN}{file_id}", {"status": "deferred", "retryAfterSec": retry, "reason": str(deferred)[:MAX_TEXT]})
         return
     shutil.rmtree(work, ignore_errors=True)
     log("scan done", episode=job["title"], ads=len(clean(found, duration)))
@@ -681,9 +693,8 @@ def prune_state() -> None:
 def main() -> None:
     if not SECRET:
         sys.exit("Set ADDON_SECRET to the same value as Murmur's.")
-    # The same rule as Murmur's (ADDON_SECRET_MIN_LENGTH in packages/shared).
-    if len(SECRET) < 32:
-        sys.exit("ADDON_SECRET is too short. Use at least 32 characters, for example the output of "
+    if len(SECRET) < SECRET_MIN_LENGTH:
+        sys.exit(f"ADDON_SECRET is too short. Use at least {SECRET_MIN_LENGTH} characters, for example the output of "
                  "openssl rand -hex 32, on Murmur and the add-ons.")
     STATE.mkdir(parents=True, exist_ok=True)
     prune_state()
@@ -703,7 +714,7 @@ def main() -> None:
         if not GEMINI_KEY:
             time.sleep(IDLE_SEC)
             continue
-        job = murmur("/api/addon/ads/next").get("job")
+        job = murmur(API_NEXT).get("job")
         if not job:
             if status["state"] == "paused" and time.time() >= budget.paused_until:
                 set_status("ok", None)
@@ -716,7 +727,7 @@ def main() -> None:
         except Exception as e:  # one bad episode must never stop the add-on
             log("scan failed", episode=job.get("title"), error=str(e))
             try:
-                murmur(f"/api/addon/ads/{job['fileId']}", {"status": "failed", "error": str(e)[:500]})
+                murmur(f"{API_SCAN}{job['fileId']}", {"status": "failed", "error": str(e)[:MAX_TEXT]})
             except ScanGone:
                 pass
 

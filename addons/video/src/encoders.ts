@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import type { VideoAddonHealth, VideoQuality } from "@murmur/shared";
+import type { VideoAddonHealth, VideoQuality } from "@murmur/shared/video";
 import { env } from "./env";
 import { TONEMAP } from "./ffmpeg";
 import { createLogger } from "./log";

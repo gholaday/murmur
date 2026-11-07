@@ -1,5 +1,4 @@
-import crypto from "node:crypto";
-import { type AddonJob, type AddonReport, type AddonStatus, addonVersionProblem, type AdSpan, cameThroughProxy, type EpisodeAdsDto } from "@murmur/shared";
+import { type AddonJob, type AddonReport, type AddonStatus, addonSecretMatches, addonVersionProblem, type AdSpan, cameThroughProxy, type EpisodeAdsDto } from "@murmur/shared";
 import type { Sqlite } from "./db";
 import { env } from "./env";
 import { HttpError } from "./http";
@@ -22,11 +21,7 @@ export const adsEnabled = () => env.addonSecret.length > 0;
  */
 export function requireAddon(req: Request) {
   if (!adsEnabled() || cameThroughProxy((name) => req.headers.get(name))) throw new HttpError(404, "Not found.");
-  const header = req.headers.get("authorization") ?? "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-  const a = Buffer.from(token);
-  const b = Buffer.from(env.addonSecret);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new HttpError(401, "Wrong add-on secret.");
+  if (!addonSecretMatches(req.headers.get("authorization"), env.addonSecret)) throw new HttpError(401, "Wrong add-on secret.");
 }
 
 /** Queues a newly cached episode, unless its show is a private feed (setPrivateFeed). */

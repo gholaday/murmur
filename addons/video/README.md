@@ -31,7 +31,7 @@ which Murmur alone shares. Never add ports, and point a proxy or tunnel at Murmu
 | `WATCH_HW` | `auto` | GPU conversion: `auto` tries NVENC, Quick Sync, VAAPI and the rest, then the CPU; `off` keeps it on the CPU; or name one (`nvenc`, `qsv`, `vaapi`, `amf`, `videotoolbox`) |
 | `VAAPI_DEVICE` | `/dev/dri/renderD128` | The render node VAAPI uses |
 | `PUID` / `PGID` | `1000` | User and group that own the files in `/cache` |
-| `VIDEO_PORT` | `3001` | Murmur's `VIDEO_URL` points here |
+| `VIDEO_PORT` | `3001` | Change it and Murmur's `VIDEO_URL` too |
 | `FFMPEG_PATH` / `FFPROBE_PATH` | `ffmpeg` / `ffprobe` | Where to find them when not on the path |
 
 Mount a folder at `/cache` for stream pieces and downloads being made. Only a few minutes of

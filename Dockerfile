@@ -49,7 +49,6 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0 \
     DATA_DIR=/data \
-    EPISODE_CACHE_DIR=/cache \
     VIDEO_URL=http://murmur-video:3001 \
     MIGRATIONS_DIR=/app/apps/server/drizzle \
     PUID=1000 \

@@ -75,6 +75,34 @@ export type VideoStatus = { problem: string; working?: never } | { problem: null
 /** The header that names a stream's or download's owner on the add-on's file requests. */
 export const VIDEO_OWNER_HEADER = "x-murmur-owner";
 
+/** The port the video add-on listens on, unless VIDEO_PORT says otherwise. */
+export const VIDEO_ADDON_PORT = 3001;
+
+/** The video add-on's endpoints, as Murmur calls them. */
+export const videoAddonPaths = {
+  /** GET VideoAddonHealth. */
+  health: "/health",
+  /** POST { file }: ProbedVideo. */
+  probe: "/probe",
+  /** POST { file, durationSec, hdr }: a JPEG, empty when no frame could be grabbed. */
+  still: "/still",
+  /** POST { file, tracks }: VideoSubtitlesDto. */
+  subtitles: "/subtitles",
+  /** POST { owner, src, start }: VideoStreamStarted. */
+  streams: "/streams",
+  /** DELETE ends the stream. */
+  stream: (id: string) => `/streams/${encodeURIComponent(id)}`,
+  /** GET a playlist or piece of the stream. */
+  streamFile: (id: string, file: string) => `/streams/${encodeURIComponent(id)}/${encodeURIComponent(file)}`,
+  /** POST { owner, src }: VideoDownloadDto. */
+  downloads: "/downloads",
+  /** GET the finished MP4, DELETE cancels or removes it. */
+  download: (id: string) => `/downloads/${encodeURIComponent(id)}`,
+};
+
+/** Response headers of a stream file or download that Murmur passes on to the player. */
+export const VIDEO_PASS_THROUGH_HEADERS = ["content-type", "content-length", "content-range", "accept-ranges", "cache-control", "retry-after"];
+
 type ByteRange = { start: number; end: number } | "unsatisfiable" | null;
 
 /** Parses a single `bytes=` range. Multi-range requests are served as the whole file. */

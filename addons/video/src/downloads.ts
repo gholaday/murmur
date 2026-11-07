@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { apiPaths, gigabytes, type VideoDownloadDto, type VideoSource } from "@murmur/shared";
+import { apiPaths, gigabytes, type VideoDownloadDto, type VideoSource } from "@murmur/shared/video";
 import { threadArgs } from "./cpu";
 import { canToneMap, encoder, type Encoder, encoderFailed, h264Args } from "./encoders";
 import { env } from "./env";

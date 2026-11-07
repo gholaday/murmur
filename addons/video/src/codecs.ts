@@ -2,7 +2,7 @@
  * Turns ffprobe's JSON into what a player needs: RFC 6381 codec strings (the form
  * `MediaSource.isTypeSupported` takes), resolution, HDR and the tracks. Pure, tested in codecs.test.ts.
  */
-import type { ProbedVideo } from "@murmur/shared";
+import type { ProbedVideo } from "@murmur/shared/video";
 
 interface FfprobeStream {
   index: number;

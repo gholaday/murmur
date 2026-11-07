@@ -1,4 +1,5 @@
 import path from "node:path";
+import { VIDEO_ADDON_PORT } from "@murmur/shared/video";
 
 const intEnv = (name: string, fallback: number) => {
   const n = Number(process.env[name]);
@@ -7,7 +8,7 @@ const intEnv = (name: string, fallback: number) => {
 
 export const env = {
   /** Its own name, so the add-on never picks up Murmur's PORT when the two run side by side. */
-  port: intEnv("VIDEO_PORT", 3001),
+  port: intEnv("VIDEO_PORT", VIDEO_ADDON_PORT),
   /** The same secret Murmur has; every request carries it as a bearer token. */
   addonSecret: process.env.ADDON_SECRET ?? "",
   version: process.env.MURMUR_VERSION ?? "dev",

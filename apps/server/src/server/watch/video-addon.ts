@@ -1,7 +1,10 @@
 import {
+  addonAuthorization,
   addonVersionProblem,
   type ProbedVideo,
   VIDEO_OWNER_HEADER,
+  VIDEO_PASS_THROUGH_HEADERS,
+  videoAddonPaths as paths,
   type VideoAddonHealth,
   type VideoDownloadDto,
   type VideoSource,
@@ -22,7 +25,7 @@ const UNREACHABLE = "The video add-on isn't reachable. Start murmur-video, with 
 async function call(path: string, init: RequestInit & { owner?: string } = {}): Promise<Response> {
   if (!env.addonSecret) throw new HttpError(503, env.addonSecretProblem ?? "Set ADDON_SECRET on Murmur and the video add-on to play movies and shows.");
   const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${env.addonSecret}`);
+  headers.set("Authorization", addonAuthorization(env.addonSecret));
   if (init.owner) headers.set(VIDEO_OWNER_HEADER, init.owner);
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   try {
@@ -49,8 +52,8 @@ const post = <T>(path: string, body: unknown) => call(path, { method: "POST", bo
 export async function videoHealth(): Promise<VideoAddonHealth | null> {
   if (!env.addonSecret) return null;
   try {
-    const res = await fetch(`${env.videoUrl}/health`, {
-      headers: { Authorization: `Bearer ${env.addonSecret}` },
+    const res = await fetch(`${env.videoUrl}${paths.health}`, {
+      headers: { Authorization: addonAuthorization(env.addonSecret) },
       signal: AbortSignal.timeout(3000),
     });
     return res.ok ? ((await res.json()) as VideoAddonHealth) : null;
@@ -85,11 +88,11 @@ export function videoStatus(health: VideoAddonHealth | null): VideoStatus {
 /** Why Watch can't read files right now, or null when the add-on is there with ffmpeg. Another major version is only reported, so scans still run. */
 export const videoProblem = async (): Promise<string | null> => blocked(await videoHealth());
 
-export const probeVideo = (file: string) => post<ProbedVideo>("/probe", { file });
+export const probeVideo = (file: string) => post<ProbedVideo>(paths.probe, { file });
 
 /** A JPEG for the video's still; empty when no frame could be grabbed. */
 export async function grabStill(file: string, durationSec: number, hdr: boolean): Promise<Buffer> {
-  const res = await call("/still", { method: "POST", body: JSON.stringify({ file, durationSec, hdr }) });
+  const res = await call(paths.still, { method: "POST", body: JSON.stringify({ file, durationSec, hdr }) });
   if (!res.ok) await json(res);
   return Buffer.from(await res.arrayBuffer());
 }
@@ -100,9 +103,9 @@ const patient = new Agent({ headersTimeout: 15 * 60_000, bodyTimeout: 15 * 60_00
 /** Text subtitle tracks of a file as WebVTT, by index, all from one read of it. */
 export async function extractSubtitles(file: string, tracks: number[]): Promise<VideoSubtitlesDto> {
   if (!env.addonSecret) throw new HttpError(503, env.addonSecretProblem ?? "Set ADDON_SECRET on Murmur and the video add-on to read subtitles.");
-  const res = await undiciFetch(`${env.videoUrl}/subtitles`, {
+  const res = await undiciFetch(`${env.videoUrl}${paths.subtitles}`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${env.addonSecret}`, "Content-Type": "application/json" },
+    headers: { Authorization: addonAuthorization(env.addonSecret), "Content-Type": "application/json" },
     body: JSON.stringify({ file, tracks }),
     dispatcher: patient,
   }).catch(() => {
@@ -111,33 +114,30 @@ export async function extractSubtitles(file: string, tracks: number[]): Promise<
   return json<VideoSubtitlesDto>(res as unknown as Response);
 }
 
-export const startStream = (owner: string, src: VideoSource, start: number) => post<VideoStreamStarted>("/streams", { owner, src, start });
+export const startStream = (owner: string, src: VideoSource, start: number) => post<VideoStreamStarted>(paths.streams, { owner, src, start });
 
 export async function endStream(owner: string, id: string) {
-  await json(await call(`/streams/${encodeURIComponent(id)}`, { method: "DELETE", owner }));
+  await json(await call(paths.stream(id), { method: "DELETE", owner }));
 }
 
-export const startDownload = (owner: string, src: VideoSource) => post<VideoDownloadDto>("/downloads", { owner, src });
+export const startDownload = (owner: string, src: VideoSource) => post<VideoDownloadDto>(paths.downloads, { owner, src });
 
 export async function cancelDownload(owner: string, id: string) {
-  await json(await call(`/downloads/${encodeURIComponent(id)}`, { method: "DELETE", owner }));
+  await json(await call(paths.download(id), { method: "DELETE", owner }));
 }
-
-const PASS_THROUGH = ["content-type", "content-length", "content-range", "accept-ranges", "cache-control", "retry-after"];
 
 /** A stream file or download from the add-on, passed through to the player byte for byte, ranges and errors included. */
 async function relay(req: Request, path: string, owner: string): Promise<Response> {
   const range = req.headers.get("range");
   const res = await call(path, { method: req.method === "HEAD" ? "HEAD" : "GET", owner, headers: range ? { Range: range } : {}, signal: req.signal });
   const headers = new Headers();
-  for (const name of PASS_THROUGH) {
+  for (const name of VIDEO_PASS_THROUGH_HEADERS) {
     const value = res.headers.get(name);
     if (value) headers.set(name, value);
   }
   return new Response(req.method === "HEAD" ? null : res.body, { status: res.status, headers });
 }
 
-export const streamResponse = (req: Request, owner: string, id: string, file: string) =>
-  relay(req, `/streams/${encodeURIComponent(id)}/${encodeURIComponent(file)}`, owner);
+export const streamResponse = (req: Request, owner: string, id: string, file: string) => relay(req, paths.streamFile(id, file), owner);
 
-export const downloadResponse = (req: Request, owner: string, id: string) => relay(req, `/downloads/${encodeURIComponent(id)}`, owner);
+export const downloadResponse = (req: Request, owner: string, id: string) => relay(req, paths.download(id), owner);
