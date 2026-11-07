@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { apiPaths } from "@murmur/shared/client";
 import { EyeIcon, EyeOffIcon } from "@/web/icons";
 
 export function LoginForm({ setup }: { setup: boolean }) {
@@ -13,7 +14,7 @@ export function LoginForm({ setup }: { setup: boolean }) {
     setBusy(true);
     setError(null);
     const form = new FormData(e.currentTarget);
-    const res = await fetch(setup ? "/api/auth/setup" : "/api/auth/login", {
+    const res = await fetch(setup ? apiPaths.setup : apiPaths.login, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: form.get("username"), password: form.get("password"), client: "web" }),

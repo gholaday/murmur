@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import Svg, { Circle, Line, Path } from "react-native-svg";
 import { useQuery } from "@tanstack/react-query";
 import {
+  apiPaths,
   duration,
   localDay,
   ringPaths,
@@ -35,7 +36,7 @@ import {
   statsYears,
 } from "@murmur/shared/client";
 import { api } from "@/lib/api";
-import { useTabPrefs } from "@/lib/data";
+import { keys, useTabPrefs } from "@/lib/data";
 import { selectHaptic } from "@/lib/haptics";
 import { fonts, type Theme, useTheme } from "@/theme";
 import { Cover } from "./cover";
@@ -96,8 +97,8 @@ function useStats(period: StatsPeriod, year?: number) {
   const today = localDay();
   const tz = -new Date().getTimezoneOffset();
   return useQuery({
-    queryKey: ["stats", period, today, year],
-    queryFn: () => api<StatsDto>(`/api/stats?period=${period}&today=${today}&tz=${tz}${year ? `&year=${year}` : ""}`),
+    queryKey: keys.stats(period, today, year ?? null),
+    queryFn: () => api<StatsDto>(apiPaths.stats({ period, today, tz: String(tz), year })),
   });
 }
 

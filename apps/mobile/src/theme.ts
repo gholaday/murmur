@@ -1,5 +1,5 @@
 import { useColorScheme } from "react-native";
-import type { ThemeChoice } from "@murmur/shared/client";
+import { storageKeys, type ThemeChoice } from "@murmur/shared/client";
 import { createSavedStore } from "./lib/store";
 
 // Colours follow docs/mockups and the web player's tokens.
@@ -60,7 +60,7 @@ export function mixColor(a: string, b: string, amount: number): string {
   return `#${pa.map((v, i) => Math.round(v * amount + pb[i]! * (1 - amount)).toString(16).padStart(2, "0")).join("")}`;
 }
 
-const mode = createSavedStore<ThemeChoice>("murmur.theme", "dark");
+const mode = createSavedStore<ThemeChoice>(storageKeys.theme, "dark");
 
 export const setThemeMode = mode.set;
 

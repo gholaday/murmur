@@ -54,7 +54,7 @@ export function ShowView({
 
   const loadAll = async () => {
     try {
-      setAll(await api<EpisodeDto[]>(`/api/podcasts/${podcast.id}/episodes?short=1`));
+      setAll(await api<EpisodeDto[]>(apiPaths.podcastEpisodes(podcast.id)));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't load the episodes.");
     }
@@ -232,7 +232,7 @@ export function ShowView({
           disabled={busy}
           onClick={() => {
             setSheet(null);
-            void run(() => api(`/api/podcasts/${podcast.id}/refresh`, { method: "POST" }), "Checked for new episodes");
+            void run(() => api(apiPaths.podcastRefresh(podcast.id), { method: "POST" }), "Checked for new episodes");
           }}
         >
           {busy ? "Checking…" : "Check for new episodes"}
@@ -279,7 +279,7 @@ export function ShowView({
         onConfirm={async () => {
           setBusy(true);
           try {
-            await api(`/api/podcasts/${podcast.id}`, { method: "DELETE" });
+            await api(apiPaths.podcast(podcast.id), { method: "DELETE" });
             toast(`Unsubscribed from ${podcast.title}`);
             router.push("/podcasts");
             router.refresh();

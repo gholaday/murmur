@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- TMDB poster thumbnails are remote */
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { errorText, type WatchMatchResult } from "@murmur/shared/client";
+import { apiPaths, errorText, type WatchMatchResult } from "@murmur/shared/client";
 import { api } from "../api";
 
 /**
@@ -34,9 +34,7 @@ export function WatchMatchPanel({
     async (q: string, y: string) => {
       setBusy(true);
       try {
-        const params = new URLSearchParams({ kind, q });
-        if (/^\d{4}$/.test(y)) params.set("year", y);
-        setResults(await api<WatchMatchResult[]>(`/api/watch/match?${params}`));
+        setResults(await api<WatchMatchResult[]>(apiPaths.watchMatchSearch({ kind, q, year: /^\d{4}$/.test(y) ? y : undefined })));
       } catch (err) {
         toast.error(errorText(err));
         setResults([]);
@@ -54,7 +52,7 @@ export function WatchMatchPanel({
   const pick = async (r: WatchMatchResult) => {
     setBusy(true);
     try {
-      await api(`/api/watch/${kind === "movie" ? "movies" : "shows"}/${id}/match`, { method: "POST", body: { tmdbId: r.tmdbId } });
+      await api(`${apiPaths.watchItem(kind, id)}/match`, { method: "POST", body: { tmdbId: r.tmdbId } });
       onMatched(r.title);
     } catch (err) {
       toast.error(errorText(err));

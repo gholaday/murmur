@@ -1,6 +1,6 @@
 "use client";
 
-import { type AlbumSummary, type BookSummary, bookIssues } from "@murmur/shared/client";
+import { type AlbumSummary, type BookSummary, bookIssues, type LibraryList } from "@murmur/shared/client";
 import { BulkMatch } from "../library/bulk-match";
 import { BookCard } from "../library/book-card";
 import { BookActions } from "../library/library";
@@ -8,9 +8,7 @@ import { AlbumMatchAll } from "../music/match-all";
 import { AlbumCard } from "../music/music-view";
 import { EmptyState, NestedHead } from "../ui";
 
-export type LibraryList = "attention" | "unmatched" | "albums";
-
-const LIBRARY_LISTS: Record<LibraryList, { title: string; sub: string }> = {
+const LIST_TEXT: Record<LibraryList, { title: string; sub: string }> = {
   attention: { title: "Needs attention", sub: "Books with no cover, no author or missing files" },
   unmatched: { title: "Not matched", sub: "Books with no online match yet" },
   albums: { title: "Not matched", sub: "Albums with no online match yet" },
@@ -18,7 +16,7 @@ const LIBRARY_LISTS: Record<LibraryList, { title: string; sub: string }> = {
 
 /** One of You > Library's lists for admins, opened from its row. */
 export function LibraryListView({ list, books, albums }: { list: LibraryList; books: BookSummary[]; albums: AlbumSummary[] }) {
-  const { title, sub } = LIBRARY_LISTS[list];
+  const { title, sub } = LIST_TEXT[list];
   return (
     <>
       <NestedHead title={title} sub={sub} fallback="/you/library" />

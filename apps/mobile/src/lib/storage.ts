@@ -1,5 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import Storage from "expo-sqlite/kv-store";
+import { storageKeys } from "@murmur/shared/client";
 
 // Small synchronous key-value store for settings and caches (SQLite-backed, survives restarts).
 // Secrets go in SecureStore instead.
@@ -21,7 +22,7 @@ export function removeKey(key: string) {
   Storage.removeItemSync(key);
 }
 
-const TOKEN_KEY = "murmur.token";
+const TOKEN_KEY = storageKeys.token;
 
 export const secrets = {
   getToken: () => SecureStore.getItemAsync(TOKEN_KEY),

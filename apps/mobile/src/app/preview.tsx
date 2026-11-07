@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Animated, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { duration, plural, type PodcastPreview, type PodcastPreviewEpisode, type PodcastSummary, shortDate } from "@murmur/shared/client";
+import { apiPaths, duration, plural, type PodcastPreview, type PodcastPreviewEpisode, type PodcastSummary, shortDate } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { HeroBackdrop } from "@/components/hero";
 import { PlusIcon } from "@/components/icons";
@@ -33,8 +33,8 @@ export default function PreviewScreen() {
 
   // Read live each time; the server caches it for a few minutes.
   const query = useQuery({
-    queryKey: ["podcast-preview", feedUrl],
-    queryFn: () => api<PodcastPreview>(`/api/podcasts/preview?feedUrl=${encodeURIComponent(feedUrl)}`),
+    queryKey: keys.podcastPreview(feedUrl),
+    queryFn: () => api<PodcastPreview>(apiPaths.podcastPreview(feedUrl)),
     gcTime: 0,
     retry: false,
   });
@@ -81,12 +81,12 @@ export default function PreviewScreen() {
   const subscribe = async () => {
     setBusy(true);
     try {
-      const show = await api<PodcastSummary>("/api/podcasts", { method: "POST", body: { feedUrl: preview.feedUrl } });
+      const show = await api<PodcastSummary>(apiPaths.podcasts, { method: "POST", body: { feedUrl: preview.feedUrl } });
       toast.show(`Subscribed to ${show.title}`);
       void queryClient.invalidateQueries({ queryKey: keys.podcasts });
       void queryClient.invalidateQueries({ queryKey: keys.newEpisodes });
       void queryClient.invalidateQueries({ queryKey: keys.continueEpisodes });
-      void queryClient.invalidateQueries({ queryKey: ["podcast-search"] });
+      void queryClient.invalidateQueries({ queryKey: keys.all.podcastSearch });
       // Replace, so back from the new podcast goes to the search, not this preview.
       router.replace(`/show/${show.id}`);
     } catch (err) {

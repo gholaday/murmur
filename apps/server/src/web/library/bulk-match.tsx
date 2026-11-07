@@ -21,7 +21,7 @@ import { Sheet } from "../sheet";
 import { Chip, Chips, EmptyState } from "../ui";
 import { BookActionsContext } from "./book-card";
 
-const PATH = "/api/library/match";
+const PATH = apiPaths.libraryMatch;
 const POLL_MS = 1500;
 /** Review results this sure start ticked; the rest you tick yourself. */
 const PICK_AT = 80;

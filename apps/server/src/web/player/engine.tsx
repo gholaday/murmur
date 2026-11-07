@@ -17,7 +17,7 @@ import {
   type ListeningStore,
   ListeningTracker,
   type MusicSource,
-  NOW_PLAYING_KEY,
+  storageKeys,
   type Playable,
   type PlayerCore,
   type PlayerMedia,
@@ -76,7 +76,7 @@ export function useTint(item: Playable | null): string | null {
 
 // ---------- Listening time and progress ----------
 
-const LISTENING_KEY = "murmur.listening";
+const { listening: LISTENING_KEY, nowPlaying: NOW_PLAYING_KEY } = storageKeys;
 let listeningTracker: ListeningTracker | null = null;
 
 /** Time spent listening per day, for the stats; sent along with progress. */

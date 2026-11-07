@@ -7,7 +7,7 @@ import {
   percentDone,
   type ShowSummary,
   sortWatch,
-  WATCH_SORT_KEY,
+  storageKeys,
   WATCH_SORTS,
   type WatchHomeDto,
   type WatchPoster,
@@ -31,7 +31,7 @@ type Item = { kind: "movie"; m: MovieSummary } | { kind: "show"; s: ShowSummary 
 const summaryOf = (i: Item) => (i.kind === "movie" ? i.m : i.s);
 
 /** The Movies, Shows and Watched sort, kept in this browser. */
-const useWatchSort = () => useSavedChoice<WatchSort>(WATCH_SORT_KEY, "added", WATCH_SORTS);
+const useWatchSort = () => useSavedChoice<WatchSort>(storageKeys.watchSort, "added", WATCH_SORTS);
 const watchedOf = (i: Item) => (i.kind === "movie" ? !!i.m.progress?.finished : i.s.episodes > 0 && i.s.watched === i.s.episodes);
 
 function ItemCard({ item }: { item: Item }) {

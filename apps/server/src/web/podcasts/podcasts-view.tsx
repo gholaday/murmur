@@ -254,7 +254,7 @@ function PodcastSearch({ initialQuery, onAdded }: { initialQuery: string; onAdde
     let stale = false;
     const timer = setTimeout(() => {
       setSearching(true);
-      api<PodcastSearchResult[]>(`/api/podcasts/search?q=${encodeURIComponent(q)}`)
+      api<PodcastSearchResult[]>(apiPaths.podcastSearch(q))
         .then((r) => {
           if (stale) return;
           setResults(r);
@@ -276,7 +276,7 @@ function PodcastSearch({ initialQuery, onAdded }: { initialQuery: string; onAdde
   const subscribe = async (r: PodcastSearchResult) => {
     setAdding(r.feedUrl);
     try {
-      const podcast = await api<PodcastSummary>("/api/podcasts", { method: "POST", body: { feedUrl: r.feedUrl } });
+      const podcast = await api<PodcastSummary>(apiPaths.podcasts, { method: "POST", body: { feedUrl: r.feedUrl } });
       toast(`Subscribed to ${podcast.title}`);
       onAdded(podcast.id);
     } catch (err) {
@@ -356,7 +356,7 @@ function AddPodcastSheet({
     setBusy(true);
     setMessage(null);
     try {
-      const podcast = await api<PodcastSummary>("/api/podcasts", { method: "POST", body: { feedUrl: url.trim() } });
+      const podcast = await api<PodcastSummary>(apiPaths.podcasts, { method: "POST", body: { feedUrl: url.trim() } });
       setUrl("");
       toast(`Subscribed to ${podcast.title}`);
       onAdded(podcast.id);
@@ -371,7 +371,7 @@ function AddPodcastSheet({
     setBusy(true);
     setMessage({ text: "Importing… large lists can take a minute.", error: false });
     try {
-      const res = await fetch("/api/podcasts/opml", { method: "POST", headers: { "Content-Type": "text/xml" }, body: await file.text() });
+      const res = await fetch(apiPaths.podcastsOpml, { method: "POST", headers: { "Content-Type": "text/xml" }, body: await file.text() });
       const data = (await res.json()) as OpmlImportResult | { error: string };
       if (!res.ok || "error" in data) throw new Error("error" in data ? data.error : "Import failed.");
       const failed = data.failed.length ? ` ${data.failed.length} couldn't be loaded.` : "";
@@ -422,7 +422,7 @@ function AddPodcastSheet({
             }}
           />
         </label>
-        <a className="btn" style={{ flex: 1 }} href="/api/podcasts/opml" download="murmur-podcasts.opml">
+        <a className="btn" style={{ flex: 1 }} href={apiPaths.podcastsOpml} download="murmur-podcasts.opml">
           Export OPML
         </a>
       </div>

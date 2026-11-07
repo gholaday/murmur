@@ -1,16 +1,17 @@
 import { AppState } from "react-native";
-import { CHANGES_HEADER, type ChangeKind, createChangesPoller } from "@murmur/shared/client";
+import { apiPaths, CHANGES_HEADER, type ChangeKind, createChangesPoller } from "@murmur/shared/client";
 import { absolute, authHeaders, onChangesHeader } from "./api";
-import { keys } from "./data";
 import { queryClient } from "./query";
-import { invalidateWatch, watchKeys } from "./watch";
+import { keys } from "./query-keys";
+import { invalidateWatch } from "./watch";
 
 // Live updates: new books, music, movies and shows appear as scans find them, and posters as
 // matching lands. The poller is in packages/shared/src/changes.ts; this wires it to the app.
 
-const QUERIES: Record<Exclude<ChangeKind, "watch">, string[]> = {
-  books: ["books", "book"],
-  music: ["music", "albums", "album", "artists", "artist", "tracks"],
+const { all } = keys;
+const QUERIES: Record<Exclude<ChangeKind, "watch">, (readonly unknown[])[]> = {
+  books: [all.books, all.book],
+  music: [all.music, all.albums, all.album, all.artists, all.artist, all.tracks],
 };
 
 // A request that hangs gives up, so the next poll still runs.
@@ -18,11 +19,11 @@ const TIMEOUT_MS = 15_000;
 
 const poller = createChangesPoller({
   fetchToken: async () =>
-    (await fetch(absolute("/api/changes"), { headers: authHeaders(), signal: AbortSignal.timeout(TIMEOUT_MS) })).headers.get(CHANGES_HEADER),
+    (await fetch(absolute(apiPaths.changes), { headers: authHeaders(), signal: AbortSignal.timeout(TIMEOUT_MS) })).headers.get(CHANGES_HEADER),
   onChange: (kinds) => {
     for (const kind of kinds) {
       if (kind === "watch") invalidateWatch();
-      else for (const key of QUERIES[kind]) void queryClient.invalidateQueries({ queryKey: [key] });
+      else for (const queryKey of QUERIES[kind]) void queryClient.invalidateQueries({ queryKey });
     }
   },
 });
@@ -37,7 +38,7 @@ let leftAt = 0;
 function cameBack() {
   poller.start();
   if (!leftAt || Date.now() - leftAt < AWAY_MS) return;
-  for (const queryKey of [keys.books, keys.podcasts, keys.newEpisodes, keys.continueEpisodes, keys.serverVersion, watchKeys.home]) void queryClient.invalidateQueries({ queryKey });
+  for (const queryKey of [keys.books, keys.podcasts, keys.newEpisodes, keys.continueEpisodes, keys.serverVersion, keys.watch.home]) void queryClient.invalidateQueries({ queryKey });
 }
 
 // Only while the app is in front.

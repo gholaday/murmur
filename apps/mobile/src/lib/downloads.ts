@@ -10,6 +10,7 @@ import {
   loadSubtitleCues,
   type MovieDetail,
   type ShowDetail,
+  storageKeys,
   type TrackDto,
   type VideoDownloadDto,
   type VideoEpisode,
@@ -26,7 +27,7 @@ import { createStore } from "./store";
 // with no connection at all. An album is one download of all its songs; a song can also be
 // downloaded on its own. A movie or TV episode is one video file, plus its pictures.
 
-const INDEX_KEY = "murmur.downloads";
+const INDEX_KEY = storageKeys.downloads;
 
 /** "podcast" is a podcast episode; "show" is a TV show's episode. */
 type DownloadType = "book" | "podcast" | "album" | "track" | "movie" | "show";

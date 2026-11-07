@@ -44,7 +44,7 @@ export function EpisodeRow({
   const toggleNotes = () => {
     setOpen((o) => !o);
     if (!open && episode.descriptionCut && fullNotes === null) {
-      api<EpisodeWithShow>(`/api/episodes/${episode.id}`)
+      api<EpisodeWithShow>(apiPaths.episode(episode.id))
         .then((e) => setFullNotes(e.description ?? ""))
         .catch(() => {
           // The excerpt stays; nothing else to do.

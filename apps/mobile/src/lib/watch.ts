@@ -12,29 +12,21 @@ import {
   timeLeft,
   type VideoEpisode,
   type VideoFileInfo,
-  videoLanguageKey,
   type VideoQuality,
-  videoSubtitleKey,
   type VideoSubtitleTrack,
-  videoVersionKey,
+  storageKeys,
   type WatchHomeDto,
 } from "@murmur/shared/client";
 import { api } from "./api";
 import { savedMovie, savedShow } from "./downloads";
 import { queryClient } from "./query";
+import { keys } from "./query-keys";
 import { getJson, removeKey, setJson } from "./storage";
 import { queueProgress } from "@/player/progress";
 
 // Watch: movies and TV shows. The lists and pages, marking things watched, and where screens go.
 
-export const watchKeys = {
-  all: ["watch"] as const,
-  home: ["watch", "home"] as const,
-  movies: ["watch", "movies"] as const,
-  movie: (id: string) => ["watch", "movie", id] as const,
-  shows: ["watch", "shows"] as const,
-  show: (id: string) => ["watch", "show", id] as const,
-};
+export const watchKeys = keys.watch;
 
 export const useWatchHome = () => useQuery({ queryKey: watchKeys.home, queryFn: () => api<WatchHomeDto>(apiPaths.watchHome) });
 export const useMovies = (enabled = true) => useQuery({ queryKey: watchKeys.movies, queryFn: () => api<MovieSummary[]>(apiPaths.movies), enabled });
@@ -97,22 +89,22 @@ export const openVideoPlayer = (target: WatchTarget) => router.push({ pathname: 
 // ---------- Audio tracks and quality ----------
 
 /** The audio language picked for a movie or show, so its next file opens with the same one. */
-export const readVideoLanguage = (key: string) => getJson<string>(videoLanguageKey(key));
+export const readVideoLanguage = (key: string) => getJson<string>(storageKeys.videoAudio(key));
 
 export function saveVideoLanguage(key: string, language: string | null) {
-  if (language) setJson(videoLanguageKey(key), language);
-  else removeKey(videoLanguageKey(key));
+  if (language) setJson(storageKeys.videoAudio(key), language);
+  else removeKey(storageKeys.videoAudio(key));
 }
 
 /** The subtitle language picked for a movie or show, on this phone. */
-export const readVideoSubtitle = (key: string) => getJson<string>(videoSubtitleKey(key));
+export const readVideoSubtitle = (key: string) => getJson<string>(storageKeys.videoSubtitle(key));
 
-export const saveVideoSubtitle = (key: string, track: VideoSubtitleTrack | null) => setJson(videoSubtitleKey(key), subtitleMemory(track));
+export const saveVideoSubtitle = (key: string, track: VideoSubtitleTrack | null) => setJson(storageKeys.videoSubtitle(key), subtitleMemory(track));
 
 /** The version picked for a movie, on this phone. */
-export const readVideoVersion = (movieId: string) => getJson<string>(videoVersionKey(movieId));
+export const readVideoVersion = (movieId: string) => getJson<string>(storageKeys.videoVersion(movieId));
 
-export const saveVideoVersion = (movieId: string, versionId: string) => setJson(videoVersionKey(movieId), versionId);
+export const saveVideoVersion = (movieId: string, versionId: string) => setJson(storageKeys.videoVersion(movieId), versionId);
 
 /** Details saved on the phone before subtitles came in list tracks with no id, which can't be fetched. */
 export const subtitleTracks = (file: VideoFileInfo) => file.subtitleTracks.filter((t) => t.id);
@@ -120,7 +112,7 @@ export const subtitleTracks = (file: VideoFileInfo) => file.subtitleTracks.filte
 // Media3 plays nearly any picture, so what this phone can't decode is only known once a file is
 // tried (10-bit HEVC on an older phone, say). The codecs that failed are kept, so the next file
 // like that goes straight to a converted stream and its page offers the quality.
-const UNPLAYABLE_KEY = "murmur.videoUnplayable";
+const UNPLAYABLE_KEY = storageKeys.videoUnplayable;
 
 /** The codec and its profile ("hvc1.2.4" for 10-bit HEVC), without the level and flags that vary by file. */
 const codecKind = (codec: string) => codec.replace(/^hev1/, "hvc1").split(".").slice(0, 3).join(".");

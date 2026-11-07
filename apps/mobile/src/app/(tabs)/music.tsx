@@ -9,6 +9,8 @@ import {
   type AlbumSummary,
   type ArtistSummary,
   type JumpBackItem,
+  MUSIC_TABS,
+  type MusicTab,
   plural,
   type PlaylistSummary,
   sortAlbums,
@@ -29,15 +31,6 @@ import { useSession } from "@/lib/session";
 import { playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
-type View_ = "home" | "albums" | "artists" | "songs" | "playlists";
-
-const VIEWS: { id: View_; label: string }[] = [
-  { id: "home", label: "Home" },
-  { id: "playlists", label: "Playlists" },
-  { id: "albums", label: "Albums" },
-  { id: "artists", label: "Artists" },
-  { id: "songs", label: "Songs" },
-];
 
 type Item =
   | { kind: "albums"; key: string; albums: AlbumSummary[] }
@@ -67,7 +60,7 @@ export default function Music() {
   const top = useTopInset();
   const width = useGridWidth();
   const shelfWidth = useShelfWidth();
-  const [picked, setPicked] = useState<View_>("home");
+  const [picked, setPicked] = useState<MusicTab>("home");
   const [sortOpen, setSortOpen] = useState(false);
   const [song, setSong] = useState<TrackDto | null>(null);
   const [naming, setNaming] = useState(false);
@@ -83,14 +76,14 @@ export default function Music() {
   const home = useMusicHome();
   // A server from before Home has none: no chip, and Albums first.
   const noHome = home.data === null;
-  const view: View_ = noHome && picked === "home" ? "albums" : picked;
+  const view: MusicTab = noHome && picked === "home" ? "albums" : picked;
   const tabFade = useTabFade(view);
-  const views = noHome ? VIEWS.filter((v) => v.id !== "home") : VIEWS;
+  const views = noHome ? MUSIC_TABS.filter((v) => v.id !== "home") : MUSIC_TABS;
   // Home lists the first few; a tap queues the whole list from that song.
   const repeatAll = useMemo(() => home.data?.onRepeat ?? [], [home.data]);
   const onRepeat = useMemo(() => repeatAll.slice(0, ON_REPEAT_ROWS), [repeatAll]);
   // Artists and songs load the first time their chip is picked.
-  const [seen, setSeen] = useState<Set<View_>>(() => new Set(["albums"]));
+  const [seen, setSeen] = useState<Set<MusicTab>>(() => new Set(["albums"]));
   const artists = useArtists("mine", seen.has("artists"));
   const tracks = useTracks("mine", seen.has("songs"));
   // Everything else: for "Add all" when you have nothing yet.
@@ -152,7 +145,7 @@ export default function Music() {
     return out;
   }, [view, albums.data, artists.data, tracks.data, playlists.data, home.data, onRepeat, sort]);
 
-  const pick = (next: View_) => {
+  const pick = (next: MusicTab) => {
     setPicked(next);
     setSeen((s) => (s.has(next) ? s : new Set(s).add(next)));
   };

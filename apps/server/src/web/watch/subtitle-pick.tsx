@@ -10,7 +10,7 @@ import {
   subtitleRows,
   type VideoFileInfo,
   type VideoSubtitleTrack,
-  videoSubtitleKey,
+  storageKeys,
 } from "@murmur/shared/client";
 import { ChevronIcon } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
@@ -18,7 +18,7 @@ import { Sheet, SheetItem } from "../sheet";
 /** The subtitle language picked for a movie or show, on this device. */
 export function readSubtitle(key: string): string | null {
   try {
-    return localStorage.getItem(videoSubtitleKey(key));
+    return localStorage.getItem(storageKeys.videoSubtitle(key));
   } catch {
     return null;
   }
@@ -26,7 +26,7 @@ export function readSubtitle(key: string): string | null {
 
 export function saveSubtitle(key: string, track: VideoSubtitleTrack | null) {
   try {
-    localStorage.setItem(videoSubtitleKey(key), subtitleMemory(track));
+    localStorage.setItem(storageKeys.videoSubtitle(key), subtitleMemory(track));
   } catch {
     // Not remembered in a private window.
   }

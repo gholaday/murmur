@@ -13,6 +13,7 @@ import {
   albumCover,
   errorText,
   plural,
+  apiPaths,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { scoreClass } from "../book/match-dialog";
@@ -25,7 +26,7 @@ import { ALBUM_FIELDS, AlbumMatchDialog, lastAlbumFields } from "./match";
 // Match all for albums, the same screen as books' bulk match: a Match all button over the
 // unmatched albums, the run's progress, and its results to review.
 
-const PATH = "/api/music/match";
+const PATH = apiPaths.musicMatch;
 const POLL_MS = 1500;
 /** Review results this sure start ticked; the rest you tick yourself. */
 const PICK_AT = 80;

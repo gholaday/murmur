@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { CHANGES_HEADER, createChangesPoller } from "@murmur/shared/client";
+import { apiPaths, CHANGES_HEADER, createChangesPoller } from "@murmur/shared/client";
 
 let poller: ReturnType<typeof createChangesPoller> | null = null;
 
@@ -16,7 +16,7 @@ export function useLiveChanges() {
   const router = useRouter();
   useEffect(() => {
     const p = createChangesPoller({
-      fetchToken: () => fetch("/api/changes").then((r) => r.headers.get(CHANGES_HEADER)),
+      fetchToken: () => fetch(apiPaths.changes).then((r) => r.headers.get(CHANGES_HEADER)),
       // The server components reload in place; nothing on the page resets.
       onChange: () => router.refresh(),
     });

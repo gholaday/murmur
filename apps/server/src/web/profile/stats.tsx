@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   duration,
   localDay,
+  apiPaths,
   ringPaths,
   ringToday,
   sparkPaths,
@@ -47,9 +48,7 @@ function useStats(period: StatsPeriod, year?: number) {
   const key = `${period}:${year ?? ""}`;
   useEffect(() => {
     let live = true;
-    const q = new URLSearchParams({ period, today: localDay(), tz: String(-new Date().getTimezoneOffset()) });
-    if (year) q.set("year", String(year));
-    api<StatsDto>(`/api/stats?${q}`).then(
+    api<StatsDto>(apiPaths.stats({ period, today: localDay(), tz: String(-new Date().getTimezoneOffset()), year })).then(
       (dto) => {
         if (!live) return;
         setStats({ key, dto });

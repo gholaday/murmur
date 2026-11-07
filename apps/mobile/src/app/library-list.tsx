@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FlatList, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { type AlbumSummary, type BookSummary, bookIssues } from "@murmur/shared/client";
+import { type AlbumSummary, type BookSummary, bookIssues, LIBRARY_LISTS, type LibraryList } from "@murmur/shared/client";
 import { BookCard } from "@/components/book-card";
 import { GAP, gridRows, PAD, useGridWidth } from "@/components/library";
 import { BookEditSheet } from "@/components/book-edit";
@@ -15,9 +15,7 @@ import { CoverGridBones, FadeIn, Skeleton, useJustLoaded } from "@/components/sk
 import { useAlbums, useBooks } from "@/lib/data";
 import { useTheme } from "@/theme";
 
-type LibraryList = "attention" | "unmatched" | "albums";
-
-const LIBRARY_LISTS: Record<LibraryList, { title: string; sub: string; empty: string }> = {
+const LIST_TEXT: Record<LibraryList, { title: string; sub: string; empty: string }> = {
   attention: { title: "Needs attention", sub: "Books with no cover, no author or missing files", empty: "Nothing to fix here." },
   unmatched: { title: "Not matched", sub: "Books with no online match yet", empty: "Every book is matched." },
   albums: { title: "Not matched", sub: "Albums with no online match yet", empty: "Every album is matched." },
@@ -26,7 +24,7 @@ const LIBRARY_LISTS: Record<LibraryList, { title: string; sub: string; empty: st
 /** One of You > Library's lists for admins, opened from its row. */
 export default function LibraryListScreen() {
   const params = useLocalSearchParams<{ list?: string }>();
-  const list: LibraryList = params.list === "unmatched" || params.list === "albums" ? params.list : "attention";
+  const list: LibraryList = LIBRARY_LISTS.find((l) => l === params.list) ?? "attention";
   if (list === "attention") return <AttentionList />;
   return <UnmatchedList kind={list === "albums" ? "albums" : "books"} />;
 }
@@ -141,7 +139,7 @@ function ListScreen({
   const bottom = useBottomPad();
   const pull = usePullRefresh(refresh);
   const fade = useJustLoaded(!loading);
-  const { title, sub, empty: emptyText } = LIBRARY_LISTS[list];
+  const { title, sub, empty: emptyText } = LIST_TEXT[list];
   const data: Cell[] = loading
     ? [{ key: "loading", node: <Skeleton><CoverGridBones count={6} /></Skeleton> }]
     : empty

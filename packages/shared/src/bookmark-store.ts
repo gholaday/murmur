@@ -8,6 +8,7 @@ import { newBookmarkId } from "./bookmarks";
 import type { BookmarkDto, BookmarkItem, ChapterDto, PlayType } from "./index";
 import { addTo } from "./library";
 import { chapterAt } from "./player";
+import { storageKeys } from "./storage-keys";
 
 /** What a bookmark needs from the item it's in; a Playable fits. */
 export interface BookmarkTarget {
@@ -48,8 +49,8 @@ export interface BookmarkPlatform {
 
 type Op = { op: "upsert"; bookmark: BookmarkDto } | { op: "delete"; bookmark: BookmarkDto };
 
-const LIST_KEY = "murmur.bookmarks";
-const OUTBOX_KEY = "murmur.bookmarkOutbox";
+const LIST_KEY = storageKeys.bookmarks;
+const OUTBOX_KEY = storageKeys.bookmarkOutbox;
 const NONE: BookmarkDto[] = [];
 
 const apply = (list: BookmarkDto[], o: Op) => {

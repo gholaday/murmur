@@ -6,6 +6,7 @@ import {
   type AlbumMatchPreview,
   type AlbumMatchSearch,
   type AlbumMatchValues,
+  apiPaths,
   type ArtistPhotoOption,
   duration,
   errorText,
@@ -15,6 +16,7 @@ import {
   type MatchValues,
   plural,
   seriesLabel,
+  storageKeys,
 } from "@murmur/shared/client";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/query";
@@ -54,8 +56,8 @@ export const ALBUM_FIELDS: { field: AlbumMatchField; label: string; text: (v: Al
 ];
 
 // The fields last applied, ticked again at the next review; the same keys as the web's.
-const BOOK_FIELDS_KEY = "murmur.matchFields";
-const ALBUM_FIELDS_KEY = "murmur.albumMatchFields";
+const BOOK_FIELDS_KEY = storageKeys.matchFields;
+const ALBUM_FIELDS_KEY = storageKeys.albumMatchFields;
 
 function lastOf<F extends string>(key: string, known: { field: F }[]): F[] | null {
   const raw = getJson<unknown>(key);
@@ -121,7 +123,7 @@ export function useBookMatch(bookId: string, shown: boolean, onApplied: () => vo
   useEffect(() => {
     if (!started) return;
     let live = true;
-    api<MatchSearchResult>(`/api/books/${bookId}/match`).then(
+    api<MatchSearchResult>(apiPaths.bookMatch(bookId)).then(
       (r) => live && show(r, false),
       (err: unknown) => live && failed(err),
     );
@@ -132,7 +134,7 @@ export function useBookMatch(bookId: string, shown: boolean, onApplied: () => vo
   const search = async (custom: { title: string; author: string }) => {
     setBusy(true);
     try {
-      show(await api<MatchSearchResult>(`/api/books/${bookId}/match?${new URLSearchParams(custom)}`), true);
+      show(await api<MatchSearchResult>(apiPaths.bookMatch(bookId, custom)), true);
     } catch (err) {
       failed(err);
     } finally {
@@ -145,7 +147,7 @@ export function useBookMatch(bookId: string, shown: boolean, onApplied: () => vo
     if (!c) return;
     setBusy(true);
     try {
-      const p = await api<MatchPreview>(`/api/books/${bookId}/match/preview?${new URLSearchParams({ provider: c.provider, providerId: c.providerId })}`);
+      const p = await api<MatchPreview>(apiPaths.bookMatchPreview(bookId, c));
       setPreview(p);
       setChosen(new Set(lastBookFields() ?? p.recommended));
     } catch (err) {
@@ -165,7 +167,7 @@ export function useBookMatch(bookId: string, shown: boolean, onApplied: () => vo
     if (!preview || fields.length === 0) return;
     setBusy(true);
     try {
-      await api(`/api/books/${bookId}/match`, { method: "POST", body: { provider: preview.provider, providerId: preview.providerId, fields } });
+      await api(apiPaths.bookMatch(bookId), { method: "POST", body: { provider: preview.provider, providerId: preview.providerId, fields } });
       setJson(BOOK_FIELDS_KEY, [...chosen]);
       toast.show("Match applied");
       void queryClient.invalidateQueries();
@@ -274,7 +276,7 @@ function AlbumMatch({ album, open, onClose }: { album: AlbumRef; open: boolean; 
   // The first search is for what the album has; later ones are for what's typed.
   useEffect(() => {
     let live = true;
-    api<AlbumMatchSearch>(`/api/music/albums/${album.id}/match`).then(
+    api<AlbumMatchSearch>(apiPaths.albumMatch(album.id)).then(
       (r) => live && show(r, false),
       (err: unknown) => live && failed(err),
     );
@@ -285,7 +287,7 @@ function AlbumMatch({ album, open, onClose }: { album: AlbumRef; open: boolean; 
   const search = async (custom: { title: string; artist: string }) => {
     setBusy(true);
     try {
-      show(await api<AlbumMatchSearch>(`/api/music/albums/${album.id}/match?${new URLSearchParams(custom)}`), true);
+      show(await api<AlbumMatchSearch>(apiPaths.albumMatch(album.id, custom)), true);
     } catch (err) {
       failed(err);
     } finally {
@@ -298,9 +300,7 @@ function AlbumMatch({ album, open, onClose }: { album: AlbumRef; open: boolean; 
     if (!c) return;
     setBusy(true);
     try {
-      const p = await api<AlbumMatchPreview>(
-        `/api/music/albums/${album.id}/match/preview?${new URLSearchParams({ provider: c.provider, providerId: c.providerId })}`,
-      );
+      const p = await api<AlbumMatchPreview>(apiPaths.albumMatchPreview(album.id, c));
       setPreview(p);
       setChosen(new Set(lastAlbumFields() ?? p.recommended));
     } catch (err) {
@@ -320,7 +320,7 @@ function AlbumMatch({ album, open, onClose }: { album: AlbumRef; open: boolean; 
     if (!preview || fields.length === 0) return;
     setBusy(true);
     try {
-      await api(`/api/music/albums/${album.id}/match`, { method: "POST", body: { provider: preview.provider, providerId: preview.providerId, fields } });
+      await api(apiPaths.albumMatch(album.id), { method: "POST", body: { provider: preview.provider, providerId: preview.providerId, fields } });
       setJson(ALBUM_FIELDS_KEY, [...chosen]);
       toast.show("Match applied");
       void queryClient.invalidateQueries();
@@ -414,7 +414,7 @@ function ArtistPhoto({ artist, open, onClose }: { artist: ArtistRef; open: boole
   const [query, setQuery] = useState(artist.name);
   const [busy, setBusy] = useState(false);
 
-  const url = `/api/music/artists/${artist.id}/photo/options`;
+  const url = apiPaths.artistPhotoOptions(artist.id);
   useEffect(() => {
     let live = true;
     api<ArtistPhotoOption[]>(url).then(
@@ -432,7 +432,7 @@ function ArtistPhoto({ artist, open, onClose }: { artist: ArtistRef; open: boole
   const search = async (q: string) => {
     setBusy(true);
     try {
-      setOptions(await api<ArtistPhotoOption[]>(`${url}?${new URLSearchParams({ q })}`));
+      setOptions(await api<ArtistPhotoOption[]>(apiPaths.artistPhotoOptions(artist.id, q)));
     } catch (err) {
       toast.error(errorText(err));
       setOptions([]);
@@ -444,7 +444,7 @@ function ArtistPhoto({ artist, open, onClose }: { artist: ArtistRef; open: boole
   const pick = async (providerId: string | null) => {
     setBusy(true);
     try {
-      await api(`/api/music/artists/${artist.id}/photo`, { method: "PUT", body: { providerId } });
+      await api(apiPaths.artistPhoto(artist.id), { method: "PUT", body: { providerId } });
       toast.show(providerId ? "Photo changed" : "Using the album cover");
       void queryClient.invalidateQueries();
       onClose();

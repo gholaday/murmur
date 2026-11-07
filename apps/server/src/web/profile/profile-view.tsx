@@ -126,7 +126,7 @@ export function ProfileView({
               {cache ? <EpisodeCacheCard cache={cache} onChanged={refresh} /> : null}
               <SettingsCard>
                 <Setting title="Export subscriptions">
-                  <a className="btn" href="/api/podcasts/opml" download="murmur-podcasts.opml">
+                  <a className="btn" href={apiPaths.podcastsOpml} download="murmur-podcasts.opml">
                     Export
                   </a>
                 </Setting>
@@ -367,7 +367,7 @@ function PasswordForm({ username, isAdmin }: { username: string; isAdmin: boolea
             setBusy(true);
             setError(null);
             try {
-              await api("/api/me/password", {
+              await api(apiPaths.password, {
                 method: "PUT",
                 body: { currentPassword: data.get("currentPassword"), newPassword: data.get("newPassword") },
               });
@@ -446,17 +446,17 @@ function TmdbCredit() {
 const SCAN_POLL_MS = 2000;
 
 /** A kind's count and scan status, with Rescan; spins until the scan is done, then refreshes. */
-function ScanRow({ title, scan, url, kind }: { title: string; scan: ScanStatusDto; url: string; kind: keyof LibraryAdminDto }) {
+function ScanRow({ title, scan, kind }: { title: string; scan: ScanStatusDto; kind: keyof typeof apiPaths.scan }) {
   const router = useRouter();
   const [scanning, setScanning] = useState(false);
   const running = scanning || scan.running;
   const rescan = async () => {
     setScanning(true);
     try {
-      await api(url, { method: "POST" });
+      await api(apiPaths.scan[kind], { method: "POST" });
       for (;;) {
         await new Promise((r) => setTimeout(r, SCAN_POLL_MS));
-        if (!(await api<LibraryAdminDto>("/api/library/admin"))[kind].scan.running) break;
+        if (!(await api<LibraryAdminDto>(apiPaths.libraryAdmin))[kind].scan.running) break;
       }
       router.refresh();
     } catch (err) {
@@ -499,7 +499,7 @@ function EpisodeCacheCard({ cache, onChanged }: { cache: EpisodeCacheStatusDto; 
               onClick={async () => {
                 setBusy(true);
                 try {
-                  await api("/api/server/cache", { method: "PUT", body: { episodesPerShow: n } });
+                  await api(apiPaths.episodeCache, { method: "PUT", body: { episodesPerShow: n } });
                   onChanged();
                 } catch (err) {
                   toast.error(errorText(err));
@@ -533,7 +533,7 @@ function EpisodeCacheCard({ cache, onChanged }: { cache: EpisodeCacheStatusDto; 
               onClick={async () => {
                 setBusy(true);
                 try {
-                  await api("/api/server/ads/retry", { method: "POST" });
+                  await api(apiPaths.adsRetry, { method: "POST" });
                   toast("Failed scans will run again.");
                   onChanged();
                 } catch (err) {
@@ -572,14 +572,14 @@ function LibraryAdmin({
     <>
       <h2 className="section-title">Books</h2>
       <SettingsCard>
-        <ScanRow title={plural(libraryAdmin.books.total, "book")} scan={libraryAdmin.books.scan} url="/api/library/scan" kind="books" />
+        <ScanRow title={plural(libraryAdmin.books.total, "book")} scan={libraryAdmin.books.scan} kind="books" />
         <SettingLink title="Needs attention" dot={libraryAdmin.books.attention ? "warn" : undefined} value={plural(libraryAdmin.books.attention, "book")} href="/you/library/attention" />
         <SettingLink title="Not matched" value={plural(libraryAdmin.books.unmatched, "book")} href="/you/library/unmatched" />
       </SettingsCard>
       <FoldersCard folders={folders} />
       <h2 className="section-title">Music</h2>
       <SettingsCard>
-        <ScanRow title={plural(libraryAdmin.music.albums, "album")} scan={libraryAdmin.music.scan} url="/api/music/scan" kind="music" />
+        <ScanRow title={plural(libraryAdmin.music.albums, "album")} scan={libraryAdmin.music.scan} kind="music" />
         <SettingLink title="Not matched" value={plural(libraryAdmin.music.unmatched, "album")} href="/you/library/albums" />
       </SettingsCard>
       {musicFolders.length === 0 ? (
@@ -594,7 +594,6 @@ function LibraryAdmin({
         <ScanRow
           title={`${plural(libraryAdmin.watch.movies, "movie")} and ${plural(libraryAdmin.watch.shows, "show")}`}
           scan={libraryAdmin.watch.scan}
-          url="/api/watch/scan"
           kind="watch"
         />
         {video ? (
@@ -660,7 +659,7 @@ function SignOut({ onSignOut }: { onSignOut: () => Promise<void> }) {
           // The last progress save has to land before the token goes.
           await onSignOut();
           forgetBookmarks();
-          await fetch("/api/auth/logout", { method: "POST" });
+          await fetch(apiPaths.logout, { method: "POST" });
           window.location.href = "/login";
         }}
         onClose={() => setAsking(false)}
@@ -678,7 +677,7 @@ function UsersCard({ me, users, onChanged }: { me: UserDto; users: UserDto[]; on
   const remove = async (u: UserDto) => {
     setBusy(true);
     try {
-      await api(`/api/users/${u.id}`, { method: "DELETE" });
+      await api(apiPaths.user(u.id), { method: "DELETE" });
       toast(`Removed ${u.username}`);
       onChanged();
     } catch (err) {
@@ -725,7 +724,7 @@ function UsersCard({ me, users, onChanged }: { me: UserDto; users: UserDto[]; on
             setBusy(true);
             setError(null);
             try {
-              await api("/api/users", {
+              await api(apiPaths.users, {
                 method: "POST",
                 body: { username: data.get("username"), password: data.get("password"), isAdmin: data.get("isAdmin") === "on" },
               });

@@ -9,7 +9,7 @@ import {
   matchesBook,
   type MovieSummary,
   parseRecent,
-  RECENT_SEARCHES_KEY,
+  storageKeys,
   SEARCH_LIMIT,
   type SearchKind,
   type SearchResultsDto,
@@ -20,7 +20,7 @@ import {
   withRecent,
 } from "@murmur/shared/client";
 import { api, HttpError } from "./api";
-import { keys } from "./data";
+import { keys, keyStartsWith } from "./query-keys";
 import { type Download, useDownloads } from "./downloads";
 import { queryClient, useOnline } from "./query";
 import { getJson } from "./storage";
@@ -35,7 +35,7 @@ export const searchText = createStore("");
 /** The Search screen's tab. */
 export const searchKind = createStore<SearchKind>("all");
 
-const recent = createSavedStore<string[]>(RECENT_SEARCHES_KEY, parseRecent(getJson<unknown>(RECENT_SEARCHES_KEY)));
+const recent = createSavedStore<string[]>(storageKeys.recentSearches, parseRecent(getJson<unknown>(storageKeys.recentSearches)));
 export const useRecentSearches = recent.useValue;
 
 /** Puts a search first in the recent list, once. */
@@ -56,13 +56,13 @@ export function useDebounced<T>(value: T, ms = 200): T {
 }
 
 const searchQuery = (q: string, kind: SearchKind, enabled: boolean) => ({
-  queryKey: ["search", q, kind],
+  queryKey: keys.search(q, kind),
   queryFn: () => api<SearchResultsDto>(apiPaths.search(q, kind)),
   enabled: enabled && !!q,
   // The last results stay up while the next ones load, so the list doesn't blink per letter;
   // only the same kind's, as another kind's wouldn't fit the tab.
   placeholderData: (prev: SearchResultsDto | undefined, prevQuery?: { queryKey: readonly unknown[] }) =>
-    prevQuery?.queryKey[2] === kind ? prev : undefined,
+    prevQuery && keyStartsWith(prevQuery.queryKey, keys.searchKind(kind)) ? prev : undefined,
   retry: false,
 });
 

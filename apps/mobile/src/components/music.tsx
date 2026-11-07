@@ -14,6 +14,7 @@ import {
   type UpNextSource,
   songLength,
   songSub,
+  storageKeys,
   type TrackDto,
 } from "@murmur/shared/client";
 import { setInMusic, useAlbum } from "@/lib/data";
@@ -102,11 +103,14 @@ export function AlbumActions({ album, open, onClose, onIdle }: { album: AlbumSum
 
 // ---------- Album sort, kept on this phone ----------
 
-const albumSort = createSavedStore<AlbumSort>("murmur.albumSort", "added");
+const albumSort = createSavedStore<AlbumSort>(storageKeys.albumSort, "added");
 
 const setAlbumSort = albumSort.set;
 
 export const useAlbumSort = albumSort.useValue;
+
+/** The album sort, for code outside React (Android Auto). */
+export const getAlbumSort = albumSort.get;
 
 export function AlbumSortSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const sort = useAlbumSort();

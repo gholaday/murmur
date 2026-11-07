@@ -21,6 +21,7 @@ export * from "./shelves";
 export * from "./similar";
 export * from "./stats";
 export * from "./stats-page";
+export * from "./storage-keys";
 export * from "./subtitles";
 export * from "./up-next";
 export * from "./versions";

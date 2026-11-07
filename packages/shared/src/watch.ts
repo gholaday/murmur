@@ -11,8 +11,6 @@ export const WATCH_SORTS: Array<{ id: WatchSort; label: string }> = [
   { id: "title", label: "Title" },
   { id: "year", label: "Year" },
 ];
-/** Where the device keeps the Movies, Shows and Watched sort. */
-export const WATCH_SORT_KEY = "murmur.watchSort";
 
 /** Movies and shows in the picked order: newest added, A to Z (ignoring "The"), or newest year. */
 export function sortWatch<T>(items: T[], sort: WatchSort, of: (item: T) => { title: string; year: string | null; addedAt: number }): T[] {
@@ -474,12 +472,6 @@ export const VIDEO_PLAYER = {
   /** Your place is only saved once the video has moved this far from where it opened. */
   touchedAfterSec: 3,
 } as const;
-
-/** Where the audio language is remembered, per movie and per show. */
-export const videoLanguageKey = (key: string) => `murmur.videoAudio.${key}`;
-
-/** Where the version picked is remembered, per movie. */
-export const videoVersionKey = (movieId: string) => `murmur.videoVersion.${movieId}`;
 
 /** How far through, as a percentage, for progress bars. */
 export const percentDone = (positionSec: number, durationSec: number) => (durationSec ? Math.min(100, (positionSec / durationSec) * 100) : 0);

@@ -92,7 +92,7 @@ export function BookActions({ book, open, onClose, onIdle }: { book: BookSummary
     setEditing(tab);
   };
   const markMatched = async (marked: boolean) => {
-    await api(`/api/books/${book.id}/match/marked`, { method: marked ? "POST" : "DELETE" });
+    await api(apiPaths.bookMatchMarked(book.id),{ method: marked ? "POST" : "DELETE" });
     void queryClient.invalidateQueries();
   };
 

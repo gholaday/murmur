@@ -12,11 +12,8 @@ export const TEXT_SUBTITLE_CODECS = ["subrip", "webvtt", "mov_text"];
 /** Files beside a video that count as its subtitles. */
 export const SUBTITLE_EXTENSIONS = [".srt", ".vtt"];
 
-/** What `videoSubtitleKey` holds to say subtitles were turned off. */
+/** What `storageKeys.videoSubtitle` holds to say subtitles were turned off. */
 const SUBTITLES_OFF = "off";
-
-/** Where the subtitle language is remembered, per movie and per show. */
-export const videoSubtitleKey = (key: string) => `murmur.videoSubtitle.${key}`;
 
 export const SUBTITLE_ERROR = "Couldn't load subtitles";
 /** How long a player waits before saying the subtitles are still being made. */

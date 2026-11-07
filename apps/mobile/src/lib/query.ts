@@ -2,11 +2,12 @@ import { useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import * as Network from "expo-network";
 import { dehydrate, focusManager, hydrate, onlineManager, QueryClient, type DehydratedState, type Query } from "@tanstack/react-query";
-import { NOW_PLAYING_KEY } from "@murmur/shared/client";
+import { type SavedPlace, storageKeys } from "@murmur/shared/client";
+import { keys, keyStartsWith } from "./query-keys";
 import { getJson, removeKey, setJson } from "./storage";
 
-const LISTS_KEY = "murmur.queryCache";
-const DETAILS_KEY = "murmur.queryDetails";
+const LISTS_KEY = storageKeys.queryCache;
+const DETAILS_KEY = storageKeys.queryDetails;
 const SAVE_DELAY_MS = 2_000;
 const SAVED_EPISODES = 50;
 /** The most book, album, podcast and movie pages kept for the next launch, the newest ones. */
@@ -46,37 +47,40 @@ for (const q of queryClient.getQueryCache().getAll()) lastData.set(q.queryHash, 
  * saved copy (read in full at every launch) small. Pages are saved apart from the lists, so
  * opening one doesn't write every list again, and only the newest few are kept.
  */
-const PERSISTED = new Set([
-  "books",
-  "book",
-  "podcasts",
-  "podcast",
-  "episodes",
-  "episode",
-  "newEpisodes",
-  "continueEpisodes",
-  "upNext",
-  "prefs",
-  "music",
-  "album",
-  "artist",
-  "playlists",
-  "playlist",
+const { all } = keys;
+const PERSISTED = [
+  all.books,
+  all.book,
+  all.podcasts,
+  all.podcast,
+  all.episodes,
+  all.episode,
+  all.newEpisodes,
+  all.continueEpisodes,
+  all.upNext,
+  all.prefs,
+  all.music,
+  all.album,
+  all.artist,
+  all.playlists,
+  all.playlist,
+  // Albums, artists and songs come in two scopes; only your own is kept, not Browse's.
+  keys.albums("mine"),
+  keys.artists("mine"),
+  keys.tracks("mine"),
   // Movies and shows: the Watch tab, its lists and pages.
-  "watch",
-]);
-// Albums, artists and songs come in two scopes; only your own ("mine") is kept, not Browse's "all".
-const SCOPED = new Set(["albums", "artists", "tracks"]);
-const persisted = (key: readonly unknown[]) =>
-  PERSISTED.has(key[0] as string) || (SCOPED.has(key[0] as string) && key[1] === "mine");
+  keys.watch.all,
+];
+const persisted = (key: readonly unknown[]) => PERSISTED.some((p) => keyStartsWith(key, p));
 
-const DETAILS = new Set(["book", "podcast", "episodes", "episode", "album", "artist", "playlist"]);
-const isDetail = (key: readonly unknown[]) => DETAILS.has(key[0] as string) || (key[0] === "watch" && (key[1] === "movie" || key[1] === "show"));
+const DETAILS = [all.book, all.podcast, all.episodes, all.episode, all.album, all.artist, all.playlist, keys.watch.allMovies, keys.watch.allShows];
+const isDetail = (key: readonly unknown[]) => DETAILS.some((p) => keyStartsWith(key, p));
 
 /** The item playing, whose details put it back on the next launch however long ago they came in. */
 function playingDetail(key: readonly unknown[]) {
-  const now = getJson<{ itemType: string; itemId: string }>(NOW_PLAYING_KEY);
-  return !!now && key[0] === now.itemType && key[1] === now.itemId;
+  const now = getJson<SavedPlace>(storageKeys.nowPlaying);
+  const playing = now?.itemType === "book" ? keys.book(now.itemId) : now?.itemType === "episode" ? keys.episode(now.itemId) : null;
+  return !!playing && keyStartsWith(key, playing);
 }
 
 const worthSaving = (q: Query) => q.state.status === "success" && persisted(q.queryKey);
@@ -93,7 +97,7 @@ function saveDetails() {
   // A long-running show can list over a thousand episodes; offline, the newest ones are enough,
   // and the full list comes back on the next fetch.
   for (const q of state.queries) {
-    if (q.queryKey[0] === "episodes" && Array.isArray(q.state.data) && q.state.data.length > SAVED_EPISODES) {
+    if (keyStartsWith(q.queryKey, all.episodes) && Array.isArray(q.state.data) && q.state.data.length > SAVED_EPISODES) {
       q.state = { ...q.state, data: q.state.data.slice(0, SAVED_EPISODES), isInvalidated: true };
     }
   }

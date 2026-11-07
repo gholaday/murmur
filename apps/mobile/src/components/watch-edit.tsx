@@ -131,7 +131,7 @@ function WatchEdit({ kind, item, startTab, open, onClose }: { kind: "movie" | "s
   const [form, setForm] = useState(saved);
   const [busy, setBusy] = useState(false);
   const dirty = form.title !== saved.title || form.year !== saved.year || form.description !== saved.description;
-  const base = `/api/watch/${kind === "movie" ? "movies" : "shows"}/${item.id}`;
+  const base = apiPaths.watchItem(kind, item.id);
 
   const save = async () => {
     setBusy(true);
@@ -320,11 +320,8 @@ function Artwork({ kind, item, base, canSuggest }: { kind: "movie" | "show"; ite
   );
 }
 
-const matchSearch = (kind: "movie" | "show", q: string, y: string) => {
-  const params = new URLSearchParams({ kind, q });
-  if (/^\d{4}$/.test(y)) params.set("year", y);
-  return api<WatchMatchResult[]>(`/api/watch/match?${params}`);
-};
+const matchSearch = (kind: "movie" | "show", q: string, y: string) =>
+  api<WatchMatchResult[]>(apiPaths.watchMatchSearch({ kind, q, year: /^\d{4}$/.test(y) ? y : undefined }));
 
 /** Match, like the web's: the title and year to search, TMDB's results, and picking one applies it straight away. */
 function WatchMatchPanel({
@@ -382,7 +379,7 @@ function WatchMatchPanel({
   const pick = async (r: WatchMatchResult) => {
     setBusy(true);
     try {
-      await api(`/api/watch/${kind === "movie" ? "movies" : "shows"}/${id}/match`, { method: "POST", body: { tmdbId: r.tmdbId } });
+      await api(`${apiPaths.watchItem(kind, id)}/match`,{ method: "POST", body: { tmdbId: r.tmdbId } });
       toast.show(`Matched to ${r.title}`);
       invalidateWatch();
       onMatched();

@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import * as Haptics from "expo-haptics";
 import { AndroidHaptics } from "expo-haptics";
-import { HAPTICS_KEY } from "@murmur/shared/client";
+import { storageKeys } from "@murmur/shared/client";
 import { isIOS } from "./platform";
 import { createSavedStore } from "./store";
 
@@ -9,7 +9,7 @@ import { createSavedStore } from "./store";
 // constants, which feel like its keyboard and follow the phone's Touch feedback setting,
 // rather than driving the vibration motor directly.
 
-export const hapticsStore = createSavedStore(HAPTICS_KEY, true);
+export const hapticsStore = createSavedStore(storageKeys.haptics, true);
 
 export const useHapticsEnabled = hapticsStore.useValue;
 

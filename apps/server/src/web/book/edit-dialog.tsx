@@ -121,7 +121,7 @@ export function EditBookDialog({
 
   const load = useCallback(async () => {
     try {
-      adopt(await api<BookEditInfo>(`/api/books/${bookId}/edit`));
+      adopt(await api<BookEditInfo>(apiPaths.bookEdit(bookId)));
     } catch (err) {
       setError(errorText(err));
     }
@@ -164,7 +164,7 @@ export function EditBookDialog({
       if (detailsDirty && form) {
         const position = form.seriesPosition.trim() ? Number(form.seriesPosition) : null;
         if (position !== null && !Number.isFinite(position)) throw new Error("Book number has to be a number, like 2 or 2.5.");
-        next = await api<BookEditInfo>(`/api/books/${bookId}/details`, {
+        next = await api<BookEditInfo>(apiPaths.bookDetails(bookId), {
           method: "PUT",
           body: { ...form, seriesPosition: position },
         });
@@ -176,7 +176,7 @@ export function EditBookDialog({
           if (!r.title.trim()) throw new Error(`Chapter ${i + 1} needs a name.`);
           return { title: r.title.trim(), startSec };
         });
-        next = await api<BookEditInfo>(`/api/books/${bookId}/chapters`, { method: "PUT", body: { chapters } });
+        next = await api<BookEditInfo>(apiPaths.bookChapters(bookId), { method: "PUT", body: { chapters } });
       }
       return next;
     }, "Saved");
@@ -443,7 +443,7 @@ function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
 
   useEffect(() => {
     let live = true;
-    api<MatchSearchResult>(`/api/books/${book.id}/match`).then(
+    api<MatchSearchResult>(apiPaths.bookMatch(book.id)).then(
       (r) => live && setSuggestions(r),
       () => live && setSuggestions({ query: { title: "", author: null, asin: null }, candidates: [], suggested: null, errors: [] }),
     );
@@ -456,14 +456,14 @@ function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
     act(async () => {
       const body = new FormData();
       body.set("image", file);
-      const res = await fetch(`/api/books/${book.id}/cover`, { method: "POST", body });
+      const res = await fetch(apiPaths.bookCover(book.id), { method: "POST", body });
       const data = (await res.json().catch(() => null)) as (BookEditInfo & { error?: string }) | null;
       if (!res.ok) throw new Error(data?.error ?? `Upload failed (${res.status}).`);
       return data as BookEditInfo;
     }, "Cover updated");
 
   const fromUrl = (u: string) =>
-    act(() => api<BookEditInfo>(`/api/books/${book.id}/cover`, { method: "POST", body: { url: u } }), "Cover updated");
+    act(() => api<BookEditInfo>(apiPaths.bookCover(book.id), { method: "POST", body: { url: u } }), "Cover updated");
 
   const covers = (suggestions?.candidates ?? []).filter((c) => c.coverUrl).slice(0, 8);
 
@@ -485,7 +485,7 @@ function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
             type="button"
             className="btn"
             disabled={busy}
-            onClick={() => void act(() => api<BookEditInfo>(`/api/books/${book.id}/cover`, { method: "DELETE" }), "Using the files' cover")}
+            onClick={() => void act(() => api<BookEditInfo>(apiPaths.bookCover(book.id), { method: "DELETE" }), "Using the files' cover")}
           >
             {info.scannedCoverHash ? "Use the files' cover" : "Remove custom cover"}
           </button>
@@ -595,7 +595,7 @@ function ChaptersTab({
             type="button"
             className="btn"
             disabled={busy}
-            onClick={() => void act(() => api<BookEditInfo>(`/api/books/${info.book.id}/chapters`, { method: "PUT", body: { chapters: null } }), "Using the files' chapters")}
+            onClick={() => void act(() => api<BookEditInfo>(apiPaths.bookChapters(info.book.id), { method: "PUT", body: { chapters: null } }), "Using the files' chapters")}
           >
             Use the files&apos; chapters
           </button>
@@ -665,7 +665,7 @@ function FilesTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
           disabled={busy}
           onClick={() =>
             void act(async () => {
-              await api(`/api/books/${info.book.id}/rescan`, { method: "POST" });
+              await api(apiPaths.bookRescan(info.book.id), { method: "POST" });
             }, "Rescanning. Changes show in a moment.")
           }
         >
@@ -683,7 +683,7 @@ function FilesTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
                 disabled={busy}
                 onClick={() =>
                   void act(async () => {
-                    await api(`/api/books/${info.book.id}/match`, { method: "DELETE" });
+                    await api(apiPaths.bookMatch(info.book.id), { method: "DELETE" });
                     setConfirmUndo(false);
                   }, "Back to the files' details")
                 }

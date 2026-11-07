@@ -35,7 +35,7 @@ import {
   type VideoAudioTrack,
   type VideoEpisode,
   type VideoFileInfo,
-  videoLanguageKey,
+  storageKeys,
   type VideoSubtitleTrack,
   WATCHED_AT,
   cueAt,
@@ -128,7 +128,7 @@ function endStream(sessionId: string) {
 /** The audio language picked for a movie or show, so its next file opens with the same one. */
 function readLanguage(key: string): string | null {
   try {
-    return localStorage.getItem(videoLanguageKey(key));
+    return localStorage.getItem(storageKeys.videoAudio(key));
   } catch {
     return null;
   }
@@ -136,8 +136,8 @@ function readLanguage(key: string): string | null {
 
 function saveLanguage(key: string, language: string | null) {
   try {
-    if (language) localStorage.setItem(videoLanguageKey(key), language);
-    else localStorage.removeItem(videoLanguageKey(key));
+    if (language) localStorage.setItem(storageKeys.videoAudio(key), language);
+    else localStorage.removeItem(storageKeys.videoAudio(key));
   } catch {
     // Not remembered in a private window.
   }
@@ -655,7 +655,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
       if (!Number.isFinite(length) || !length) return;
       const at = seen.at;
       const finished = at >= length * WATCHED_AT;
-      void api("/api/progress", {
+      void api(apiPaths.progress, {
         method: "PUT",
         keepalive,
         body: {

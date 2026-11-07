@@ -12,7 +12,7 @@ import {
   type EpisodeWithShow,
   episodeToPlayable,
   isCurrent,
-  NOW_PLAYING_KEY,
+  storageKeys,
   type Playable,
   type PlayerMedia,
   type PlayerState,
@@ -473,7 +473,7 @@ export async function restorePlayer() {
 
 /** Puts back what was playing when the app closed, paused: from what's on the phone at once, then as the server has it. */
 async function restoreNowPlaying() {
-  const saved = getJson<SavedPlace>(NOW_PLAYING_KEY);
+  const saved = getJson<SavedPlace>(storageKeys.nowPlaying);
   if (!saved || core.getState().item) return;
   const cached = cachedPlayable(saved);
   // At the place saved with it, which is newer than the details.
@@ -503,7 +503,7 @@ async function refreshRestored(saved: SavedPlace, shownAt: number | null) {
     core.updateItem(fresh.type === "book" ? fresh : { ...cur, startAt: fresh.startAt, speed: fresh.speed }, fresh.startAt);
   } catch (err) {
     if (err instanceof HttpError && (err.status === 404 || err.status === 410)) {
-      if (shownAt === null) removeKey(NOW_PLAYING_KEY);
+      if (shownAt === null) removeKey(storageKeys.nowPlaying);
       else if (untouched()) core.clear();
       return;
     }

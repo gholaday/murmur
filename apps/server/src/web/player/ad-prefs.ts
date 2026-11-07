@@ -1,7 +1,9 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { AD_PREFS_KEY, type AdPrefs, DEFAULT_AD_PREFS, parseAdPrefs } from "@murmur/shared/client";
+import { type AdPrefs, DEFAULT_AD_PREFS, parseAdPrefs, storageKeys } from "@murmur/shared/client";
+
+const AD_PREFS_KEY = storageKeys.adPrefs;
 
 // The modes and skip rules are shared with the Android app; this keeps the browser's copy.
 export { AD_MODES, adBreak, adModeFor, adToSkip, playedThrough, setShowMode, type AdMode, type AdPrefs } from "@murmur/shared/client";

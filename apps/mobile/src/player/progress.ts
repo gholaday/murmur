@@ -1,6 +1,6 @@
 import { AppState } from "react-native";
 import { onlineManager } from "@tanstack/react-query";
-import { apiPaths, type ListeningStore, ListeningTracker, type ProgressItem, type UpNextSource } from "@murmur/shared/client";
+import { apiPaths, type ListeningStore, ListeningTracker, type ProgressItem, storageKeys, type UpNextSource } from "@murmur/shared/client";
 import { api, HttpError } from "@/lib/api";
 import { flushBookmarks, forgetBookmarks, refreshBookmarks } from "@/lib/bookmarks";
 import { invalidateProgress } from "@/lib/data";
@@ -9,8 +9,8 @@ import { getJson, removeKey, setJson } from "@/lib/storage";
 // Progress, listening time and song plays: saved on this phone first, so what happens offline
 // syncs later. The audio engine and the video player both save through here.
 
-const OUTBOX_KEY = "murmur.progressOutbox";
-const LISTENING_KEY = "murmur.listening";
+const OUTBOX_KEY = storageKeys.progressOutbox;
+const LISTENING_KEY = storageKeys.listening;
 /** How often listening time goes up while playing; a pause sends it right away. */
 const LISTENING_EVERY_MS = 60_000;
 
@@ -68,7 +68,7 @@ export async function flush(refreshLists = false, listeningNow = refreshLists) {
         flushAgain = false;
         const items = Object.values(getJson<Outbox>(OUTBOX_KEY) ?? {});
         if (items.length === 0) break;
-        await api("/api/progress", { method: "PUT", body: { items } });
+        await api(apiPaths.progress, { method: "PUT", body: { items } });
         // Drop what was sent unless it changed meanwhile.
         const now = getJson<Outbox>(OUTBOX_KEY) ?? {};
         for (const i of items) {
@@ -80,7 +80,7 @@ export async function flush(refreshLists = false, listeningNow = refreshLists) {
       } while (flushAgain);
       const report = listeningDue || Date.now() - listeningSentAt >= LISTENING_EVERY_MS ? listening.pending() : null;
       if (report) {
-        await api("/api/listening", { method: "PUT", body: report });
+        await api(apiPaths.listening, { method: "PUT", body: report });
         listening.sent(report);
         listeningSentAt = Date.now();
       }
@@ -111,7 +111,7 @@ interface PlayEntry {
   playedAt: number;
 }
 
-const PLAYS_KEY = "murmur.playOutbox";
+const PLAYS_KEY = storageKeys.playOutbox;
 /** The most plays kept unsent; a phone offline for months drops the oldest. */
 const PLAYS_MAX = 500;
 

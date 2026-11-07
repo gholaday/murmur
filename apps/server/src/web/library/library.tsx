@@ -21,7 +21,7 @@ import {
   sortBooks,
   BOOK_SORTS,
   type BookSort as Sort,
-  LIBRARY_SORT_KEY,
+  storageKeys,
   progressPct,
   shelfSub,
   shelfTitle,
@@ -144,7 +144,7 @@ function LibraryView({ books, emptyReason, isAdmin, today: serverToday, sections
   const shelfParam = params.get("shelf");
   const shelf = shelfParam && shelfParam in SHELF_TITLES ? (shelfParam as ShelfId) : null;
   const allBooks = shelfParam === "all";
-  const [sort, setSort] = useSavedChoice<Sort>(LIBRARY_SORT_KEY, "added", BOOK_SORTS);
+  const [sort, setSort] = useSavedChoice<Sort>(storageKeys.librarySort, "added", BOOK_SORTS);
   const [sortOpen, setSortOpen] = useState(false);
   const [sections, setSections] = useState(savedSections);
   const [customizing, setCustomizing] = useState(false);

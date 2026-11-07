@@ -3,9 +3,8 @@ import { musicHome } from "@/server/music/home";
 import { listPlaylists } from "@/server/music/playlists";
 import { listAlbums, listArtists, musicSummary } from "@/server/music/queries";
 import { requirePageUser } from "@/server/session";
-import { MusicView, type MusicTab } from "@/web/music/music-view";
-
-const TABS: MusicTab[] = ["home", "albums", "artists", "songs", "playlists"];
+import { MUSIC_TABS } from "@murmur/shared/client";
+import { MusicView } from "@/web/music/music-view";
 
 /** Your music: Home's shelves, the songs you added by album, artist or song, and your playlists. Everything else is under Browse. */
 export default async function MusicPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
@@ -20,7 +19,7 @@ export default async function MusicPage({ searchParams }: { searchParams: Promis
       albums={await listAlbums(ctx, user.id, "mine", "added")}
       artists={listArtists(ctx, user.id, "mine")}
       playlists={playlists}
-      tab={TABS.find((t) => t === tab) ?? "home"}
+      tab={MUSIC_TABS.find((t) => t.id === tab)?.id ?? "home"}
       isAdmin={user.isAdmin}
     />
   );

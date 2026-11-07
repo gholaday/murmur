@@ -1,10 +1,10 @@
-import { BOOK_SORTS, type BookSort, LIBRARY_SORT_KEY } from "@murmur/shared/client";
+import { BOOK_SORTS, type BookSort, storageKeys } from "@murmur/shared/client";
 import { createSavedStore } from "@/lib/store";
 import { Sheet, SheetItem } from "./sheet";
 
 // One saved sort shared by the Library tab and the All books screen, so changing it on one
 // shows on the other.
-const sortStore = createSavedStore<BookSort>(LIBRARY_SORT_KEY, "added");
+const sortStore = createSavedStore<BookSort>(storageKeys.librarySort,"added");
 
 const setBookSort =sortStore.set;
 

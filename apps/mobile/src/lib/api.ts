@@ -1,4 +1,4 @@
-import { type ApiError, CHANGES_HEADER, type HealthProbeDto } from "@murmur/shared/client";
+import { type ApiError, apiPaths, CHANGES_HEADER, type HealthProbeDto } from "@murmur/shared/client";
 
 // The signed-in server and token live here so non-React code (player, downloads, sync)
 // can call the API too. session.tsx keeps them in step with what's stored.
@@ -141,7 +141,7 @@ export function normalizeServerUrl(input: string): string {
 export async function probeServer(url: string): Promise<HealthProbeDto> {
   let res: Response;
   try {
-    res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+    res = await fetch(`${url}${apiPaths.health}`,{ signal: AbortSignal.timeout(TIMEOUT_MS) });
   } catch {
     throw new Error("Couldn't reach that address. Check the URL and your connection.");
   }

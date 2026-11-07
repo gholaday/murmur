@@ -5,14 +5,16 @@ import type { BookSummary } from "./index";
 export type BookSort = "added" | "title" | "author" | "listened";
 
 /** The sort choices, in the order the sort sheet lists them. */
+/** You > Library's lists for admins: Needs attention, and books or albums not matched. */
+export const LIBRARY_LISTS = ["attention", "unmatched", "albums"] as const;
+export type LibraryList = (typeof LIBRARY_LISTS)[number];
+
 export const BOOK_SORTS: { id: BookSort; label: string }[] = [
   { id: "added", label: "Recently added" },
   { id: "listened", label: "Recently listened" },
   { id: "title", label: "Title" },
   { id: "author", label: "Author" },
 ];
-/** Device storage key for the chosen sort. */
-export const LIBRARY_SORT_KEY = "murmur.librarySort";
 
 /** How far through a book you are, 0 to 100, for its progress bar. */
 export function progressPct(b: BookSummary): number {

@@ -18,7 +18,6 @@ export interface AdPrefs {
   shows: Record<string, AdMode>;
 }
 
-export const AD_PREFS_KEY = "murmur.ads";
 export const DEFAULT_AD_PREFS: AdPrefs = { mode: "show", shows: {} };
 
 const isMode = (v: unknown): v is AdMode => v === "off" || v === "show" || v === "auto";

@@ -6,6 +6,7 @@
 
 import { adModeFor, type AdPrefs, adToSkip, playedThrough } from "./ads";
 import { apiPaths } from "./api-paths";
+import { storageKeys } from "./storage-keys";
 import { holdEnded, type JumpHold, offersGoBack } from "./bookmarks";
 import type { BookDetail, ChapterDto, EpisodeAdsDto, EpisodeWithShow, PlayType, ProgressItem, QueueRef, UpNextInput, UserPrefs } from "./index";
 import { albumCover, PLAY_COUNTS_AFTER_SEC, type RepeatMode, type TrackDto } from "./music";
@@ -15,12 +16,10 @@ import {
   clampSpeed,
   DEFAULT_SKIP,
   fitChapters,
-  NOW_PLAYING_KEY,
   nextRepeatMode,
   parseSkip,
   type PlayRef,
   SAVE_EVERY_MS,
-  SKIP_KEY,
   type SkipSettings,
   type SleepTimer,
 } from "./player";
@@ -140,6 +139,7 @@ export interface MusicSource {
 /** What was playing, with where it had got to: details fetched later may be behind. */
 export type SavedPlace = PlayRef & { at?: number };
 
+const { nowPlaying: NOW_PLAYING_KEY, skip: SKIP_KEY } = storageKeys;
 const trackEntry = (track: TrackDto): UpNextEntry => ({ itemType: "track", itemId: track.id, added: false, track });
 const toRefs = (l: UpNextList): UpNextInput => ({ ...l, items: l.items.map(({ itemType, itemId, added }) => ({ itemType, itemId, added })) });
 const sameRef = (a: QueueRef, b: QueueRef) => a.itemType === b.itemType && a.itemId === b.itemId;

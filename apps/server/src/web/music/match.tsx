@@ -16,6 +16,8 @@ import {
   type ArtistPhotoOption,
   errorText,
   plural,
+  apiPaths,
+  storageKeys,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { scoreClass } from "../book/match-dialog";
@@ -53,7 +55,7 @@ export const ALBUM_FIELDS: Array<{ field: AlbumMatchField; label: string; show: 
 const songsText = (v: AlbumMatchValues) => v.songs.map((s) => `${s.number}:${s.title.trim()}`).join("\n");
 
 /** The fields last applied from an album match, ticked again at the next review. Kept in this browser. */
-const LAST_FIELDS_KEY = "murmur.albumMatchFields";
+const LAST_FIELDS_KEY = storageKeys.albumMatchFields;
 
 export function lastAlbumFields(): AlbumMatchField[] | null {
   try {
@@ -135,8 +137,7 @@ function AlbumMatchPanel({ albumId, onApplied }: { albumId: string; onApplied: (
       setBusy(true);
       setPreview(null);
       try {
-        const qs = custom ? `?${new URLSearchParams(custom)}` : "";
-        const r = await api<AlbumMatchSearch>(`/api/music/albums/${albumId}/match${qs}`);
+        const r = await api<AlbumMatchSearch>(apiPaths.albumMatch(albumId, custom));
         setResult(r);
         setSelected(r.suggested);
         for (const e of r.errors) toast.error(e, { id: e });
@@ -162,9 +163,7 @@ function AlbumMatchPanel({ albumId, onApplied }: { albumId: string; onApplied: (
     if (!c) return;
     setBusy(true);
     try {
-      const p = await api<AlbumMatchPreview>(
-        `/api/music/albums/${albumId}/match/preview?${new URLSearchParams({ provider: c.provider, providerId: c.providerId })}`,
-      );
+      const p = await api<AlbumMatchPreview>(apiPaths.albumMatchPreview(albumId, c));
       setPreview(p);
       setChosen(new Set(lastAlbumFields() ?? p.recommended));
     } catch (err) {
@@ -180,7 +179,7 @@ function AlbumMatchPanel({ albumId, onApplied }: { albumId: string; onApplied: (
     if (!preview || fields.length === 0) return;
     setBusy(true);
     try {
-      await api(`/api/music/albums/${albumId}/match`, {
+      await api(apiPaths.albumMatch(albumId), {
         method: "POST",
         body: { provider: preview.provider, providerId: preview.providerId, fields },
       });
@@ -337,7 +336,7 @@ export function ArtistPhotoDialog({ artist, onClose, onChanged }: { artist: Arti
     async (q?: string) => {
       setBusy(true);
       try {
-        setOptions(await api<ArtistPhotoOption[]>(`/api/music/artists/${artist.id}/photo/options${q ? `?${new URLSearchParams({ q })}` : ""}`));
+        setOptions(await api<ArtistPhotoOption[]>(apiPaths.artistPhotoOptions(artist.id, q)));
       } catch (err) {
         toast.error(errorText(err));
         setOptions([]);
@@ -357,7 +356,7 @@ export function ArtistPhotoDialog({ artist, onClose, onChanged }: { artist: Arti
   const pick = async (providerId: string | null) => {
     setBusy(true);
     try {
-      await api(`/api/music/artists/${artist.id}/photo`, { method: "PUT", body: { providerId } });
+      await api(apiPaths.artistPhoto(artist.id), { method: "PUT", body: { providerId } });
       toast(providerId ? "Photo changed" : "Using the album cover");
       onChanged();
       onClose();

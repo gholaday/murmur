@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- provider cover thumbnails are remote */
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { type BookDetail, duration, type MatchCandidate, type MatchField, type MatchPreview, type MatchSearchResult, type MatchValues, plural, seriesLabel } from "@murmur/shared/client";
+import { apiPaths, storageKeys, type BookDetail, duration, type MatchCandidate, type MatchField, type MatchPreview, type MatchSearchResult, type MatchValues, plural, seriesLabel } from "@murmur/shared/client";
 import { api } from "../api";
 import { BackIcon } from "../icons";
 
@@ -22,7 +22,7 @@ export const FIELDS: Array<{ field: MatchField; label: string; show: (v: MatchVa
 ];
 
 /** The fields last applied from a match, checked again at the next review. Kept in this browser. */
-const LAST_FIELDS_KEY = "murmur.matchFields";
+const LAST_FIELDS_KEY = storageKeys.matchFields;
 
 export function lastFields(): MatchField[] | null {
   try {
@@ -90,8 +90,7 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
       setBusy(true);
       setPreview(null);
       try {
-        const qs = custom ? `?${new URLSearchParams({ title: custom.title, author: custom.author })}` : "";
-        const r = await api<MatchSearchResult>(`/api/books/${book.id}/match${qs}`);
+        const r = await api<MatchSearchResult>(apiPaths.bookMatch(book.id, custom && { title: custom.title, author: custom.author }));
         setResult(r);
         setSelected(r.suggested);
         // A source that couldn't be searched; the others' results still show. The id keeps a
@@ -119,9 +118,7 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
     if (!c) return;
     setBusy(true);
     try {
-      const p = await api<MatchPreview>(
-        `/api/books/${book.id}/match/preview?${new URLSearchParams({ provider: c.provider, providerId: c.providerId })}`,
-      );
+      const p = await api<MatchPreview>(apiPaths.bookMatchPreview(book.id, c));
       setPreview(p);
       // The fields applied last time, or the recommended ones the first time.
       setChosen(new Set(lastFields() ?? p.recommended));
@@ -139,7 +136,7 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
     if (!preview || fields.length === 0) return;
     setBusy(true);
     try {
-      await api(`/api/books/${book.id}/match`, {
+      await api(apiPaths.bookMatch(book.id), {
         method: "POST",
         body: { provider: preview.provider, providerId: preview.providerId, fields },
       });

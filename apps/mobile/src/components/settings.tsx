@@ -7,6 +7,7 @@ import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, wi
 import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
 import {
   adScanStatus,
+  apiPaths,
   backupLine,
   type EpisodeCacheStatusDto,
   errorText,
@@ -267,7 +268,7 @@ export function PasswordRow() {
     setBusy(true);
     setError(null);
     try {
-      await api("/api/me/password", { method: "PUT", body: { currentPassword: current, newPassword: next } });
+      await api(apiPaths.password, { method: "PUT", body: { currentPassword: current, newPassword: next } });
       close();
       toast.show("Password changed. Other devices were signed out.");
     } catch (err) {
@@ -397,21 +398,19 @@ function TmdbLogo({ height }: { height: number }) {
 
 // ---------- Admin: library ----------
 
-const libraryKeys = { health: ["health"], admin: ["library-admin"], folders: ["library-folders"], users: ["users"], cache: ["episode-cache"] } as const;
-
 // Shared by the sections and the You tab's rows, which show a short value from them.
-export const useServerVersion = () => useQuery({ queryKey: keys.serverVersion, queryFn: () => api<ServerVersionDto>("/api/server/version") });
-export const useHealth = (enabled = true) => useQuery({ queryKey: libraryKeys.health, queryFn: () => api<HealthDto>("/api/health"), enabled });
+export const useServerVersion = () => useQuery({ queryKey: keys.serverVersion, queryFn: () => api<ServerVersionDto>(apiPaths.serverVersion) });
+export const useHealth = (enabled = true) => useQuery({ queryKey: keys.health, queryFn: () => api<HealthDto>(apiPaths.health), enabled });
 const useEpisodeCache = (enabled = true) =>
-  useQuery({ queryKey: libraryKeys.cache, queryFn: () => api<EpisodeCacheStatusDto>("/api/server/cache"), enabled });
-export const useUsers = (enabled = true) => useQuery({ queryKey: libraryKeys.users, queryFn: () => api<UserDto[]>("/api/users"), enabled });
+  useQuery({ queryKey: keys.episodeCache, queryFn: () => api<EpisodeCacheStatusDto>(apiPaths.episodeCache), enabled });
+export const useUsers = (enabled = true) => useQuery({ queryKey: keys.users, queryFn: () => api<UserDto[]>(apiPaths.users), enabled });
 
 /** Admin: how many recent episodes the server keeps ready per podcast, and how ad detection is doing. */
 export function EpisodeCacheSection() {
   const t = useTheme();
   const cache = useEpisodeCache();
   const [busy, setBusy] = useState(false);
-  const refresh = () => void queryClient.invalidateQueries({ queryKey: libraryKeys.cache });
+  const refresh = () => void queryClient.invalidateQueries({ queryKey: keys.episodeCache });
 
   const run = async (fn: () => Promise<unknown>, done?: string) => {
     setBusy(true);
@@ -461,7 +460,7 @@ export function EpisodeCacheSection() {
             value={c.settings.episodesPerShow}
             onPick={(n) => {
               if (busy || c.settings.episodesPerShow === n) return;
-              void run(() => api("/api/server/cache", { method: "PUT", body: { episodesPerShow: n } }));
+              void run(() => api(apiPaths.episodeCache, { method: "PUT", body: { episodesPerShow: n } }));
             }}
           />
         </Row>
@@ -486,7 +485,7 @@ export function EpisodeCacheSection() {
               <SmallButton
                 label="Retry"
                 disabled={busy}
-                onPress={() => void run(() => api("/api/server/ads/retry", { method: "POST" }), "Failed scans will run again.")}
+                onPress={() => void run(() => api(apiPaths.adsRetry, { method: "POST" }), "Failed scans will run again.")}
               />
             ) : null}
           </View>
@@ -498,20 +497,19 @@ export function EpisodeCacheSection() {
 
 /** The kinds of folder the server reads, as the web lists them under You > Library. */
 const FOLDER_KINDS = {
-  books: { url: "/api/library/folders", item: "book", things: "books" },
-  music: { url: "/api/music/folders", item: "album", things: "albums" },
-  movies: { url: "/api/watch/folders/movies", item: "movie", things: "movies" },
-  shows: { url: "/api/watch/folders/shows", item: "show", things: "shows" },
+  books: { item: "book", things: "books" },
+  music: { item: "album", things: "albums" },
+  movies: { item: "movie", things: "movies" },
+  shows: { item: "show", things: "shows" },
 } as const;
 type FolderKind = keyof typeof FOLDER_KINDS;
 
-const folderKey = (kind: FolderKind) => [...libraryKeys.folders, kind];
-const useFolders = (kind: FolderKind) => useQuery({ queryKey: folderKey(kind), queryFn: () => api<LibraryFolderDto[]>(FOLDER_KINDS[kind].url) });
+const useFolders = (kind: FolderKind) => useQuery({ queryKey: keys.libraryFolders(kind), queryFn: () => api<LibraryFolderDto[]>(apiPaths.folders[kind]) });
 
 const useLibraryAdmin = () =>
   useQuery({
-    queryKey: libraryKeys.admin,
-    queryFn: () => api<LibraryAdminDto>("/api/library/admin"),
+    queryKey: keys.libraryAdmin,
+    queryFn: () => api<LibraryAdminDto>(apiPaths.libraryAdmin),
     // While any kind scans, so its row spins and then shows the new counts.
     refetchInterval: (q) => (q.state.data && SCAN_KINDS.some((k) => q.state.data![k].scan.running) ? SCAN_POLL_MS : false),
   });
@@ -519,7 +517,6 @@ const useLibraryAdmin = () =>
 const SCAN_POLL_MS = 2000;
 const SCAN_KINDS = ["books", "music", "watch"] as const;
 type ScanKind = (typeof SCAN_KINDS)[number];
-const SCAN_URL: Record<ScanKind, string> = { books: "/api/library/scan", music: "/api/music/scan", watch: "/api/watch/scan" };
 
 /**
  * You > Library for admins, like the web: Books, Music, and Movies and shows, each with its count,
@@ -614,10 +611,10 @@ function ScanRow({ kind, title, scan, last }: { kind: ScanKind; title: string; s
   const rescan = async () => {
     setAsked(true);
     try {
-      await api(SCAN_URL[kind], { method: "POST" });
-      await queryClient.invalidateQueries({ queryKey: libraryKeys.admin });
+      await api(apiPaths.scan[kind], { method: "POST" });
+      await queryClient.invalidateQueries({ queryKey: keys.libraryAdmin });
       // A scan with nothing new can be over before the counts are fetched again.
-      if (!queryClient.getQueryData<LibraryAdminDto>(libraryKeys.admin)?.[kind].scan.running) void queryClient.invalidateQueries();
+      if (!queryClient.getQueryData<LibraryAdminDto>(keys.libraryAdmin)?.[kind].scan.running) void queryClient.invalidateQueries();
     } catch (err) {
       toast.error(errorText(err));
     } finally {
@@ -729,7 +726,7 @@ export function UsersSection({ me }: { me: UserDto }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const t = useTheme();
-  const refresh = () => void queryClient.invalidateQueries({ queryKey: libraryKeys.users });
+  const refresh = () => void queryClient.invalidateQueries({ queryKey: keys.users });
 
   const closeAdd = () => {
     setAdding(false);
@@ -744,7 +741,7 @@ export function UsersSection({ me }: { me: UserDto }) {
     setBusy(true);
     setError(null);
     try {
-      await api("/api/users", { method: "POST", body: { username: username.trim(), password, isAdmin } });
+      await api(apiPaths.users, { method: "POST", body: { username: username.trim(), password, isAdmin } });
       toast.show(`Added ${username.trim()}`);
       closeAdd();
       refresh();
@@ -757,7 +754,7 @@ export function UsersSection({ me }: { me: UserDto }) {
 
   const remove = async (u: UserDto) => {
     try {
-      await api(`/api/users/${u.id}`, { method: "DELETE" });
+      await api(apiPaths.user(u.id), { method: "DELETE" });
       toast.show(`Removed ${u.username}`);
       refresh();
     } catch (err) {

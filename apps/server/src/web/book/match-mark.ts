@@ -1,4 +1,4 @@
-import { errorText } from "@murmur/shared/client";
+import { apiPaths, errorText } from "@murmur/shared/client";
 import { toast } from "sonner";
 import { api } from "../api";
 
@@ -7,7 +7,7 @@ import { api } from "../api";
  * `done` runs after each change, to refresh whatever shows the book.
  */
 export async function setMarkedMatched(bookId: string, marked: boolean, done: () => void) {
-  const path = `/api/books/${bookId}/match/marked`;
+  const path = apiPaths.bookMatchMarked(bookId);
   await api(path, { method: marked ? "POST" : "DELETE" });
   done();
   toast(marked ? "Marked as matched" : "Marked as not matched", {

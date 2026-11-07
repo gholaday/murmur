@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
-import { type AlbumDetail, albumInMusic, type AlbumSummary } from "@murmur/shared/client";
+import { type AlbumDetail, albumInMusic, type AlbumSummary, apiPaths } from "@murmur/shared/client";
 import { useAdmin } from "../admin";
 import { api } from "../api";
 import { CardMenu, MenuItem, MenuSep } from "../card-menu";
@@ -12,7 +12,7 @@ import { AlbumMatchDialog } from "./match";
 import { useMineChange } from "./mine";
 import { AddToPlaylistSheet } from "./song-menu";
 
-const loadAlbum = (id: string) => api<AlbumDetail>(`/api/music/albums/${id}`);
+const loadAlbum = (id: string) => api<AlbumDetail>(apiPaths.album(id));
 
 /**
  * An album's menu, the same on its card and its page: Play, Up Next, a playlist, its artist and

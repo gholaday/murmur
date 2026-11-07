@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { storageKeys } from "@murmur/shared/client";
 
 /** Volume on this device: the slider's level, and whether it's muted (which keeps the level for unmuting). */
 export interface Volume {
@@ -8,7 +9,7 @@ export interface Volume {
   muted: boolean;
 }
 
-const KEY = "murmur.volume";
+const KEY = storageKeys.volume;
 const DEFAULT: Volume = { level: 1, muted: false };
 
 function read(): Volume {

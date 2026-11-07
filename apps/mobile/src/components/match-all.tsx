@@ -79,7 +79,7 @@ interface Kind {
 const label = (fields: Kind["fields"], f: string) => fields.find((x) => x.field === f)?.label ?? f;
 
 const BOOKS: Kind = {
-  path: "/api/library/match",
+  path: apiPaths.libraryMatch,
   noun: "book",
   fields: BOOK_FIELDS,
   defaults: ["cover", "author", "narrator", "series", "year", "chapters"] satisfies MatchField[],
@@ -113,7 +113,7 @@ const BOOKS: Kind = {
 const ALBUM_ALL_FIELDS = ALBUM_FIELDS.filter((f) => f.field !== "tracks");
 
 const ALBUMS: Kind = {
-  path: "/api/music/match",
+  path: apiPaths.musicMatch,
   noun: "album",
   fields: ALBUM_ALL_FIELDS,
   defaults: ["cover", "year", "genre"] satisfies AlbumMatchAllField[],

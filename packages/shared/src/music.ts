@@ -5,6 +5,17 @@ import { clock, duration, plural } from "./format";
 import { addTo, collator } from "./library";
 
 export type AlbumSort = "added" | "name" | "artist" | "year";
+export type MusicTab = "home" | "albums" | "artists" | "songs" | "playlists";
+
+/** The Music screen's chips, in order. */
+export const MUSIC_TABS: Array<{ id: MusicTab; label: string }> = [
+  { id: "home", label: "Home" },
+  { id: "playlists", label: "Playlists" },
+  { id: "albums", label: "Albums" },
+  { id: "artists", label: "Artists" },
+  { id: "songs", label: "Songs" },
+];
+
 export const ALBUM_SORTS: Array<{ id: AlbumSort; label: string }> = [
   { id: "added", label: "Recently added" },
   { id: "name", label: "Album" },

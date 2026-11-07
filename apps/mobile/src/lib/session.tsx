@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { LoginResponse, UserDto } from "@murmur/shared/client";
+import { apiPaths, type LoginResponse, storageKeys, type UserDto } from "@murmur/shared/client";
 import { stop as stopPlayer } from "@/player/engine";
 import { flushProgress, forgetProgress } from "@/player/progress";
 import { api, clearEtags, configureApi, normalizeServerUrl, probeServer, settleWrites } from "./api";
@@ -7,8 +7,8 @@ import { APP_NAME } from "./platform";
 import { clearPersistedCache, queryClient } from "./query";
 import { getJson, removeKey, secrets, setJson } from "./storage";
 
-const SERVER_KEY = "murmur.server";
-const USER_KEY = "murmur.user";
+const SERVER_KEY = storageKeys.server;
+const USER_KEY = storageKeys.user;
 /** How long sign-out waits for the server to revoke the token; signing out on the phone is what matters. */
 const LOGOUT_WAIT_MS = 3000;
 
@@ -70,7 +70,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       await probeServer(url);
       let res: Response;
       try {
-        res = await fetch(`${url}/api/auth/login`, {
+        res = await fetch(`${url}${apiPaths.login}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username, password, client: "app", deviceName: APP_NAME }),
@@ -100,7 +100,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     try {
       // At most a few seconds: offline, waiting out the full request timeout would hold up signing out.
       await Promise.race([
-        api("/api/auth/logout", { method: "POST" }),
+        api(apiPaths.logout, { method: "POST" }),
         new Promise((_, reject) => setTimeout(() => reject(new Error("Logout timed out.")), LOGOUT_WAIT_MS)),
       ]);
     } catch {

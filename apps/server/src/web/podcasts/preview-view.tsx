@@ -10,6 +10,7 @@ import {
   type PodcastPreviewEpisode,
   type PodcastSummary,
   shortDate,
+  apiPaths,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
@@ -36,7 +37,7 @@ export function PreviewView({ preview, error }: { preview?: PodcastPreview; erro
   const subscribe = async () => {
     setBusy(true);
     try {
-      const podcast = await api<PodcastSummary>("/api/podcasts", { method: "POST", body: { feedUrl: preview.feedUrl } });
+      const podcast = await api<PodcastSummary>(apiPaths.podcasts, { method: "POST", body: { feedUrl: preview.feedUrl } });
       toast(`Subscribed to ${podcast.title}`);
       // Replace, so back from the new podcast goes to the search, not this preview.
       router.replace(`/podcasts/${podcast.id}`);

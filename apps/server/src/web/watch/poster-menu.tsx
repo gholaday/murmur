@@ -3,14 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { MovieDetail, ShowDetail } from "@murmur/shared/client";
+import { apiPaths, type MovieDetail, type ShowDetail } from "@murmur/shared/client";
 import { useAdmin } from "../admin";
 import { api } from "../api";
 import { CardMenu, MenuItem, MenuSep } from "../card-menu";
 import { setFinished, setManyFinished } from "../progress";
 import { WatchEditDialog, type WatchEditTab } from "./edit-sheet";
 
-const detailUrl = (kind: "movie" | "show", id: string) => `/api/watch/${kind === "movie" ? "movies" : "shows"}/${id}`;
+const detailUrl = apiPaths.watchItem;
 
 type PlayHref = (kind: "movie" | "episode", id: string) => string;
 

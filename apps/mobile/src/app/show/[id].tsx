@@ -290,7 +290,7 @@ export default function ShowScreen() {
           onPress={() => {
             setSheet(null);
             void run(async () => {
-              await api(`/api/podcasts/${show.id}/refresh`, { method: "POST" });
+              await api(apiPaths.podcastRefresh(show.id), { method: "POST" });
               invalidateListening();
               void queryClient.invalidateQueries({ queryKey: keys.podcast(show.id) });
               toast.show("Checked for new episodes");
@@ -360,7 +360,7 @@ export default function ShowScreen() {
         danger
         onConfirm={() =>
           void run(async () => {
-            await api(`/api/podcasts/${show.id}`, { method: "DELETE" });
+            await api(apiPaths.podcast(show.id), { method: "DELETE" });
             void queryClient.invalidateQueries({ queryKey: keys.podcasts });
             void queryClient.invalidateQueries({ queryKey: keys.newEpisodes });
             void queryClient.invalidateQueries({ queryKey: keys.continueEpisodes });

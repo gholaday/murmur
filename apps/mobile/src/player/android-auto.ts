@@ -5,7 +5,6 @@ import {
   albumCover,
   albumsByArtist,
   type AlbumDetail,
-  type AlbumSort,
   type AlbumSummary,
   apiPaths,
   artistImage,
@@ -18,10 +17,10 @@ import {
   type TrackDto,
   type UserPrefs,
 } from "@murmur/shared/client";
+import { getAlbumSort } from "@/components/music";
 import { absolute, api, authHeaders } from "@/lib/api";
 import { keys } from "@/lib/data";
 import { queryClient } from "@/lib/query";
-import { getJson } from "@/lib/storage";
 import { type MusicSource, playMusic } from "./engine";
 
 // Android Auto's browse tree, answered from here (the patched expo-audio asks; see MurmurLibrary
@@ -73,7 +72,7 @@ const showsMusic = (prefs: UserPrefs | undefined, summary: MusicSummaryDto | und
 const musicOn = async () =>
   showsMusic(...(await Promise.all([load<UserPrefs>(keys.prefs, apiPaths.prefs), load<MusicSummaryDto>(keys.music, apiPaths.music)])));
 
-const myAlbums = async () => sortAlbums((await load<AlbumSummary[]>(keys.albums("mine"), apiPaths.albums("mine", "added"))) ?? [], getJson<AlbumSort>("murmur.albumSort") ?? "added");
+const myAlbums = async () => sortAlbums((await load<AlbumSummary[]>(keys.albums("mine"), apiPaths.albums("mine", "added"))) ?? [], getAlbumSort());
 const myArtists = async () => (await load<ArtistSummary[]>(keys.artists("mine"), apiPaths.artists("mine"))) ?? [];
 const mySongs = async () => (await load<TrackDto[]>(keys.tracks("mine"), apiPaths.tracks("mine"))) ?? [];
 const myPlaylists = async () => (await load<PlaylistSummary[]>(keys.playlists, apiPaths.playlists)) ?? [];

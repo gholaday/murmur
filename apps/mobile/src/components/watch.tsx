@@ -22,7 +22,7 @@ import {
   type VideoSubtitleTrack,
   type WatchCard,
   watchCardArtUrl,
-  WATCH_SORT_KEY,
+  storageKeys,
   WATCH_SORTS,
   type WatchSort,
 } from "@murmur/shared/client";
@@ -97,7 +97,7 @@ export interface PosterItem {
 
 // ---------- Sort for Movies, Shows and Watched, kept on this phone ----------
 
-const watchSort = createSavedStore<WatchSort>(WATCH_SORT_KEY, "added");
+const watchSort = createSavedStore<WatchSort>(storageKeys.watchSort,"added");
 
 export const useWatchSort = watchSort.useValue;
 

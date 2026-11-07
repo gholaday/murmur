@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { apiPaths, hasKind, parseRecent, plural, RECENT_SEARCHES_KEY, withRecent, type SearchKind, type SearchName, type SearchResultsDto, type UserPrefs } from "@murmur/shared/client";
+import { apiPaths, hasKind, parseRecent, plural, storageKeys, withRecent, type SearchKind, type SearchName, type SearchResultsDto, type UserPrefs } from "@murmur/shared/client";
 import { api } from "../api";
 import { CloseIcon, SearchIcon } from "../icons";
 import { BookCard } from "../library/book-card";
@@ -27,7 +27,7 @@ const KINDS: Array<{ id: SearchKind; label: string }> = [
 
 function readRecent(): string[] {
   try {
-    return parseRecent(JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) ?? "[]"));
+    return parseRecent(JSON.parse(localStorage.getItem(storageKeys.recentSearches) ?? "[]"));
   } catch {
     return [];
   }
@@ -35,7 +35,7 @@ function readRecent(): string[] {
 
 function writeRecent(list: string[]) {
   try {
-    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(list));
+    localStorage.setItem(storageKeys.recentSearches, JSON.stringify(list));
   } catch {
     // Private windows and blocked storage: recent searches just aren't kept.
   }

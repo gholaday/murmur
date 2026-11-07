@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
+  apiPaths,
   newByShow,
   PODCAST_LIST_TITLES,
   PODCAST_SECTION_SIZE,
@@ -176,7 +177,7 @@ function AddPodcastSheet({
     setBusy(true);
     setError(null);
     try {
-      const show = await api<PodcastSummary>("/api/podcasts", { method: "POST", body: { feedUrl: url.trim() } });
+      const show = await api<PodcastSummary>(apiPaths.podcasts, { method: "POST", body: { feedUrl: url.trim() } });
       setUrl("");
       toast.show(`Subscribed to ${show.title}`);
       opened(show.id);
@@ -242,8 +243,8 @@ function PodcastSearch({
   const [adding, setAdding] = useState<string | null>(null);
 
   const search = useQuery({
-    queryKey: ["podcast-search", term],
-    queryFn: () => api<PodcastSearchResult[]>(`/api/podcasts/search?q=${encodeURIComponent(term)}`),
+    queryKey: keys.podcastSearch(term),
+    queryFn: () => api<PodcastSearchResult[]>(apiPaths.podcastSearch(term)),
     enabled: term.length >= 2,
     placeholderData: keepPreviousData,
     staleTime: 10 * 60_000,
@@ -252,7 +253,7 @@ function PodcastSearch({
   const subscribe = async (r: PodcastSearchResult) => {
     setAdding(r.feedUrl);
     try {
-      const show = await api<PodcastSummary>("/api/podcasts", { method: "POST", body: { feedUrl: r.feedUrl } });
+      const show = await api<PodcastSummary>(apiPaths.podcasts, { method: "POST", body: { feedUrl: r.feedUrl } });
       toast.show(`Subscribed to ${show.title}`);
       onOpen(show.id);
     } catch (err) {

@@ -38,8 +38,6 @@ export interface SearchResultsDto {
   tvEpisodes: WatchCard[];
 }
 
-/** Where recent searches are kept on each device. */
-export const RECENT_SEARCHES_KEY = "murmur.recentSearches";
 const RECENT_MAX = 8;
 
 /** `term` put first among the recent searches, once, ignoring case; the oldest drop off past 8. */

@@ -52,7 +52,7 @@ export function WatchEditDialog({
   const [form, setForm] = useState(saved);
   const [busy, setBusy] = useState(false);
   const dirty = form.title !== saved.title || form.year !== saved.year || form.description !== saved.description;
-  const base = `/api/watch/${kind === "movie" ? "movies" : "shows"}/${item.id}`;
+  const base = apiPaths.watchItem(kind, item.id);
 
   useEffect(() => {
     const el = ref.current;

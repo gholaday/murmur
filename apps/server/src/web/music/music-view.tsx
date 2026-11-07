@@ -22,6 +22,9 @@ import {
   songSub,
   sortAlbums,
   type TrackDto,
+  MUSIC_TABS,
+  type MusicTab,
+  storageKeys,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
@@ -38,18 +41,10 @@ import { AlbumBadge, MineToggle, useMineChange } from "./mine";
 import { NewPlaylistButton, PlaylistCard } from "./playlist-view";
 import { SongMenuButton } from "./song-menu";
 
-export type MusicTab = "home" | "albums" | "artists" | "songs" | "playlists";
-const TABS: Array<{ id: MusicTab; label: string }> = [
-  { id: "home", label: "Home" },
-  { id: "playlists", label: "Playlists" },
-  { id: "albums", label: "Albums" },
-  { id: "artists", label: "Artists" },
-  { id: "songs", label: "Songs" },
-];
-const SORT_KEY = "murmur.albumSort";
+const TABS = MUSIC_TABS;
 
 /** The album sort, kept in this browser and shared by the Music tab and Browse. */
-export const useAlbumSort = () => useSavedChoice<AlbumSort>(SORT_KEY, "added", ALBUM_SORTS);
+export const useAlbumSort = () => useSavedChoice<AlbumSort>(storageKeys.albumSort, "added", ALBUM_SORTS);
 
 export function AlbumSortSheet({ open, onClose, sort, onPick }: { open: boolean; onClose: () => void; sort: AlbumSort; onPick: (s: AlbumSort) => void }) {
   return <ChoiceSheet open={open} onClose={onClose} title="Sort albums" choices={ALBUM_SORTS} value={sort} onPick={onPick} />;

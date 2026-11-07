@@ -30,31 +30,9 @@ import {
 import { toast } from "@/components/toast";
 import { api, HttpError } from "./api";
 import { queryClient } from "./query";
+import { keys } from "./query-keys";
 
-export const keys = {
-  serverVersion: ["server-version"] as const,
-  books: ["books"] as const,
-  book: (id: string) => ["book", id] as const,
-  podcasts: ["podcasts"] as const,
-  podcast: (id: string) => ["podcast", id] as const,
-  episodes: (podcastId: string) => ["episodes", podcastId] as const,
-  episode: (id: string) => ["episode", id] as const,
-  newEpisodes: ["newEpisodes"] as const,
-  continueEpisodes: ["continueEpisodes"] as const,
-  /** The player's own copy of Up Next, kept for offline; the player owns it, nothing fetches it. */
-  upNext: ["upNext"] as const,
-  prefs: ["prefs"] as const,
-  music: ["music"] as const,
-  musicHome: ["music", "home"] as const,
-  albums: (scope: MusicScope) => ["albums", scope] as const,
-  album: (id: string) => ["album", id] as const,
-  artists: (scope: MusicScope) => ["artists", scope] as const,
-  artist: (id: string) => ["artist", id] as const,
-  tracks: (scope: MusicScope) => ["tracks", scope] as const,
-  playlists: ["playlists"] as const,
-  trackPlays: ["trackPlays"] as const,
-  playlist: (id: string) => ["playlist", id] as const,
-};
+export { keys };
 
 // Your own settings (Books tab layout, which tabs show), saved on the server so the web and the
 // app share them. Until they load, or on a server without them, the defaults apply.
@@ -110,10 +88,10 @@ export const saveAutoplayNext = (autoplayNext: boolean) => savePrefs({ autoplayN
 
 export const saveVideoQuality =(videoQuality: VideoQuality) => savePrefs({ videoQuality }, "Couldn't save the quality.");
 
-export const useBooks = () => useQuery({ queryKey: keys.books, queryFn: () => api<BookSummary[]>("/api/books") });
+export const useBooks = () => useQuery({ queryKey: keys.books, queryFn: () => api<BookSummary[]>(apiPaths.books) });
 
 export const useBook = (id: string) =>
-  useQuery({ queryKey: keys.book(id), queryFn: () => api<BookDetail>(`/api/books/${id}`) });
+  useQuery({ queryKey: keys.book(id), queryFn: () => api<BookDetail>(apiPaths.book(id)) });
 
 /** Whether the server has music; everything about music hides until it says so. */
 export const useMusicSummary = () => useQuery({ queryKey: keys.music, queryFn: () => api<MusicSummaryDto>(apiPaths.music) });
@@ -150,7 +128,7 @@ export function useAlbumColor(id: string | undefined): string | null {
 function cachedAlbumColor(id: string): string | null {
   const detail = queryClient.getQueryData<AlbumDetail>(keys.album(id));
   if (detail) return detail.coverColor;
-  for (const [, list] of queryClient.getQueriesData<AlbumSummary[]>({ queryKey: ["albums"] })) {
+  for (const [, list] of queryClient.getQueriesData<AlbumSummary[]>({ queryKey: keys.all.albums })) {
     const found = list?.find((a) => a.id === id);
     if (found) return found.coverColor;
   }
@@ -184,10 +162,10 @@ export async function setInMusic(change: { albums?: AlbumSummary[]; tracks?: Tra
         : a;
   const track = (t: TrackDto): TrackDto => (albumIds.has(t.albumId) || trackIds.has(t.id) ? { ...t, inMusic: on } : t);
 
-  queryClient.setQueriesData<AlbumSummary[]>({ queryKey: ["albums"] }, (list) => list?.map(album));
-  queryClient.setQueriesData<TrackDto[]>({ queryKey: ["tracks"] }, (list) => list?.map(track));
-  queryClient.setQueriesData<AlbumDetail>({ queryKey: ["album"] }, (a) => a && { ...album(a), tracks: a.tracks.map(track) });
-  queryClient.setQueriesData<ArtistDetail>({ queryKey: ["artist"] }, (a) => a && { ...a, albums: a.albums.map(album), appearsOn: a.appearsOn.map(track) });
+  queryClient.setQueriesData<AlbumSummary[]>({ queryKey: keys.all.albums }, (list) => list?.map(album));
+  queryClient.setQueriesData<TrackDto[]>({ queryKey: keys.all.tracks }, (list) => list?.map(track));
+  queryClient.setQueriesData<AlbumDetail>({ queryKey: keys.all.album }, (a) => a && { ...album(a), tracks: a.tracks.map(track) });
+  queryClient.setQueriesData<ArtistDetail>({ queryKey: keys.all.artist }, (a) => a && { ...a, albums: a.albums.map(album), appearsOn: a.appearsOn.map(track) });
 
   const body: MusicMineChange = {};
   if (albumIds.size) body.albumIds = [...albumIds];
@@ -198,7 +176,8 @@ export async function setInMusic(change: { albums?: AlbumSummary[]; tracks?: Tra
   } catch (err) {
     toast.error(err instanceof Error ? err.message : on ? "Couldn't add that." : "Couldn't remove that.");
   } finally {
-    for (const key of ["music", "albums", "artists", "tracks", "album", "artist"]) void queryClient.invalidateQueries({ queryKey: [key] });
+    const { music, albums, artists, tracks, album, artist } = keys.all;
+    for (const queryKey of [music, albums, artists, tracks, album, artist]) void queryClient.invalidateQueries({ queryKey });
   }
 }
 
@@ -249,31 +228,31 @@ export async function deletePlaylist(id: string) {
 }
 
 export const usePodcasts = () =>
-  useQuery({ queryKey: keys.podcasts, queryFn: () => api<PodcastSummary[]>("/api/podcasts") });
+  useQuery({ queryKey: keys.podcasts, queryFn: () => api<PodcastSummary[]>(apiPaths.podcasts) });
 
 export const usePodcast = (id: string) =>
-  useQuery({ queryKey: keys.podcast(id), queryFn: () => api<PodcastDetail>(`/api/podcasts/${id}`) });
+  useQuery({ queryKey: keys.podcast(id), queryFn: () => api<PodcastDetail>(apiPaths.podcast(id)) });
 
 /** Every episode of a show. Long shows have over a thousand, so it waits until it's needed. */
 export const useEpisodes = (podcastId: string, enabled = true) =>
-  useQuery({ queryKey: keys.episodes(podcastId), queryFn: () => api<EpisodeDto[]>(`/api/podcasts/${podcastId}/episodes?short=1`), enabled });
+  useQuery({ queryKey: keys.episodes(podcastId), queryFn: () => api<EpisodeDto[]>(apiPaths.podcastEpisodes(podcastId)), enabled });
 
 /** A show's newest episodes, the first page of its list. Its key sits under the full list's, so invalidating one covers both. */
 export const useFirstEpisodes = (podcastId: string, enabled = true) =>
   useQuery({
-    queryKey: [...keys.episodes(podcastId), "first"],
-    queryFn: () => api<EpisodeDto[]>(`/api/podcasts/${podcastId}/episodes?short=1&limit=${EPISODE_PAGE}`),
+    queryKey: keys.episodesFirst(podcastId),
+    queryFn: () => api<EpisodeDto[]>(apiPaths.podcastEpisodes(podcastId, EPISODE_PAGE)),
     enabled,
   });
 
 // Lists ask for short notes (`short=1`); a row fetches the full notes when it's expanded.
 
 export const useNewEpisodes = () =>
-  useQuery({ queryKey: keys.newEpisodes, queryFn: () => api<EpisodeWithShow[]>("/api/episodes/new?limit=50&short=1") });
+  useQuery({ queryKey: keys.newEpisodes, queryFn: () => api<EpisodeWithShow[]>(apiPaths.newEpisodes(50)) });
 
 /** Started, unfinished episodes, most recently listened first. */
 export const useContinueEpisodes = () =>
-  useQuery({ queryKey: keys.continueEpisodes, queryFn: () => api<EpisodeWithShow[]>("/api/episodes/continue?limit=20&short=1") });
+  useQuery({ queryKey: keys.continueEpisodes, queryFn: () => api<EpisodeWithShow[]>(apiPaths.continueEpisodes(20)) });
 
 /** After progress, played or archived state changes, refresh the lists that show it. */
 export function invalidateListening() {
@@ -281,10 +260,10 @@ export function invalidateListening() {
   void queryClient.invalidateQueries({ queryKey: keys.newEpisodes });
   void queryClient.invalidateQueries({ queryKey: keys.continueEpisodes });
   void queryClient.invalidateQueries({ queryKey: keys.podcasts });
-  void queryClient.invalidateQueries({ queryKey: ["episodes"] });
-  void queryClient.invalidateQueries({ queryKey: ["book"] });
-  // Movies and shows (watchKeys.all), whose progress goes through the same outbox.
-  void queryClient.invalidateQueries({ queryKey: ["watch"] });
+  void queryClient.invalidateQueries({ queryKey: keys.all.episodes });
+  void queryClient.invalidateQueries({ queryKey: keys.all.book });
+  // Movies and shows, whose progress goes through the same outbox.
+  void queryClient.invalidateQueries({ queryKey: keys.watch.all });
 }
 
 /** After saved places reach the server, refresh only what shows those items. */
@@ -294,12 +273,12 @@ export function invalidateProgress(items: ProgressItem[]) {
   if (items.some((i) => i.itemType === "episode")) {
     refresh(keys.newEpisodes);
     refresh(keys.continueEpisodes);
-    refresh(["episodes"]);
+    refresh(keys.all.episodes);
   }
   // Only finishing one changes a show's count of what's new.
   if (items.some((i) => i.itemType === "episode" && i.finished)) refresh(keys.podcasts);
   // Movies and shows (watchKeys.all): a TV episode's place doesn't say which show it's in.
-  if (items.some((i) => i.itemType === "video")) refresh(["watch"]);
+  if (items.some((i) => i.itemType === "video")) refresh(keys.watch.all);
   for (const i of items) {
     if (i.itemType === "book") refresh(keys.book(i.itemId));
     if (i.itemType === "episode") refresh(keys.episode(i.itemId));
@@ -308,13 +287,13 @@ export function invalidateProgress(items: ProgressItem[]) {
 
 /** Book details, from cache when available (works offline for anything opened before). */
 export function fetchBook(id: string): Promise<BookDetail> {
-  return queryClient.fetchQuery({ queryKey: keys.book(id), queryFn: () => api<BookDetail>(`/api/books/${id}`), staleTime: 60_000 });
+  return queryClient.fetchQuery({ queryKey: keys.book(id), queryFn: () => api<BookDetail>(apiPaths.book(id)), staleTime: 60_000 });
 }
 
 export function fetchEpisode(id: string): Promise<EpisodeWithShow> {
   return queryClient.fetchQuery({
     queryKey: keys.episode(id),
-    queryFn: () => api<EpisodeWithShow>(`/api/episodes/${id}`),
+    queryFn: () => api<EpisodeWithShow>(apiPaths.episode(id)),
     staleTime: 60_000,
   });
 }
@@ -326,7 +305,7 @@ export function fetchEpisode(id: string): Promise<EpisodeWithShow> {
 export function useEpisodeNotes(episode: EpisodeDto, open: boolean): string | null {
   const full = useQuery({
     queryKey: keys.episode(episode.id),
-    queryFn: () => api<EpisodeWithShow>(`/api/episodes/${episode.id}`),
+    queryFn: () => api<EpisodeWithShow>(apiPaths.episode(episode.id)),
     enabled: open && !!episode.descriptionCut,
     staleTime: 60_000,
   });
@@ -349,7 +328,7 @@ function showPlayNext(order: string[]) {
   const at = new Map(order.map((id, i) => [id, i]));
   const place = <T extends BookSummary>(b: T): T => ({ ...b, playNext: at.get(b.id) ?? null });
   queryClient.setQueryData<BookSummary[]>(keys.books, (list) => list?.map(place));
-  queryClient.setQueriesData<BookDetail>({ queryKey: ["book"] }, (b) => b && place(b));
+  queryClient.setQueriesData<BookDetail>({ queryKey: keys.all.book }, (b) => b && place(b));
 }
 
 async function changePlayNext(order: string[], send: () => Promise<unknown>) {
