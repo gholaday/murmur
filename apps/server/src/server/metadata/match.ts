@@ -310,12 +310,6 @@ export async function applyMatch(ctx: AppContext, bookId: string, input: MatchAp
     .run({ ...next, bookId, provider: input.provider, providerId: input.providerId, matchedAt: Date.now() });
 }
 
-/** A book matched on Audible before genres were kept: its genres, fetched once. Provider errors are thrown. */
-export async function fillAudibleGenres(ctx: AppContext, bookId: string, asin: string): Promise<void> {
-  const detail = await getProviders(ctx).audibleByAsin(asin);
-  ctx.sqlite.prepare("UPDATE book_overrides SET genres = ? WHERE book_id = ?").run(JSON.stringify(detail?.genres ?? []), bookId);
-}
-
 export function removeMatch(ctx: AppContext, bookId: string) {
   ctx.sqlite.prepare("DELETE FROM book_overrides WHERE book_id = ?").run(bookId);
 }

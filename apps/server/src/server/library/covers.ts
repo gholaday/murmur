@@ -20,12 +20,7 @@ interface CoverMeta {
   color: string;
   /** Width of the original image, when known; Match only replaces a cover with a larger one. */
   sourceWidth: number | null;
-  /** Which colour rule worked out `color`; older ones are worked out again. */
-  v?: number;
 }
-
-/** Bumped whenever coverColor changes, so stored colours are redone on next use. */
-const COLOR_VERSION = 2;
 
 declare global {
   var __murmurCoverMeta: Map<string, CoverMeta | null> | undefined;
@@ -34,7 +29,7 @@ declare global {
 // On globalThis so every route bundle shares one cache, filled at boot by warmCoverMeta.
 const metaCache = (globalThis.__murmurCoverMeta ??= new Map<string, CoverMeta | null>());
 
-/** How many covers warmCoverMeta reads at once; an older colour rule means decoding each one. */
+/** How many covers warmCoverMeta reads at once. */
 const WARM_AT_ONCE = 16;
 
 function metaFile(coversDir: string, hash: string): string {
@@ -75,10 +70,7 @@ export async function coverColor(image: Sharp): Promise<string> {
   return best.w ? hex(best.r / best.w, best.g / best.w, best.b / best.w) : "#000000";
 }
 
-/**
- * Colour and size details for a stored cover. Covers stored before this existed, or whose
- * colour came from an older rule, get it worked out from the small rendition on first use.
- */
+/** Colour and size details for a stored cover, written beside it by storeCover. */
 export async function coverMeta(coversDir: string, hash: string): Promise<CoverMeta | null> {
   if (metaCache.has(hash)) return metaCache.get(hash) ?? null;
   let meta: CoverMeta | null = null;
@@ -86,15 +78,6 @@ export async function coverMeta(coversDir: string, hash: string): Promise<CoverM
     meta = JSON.parse(await fs.readFile(metaFile(coversDir, hash), "utf8")) as CoverMeta;
   } catch {
     // Not stored yet.
-  }
-  if (meta?.v !== COLOR_VERSION) {
-    try {
-      const color = await coverColor(sharp(coverFile(coversDir, hash, 200), { failOn: "none" }));
-      meta = { color, sourceWidth: meta?.sourceWidth ?? null, v: COLOR_VERSION };
-      await fs.writeFile(metaFile(coversDir, hash), JSON.stringify(meta));
-    } catch {
-      // No rendition to read; keep whatever was stored.
-    }
   }
   metaCache.set(hash, meta);
   return meta;
@@ -111,7 +94,7 @@ export async function warmCoverMeta(coversDir: string) {
 
 /** Stores the colour of an image kept in another shape (Watch's posters and stills), so coverColors finds it. */
 export async function saveCoverMeta(coversDir: string, hash: string, color: string, sourceWidth: number | null) {
-  const meta: CoverMeta = { color, sourceWidth, v: COLOR_VERSION };
+  const meta: CoverMeta = { color, sourceWidth };
   await fs.writeFile(metaFile(coversDir, hash), JSON.stringify(meta));
   metaCache.set(hash, meta);
 }
@@ -173,11 +156,11 @@ export async function storeCover(coversDir: string, source: Buffer): Promise<str
   };
 
   const known = await coverMeta(coversDir, hash);
-  if (!known?.sourceWidth || known.v !== COLOR_VERSION) {
+  if (!known?.sourceWidth) {
     // Reads only the header.
     const { width } = await sharp(source, { failOn: "none", limitInputPixels: MAX_INPUT_PIXELS }).metadata();
     const color = await coverColor(await fromBase());
-    const meta: CoverMeta = { color, sourceWidth: width ?? null, v: COLOR_VERSION };
+    const meta: CoverMeta = { color, sourceWidth: width ?? null };
     await fs.writeFile(metaFile(coversDir, hash), JSON.stringify(meta));
     metaCache.set(hash, meta);
   }

@@ -254,22 +254,6 @@ export const upNext = sqliteTable("up_next", {
   updatedAt: integer("updated_at").notNull(),
 });
 
-/** Replaced by `up_next`; read once per person to carry their album over, then left alone. */
-export const playContext = sqliteTable("play_context", {
-  userId: integer("user_id")
-    .primaryKey()
-    .references(() => users.id, { onDelete: "cascade" }),
-  kind: text("kind", { enum: ["album", "artist", "songs", "playlist"] }).notNull(),
-  refId: text("ref_id"),
-  title: text("title").notNull(),
-  /** JSON array of track ids in play order. */
-  trackIds: text("track_ids").notNull(),
-  /** JSON array of the same ids in the album's or list's own order; null means the play order is it. */
-  originalIds: text("original_ids"),
-  index: integer("idx").notNull(),
-  shuffled: integer("shuffled", { mode: "boolean" }).notNull(),
-  updatedAt: integer("updated_at").notNull(),
-});
 
 /**
  * An album's details chosen through Match, kept apart from the tags so a rescan keeps them.
@@ -458,21 +442,6 @@ export const playNext = sqliteTable(
     addedAt: integer("added_at").notNull(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.bookId] })],
-);
-
-/** Replaced by `up_next`; read once per person to carry their queue over, then left alone. */
-export const queueItems = sqliteTable(
-  "queue_items",
-  {
-    userId: integer("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    itemType: text("item_type", { enum: ["episode", "track"] }).notNull(),
-    itemId: text("item_id").notNull(),
-    position: integer("position").notNull(),
-    addedAt: integer("added_at").notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.userId, t.itemType, t.itemId] }), index("queue_user_pos_idx").on(t.userId, t.position)],
 );
 
 /**

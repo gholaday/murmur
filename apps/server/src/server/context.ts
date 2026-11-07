@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import { noteBackupFailed } from "./backup-status";
 import { backupDatabase, openDatabase, type Db, type Sqlite } from "./db";
 import { env } from "./env";
@@ -197,7 +195,6 @@ async function boot(): Promise<AppContext> {
   };
 
   const podcastLog = createLogger("podcasts");
-  removeOldEpisodeDownloads(podcastLog);
   const podcasts = createPodcastService({
     sqlite,
     coversDir: env.coversDir,
@@ -250,17 +247,6 @@ async function boot(): Promise<AppContext> {
 }
 
 /** Episodes used to be downloaded to DATA_DIR/podcasts; the episode cache has its own folder now. */
-function removeOldEpisodeDownloads(podcastLog: Logger) {
-  const dir = path.join(env.dataDir, "podcasts");
-  if (!fs.existsSync(dir)) return;
-  try {
-    fs.rmSync(dir, { recursive: true, force: true });
-    podcastLog.info("removed old server episode downloads", { dir });
-  } catch (err) {
-    podcastLog.warn("couldn't remove old episode downloads", { dir, error: errorMessage(err) });
-  }
-}
-
 function scheduleNightlyBackup(sqlite: Sqlite) {
   const backupLog = createLogger("backup");
   const next = new Date();

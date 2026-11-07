@@ -28,43 +28,13 @@ function readList(ctx: AppContext, userId: number): UpNextList {
   const row = ctx.sqlite
     .prepare("SELECT items, idx, source_kind, source_ref, source_title, original_ids, shuffled FROM up_next WHERE user_id = ?")
     .get(userId) as Row | undefined;
-  if (!row) return fromOldTables(ctx, userId);
+  if (!row) return EMPTY_UP_NEXT;
   return {
     items: JSON.parse(row.items) as UpNextRef[],
     index: row.idx,
     source: row.source_kind && row.source_title ? { kind: row.source_kind, refId: row.source_ref, title: row.source_title } : null,
     originalIds: JSON.parse(row.original_ids) as string[],
     shuffled: row.shuffled === 1,
-  };
-}
-
-/** Before 0.5 the album (play_context) and the queue (queue_items) were kept apart. */
-function fromOldTables(ctx: AppContext, userId: number): UpNextList {
-  const queue = ctx.sqlite
-    .prepare("SELECT item_type AS itemType, item_id AS itemId FROM queue_items WHERE user_id = ? ORDER BY position")
-    .all(userId) as QueueRef[];
-  const old = ctx.sqlite
-    .prepare("SELECT kind, ref_id, title, track_ids, original_ids, idx, shuffled FROM play_context WHERE user_id = ?")
-    .get(userId) as
-    | { kind: UpNextSource["kind"]; ref_id: string | null; title: string; track_ids: string; original_ids: string | null; idx: number; shuffled: number }
-    | undefined;
-  const added = queue.map((r) => ({ ...r, added: true }));
-  if (!old) return { ...EMPTY_UP_NEXT, items: added };
-  const songs = (JSON.parse(old.track_ids) as string[]).map((id): UpNextRef => ({ itemType: "track", itemId: id, added: false }));
-  const index = Math.min(old.idx, songs.length - 1);
-  // Queued songs played next, and queued episodes waited for the album to end.
-  const items = [
-    ...songs.slice(0, index + 1),
-    ...added.filter((r) => r.itemType === "track"),
-    ...songs.slice(index + 1),
-    ...added.filter((r) => r.itemType === "episode"),
-  ];
-  return {
-    items,
-    index,
-    source: { kind: old.kind, refId: old.ref_id, title: old.title },
-    originalIds: old.original_ids ? (JSON.parse(old.original_ids) as string[]) : songs.map((s) => s.itemId),
-    shuffled: old.shuffled === 1,
   };
 }
 

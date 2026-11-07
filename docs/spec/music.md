@@ -58,7 +58,7 @@ One running list of songs and episodes, like YouTube Music's (`up_next`, one row
 - Add to queue on a song puts it right after the item playing and anything you added just before; an episode goes at the end. Something already waiting moves instead of doubling up.
 - When an item ends, the next one plays. Books are never in the list: one playing sits above it, and when it ends, playback stops.
 - Clear empties what's still to come, with Undo.
-- Lists from before 0.5 (the album in `play_context` and the queue in `queue_items`) carry over the first time each person opens the queue.
+- Lists from before 0.5 (the album in `play_context` and the queue in `queue_items`) were carried into Up Next by migration 0027, which dropped those tables.
 
 **Downloads (app):** a whole album or one song. Downloaded has a Music section, and downloaded music plays offline.
 

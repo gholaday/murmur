@@ -65,7 +65,7 @@ const AUDIO_TYPES = new Set([
   "audio/webm",
 ]);
 
-/** The feed's enclosure type if it's an audio type Murmur knows, else null. Also applied when serving older rows. */
+/** The feed's enclosure type if it's an audio type Murmur knows, else null. Migration 0028 cleaned older rows the same way. */
 export function audioMimeType(type: string | null | undefined): string | null {
   const clean = type?.split(";")[0]?.trim().toLowerCase() ?? "";
   return AUDIO_TYPES.has(clean) ? clean : null;
