@@ -293,7 +293,19 @@ function SearchSlot({
             selectionColor={t.accent}
             returnKeyType="search"
             accessibilityLabel="Search"
-            style={{ flex: 1, minWidth: 0, color: t.text, fontFamily: fonts.semibold, fontSize: 15, paddingVertical: 0 }}
+            // Android's font padding sits the text low; without it, centred, it lines up with the magnifier.
+            style={{
+              flex: 1,
+              minWidth: 0,
+              height: 44,
+              color: t.text,
+              fontFamily: fonts.semibold,
+              fontSize: 15,
+              lineHeight: 20,
+              paddingVertical: 0,
+              includeFontPadding: false,
+              textAlignVertical: "center",
+            }}
           />
         </View>
       </Animated.View>

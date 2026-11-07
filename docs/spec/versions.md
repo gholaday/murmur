@@ -26,5 +26,5 @@ From 1.0, the version number says what an update can break. Before 1.0, anything
 
 ---
 
-| [← Deployment and development](deployment.md) | [Contents](README.md) | [Non-goals and later ideas →](later.md) |
+| [← Deployment and development](deployment.md) | [Contents](README.md) |   |
 | :--- | :---: | ---: |

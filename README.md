@@ -18,7 +18,7 @@ Murmur is inspired by [Audiobookshelf](https://www.audiobookshelf.org/) and [Ple
 - **Podcasts:** search or add by RSS URL, OPML import and export, a queue, and the newest episodes kept on the server.
 - **Music (optional):** albums, artists and songs read from their tags, your own music and playlists for each person, a Home with Jump back in, On repeat and New albums, songs in the queue, and album matching from MusicBrainz and Deezer.
 - **Movies and shows (optional):** a Watch tab with Continue watching, Next episodes, Next in the collection and More like, from `Title (Year)` movie folders and `Show/Season` folders. Posters, descriptions and episode names come from TMDB. Files play as they are where the device can, and otherwise are converted on the server, on its GPU where it has one, with a choice of audio track and subtitles, a 720p option for slow connections, the next episode lined up, and downloads to the phone. A separate add-on, `murmur-video`, does the video work; set up in [addons/video](addons/video/README.md).
-- **Search everywhere:** one box finds books, podcast episodes (notes included), music and movies at once.
+- **Search everywhere:** one box finds books, podcast episodes, music and movies at once.
 - **Stats:** time spent on books, podcasts, music and video by week, month, year or all time, your streak, and what you played most.
 - **Players:** a web player and an Android app with background playback, offline downloads, speed control, a sleep timer and bookmarks with notes on books and episodes, and for video, picture in picture and a landscape player. On an iPhone, the web player can be added to the home screen to open like an app.
 - **Multiple users,** each with their own progress, subscriptions, queue and music. Podcasts, Music and Watch can each be hidden by anyone who doesn't use them.
@@ -55,7 +55,7 @@ Run `docker compose up -d`, open `http://<host>:3333`, and create the first acco
 
 ## How it works
 
-The [spec](docs/spec/README.md) explains how Murmur works and why, one page per area: [features](docs/spec/features.md), [architecture](docs/spec/architecture.md), [library scanning](docs/spec/library.md), [metadata](docs/spec/metadata.md), [music](docs/spec/music.md), [Watch](docs/spec/watch.md), [casting](docs/spec/casting.md), the [Android app](docs/spec/android.md), [podcasts and ad detection](docs/spec/podcasts.md), [deployment](docs/spec/deployment.md), and [what's left out](docs/spec/later.md).
+The [spec](docs/spec/README.md) explains how Murmur works and why, one page per area: [features](docs/spec/features.md), [architecture](docs/spec/architecture.md), [library scanning](docs/spec/library.md), [metadata](docs/spec/metadata.md), [music](docs/spec/music.md), [Watch](docs/spec/watch.md), [casting](docs/spec/casting.md), the [Android app](docs/spec/android.md), [podcasts and ad detection](docs/spec/podcasts.md) and [deployment](docs/spec/deployment.md).
 
 ## Settings
 

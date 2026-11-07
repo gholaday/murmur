@@ -36,7 +36,7 @@ const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 /**
  * Ids of one kind of thing that match, best first. Words of 3 or more characters go through the
- * trigram index (names count most, then people, then notes); shorter searches match names that
+ * trigram index (names count most, then people); shorter searches match names that
  * start with them, or have a word that does.
  */
 function findIds(ctx: AppContext, userId: number, kind: IndexKind, q: string, limit: number): string[] {
@@ -49,7 +49,7 @@ function findIds(ctx: AppContext, userId: number, kind: IndexKind, q: string, li
           .prepare(
             `SELECT r.ref, r.name FROM search_index JOIN search_rows r ON r.id = search_index.rowid
              WHERE search_index MATCH @fts AND r.kind = @kind ${visible}
-             ORDER BY bm25(search_index, 10, 4, 1) LIMIT @limit`,
+             ORDER BY bm25(search_index, 10, 4) LIMIT @limit`,
           )
           .all({ ...params, fts })
       : ctx.sqlite

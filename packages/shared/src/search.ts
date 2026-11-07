@@ -38,6 +38,22 @@ export interface SearchResultsDto {
   tvEpisodes: WatchCard[];
 }
 
+/** Whether a search found anything of a kind; it decides which kind tabs show. */
+export function hasKind(r: SearchResultsDto, kind: SearchKind): boolean {
+  switch (kind) {
+    case "books":
+      return r.books.length + r.authors.length + r.series.length > 0;
+    case "podcasts":
+      return r.podcasts.length + r.episodes.length > 0;
+    case "music":
+      return r.artists.length + r.albums.length + r.songs.length > 0;
+    case "watch":
+      return r.watch.length + r.tvEpisodes.length > 0;
+    case "all":
+      return (["books", "podcasts", "music", "watch"] as const).some((k) => hasKind(r, k));
+  }
+}
+
 /**
  * The words of a search as an FTS5 trigram query: each word of 3 or more characters, quoted so
  * nothing in it is read as query syntax. Null when no word is long enough, as trigram needs 3;

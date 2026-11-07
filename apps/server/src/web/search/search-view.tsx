@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { apiPaths, plural, type SearchKind, type SearchName, type SearchResultsDto, type UserPrefs } from "@murmur/shared/client";
+import { apiPaths, hasKind, plural,type SearchKind, type SearchName, type SearchResultsDto, type UserPrefs } from "@murmur/shared/client";
 import { api } from "../api";
 import { CloseIcon, SearchIcon } from "../icons";
 import { BookCard } from "../library/book-card";
@@ -61,6 +61,7 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
   const { query, setQuery, submits } = useSearchState();
   const [kind, setKind] = useState<SearchKind>(kinds.some((k) => k.id === startKind) ? startKind! : "all");
   const [results, setResults] = useState<SearchResultsDto | null>(null);
+  const [allResults, setAllResults] = useState<SearchResultsDto | null>(null);
   const [failed, setFailed] = useState(false);
   const [recent, setRecent] = useState<string[]>([]);
   const input = useRef<HTMLInputElement>(null);
@@ -93,19 +94,23 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
     window.history.replaceState(window.history.state, "", qs ? `/search?${qs}` : "/search");
   }, [q, kind]);
 
-  // Asks once typing pauses; an answer for an older search is dropped.
+  // Asks once typing pauses; an answer for an older search is dropped. All always comes too,
+  // as it says which kinds have anything and so which tabs show.
   useEffect(() => {
     if (!q) {
       setResults(null);
+      setAllResults(null);
       setFailed(false);
       return;
     }
     let stale = false;
     const timer = setTimeout(() => {
-      api<SearchResultsDto>(apiPaths.search(q, kind)).then(
-        (r) => {
+      const ask = (k: SearchKind) => api<SearchResultsDto>(apiPaths.search(q, k));
+      Promise.all([ask("all"), kind === "all" ? null : ask(kind)]).then(
+        ([everything, ofKind]) => {
           if (stale) return;
-          setResults(r);
+          setAllResults(everything);
+          setResults(ofKind ?? everything);
           setFailed(false);
         },
         () => {
@@ -118,6 +123,12 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
       clearTimeout(timer);
     };
   }, [q, kind]);
+
+  // Only the kinds that found something get a tab; none at all, no tabs.
+  const shown = allResults ? kinds.filter((k) => k.id === "all" || hasKind(allResults, k.id)) : [];
+  useEffect(() => {
+    if (allResults && kind !== "all" && !hasKind(allResults, kind)) setKind("all");
+  }, [allResults, kind]);
 
   const remember = (term: string) => {
     const t = term.trim();
@@ -161,9 +172,9 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
         </label>
       </form>
 
-      {kinds.length > 2 ? (
+      {q && shown.length > 1 ? (
         <Chips kind="tabs" label="Search in">
-          {kinds.map((k) => (
+          {shown.map((k) => (
             <Chip key={k.id} selected={kind === k.id} onClick={() => setKind(k.id)}>
               {k.label}
             </Chip>
@@ -207,17 +218,7 @@ function RecentSearches({ recent, onPick, onForget }: { recent: string[]; onPick
   );
 }
 
-const isEmpty = (r: SearchResultsDto) =>
-  !r.books.length &&
-  !r.authors.length &&
-  !r.series.length &&
-  !r.podcasts.length &&
-  !r.episodes.length &&
-  !r.artists.length &&
-  !r.albums.length &&
-  !r.songs.length &&
-  !r.watch.length &&
-  !r.tvEpisodes.length;
+const isEmpty = (r: SearchResultsDto) => !hasKind(r, "all");
 
 /** On All, a shelf per group with a heading that opens its kind's tab; on a kind's tab, the full grids and lists. */
 function Results({ results: r, kind, onKind }: { results: SearchResultsDto; kind: SearchKind; onKind: (k: SearchKind) => void }) {

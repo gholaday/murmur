@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   albumMatches,
   apiPaths,
@@ -7,7 +7,6 @@ import {
   type BookSummary,
   byNameTier,
   matchesBook,
-  matchesEpisode,
   type MovieSummary,
   SEARCH_LIMIT,
   type SearchKind,
@@ -56,26 +55,39 @@ export function useDebounced<T>(value: T, ms = 200): T {
   return settled;
 }
 
+const searchQuery = (q: string, kind: SearchKind, enabled: boolean) => ({
+  queryKey: ["search", q, kind],
+  queryFn: () => api<SearchResultsDto>(apiPaths.search(q, kind)),
+  enabled: enabled && !!q,
+  // The last results stay up while the next ones load, so the list doesn't blink per letter;
+  // only the same kind's, as another kind's wouldn't fit the tab.
+  placeholderData: (prev: SearchResultsDto | undefined, prevQuery?: { queryKey: readonly unknown[] }) =>
+    prevQuery?.queryKey[2] === kind ? prev : undefined,
+  retry: false,
+});
+
 /**
  * Results for `q` on a tab: the server's, or when it can't be reached, what's downloaded and
- * matches, from the lists already on the phone. `offline` says which.
+ * matches, from the lists already on the phone. `offline` says which. All is always asked for,
+ * as `everything` says which kinds found anything and so which tabs show; a kind's tab asks for
+ * its own as well, alongside.
  */
 export function useSearch(q: string, kind: SearchKind) {
   const online = useOnline();
   const downloads = useDownloads();
-  const query = useQuery({
-    queryKey: ["search", q, kind],
-    queryFn: () => api<SearchResultsDto>(apiPaths.search(q, kind)),
-    enabled: !!q,
-    // The last results stay up while the next ones load, so the list doesn't blink per letter.
-    placeholderData: keepPreviousData,
-    retry: false,
-  });
-  const unreachable = !online || (query.isError && !(query.error instanceof HttpError));
+  const allQuery = useQuery(searchQuery(q, "all", true));
+  const kindQuery = useQuery(searchQuery(q, kind, kind !== "all"));
+  const errors = [allQuery.error, kind === "all" ? null : kindQuery.error].filter((e) => !!e);
+  const unreachable = !online || errors.some((e) => !(e instanceof HttpError));
   const offline = !!q && unreachable;
-  const local = useMemo(() => (offline ? offlineSearch(q, kind, downloads) : undefined), [offline, q, kind, downloads]);
-  const data = local ?? (q ? query.data : undefined);
-  return { data, offline, pending: !!q && !offline && !query.data, error: !offline && query.isError ? query.error : null };
+  const local = useMemo(
+    () => (offline ? { all: offlineSearch(q, "all", downloads), kind: kind === "all" ? undefined : offlineSearch(q, kind, downloads) } : undefined),
+    [offline, q, kind, downloads],
+  );
+  const everything = local ? local.all : q ? allQuery.data : undefined;
+  // Until a kind's own answer comes, its part of All's stands in.
+  const data = local ? (local.kind ?? local.all) : !q ? undefined : kind === "all" ? allQuery.data : (kindQuery.data ?? allQuery.data);
+  return { data, everything, offline, pending: !!q && !offline && !everything, error: offline ? null : (errors[0] ?? null) };
 }
 
 const has = (q: string, ...values: (string | null | undefined)[]) => values.some((v) => !!v && v.toLowerCase().includes(q));
@@ -92,7 +104,8 @@ function offlineSearch(q: string, kind: SearchKind, downloads: Record<string, Do
   const books = want("books")
     ? (queryClient.getQueryData<BookSummary[]>(keys.books) ?? []).filter((b) => saved("book").has(b.id) && matchesBook(b, k))
     : [];
-  const episodes = want("podcasts") ? done.flatMap((d) => (d.type === "podcast" && matchesEpisode(d.episode, k) ? [d.episode] : [])) : [];
+  // Like the server, an episode by its own name or its show's, not its notes.
+  const episodes = want("podcasts") ? done.flatMap((d) => (d.type === "podcast" && has(k, d.episode.title, d.episode.podcastTitle) ? [d.episode] : [])) : [];
   const albumIds = saved("album");
   const albums = want("music")
     ? done.flatMap((d): AlbumSummary[] => (d.type === "album" && albumMatches(d.album, k) ? [d.album] : []))

@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, type GestureResponderEvent, Pressable, View } from "react-native";
-import { type SearchKind, type SearchResultsDto, type TrackDto } from "@murmur/shared/client";
+import { hasKind, type SearchKind, type SearchResultsDto, type TrackDto } from "@murmur/shared/client";
 import { BookCard } from "@/components/book-card";
 import { EpisodeRow } from "@/components/episode-row";
 import { ChevronIcon, CloseIcon } from "@/components/icons";
@@ -53,9 +53,18 @@ export default function Search() {
   const text = searchText.useValue();
   const picked = searchKind.useValue();
   const q = useDebounced(text.trim());
-  const shown: SearchKind[] = ["all", ...(["books", "podcasts", "music", "watch"] as const).filter((k) => prefs[k])];
-  const kind = shown.includes(picked) ? picked : "all";
+  const allowed = (["books", "podcasts", "music", "watch"] as const).filter((k) => prefs[k]);
+  const kind: SearchKind = picked !== "all" && allowed.includes(picked) ? picked : "all";
   const results = useSearch(q, kind);
+  // Only the kinds that found something get a tab, and All only beside one of them. The tabs
+  // follow All's answer, so they hold still while the next one loads.
+  const everything = results.everything;
+  const found = everything ? allowed.filter((k) => hasKind(everything, k)) : [];
+  const shown: SearchKind[] = found.length ? ["all", ...found] : [];
+  // A new search that leaves the picked kind with nothing goes back to All.
+  useEffect(() => {
+    if (everything && kind !== "all" && !hasKind(everything, kind)) searchKind.set("all");
+  }, [everything, kind]);
   const tabFade = useTabFade(kind);
   const recent = useRecentSearches();
   const [song, setSong] = useState<TrackDto | null>(null);
@@ -71,7 +80,9 @@ export default function Search() {
   const header = (
     <View style={{ paddingTop: top, marginBottom: 8 }}>
       <PageTitle title="Search" />
-      <TextTabs label="Search in" options={shown.map((k) => ({ id: k, label: KIND_LABELS[k] }))} value={kind} onPick={searchKind.set} />
+      {shown.length ? (
+        <TextTabs label="Search in" options={shown.map((k) => ({ id: k, label: KIND_LABELS[k] }))} value={kind} onPick={searchKind.set} />
+      ) : null}
       {results.offline ? (
         <Text variant="small" style={{ marginTop: 14 }}>
           Showing downloaded only
@@ -130,7 +141,8 @@ function useRows(data: SearchResultsDto | undefined, kind: SearchKind): Row[] {
     // All keeps list groups short; their tab has the rest.
     const rowCap = all ? ALL_ROWS : undefined;
     const group = (key: string, title: string, tab: SearchKind, count: number, body: () => Row[]) => {
-      if (!count) return;
+      // On a kind's tab, All's answer can stand in until its own comes; only that kind's part shows.
+      if (!count || (!all && tab !== kind)) return;
       out.push({ type: "head", key: `h:${key}`, title, tab }, ...body());
     };
     const cards = (key: string, list: Card[]): Row[] =>

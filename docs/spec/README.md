@@ -33,4 +33,3 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 | 🎙️ | [Podcasts and ad detection](podcasts.md) | The episode cache, the ad detection add-on, and ad marks and skipping in the players |
 | 🐳 | [Deployment and development](deployment.md) | Mounts, images, remote access, updates and running it locally |
 | 🔢 | [Versions and upgrades](versions.md) | What a major, minor and patch release may change, and how the app and server stay compatible |
-| 🧭 | [Non-goals and later ideas](later.md) | What's left out on purpose, and ideas for later |
