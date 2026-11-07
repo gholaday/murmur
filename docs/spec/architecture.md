@@ -16,7 +16,7 @@
 | App playback | `expo-audio` | Background audio, lock-screen and notification controls, Bluetooth buttons |
 | App downloads | `expo-file-system` | Offline books, episodes, music, movies and TV episodes |
 | App data | TanStack Query persisted to `expo-sqlite` key-value storage | Cached lists that open offline, offline progress queue |
-| Shared code | `packages/shared`: API types and Zod schemas | One definition used by server, web and app |
+| Shared code | `packages/shared`: API types and Zod schemas, and the logic both clients run: the player core (`player-core.ts`), the bookmark store, Up Next, ads, stats | One definition used by server, web and app. Each client only supplies its audio, storage, requests and toasts |
 | Repo | pnpm workspace monorepo | `apps/server`, `apps/mobile`, `packages/shared`, `addons/adscan`, `addons/video` |
 
 All dependency versions are pinned; upgrades happen deliberately, not on every rebuild. What a build downloads is checked against a known hash: base images by digest, pnpm by its `packageManager` hash, the ad add-on's Python packages with `--require-hashes`, its Vosk model with `ADD --checksum`, and the Gradle wrapper by `distributionSha256Sum`. pnpm refuses npm versions published less than seven days ago (`minimumReleaseAge`), and Dependabot moves the pins on monthly.

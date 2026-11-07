@@ -38,6 +38,22 @@ export interface SearchResultsDto {
   tvEpisodes: WatchCard[];
 }
 
+/** Where recent searches are kept on each device. */
+export const RECENT_SEARCHES_KEY = "murmur.recentSearches";
+const RECENT_MAX = 8;
+
+/** `term` put first among the recent searches, once, ignoring case; the oldest drop off past 8. */
+export function withRecent(recent: readonly string[], term: string): string[] {
+  const t = term.trim();
+  if (!t) return [...recent];
+  const lower = t.toLowerCase();
+  return [t, ...recent.filter((r) => r.toLowerCase() !== lower)].slice(0, RECENT_MAX);
+}
+
+/** A saved list of recent searches, cleaned: only strings, at most 8. */
+export const parseRecent = (saved: unknown): string[] =>
+  Array.isArray(saved) ? saved.filter((s): s is string => typeof s === "string").slice(0, RECENT_MAX) : [];
+
 /** Whether a search found anything of a kind; it decides which kind tabs show. */
 export function hasKind(r: SearchResultsDto, kind: SearchKind): boolean {
   switch (kind) {

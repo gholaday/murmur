@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { apiPaths, hasKind, plural,type SearchKind, type SearchName, type SearchResultsDto, type UserPrefs } from "@murmur/shared/client";
+import { apiPaths, hasKind, parseRecent, plural, RECENT_SEARCHES_KEY, withRecent, type SearchKind, type SearchName, type SearchResultsDto, type UserPrefs } from "@murmur/shared/client";
 import { api } from "../api";
 import { CloseIcon, SearchIcon } from "../icons";
 import { BookCard } from "../library/book-card";
@@ -25,13 +25,9 @@ const KINDS: Array<{ id: SearchKind; label: string }> = [
 
 // ---------- Recent searches, kept in this browser ----------
 
-const RECENT_KEY = "murmur.recentSearches";
-const RECENT_MAX = 8;
-
 function readRecent(): string[] {
   try {
-    const saved = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]") as unknown;
-    return Array.isArray(saved) ? saved.filter((s): s is string => typeof s === "string").slice(0, RECENT_MAX) : [];
+    return parseRecent(JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) ?? "[]"));
   } catch {
     return [];
   }
@@ -39,7 +35,7 @@ function readRecent(): string[] {
 
 function writeRecent(list: string[]) {
   try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(list));
   } catch {
     // Private windows and blocked storage: recent searches just aren't kept.
   }
@@ -131,9 +127,8 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
   }, [allResults, kind]);
 
   const remember = (term: string) => {
-    const t = term.trim();
-    if (!t) return;
-    const next = [t, ...recent.filter((r) => r.toLowerCase() !== t.toLowerCase())].slice(0, RECENT_MAX);
+    if (!term.trim()) return;
+    const next = withRecent(recent, term);
     setRecent(next);
     writeRecent(next);
   };

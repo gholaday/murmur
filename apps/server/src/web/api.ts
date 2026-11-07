@@ -1,6 +1,19 @@
 import type { ApiError } from "@murmur/shared/client";
 import { noteChanges } from "./live-changes";
 
+/** The server answered with an error; `status` says which. A failed connection throws something else. */
+export class HttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+/** The server turned the request down for good, rather than couldn't be reached or asked to wait. */
+export const refused = (err: unknown) => err instanceof HttpError && err.status >= 400 && err.status < 500 && err.status !== 401 && err.status !== 429;
+
 /** Same-origin JSON call that throws the server's error message on failure. */
 export async function api<T>(path: string, init?: { method?: string; body?: unknown; keepalive?: boolean }): Promise<T> {
   const res = await fetch(path, {
@@ -15,6 +28,6 @@ export async function api<T>(path: string, init?: { method?: string; body?: unkn
     throw new Error("Signed out.");
   }
   const data = (await res.json().catch(() => null)) as T | ApiError | null;
-  if (!res.ok) throw new Error((data as ApiError | null)?.error ?? `Request failed (${res.status}).`);
+  if (!res.ok) throw new HttpError((data as ApiError | null)?.error ?? `Request failed (${res.status}).`, res.status);
   return data as T;
 }

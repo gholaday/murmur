@@ -34,6 +34,7 @@ import { api } from "../api";
 import { RefreshIcon } from "../icons";
 import { AD_MODES, adPrefsStore, useAdPrefs } from "../player/ad-prefs";
 import { usePlayerControls, usePlayerSelect } from "../player/engine";
+import { forgetBookmarks } from "../bookmarks";
 import { ConfirmSheet, Sheet } from "../sheet";
 import { applyTheme, currentTheme } from "../theme";
 import { BackRow, Chip, Chips, Setting, SettingLink, SettingsCard, SettingSub, SwitchRow } from "../ui";
@@ -658,6 +659,7 @@ function SignOut({ onSignOut }: { onSignOut: () => Promise<void> }) {
         onConfirm={async () => {
           // The last progress save has to land before the token goes.
           await onSignOut();
+          forgetBookmarks();
           await fetch("/api/auth/logout", { method: "POST" });
           window.location.href = "/login";
         }}

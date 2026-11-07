@@ -27,7 +27,7 @@ function BookRow({ item }: { item: Playable }) {
       {/* Tapping it pauses and resumes. */}
       <button type="button" className="queue-row playing now-row" onClick={toggle} aria-label={`${playing ? "Pause" : "Play"} ${item.title}`}>
         <span className="thumb-wrap">
-          <Cover className="thumb" src={item.coverUrl} color={item.color} title={item.title} />
+          <Cover className="thumb" src={item.coverPath} color={item.color} title={item.title} />
           <Mixer playing={playing} thumb resume />
         </span>
         <span className="list-row-main">

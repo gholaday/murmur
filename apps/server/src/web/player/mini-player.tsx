@@ -28,13 +28,13 @@ export function MiniPlayer() {
       style={
         {
           ...(tint ? { "--tint": tint } : {}),
-          ...(item.coverUrl ? { "--art": `url("${item.coverUrl}")` } : {}),
+          ...(item.coverPath ? { "--art": `url("${item.coverPath}")` } : {}),
         } as React.CSSProperties
       }
     >
       <div className="mini-row">
         <button type="button" className="mini-open" onClick={() => setExpanded(true)} aria-label={`Open player: ${item.title}`}>
-          <Cover src={item.coverUrl} color={item.color} title={item.title} className="mini-cover" />
+          <Cover src={item.coverPath} color={item.color} title={item.title} className="mini-cover" />
           <span className="mini-text">
             <span className="mini-title">{item.title}</span>
             {error ? (

@@ -8,6 +8,8 @@ import {
   byNameTier,
   matchesBook,
   type MovieSummary,
+  parseRecent,
+  RECENT_SEARCHES_KEY,
   SEARCH_LIMIT,
   type SearchKind,
   type SearchResultsDto,
@@ -15,11 +17,13 @@ import {
   songMatches,
   type TrackDto,
   type WatchPoster,
+  withRecent,
 } from "@murmur/shared/client";
 import { api, HttpError } from "./api";
 import { keys } from "./data";
 import { type Download, useDownloads } from "./downloads";
 import { queryClient, useOnline } from "./query";
+import { getJson } from "./storage";
 import { createSavedStore, createStore } from "./store";
 import { watchKeys } from "./watch";
 
@@ -31,16 +35,12 @@ export const searchText = createStore("");
 /** The Search screen's tab. */
 export const searchKind = createStore<SearchKind>("all");
 
-const RECENT_MAX = 8;
-const recent = createSavedStore<string[]>("murmur.recentSearches", []);
+const recent = createSavedStore<string[]>(RECENT_SEARCHES_KEY, parseRecent(getJson<unknown>(RECENT_SEARCHES_KEY)));
 export const useRecentSearches = recent.useValue;
 
 /** Puts a search first in the recent list, once. */
 export function rememberSearch(q: string) {
-  const text = q.trim();
-  if (!text) return;
-  const lower = text.toLowerCase();
-  recent.set([text, ...recent.get().filter((r) => r.toLowerCase() !== lower)].slice(0, RECENT_MAX));
+  if (q.trim()) recent.set(withRecent(recent.get(), q));
 }
 
 export const forgetSearch = (q: string) => recent.set(recent.get().filter((r) => r !== q));

@@ -3,6 +3,16 @@ import type { SearchKind } from "./search";
 // ---------- URL helpers shared by web and app ----------
 
 export const apiPaths = {
+  /** BookDetail. */
+  book: (bookId: string) => `/api/books/${bookId}`,
+  /** EpisodeWithShow. */
+  episode: (episodeId: string) => `/api/episodes/${episodeId}`,
+  /** GET the show; PATCH { speed } and its other settings. */
+  podcast: (podcastId: string) => `/api/podcasts/${podcastId}`,
+  /** PUT { items } saves places, the newest change winning. */
+  progress: "/api/progress",
+  /** PUT the listening time gathered since the last send. */
+  listening: "/api/listening",
   coverUrl: (bookId: string, coverHash: string, size: 200 | 600) =>
     `/api/books/${bookId}/cover?size=${size}&h=${coverHash}`,
   bookFileUrl: (bookId: string, fileIndex: number) =>

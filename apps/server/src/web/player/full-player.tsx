@@ -55,7 +55,7 @@ import { UpNextSheet } from "../up-next";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } from "./ad-prefs";
 import { CastButton } from "../cast/cast-button";
 import { useCast } from "../cast/cast";
-import { usePlayer, usePosition, useTint } from "./engine";
+import { playableHref, usePlayer, usePosition, useTint } from "./engine";
 import { VolumeRow } from "./volume-control";
 
 /** Matches the `sink` animation in globals.css. */
@@ -228,7 +228,7 @@ export function FullPlayer() {
       style={
         {
           "--tint": tint ?? "#3b4a6e",
-          "--art": item.coverUrlLarge ? `url("${item.coverUrlLarge}")` : "none",
+          "--art": item.coverPathLarge ? `url("${item.coverPathLarge}")` : "none",
         } as React.CSSProperties
       }
     >
@@ -267,7 +267,7 @@ export function FullPlayer() {
       <div className="player-main">
         {/* Skip ad and Mark played sit on the cover so they never move the controls. */}
         <div className="player-cover-wrap player-pull" {...pull.handlers}>
-          <Cover src={item.coverUrlLarge} color={item.color} title={item.title} subtitle={item.subtitle} className="player-cover" large />
+          <Cover src={item.coverPathLarge} color={item.color} title={item.title} subtitle={item.subtitle} className="player-cover" large />
           {canSkipAd || markPlayed ? (
             <div className="cover-pills">
               {markPlayed ? (
@@ -668,7 +668,7 @@ export function FullPlayer() {
 
       <Sheet open={sheet === "more"} onClose={() => setSheet(null)} title={item.title}>
         <Link
-          href={item.href}
+          href={playableHref(item)}
           className="sheet-item"
           onClick={() => {
             setSheet(null);

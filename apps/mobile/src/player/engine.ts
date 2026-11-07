@@ -1,49 +1,27 @@
 import { useSyncExternalStore } from "react";
-import { type AudioPlayer, createAudioPlayer, setAudioModeAsync, type AudioStatus } from "expo-audio";
+import { type AudioPlayer, type AudioStatus, createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { onlineManager } from "@tanstack/react-query";
 import {
-  ADS_POLL_MS,
-  albumCover,
   apiPaths,
   type BookDetail,
   bookmarkNear,
   bookmarkSpot,
-  chapterAt,
-  type ChapterDto,
-  clampSpeed,
-  type EpisodeAdsDto,
+  bookToPlayable,
+  createPlayerCore,
+  entryToPlayable,
   type EpisodeWithShow,
-  EMPTY_UP_NEXT,
-  fitChapters,
-  holdEnded,
-  type JumpHold,
-  moveItem as moveListItem,
-  nextIndex,
-  nextRepeatMode,
+  episodeToPlayable,
+  isCurrent,
   NOW_PLAYING_KEY,
-  offersGoBack,
-  parseSkip,
-  PLAY_COUNTS_AFTER_SEC,
+  type Playable,
+  type PlayerMedia,
+  type PlayerState,
   type PlayRef,
   type PlayType,
-  previousIndex,
-  type ProgressItem,
-  type QueueRef,
-  removeAt as removeListItem,
-  type RepeatMode,
-  SAVE_EVERY_MS,
-  setShuffle,
-  SKIP_KEY,
-  type SkipSettings,
-  type SleepTimer,
-  startMusic,
-  startSingle,
+  type SavedPlace,
   type TrackDto,
+  trackToPlayable,
   type UpNextDto,
-  type UpNextEntry,
-  type UpNextInput,
-  type UpNextList,
-  type UpNextSource,
   type UserPrefs,
 } from "@murmur/shared/client";
 import { absolute, api, authHeaders, HttpError } from "@/lib/api";
@@ -55,101 +33,20 @@ import { queryClient } from "@/lib/query";
 import { getJson, removeKey, setJson } from "@/lib/storage";
 import { createStore } from "@/lib/store";
 import { toast } from "@/components/toast";
-import { adModeFor, adPrefsStore, adToSkip, playedThrough } from "./ad-prefs";
+import { adPrefsStore } from "./ad-prefs";
 import { CastPlayer, onCastDevice } from "./cast";
 import { createLockScreen } from "./lock-screen";
 import { flush, listening, queuePlay, queueProgress, saveListening, unsentProgress } from "./progress";
 
 // One audio player for the whole app, kept outside React so playback, the lock screen and
-// progress saving carry on whatever screen is showing (or with the screen off).
-// Mirrors the web player's engine (apps/server/src/web/player/engine.tsx).
+// progress saving carry on whatever screen is showing (or with the screen off). What plays, Up
+// Next, saving, ads, the sleep timer and music's hand-over are the shared player core, the same
+// one the web player runs; this is the phone's side of it: expo-audio, the Chromecast, the lock
+// screen, downloads and putting back what was playing after a restart.
 
-interface PlayableFile {
-  path: string;
-  startSec: number;
-  durationSec: number;
-}
+export { bookToPlayable, episodeToPlayable, isCurrent, isPlayingFrom, isWaiting, type MusicSource, type Playable, type PlayerState } from "@murmur/shared/client";
 
-/** Anything the player can play: a book (one or more files on one timeline), an episode or a song. */
-export interface Playable {
-  type: PlayType;
-  id: string;
-  title: string;
-  subtitle: string | null;
-  coverPath: string | null;
-  coverPathLarge: string | null;
-  color: string | null;
-  durationSec: number;
-  files: PlayableFile[];
-  chapters: ChapterDto[];
-  podcastId: string | null;
-  /** A song's album, for "Go to album" and the lock screen. */
-  album: { id: string; title: string } | null;
-  startAt: number;
-  speed: number;
-}
-
-/** What was playing, with where it had got to: details saved earlier may be behind. */
-type SavedPlace = PlayRef & { at?: number };
-
-export function bookToPlayable(b: BookDetail): Playable {
-  return {
-    type: "book",
-    id: b.id,
-    title: b.title,
-    subtitle: b.author,
-    coverPath: b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 200) : null,
-    coverPathLarge: b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 600) : null,
-    color: b.coverColor,
-    durationSec: b.durationSec,
-    files: b.files.map((f) => ({ path: apiPaths.bookFileUrl(b.id, f.index), startSec: f.startSec, durationSec: f.durationSec })),
-    chapters: b.chapters,
-    podcastId: null,
-    album: null,
-    startAt: b.progress && !b.progress.finished ? b.progress.positionSec : 0,
-    speed: clampSpeed(b.progress?.speed ?? 1),
-  };
-}
-
-export function episodeToPlayable(e: EpisodeWithShow): Playable {
-  const dur = e.durationSec ?? 0;
-  return {
-    type: "episode",
-    id: e.id,
-    title: e.title,
-    subtitle: e.podcastTitle,
-    coverPath: e.podcastCoverHash ? apiPaths.podcastCoverUrl(e.podcastId, e.podcastCoverHash, 200) : null,
-    coverPathLarge: e.podcastCoverHash ? apiPaths.podcastCoverUrl(e.podcastId, e.podcastCoverHash, 600) : null,
-    color: e.podcastCoverColor,
-    durationSec: dur,
-    files: [{ path: apiPaths.episodeUrl(e.id), startSec: 0, durationSec: dur }],
-    chapters: [],
-    podcastId: e.podcastId,
-    album: null,
-    startAt: e.progress && !e.progress.finished ? e.progress.positionSec : 0,
-    speed: clampSpeed(e.speed),
-  };
-}
-
-/** A song: always from the start, at 1x, with no position kept. */
-function trackToPlayable(t: TrackDto): Playable {
-  return {
-    type: "track",
-    id: t.id,
-    title: t.title,
-    subtitle: t.artist,
-    coverPath: albumCover(t.albumId, t.coverHash),
-    coverPathLarge: albumCover(t.albumId, t.coverHash, 600),
-    color: null,
-    durationSec: t.durationSec,
-    files: [{ path: apiPaths.trackUrl(t.id), startSec: 0, durationSec: t.durationSec }],
-    chapters: [],
-    podcastId: null,
-    album: { id: t.albumId, title: t.album },
-    startAt: 0,
-    speed: 1,
-  };
-}
+// ---------- Loading an item's details ----------
 
 /**
  * Loads an item's details, falling back to the download's saved copy offline. Progress not yet
@@ -183,7 +80,7 @@ function savedPlayable(ref: PlayRef): Playable | null {
     if (dl?.type === "book") return bookToPlayable(dl.book);
     if (dl?.type === "podcast") return episodeToPlayable(dl.episode);
   }
-  const entry = state.upNext.items.find((e) => e.itemType === ref.itemType && e.itemId === ref.itemId);
+  const entry = core.getState().upNext.items.find((e) => e.itemType === ref.itemType && e.itemId === ref.itemId);
   return entry ? entryToPlayable(entry) : null;
 }
 
@@ -202,93 +99,289 @@ function cachedPlayable(ref: SavedPlace): Playable | null {
   const book = ref.itemType === "book" ? queryClient.getQueryData<BookDetail>(keys.book(ref.itemId)) : undefined;
   const episode = ref.itemType === "episode" ? queryClient.getQueryData<EpisodeWithShow>(keys.episode(ref.itemId)) : undefined;
   const it = book ? bookToPlayable(book) : episode ? episodeToPlayable(episode) : savedPlayable(ref);
-  if (!it) return null;
-  return resumeFrom(it.type !== "track" && ref.at !== undefined ? { ...it, startAt: ref.at } : it);
+  return it ? resumeFrom(it) : null;
 }
 
-export interface PlayerState {
-  item: Playable | null;
-  playing: boolean;
-  loading: boolean;
-  error: string | null;
-  speed: number;
-  sleep: SleepTimer;
-  skip: SkipSettings;
-  /**
-   * Up Next: one running list of what played, what's playing (`index`) and what's next, kept on the
-   * server. A book isn't in it (index -1), so all of it is still to come.
-   */
-  upNext: UpNextDto;
-  /** False until Up Next has come back from the server once, so screens don't flash "empty". */
-  upNextLoaded: boolean;
-  /** Ad detection for the current episode; null for books and until the server answers. */
-  ads: EpisodeAdsDto | null;
-  /** Your shuffle and repeat settings for music, kept on the server so every device shares them. */
-  shuffle: boolean;
-  repeat: RepeatMode;
-  /** The real place while a jump to a bookmark is on hold, for the Go back card; else null. */
-  goBackTo: number | null;
-}
+// ---------- Audio ----------
 
-/** Where music plays from, as the album, artist and Songs screens hand it to the player. */
-export interface MusicSource {
-  kind: UpNextSource["kind"];
-  refId: string | null;
-  title: string;
-  tracks: TrackDto[];
-}
+// Two players: `player()` is the one playing; the other loads the next song ahead of time so it
+// can take over the moment the current one ends. Events from the spare one are ignored. They and
+// the audio session are made the first time something loads, not while the app is opening.
+let players: AudioPlayer[] | null = null;
+let inUse = 0;
+const player = () => (players ??= makePlayers())[inUse]!;
+const spare = () => (players ??= makePlayers())[1 - inUse]!;
 
-// ---------- Store ----------
-
-let state: PlayerState = {
-  item: null,
-  playing: false,
-  loading: false,
-  error: null,
-  speed: 1,
-  sleep: { mode: "off" },
-  skip: parseSkip(getJson<SkipSettings>(SKIP_KEY)),
-  // The copy saved on this phone, so Up Next shows offline too; the server's replaces it.
-  upNext: queryClient.getQueryData<UpNextDto>(keys.upNext) ?? EMPTY_UP_NEXT,
-  upNextLoaded: false,
-  ads: null,
-  shuffle: false,
-  repeat: "off",
-  goBackTo: null,
+// The patched expo-audio sends the notification's previous and next taps as "remoteTrack", and its
+// bookmark button as "remoteBookmark".
+type RemoteEmitter = {
+  addListener(event: "remoteTrack", fn: (e: { direction: number }) => void): unknown;
+  addListener(event: "remoteBookmark", fn: () => void): unknown;
 };
-let position = 0;
-const store = createStore(state);
-// Ticks skip React with the app in the background (screen off, another app open).
-const place = createStore(position, { foregroundOnly: true });
 
-/** A jump to a bookmark not yet taken as your place: until it ends, saves leave the real place alone. */
-let hold: JumpHold | null = null;
-let holdTickAt = 0;
-
-function set(change: Partial<PlayerState>) {
-  state = { ...state, ...change };
-  if ("item" in change) {
-    // Go back belongs to one item. Leaving it saves nothing: the real place is already saved.
-    if (hold && !isCurrent(state, hold.type, hold.id)) {
-      hold = null;
-      state = { ...state, goBackTo: null };
-    }
-    watchAds();
-    watchChapters();
+function makePlayers() {
+  void setAudioModeAsync({ shouldPlayInBackground: true, interruptionMode: "doNotMix", playsInSilentMode: true });
+  const made = [0, 1].map(() => createAudioPlayer(null, { updateInterval: 500, keepAudioSessionActive: true }));
+  for (const p of made) {
+    p.addListener("playbackStatusUpdate", (s: AudioStatus) => {
+      if (p === made[inUse] && !casting) onStatus(s);
+    });
+    const remote = p as unknown as RemoteEmitter;
+    remote.addListener("remoteTrack", ({ direction }) => {
+      if (p === made[inUse]) core.trackStep(direction < 0 ? -1 : 1);
+    });
+    remote.addListener("remoteBookmark", () => {
+      if (p === made[inUse]) bookmarkHere();
+    });
   }
-  store.set(state);
+  return made;
 }
 
-function setPosition(p: number) {
-  position = p;
-  place.set(p);
-  if (state.item) lockScreen.moved(state.item, p);
+/** The item and file loaded, for the downloaded-copy fallback. */
+let loaded: { it: Playable; idx: number } | null = null;
+/** The song the spare player has loaded. */
+let preloadedItem: Playable | null = null;
+let pendingSeek: number | null = null;
+/**
+ * Set by load until the player reports the new file not loaded yet. A status sent just before the
+ * replace still describes the old file, loaded: taken for the new one, it spent the restore seek
+ * and gave an episode the song's length (an episode after a song showed 5:12 and stuck there).
+ */
+let awaitingSource = false;
+let autoplayAfterLoad = false;
+let rate = 1;
+/** Until the restore seek lands the player still reports the file's start, which would reset the place to 0. */
+let seeking = false;
+/** Whether the loaded file is the phone's downloaded copy rather than the server's stream. */
+let playingLocal = false;
+
+/** The downloaded copy of a file, if this phone has one. */
+const localFor = (it: Playable, idx: number) => (it.type === "track" ? localTrackUri(it.id) : localUri(it.type, it.id, idx));
+
+function sourceFor(it: Playable, idx: number) {
+  const local = localFor(it, idx);
+  if (local) return { uri: local };
+  const f = it.files[idx];
+  return f ? { uri: absolute(f.path), headers: authHeaders() } : null;
 }
 
-export const getPlayerState = () => state;
+/** While casting, the Chromecast plays instead of the phone's player; there's no spare, so songs follow each other on the TV with its own short gap. */
+let casting = false;
+
+const castPlayer = new CastPlayer({
+  loaded: () => {
+    core.loaded(castPlayer.duration);
+    core.time(castPlayer.position, castPlayer.playing);
+    core.playingChanged(castPlayer.playing);
+  },
+  time: () => core.time(castPlayer.position, castPlayer.playing),
+  playing: (playing) => core.playingChanged(playing),
+  buffering: (loading) => core.loadingChanged(loading),
+  ended: () => core.ended(),
+});
+
+const castLoad = (it: Playable, idx: number, inFileSec: number, autoplay: boolean, speed: number) =>
+  // The TV starts there itself; a download streams from the server, which the TV can reach.
+  castPlayer.load(it.files[idx]?.path ?? "", { title: it.title, subtitle: it.subtitle, image: it.coverPathLarge }, inFileSec, autoplay, speed);
+
+/** What plays: the phone's players, or the Chromecast while casting. */
+const media: PlayerMedia = {
+  get playing() {
+    return casting ? castPlayer.playing : !!players && player().playing;
+  },
+  get duration() {
+    return casting ? castPlayer.duration : players ? player().duration : 0;
+  },
+  load(it, idx, inFileSec, autoplay, speed) {
+    loaded = { it, idx };
+    rate = speed;
+    if (casting) {
+      pendingSeek = null;
+      awaitingSource = false;
+      playingLocal = false;
+      castLoad(it, idx, inFileSec, autoplay, speed);
+      return;
+    }
+    pendingSeek = inFileSec;
+    awaitingSource = true;
+    autoplayAfterLoad = autoplay;
+    playingLocal = !!localFor(it, idx);
+    // Playback starts once the place is restored (see onStatus).
+    player().replace(sourceFor(it, idx));
+  },
+  play: () => (casting ? castPlayer.play() : player().play()),
+  pause: () => (casting ? castPlayer.pause() : players && player().pause()),
+  seekTo: (sec) => (casting ? castPlayer.seek(sec) : void player().seekTo(sec)),
+  setRate(r) {
+    rate = r;
+    if (casting) castPlayer.setRate(r);
+    else if (players) player().setPlaybackRate(r);
+  },
+  preload(it) {
+    if (casting) return false;
+    preloadedItem = it;
+    const p = spare();
+    p.replace(sourceFor(it, 0));
+    p.setPlaybackRate(1);
+    return true;
+  },
+  swapToPreloaded() {
+    const it = preloadedItem;
+    preloadedItem = null;
+    if (!it) return false;
+    loaded = { it, idx: 0 };
+    rate = 1;
+    pendingSeek = null;
+    awaitingSource = false;
+    seeking = false;
+    autoplayAfterLoad = false;
+    const old = player();
+    inUse = 1 - inUse;
+    playingLocal = !!localFor(it, 0);
+    player().setPlaybackRate(1);
+    player().play();
+    old.pause();
+    old.replace(null);
+    return true;
+  },
+  dropPreloaded() {
+    preloadedItem = null;
+    if (players) spare().replace(null);
+  },
+  unload() {
+    loaded = null;
+    if (players) player().pause();
+    // Closing or stopping while casting stops the TV too.
+    castPlayer.stop();
+    if (players) player().replace(null);
+  },
+};
+
+function onStatus(s: AudioStatus) {
+  const { item, error } = core.getState();
+  if (!item) return;
+  if (s.error) {
+    // Downloaded while streaming, then the connection went: carry on from the saved copy.
+    if (!playingLocal && loaded && localFor(loaded.it, loaded.idx)) return core.reload(core.getState().playing || autoplayAfterLoad);
+    return core.failed();
+  }
+  // What the failed file reports after its error isn't loading; play loads it again.
+  if (error) return;
+  if (awaitingSource) {
+    if (s.isLoaded) return;
+    awaitingSource = false;
+  }
+  if (s.isLoaded && pendingSeek !== null) {
+    const to = pendingSeek;
+    pendingSeek = null;
+    seeking = true;
+    const p = player();
+    void p.seekTo(to).then(() => {
+      if (p !== player()) return;
+      seeking = false;
+      p.setPlaybackRate(rate);
+      if (autoplayAfterLoad) p.play();
+      core.loaded(s.duration);
+    });
+    return;
+  }
+  core.loadingChanged(seeking || !s.isLoaded || s.isBuffering);
+  // Only the time waits for the restore seek; a pause or the end in that window still counts.
+  if (!seeking && s.isLoaded) core.time(s.currentTime, s.playing);
+  core.playingChanged(s.playing);
+  if (s.didJustFinish) core.ended();
+}
+
+// ---------- The core ----------
+
+const lockScreen = createLockScreen({
+  item: () => core.getState().item,
+  position: () => core.getPosition(),
+  skip: () => core.getState().skip,
+  player,
+  casting: () => casting,
+});
+
+const core = createPlayerCore({
+  media,
+  api: (path, init) => api(path, init),
+  toast: (message, action) => toast.show(message, action ? { duration: 5000, action: { label: action.label, onPress: action.run } } : undefined),
+  toastError: (message) => toast.error(message),
+  getJson,
+  setJson,
+  removeKey,
+  saveProgress: queueProgress,
+  // Paused, the listening time goes to the server at once; playing, with the next save.
+  saveListening: (paused) => saveListening(paused),
+  addListening: (type, id, wallSec, movedSec, speed) => listening.add(type, id, wallSec, movedSec, speed),
+  countPlay: (trackId, source) =>
+    queuePlay({ trackId, source, playId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`, playedAt: Date.now() }),
+  loadPlayable,
+  adPrefs: () => adPrefsStore.get(),
+  // Offline: a download carries the ad times it was saved with.
+  savedAds(id) {
+    const dl = getDownload("podcast", id);
+    return dl?.type === "podcast" ? (dl.ads ?? null) : null;
+  },
+  adsLoaded: saveDownloadAds,
+  // A copy stays on this phone, so Up Next shows offline.
+  upNextChanged: (l) => queryClient.setQueryData(keys.upNext, l),
+  musicPrefsChanged(prefs) {
+    const cached = queryClient.getQueryData<UserPrefs>(keys.prefs);
+    if (cached) queryClient.setQueryData<UserPrefs>(keys.prefs, { ...cached, ...prefs });
+  },
+  itemShown: (it) => (it ? void lockScreen.show(it) : lockScreen.clear()),
+  positionMoved: (it, sec) => lockScreen.moved(it, sec),
+  skipChanged: () => lockScreen.skipChanged(),
+  haptic: tapHaptic,
+  now: Date.now,
+});
+
+// Your skip settings, shuffle and repeat as last known, and the Up Next saved on this phone, so it
+// shows offline too; the server's replace them.
+core.init(queryClient.getQueryData<UserPrefs>(keys.prefs), queryClient.getQueryData<UpNextDto>(keys.upNext));
+
+// The core's state in the app's stores, for the hooks below.
+const store = createStore(core.getState());
+core.subscribe(() => store.set(core.getState()));
+// Ticks skip React with the app in the background (screen off, another app open).
+const place = createStore(core.getPosition(), { foregroundOnly: true });
+core.subscribePosition(() => place.set(core.getPosition()));
+
+// A connected Chromecast takes over where the phone is, playing if it was playing, and Google's
+// notification replaces this one. When casting ends, the item comes back here paused, where the TV left it.
+onCastDevice((device) => {
+  const it = core.getState().item;
+  if (device && !casting) {
+    const wasPlaying = core.getState().playing;
+    casting = true;
+    if (players) player().pause();
+    lockScreen.clear();
+    core.reload(wasPlaying);
+  } else if (!device && casting) {
+    casting = false;
+    castPlayer.release();
+    core.playingChanged(false);
+    core.reload(false);
+    if (it) void lockScreen.show(it);
+  }
+});
+
+/** The notification's bookmark button: saves this spot, unless it already has one. */
+function bookmarkHere() {
+  const { item: it, playing, speed } = core.getState();
+  const position = core.getPosition();
+  if (!it || it.type === "track" || bookmarkNear(bookmarksFor(it.type, it.id), position)) return;
+  addBookmark(newBookmark(it, bookmarkSpot(position, playing, speed)));
+}
+
+// ---------- For screens ----------
+
+export const getPlayerState = core.getState;
+export const getPosition = core.getPosition;
 
 /** Runs `listener` on every player change, outside React (the video player ends when audio starts). */
-export const onPlayerChange = (listener: (s: PlayerState) => void) => store.subscribe(() => listener(state));
+export const onPlayerChange = (listener: (s: PlayerState) => void) => core.subscribe(() => listener(core.getState()));
 
 export const usePlayer = store.useValue;
 
@@ -321,824 +414,42 @@ export function useItemPosition(type: PlayType, id: string): number | null {
         stopState();
       };
     },
-    () => (isCurrent(state, type, id) ? position : null),
+    () => (isCurrent(store.get(), type, id) ? place.get() : null),
   );
 }
 
-// ---------- Ads ----------
+export const {
+  play,
+  playRef,
+  playMusic,
+  playAt,
+  trackStep,
+  toggleShuffle,
+  cycleRepeat,
+  refreshUpNext,
+  addToUpNext,
+  moveUpNext,
+  clearUpNext,
+  restoreUpNext,
+  removeWaiting,
+  jumpTo,
+  goBack,
+  stayHere,
+  toggle,
+  pause,
+  seek,
+  skipBy,
+  chapterStep,
+  setSpeed,
+  setSleep,
+  setSkip,
+  markCurrent,
+  stop,
+} = core;
+
+/** Takes out the Up Next item at `index`. */
+export const removeAt = core.removeFromUpNext;
 
-let adsFor: string | null = null;
-let adsTimer: ReturnType<typeof setTimeout> | undefined;
-/** Ads (by index) the listener chose to hear with Undo, so auto-skip leaves them alone. */
-let adsAllowed = new Set<number>();
-
-/**
- * Asks for the current episode's ad times when the item changes, and again every minute while
- * its scan is still running. Any failure just means no marks, never a playback problem.
- */
-function watchAds() {
-  const it = state.item;
-  const key = it ? `${it.type}:${it.id}` : null;
-  if (key === adsFor) return;
-  adsFor = key;
-  clearTimeout(adsTimer);
-  adsAllowed = new Set();
-  state = { ...state, ads: null };
-  if (!it || it.type !== "episode") return;
-  const fetchAds = async () => {
-    try {
-      const info = await api<EpisodeAdsDto>(apiPaths.episodeAds(it.id));
-      if (adsFor !== key) return;
-      set({ ads: info });
-      saveDownloadAds(it.id, info);
-      if (!info.enabled || info.status === "done" || info.status === "failed") return;
-    } catch {
-      if (adsFor !== key) return;
-      // Offline: a download carries the ad times it was saved with.
-      const dl = getDownload("podcast", it.id);
-      if (!state.ads && dl?.type === "podcast" && dl.ads) set({ ads: dl.ads });
-    }
-    adsTimer = setTimeout(() => void fetchAds(), ADS_POLL_MS);
-  };
-  void fetchAds();
-}
-
-let chaptersFor: string | null = null;
-
-/**
- * An episode's chapters, which may take a moment the first time (the server looks them up).
- * None, or a failure, just means a plain scrubber.
- */
-function watchChapters() {
-  const it = state.item;
-  const key = it ? `${it.type}:${it.id}` : null;
-  if (key === chaptersFor) return;
-  chaptersFor = key;
-  if (!it || it.type !== "episode") return;
-  api<ChapterDto[]>(apiPaths.episodeChapters(it.id))
-    .then((chapters) => {
-      const cur = state.item;
-      if (chaptersFor !== key || !chapters.length || !cur || cur.type !== "episode" || cur.id !== it.id) return;
-      set({ item: { ...cur, chapters: fitChapters(chapters, cur.durationSec) } });
-    })
-    .catch(() => undefined);
-}
-
-let lastTickAt = 0;
-let lastListenAt = 0;
-let lastListenKey = "";
-
-function countListening(it: Playable, moved: number) {
-  const now = Date.now();
-  const key = `${it.type}:${it.id}`;
-  if (lastListenAt && key === lastListenKey) listening.add(it.type, it.id, (now - lastListenAt) / 1000, moved, state.speed, now);
-  lastListenAt = now;
-  lastListenKey = key;
-}
-
-/**
- * Auto-skip: jumps past an ad break when playback runs into it, never when you seek into one.
- * Normal play means the position moved forward by about as much as the clock did; with the
- * screen off Android spaces out status updates, so this isn't a fixed few seconds. An ad right
- * at the start (a pre-roll) counts as run into when playback starts there.
- */
-function maybeSkipAd(prev: number, pos: number) {
-  const now = Date.now();
-  const elapsed = lastTickAt ? (now - lastTickAt) / 1000 : 0;
-  lastTickAt = now;
-  if (playedThrough(prev, pos, elapsed, state.speed)) skipAdCrossed(prev, pos);
-}
-
-/**
- * Skips the break when a move forward from `prev` to `pos` crossed an ad's start and landed
- * inside it, in Auto-skip mode. Undo goes back to `undoTo` (or the ad's start) and lets it play.
- */
-function skipAdCrossed(prev: number, pos: number, undoTo?: number) {
-  const spans = state.ads?.enabled ? state.ads.ads : [];
-  const it = state.item;
-  if (!spans.length || !it) return;
-  if (adModeFor(adPrefsStore.get(), it.podcastId) !== "auto") return;
-  const brk = adToSkip(spans, prev, pos, adsAllowed, undoTo);
-  if (!brk) return;
-  seek(brk.endSec);
-  toast.show(brk.indexes.length > 1 ? `Skipped ${brk.indexes.length} ads` : "Skipped ad", {
-    duration: 5000,
-    action: {
-      label: "Undo",
-      onPress: () => {
-        for (const idx of brk.indexes) adsAllowed.add(idx);
-        seek(brk.undoTo);
-      },
-    },
-  });
-}
-
-export const getPosition = () => position;
-export const isCurrent = (s: PlayerState, type: PlayType, id: string) => s.item?.type === type && s.item.id === id;
-
-// ---------- Audio ----------
-
-// Two players: `player()` is the one playing; the other loads the next song ahead of time so it
-// can take over the moment the current one ends. Events from the spare one are ignored. They and
-// the audio session are made the first time something loads, not while the app is opening.
-let players: AudioPlayer[] | null = null;
-let inUse = 0;
-const player = () => (players ??= makePlayers())[inUse]!;
-const spare = () => (players ??= makePlayers())[1 - inUse]!;
-/** The song the spare player has loaded, ready to go. */
-let preloaded: string | null = null;
-
-// The patched expo-audio sends the notification's previous and next taps as "remoteTrack", and its
-// bookmark button as "remoteBookmark".
-type RemoteEmitter = {
-  addListener(event: "remoteTrack", fn: (e: { direction: number }) => void): unknown;
-  addListener(event: "remoteBookmark", fn: () => void): unknown;
-};
-
-function makePlayers() {
-  void setAudioModeAsync({ shouldPlayInBackground: true, interruptionMode: "doNotMix", playsInSilentMode: true });
-  const made = [0, 1].map(() => createAudioPlayer(null, { updateInterval: 500, keepAudioSessionActive: true }));
-  for (const p of made) {
-    p.addListener("playbackStatusUpdate", (s: AudioStatus) => {
-      if (p === made[inUse] && !casting) onStatus(s);
-    });
-    const remote = p as unknown as RemoteEmitter;
-    remote.addListener("remoteTrack", ({ direction }) => {
-      if (p === made[inUse]) trackStep(direction < 0 ? -1 : 1);
-    });
-    remote.addListener("remoteBookmark", () => {
-      if (p === made[inUse]) bookmarkHere();
-    });
-  }
-  return made;
-}
-
-let fileIndex = 0;
-let pendingSeek: number | null = null;
-/**
- * Set by load until the player reports the new file not loaded yet. A status sent just before the
- * replace still describes the old file, loaded: taken for the new one, it spent the restore seek
- * and gave an episode the song's length (an episode after a song showed 5:12 and stuck there).
- */
-let awaitingSource = false;
-let autoplayAfterLoad = false;
-let seeking = false;
-/** Whether the loaded file is the phone's downloaded copy rather than the server's stream. */
-let playingLocal = false;
-let lastSaved = 0;
-
-const lockScreen = createLockScreen({
-  item: () => state.item,
-  position: () => position,
-  skip: () => state.skip,
-  player,
-  casting: () => casting,
-});
-
-const fileAt = (it: Playable, sec: number) => Math.max(0, it.files.findLastIndex((f) => f.startSec <= sec));
-
-/** The downloaded copy of a file, if this phone has one. */
-const localFor = (it: Playable, idx: number) => (it.type === "track" ? localTrackUri(it.id) : localUri(it.type, it.id, idx));
-
-function sourceFor(it: Playable, idx: number) {
-  const local = localFor(it, idx);
-  if (local) return { uri: local };
-  const f = it.files[idx];
-  return f ? { uri: absolute(f.path), headers: authHeaders() } : null;
-}
-
-function load(it: Playable, at: number, autoplay: boolean) {
-  const idx = fileAt(it, at);
-  fileIndex = idx;
-  const inFile = at - (it.files[idx]?.startSec ?? 0);
-  setPosition(at);
-  set({ error: null, loading: true });
-  if (casting) {
-    // The TV starts there itself; a download streams from the server, which the TV can reach.
-    pendingSeek = null;
-    awaitingSource = false;
-    playingLocal = false;
-    castPlayer.load(it.files[idx]?.path ?? "", { title: it.title, subtitle: it.subtitle, image: it.coverPathLarge }, inFile, autoplay, state.speed);
-    return;
-  }
-  pendingSeek = inFile;
-  awaitingSource = true;
-  autoplayAfterLoad = autoplay;
-  playingLocal = !!localFor(it, idx);
-  player().replace(sourceFor(it, idx));
-  // Playback starts once the position is restored (see the status listener).
-}
-
-// ---------- Casting ----------
-
-/** While casting, the Chromecast plays instead of the phone's player; there's no spare, so songs follow each other on the TV with its own short gap. */
-let casting = false;
-
-const castPlayer = new CastPlayer({
-  loaded: () => {
-    const it = state.item;
-    if (!it) return;
-    set({ loading: false, playing: castPlayer.playing });
-    setPosition((it.files[fileIndex]?.startSec ?? 0) + castPlayer.position);
-  },
-  time: () => {
-    const it = state.item;
-    if (it) tick(it, (it.files[fileIndex]?.startSec ?? 0) + castPlayer.position, castPlayer.playing);
-  },
-  playing: (playing) => {
-    const wasPlaying = state.playing;
-    set({ playing });
-    if (wasPlaying && !playing) save();
-  },
-  buffering: (loading) => loading !== state.loading && set({ loading }),
-  ended: () => state.item && fileEnded(state.item),
-});
-
-/** What plays: the phone's player, or the Chromecast while casting. */
-const media = {
-  get playing() {
-    return casting ? castPlayer.playing : player().playing;
-  },
-  get duration() {
-    return casting ? castPlayer.duration : player().duration;
-  },
-  play: () => (casting ? castPlayer.play() : player().play()),
-  pause: () => (casting ? castPlayer.pause() : player().pause()),
-  seekTo: (sec: number) => (casting ? castPlayer.seek(sec) : void player().seekTo(sec)),
-  setRate: (rate: number) => (casting ? castPlayer.setRate(rate) : player().setPlaybackRate(rate)),
-};
-
-// A connected Chromecast takes over where the phone is, playing if it was playing, and Google's
-// notification replaces this one. When casting ends, the item comes back here paused, where the TV left it.
-onCastDevice((device) => {
-  const it = state.item;
-  if (device && !casting) {
-    const wasPlaying = state.playing;
-    casting = true;
-    dropPreloaded();
-    if (players) player().pause();
-    lockScreen.clear();
-    if (it) load(it, position, wasPlaying);
-  } else if (!device && casting) {
-    casting = false;
-    castPlayer.release();
-    set({ playing: false });
-    if (it) {
-      load(it, position, false);
-      void lockScreen.show(it);
-    }
-  }
-});
-
-/** The notification's bookmark button: saves this spot, unless it already has one. */
-function bookmarkHere() {
-  const it = state.item;
-  if (!it || it.type === "track" || bookmarkNear(bookmarksFor(it.type, it.id), position)) return;
-  addBookmark(newBookmark(it, bookmarkSpot(position, state.playing, state.speed)));
-}
-
-function onStatus(s: AudioStatus) {
-  const it = state.item;
-  if (!it) return;
-  if (s.error) {
-    // Downloaded while streaming, then the connection went: carry on from the saved copy.
-    if (!playingLocal && localFor(it, fileIndex)) {
-      load(it, position, state.playing || autoplayAfterLoad);
-      return;
-    }
-    set({ loading: false, playing: false, error: "Couldn't play this. Check your connection and try again." });
-    return;
-  }
-  if (awaitingSource) {
-    if (s.isLoaded) return;
-    awaitingSource = false;
-  }
-  if (s.isLoaded && pendingSeek !== null) {
-    const to = pendingSeek;
-    pendingSeek = null;
-    // Until the seek lands the player still reports the file's start, which would reset the
-    // restored position to 0 (and, paused, nothing would correct it).
-    seeking = true;
-    void player().seekTo(to).then(() => {
-      seeking = false;
-      setPosition((it.files[fileIndex]?.startSec ?? 0) + to);
-      player().setPlaybackRate(state.speed);
-      if (autoplayAfterLoad) player().play();
-    });
-    // Feeds often omit or misstate an episode's length; trust the file.
-    if (it.type === "episode" && s.duration > 0 && Math.abs(it.durationSec - s.duration) > 1) {
-      set({
-        item: { ...it, durationSec: s.duration, files: [{ ...it.files[0]!, durationSec: s.duration }], chapters: fitChapters(it.chapters, s.duration) },
-      });
-    }
-    return;
-  }
-  const loading = s.isBuffering || !s.isLoaded;
-  if (s.playing !== state.playing || loading !== state.loading) {
-    const wasPlaying = state.playing;
-    set({ playing: s.playing, loading });
-    if (wasPlaying && !s.playing && !s.didJustFinish) save();
-  }
-  if (pendingSeek === null && !seeking && s.isLoaded) tick(it, (it.files[fileIndex]?.startSec ?? 0) + s.currentTime, s.playing);
-  if (s.didJustFinish) fileEnded(it);
-}
-
-/** Where the loaded file has got to, from the phone's player or the Chromecast. */
-function tick(it: Playable, pos: number, playing: boolean) {
-  const prev = position;
-  setPosition(pos);
-  if (playing) {
-    maybeSkipAd(prev, pos);
-    countListening(it, pos - prev);
-    if (it.type === "track") musicTick(it, pos, pos - prev);
-  } else {
-    lastTickAt = 0;
-    lastListenAt = 0;
-  }
-  if (hold) holdTick(pos, playing);
-  if (playing && Date.now() - lastSaved > SAVE_EVERY_MS) save();
-  const sl = state.sleep;
-  if (sl.mode === "chapter" && pos >= sl.endSec - 0.3) {
-    media.pause();
-    set({ sleep: { mode: "off" } });
-  }
-}
-
-/** Counts time played, not time passed, so a phone left paused overnight doesn't end a hold. */
-function holdTick(pos: number, playing: boolean) {
-  if (!hold) return;
-  const now = Date.now();
-  if (playing && holdTickAt) hold.heard += Math.min((now - holdTickAt) / 1000, 5);
-  holdTickAt = playing ? now : 0;
-  if (holdEnded(hold, pos)) stayHere();
-}
-
-/** The loaded file played to its end: a book's next file, else what follows the item. */
-function fileEnded(it: Playable) {
-  const next = fileIndex + 1;
-  if (next < it.files.length) {
-    load(it, it.files[next]!.startSec, true);
-    return;
-  }
-  if (it.type === "track") {
-    save();
-    // "End of song" on the sleep timer stops here rather than going on.
-    if (state.sleep.mode === "chapter") return set({ sleep: { mode: "off" } });
-    // The same song on Repeat one, else what's next in Up Next.
-    return playNext(nextIndex(state.upNext, state.repeat, true));
-  }
-  save(true);
-  // A book ends there; nothing starts on its own. An episode goes on down Up Next (repeat is for songs).
-  if (it.type === "episode") playNext(nextIndex(state.upNext, "off", true));
-}
-
-// ---------- Music ----------
-
-/** Start the next song loading this long before the current one ends, so it follows without a gap. */
-const PRELOAD_SEC = 10;
-/** Seconds of the current song heard, toward counting it as played; sent once per play. */
-let heardSec = 0;
-let counted = false;
-
-/** While a song plays: count it once heard long enough, and preload the next one near its end. */
-function musicTick(it: Playable, pos: number, heard: number) {
-  if (heard > 0 && heard < 5) heardSec += heard;
-  const dur = it.durationSec || media.duration || 0;
-  const needed = dur > 0 ? Math.min(PLAY_COUNTS_AFTER_SEC, dur / 2) : PLAY_COUNTS_AFTER_SEC;
-  if (!counted && heardSec >= needed) {
-    counted = true;
-    // Where it was played from, for Jump back in.
-    const source = state.upNext.source;
-    queuePlay({
-      trackId: it.id,
-      source: source ? { kind: source.kind, refId: source.refId } : null,
-      playId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`,
-      playedAt: Date.now(),
-    });
-  }
-  if (casting || !(dur > 0 && dur - pos < PRELOAD_SEC)) return;
-  const next = nextIndex(state.upNext, state.repeat, true);
-  const e = typeof next === "number" ? state.upNext.items[next] : undefined;
-  if (e?.itemType === "track") preload(e.track);
-}
-
-/** The spare player starts loading `track`, so it can take over the moment the current song ends. */
-function preload(track: TrackDto) {
-  if (preloaded === track.id) return;
-  preloaded = track.id;
-  const p = spare();
-  p.replace(sourceFor(trackToPlayable(track), 0));
-  p.setPlaybackRate(1);
-}
-
-/** Drops whatever the spare player loaded ahead. */
-function dropPreloaded() {
-  if (!preloaded) return;
-  preloaded = null;
-  spare().replace(null);
-}
-
-/**
- * Shows and saves `l`, and plays its item at `l.index`: from the spare player when it preloaded
- * that song, so it follows without a gap.
- */
-function go(l: UpNextDto, save: "list" | "index") {
-  const e = l.items[l.index];
-  if (!e) return;
-  setList(l, save);
-  const it = entryToPlayable(e);
-  if (e.itemType === "track" && preloaded === e.itemId) {
-    // The gapless hand-over: the spare player already has the song loaded.
-    const old = player();
-    inUse = 1 - inUse;
-    preloaded = null;
-    fileIndex = 0;
-    pendingSeek = null;
-    awaitingSource = false;
-    seeking = false;
-    autoplayAfterLoad = false;
-    playingLocal = !!localFor(it, 0);
-    lastTickAt = 0;
-    lastListenAt = 0;
-    heardSec = 0;
-    counted = false;
-    setPosition(0);
-    player().setPlaybackRate(1);
-    player().play();
-    old.pause();
-    old.replace(null);
-    // "End of song" was for the one that just ended; a plain timer carries on.
-    set({ item: it, speed: 1, error: null, ...(state.sleep.mode === "chapter" ? { sleep: { mode: "off" } as const } : {}) });
-    setJson(NOW_PLAYING_KEY, { itemType: it.type, itemId: it.id } satisfies PlayRef);
-    void lockScreen.show(it);
-  } else {
-    dropPreloaded();
-    // Songs play from the start; an episode carries on where you left it.
-    play(it, e.itemType === "track" ? 0 : undefined, true);
-  }
-}
-
-/** Plays the Up Next item at `index`. */
-export const playAt = (index: number) => go({ ...state.upNext, index }, "index");
-
-/**
- * Starts music from an album, an artist or a list of songs, from song `index` (-1 for Play: the
- * first song, or any song with shuffle on). Its songs take over Up Next; episodes waiting stay after
- * them. Shuffle follows your setting; `shuffle` true turns it on first, for the Shuffle buttons.
- */
-export function playMusic(source: MusicSource, index: number, shuffle = false) {
-  if (!source.tracks.length) return;
-  if (shuffle && !state.shuffle) setMusicPrefs({ shuffle: true }, true);
-  const { kind, refId, title } = source;
-  dropPreloaded();
-  go(startMusic(state.upNext, { kind, refId, title }, source.tracks.map(trackEntry), index, shuffle || state.shuffle), "list");
-}
-
-/** Plays what `nextIndex` picked: the same song again, or another item. */
-function playNext(next: "again" | number | null) {
-  if (next === null) return;
-  if (next !== "again") return playAt(next);
-  heardSec = 0;
-  counted = false;
-  seek(0);
-  media.play();
-}
-
-/**
- * Previous and next for songs and episodes (and the notification's pair), as the web's: previous
- * restarts the item once it's more than 3 s in. Repeat is for songs; an episode steps through Up
- * Next, and past either end of it moves to the episode beside it in its show's list.
- */
-export function trackStep(dir: -1 | 1) {
-  const it = state.item;
-  if (!it || it.type === "book") return;
-  tapHaptic();
-  const l = state.upNext;
-  const repeat = it.type === "track" ? state.repeat : "off";
-  if (dir === -1 && position > 3) return seek(0);
-  // Skipping on Repeat one moves on, so repeat drops to the whole list.
-  if (dir === 1 && repeat === "one") setMusicPrefs({ repeat: "all" }, true);
-  const index = l.index < 0 ? null : dir === 1 ? nextIndex(l, repeat, false) : previousIndex(l, repeat);
-  if (typeof index === "number") return playAt(index);
-  if (it.type === "track") return dir === -1 ? seek(0) : undefined;
-  void api<{ id: string | null }>(apiPaths.episodeNeighbor(it.id, dir)).then(
-    ({ id }) => (id ? playRef({ itemType: "episode", itemId: id }) : dir === -1 ? seek(0) : undefined),
-    () => undefined,
-  );
-}
-
-/** Sets shuffle and repeat here, and on the server when `persist` (an older server ignores them). */
-function setMusicPrefs(prefs: { shuffle?: boolean; repeat?: RepeatMode }, persist: boolean) {
-  set(prefs);
-  if (!persist) return;
-  const cached = queryClient.getQueryData<UserPrefs>(keys.prefs);
-  if (cached) queryClient.setQueryData<UserPrefs>(keys.prefs, { ...cached, ...prefs });
-  void api(apiPaths.prefs, { method: "PUT", body: prefs }).catch(() => undefined);
-}
-
-/** Turns shuffle on or off, reordering the album's or list's songs still to come. */
-export function toggleShuffle() {
-  tapHaptic();
-  const on = !state.shuffle;
-  setMusicPrefs({ shuffle: on }, true);
-  if (!state.upNext.source) return;
-  setList(setShuffle(state.upNext, on), "list");
-}
-
-/** Repeat off, then all, then one. */
-export function cycleRepeat() {
-  tapHaptic();
-  setMusicPrefs({ repeat: nextRepeatMode(state.repeat) }, true);
-}
-
-// ---------- Progress ----------
-
-function save(finished = false, refreshLists = finished || !state.playing) {
-  const it = state.item;
-  if (!it) return;
-  if (finished) endHold();
-  if (it.type === "track" || hold) {
-    // Songs keep no position, and a hold leaves the real place alone; only the listening time goes to the server.
-    lastSaved = Date.now();
-    saveListening(!state.playing);
-    return;
-  }
-  const dur = it.durationSec || media.duration || 0;
-  const entry: ProgressItem = {
-    itemType: it.type,
-    itemId: it.id,
-    positionSec: finished ? dur : position,
-    durationSec: dur,
-    finished,
-    speed: state.speed,
-    updatedAt: Date.now(),
-  };
-  lastSaved = Date.now();
-  // Where it had got to, for putting it back after a restart.
-  setJson(NOW_PLAYING_KEY, { itemType: it.type, itemId: it.id, at: finished ? 0 : position } satisfies SavedPlace);
-  queueProgress(entry, refreshLists);
-}
-
-// ---------- Up Next ----------
-
-const trackEntry = (track: TrackDto): UpNextEntry => ({ itemType: "track", itemId: track.id, added: false, track });
-const toRefs = (l: UpNextList): UpNextInput => ({ ...l, items: l.items.map(({ itemType, itemId, added }) => ({ itemType, itemId, added })) });
-const entryToPlayable = (e: UpNextEntry): Playable => (e.itemType === "track" ? trackToPlayable(e.track) : episodeToPlayable(e.episode));
-const sameRef = (a: QueueRef, b: QueueRef) => a.itemType === b.itemType && a.itemId === b.itemId;
-
-/**
- * Shows a changed list at once and saves it: "list" sends the whole list, "index" only where it's
- * at. A copy stays on this phone, so Up Next shows offline.
- */
-function setList(l: UpNextDto, save: "list" | "index" | false) {
-  set({ upNext: l, upNextLoaded: true });
-  queryClient.setQueryData(keys.upNext, l);
-  if (save === "index") void api(apiPaths.upNext, { method: "PATCH", body: { index: l.index } }).catch(() => undefined);
-  // A change you made (not just moving along the list) says so when it didn't save.
-  if (save === "list") void api(apiPaths.upNext, { method: "PUT", body: toRefs(l) }).catch(() => toast.error("Couldn't save the queue."));
-}
-
-export async function refreshUpNext() {
-  try {
-    setList(await api<UpNextDto>(apiPaths.upNext), false);
-  } catch {
-    // Keep what we have; offline, that's the honest answer rather than a placeholder forever.
-    set({ upNextLoaded: true });
-  }
-}
-
-/** Saves a list with an item this phone has no details for yet (a new episode), and shows the server's copy. */
-async function putRefs(l: UpNextInput) {
-  setList(await api<UpNextDto>(apiPaths.upNext, { method: "PUT", body: l }), false);
-}
-
-/**
- * Adds an item from anywhere, or several in order (an album): "next" after the item playing (and
- * what you added after it), or "last".
- */
-export async function addToUpNext(ref: QueueRef | QueueRef[], at: "next" | "last") {
-  const body = Array.isArray(ref) ? { items: ref, at } : { ...ref, at };
-  setList(await api<UpNextDto>(apiPaths.upNext, { method: "POST", body }), false);
-}
-
-/** Takes out the item at `index`. Taking out the one playing moves on, or stops when nothing comes after it. */
-export function removeAt(index: number) {
-  const was = state.upNext.index;
-  const { list, play: next } = removeListItem(state.upNext, index);
-  if (next !== null) return go(list, "list");
-  setList(list, "list");
-  if (index === was) stop();
-}
-
-export const moveUpNext = (from: number, to: number) => setList(moveListItem(state.upNext, from, to), "list");
-
-/** Empties what's still to come; what played and the item playing stay. */
-export const clearUpNext = () => setList({ ...state.upNext, items: state.upNext.items.slice(0, state.upNext.index + 1) }, "list");
-
-/** Puts back a list from before a change, for Undo. */
-export const restoreUpNext = (l: UpNextDto) => setList(l, "list");
-
-/** Whether `ref` is still to come in Up Next (not played already, not playing). */
-export const isWaiting = (l: UpNextList, ref: QueueRef) => l.items.some((e, i) => i > l.index && sameRef(e, ref));
-
-/** Takes `ref` out of what's still to come. */
-export function removeWaiting(ref: QueueRef) {
-  const l = state.upNext;
-  const at = l.items.findIndex((e, i) => i > l.index && sameRef(e, ref));
-  if (at >= 0) removeAt(at);
-}
-
-/** Whether the music playing comes from this album, artist, playlist or your songs. */
-export const isPlayingFrom = (s: PlayerState, kind: UpNextSource["kind"], refId: string | null) =>
-  s.item?.type === "track" && s.upNext.source?.kind === kind && s.upNext.source.refId === refId;
-
-// ---------- Controls ----------
-
-/**
- * Loads and plays `it`. `fromList` is for Up Next's own items, which leave the list as it is; a
- * book, or an episode from its show, takes over: the songs leave Up Next and waiting episodes stay.
- */
-export function play(it: Playable, startAt?: number, fromList = false) {
-  const cur = state.item;
-  if (cur && cur.type === it.type && cur.id === it.id) {
-    if (startAt !== undefined) seek(startAt);
-    media.play();
-    return;
-  }
-  if (cur && state.playing) save();
-  heardSec = 0;
-  counted = false;
-  set({ item: it, speed: it.speed });
-  // A timer set for what was playing doesn't carry over (and its interval stops with it).
-  if (state.sleep.mode !== "off") setSleep({ mode: "off" });
-  load(it, startAt ?? it.startAt, true);
-  setJson(NOW_PLAYING_KEY, { itemType: it.type, itemId: it.id } satisfies PlayRef);
-  void lockScreen.show(it);
-  if (fromList || it.type === "track") return;
-  dropPreloaded();
-  if (it.type === "book") setList(startSingle(state.upNext, null), "list");
-  else void putRefs(startSingle(toRefs(state.upNext), { itemType: "episode", itemId: it.id, added: false })).catch(() => undefined);
-}
-
-export async function playRef(ref: PlayRef, startAt?: number) {
-  try {
-    play(await loadPlayable(ref), startAt);
-  } catch (err) {
-    set({ error: err instanceof Error ? err.message : "Couldn't load that." });
-  }
-}
-
-/** Sets the hold for a jump to `sec`, away from `returnTo`. A jump from a held spot keeps the real place. */
-function startHold(type: PlayType, id: string, returnTo: number, sec: number) {
-  if (hold) hold = { ...hold, from: sec, heard: 0 };
-  else if (offersGoBack(returnTo, sec)) {
-    hold = { type, id, returnTo, from: sec, heard: 0 };
-    set({ goBackTo: returnTo });
-  }
-  holdTickAt = 0;
-}
-
-function endHold() {
-  hold = null;
-  if (state.goBackTo !== null) set({ goBackTo: null });
-}
-
-/** Plays a bookmark. Your real place stays saved until it's clear you've moved on, and the Go back card can return to it. */
-export async function jumpTo(ref: PlayRef, sec: number) {
-  const cur = state.item;
-  if (cur && isCurrent(state, ref.itemType, ref.itemId)) {
-    // First, so a seek while paused doesn't save the new spot.
-    startHold(cur.type, cur.id, position, sec);
-    seek(sec);
-    media.play();
-    return;
-  }
-  try {
-    const it = await loadPlayable(ref);
-    play(it, sec);
-    // Leaving a held item ended its hold, so this one starts fresh against its own saved place.
-    startHold(it.type, it.id, it.startAt, sec);
-  } catch (err) {
-    set({ error: err instanceof Error ? err.message : "Couldn't load that." });
-  }
-}
-
-/** The Go back card: back to the real place. */
-export function goBack() {
-  const to = hold?.returnTo;
-  if (to === undefined) return;
-  endHold();
-  seek(to);
-}
-
-/** The card's X, and how a hold runs out: this spot is your place now. */
-export function stayHere() {
-  if (!hold) return;
-  endHold();
-  save();
-}
-
-export function toggle() {
-  if (!state.item) return;
-  tapHaptic();
-  // After an error the player is stuck; play loads it again from where it was (the
-  // downloaded copy if there is one now).
-  if (state.error) return load(state.item, position, true);
-  if (media.playing) media.pause();
-  else {
-    // Reaching the end then pressing play starts again rather than doing nothing.
-    if (state.item.durationSec && position >= state.item.durationSec - 1) seek(0);
-    media.play();
-  }
-}
-
-export const pause = () => media.pause();
-
-export function seek(sec: number) {
-  const it = state.item;
-  if (!it) return;
-  const dur = it.durationSec || media.duration || 0;
-  const t = Math.min(Math.max(0, sec), Math.max(0, dur - 0.5));
-  const idx = fileAt(it, t);
-  if (idx === fileIndex && pendingSeek === null) {
-    media.seekTo(t - (it.files[idx]?.startSec ?? 0));
-    setPosition(t);
-  } else {
-    load(it, t, media.playing);
-  }
-  // "End of chapter" follows you to the chapter you land in.
-  const chapter = it.chapters[chapterAt(it.chapters, t)];
-  if (state.sleep.mode === "chapter" && it.chapters.length > 1 && chapter) set({ sleep: { mode: "chapter", endSec: chapter.endSec } });
-  // While playing, progress saves every few seconds anyway; paused, nothing else would keep it.
-  // A scrub doesn't change any list enough to reload them all.
-  if (!state.playing) save(false, false);
-}
-
-/**
- * The skip buttons. Skipping forward into an ad counts as running into it, so Auto-skip jumps
- * the break; Undo comes back to where the skip landed.
- */
-export function skipBy(delta: number) {
-  tapHaptic();
-  const from = position;
-  seek(from + delta);
-  if (delta > 0) skipAdCrossed(from, position, position);
-}
-
-/** Previous and next: the chapter, else the song or episode (see trackStep), else 30 s for a book. */
-export function chapterStep(dir: -1 | 1) {
-  const it = state.item;
-  if (!it) return;
-  if (it.type === "track") return trackStep(dir);
-  // Without chapters, an episode's previous and next move through Up Next and then its show; a book skips 30 s.
-  if (it.chapters.length <= 1) return it.type === "book" ? skipBy(dir * 30) : trackStep(dir);
-  tapHaptic();
-  const i = chapterAt(it.chapters, position);
-  if (dir === 1) {
-    const next = it.chapters[i + 1];
-    if (next) seek(next.startSec);
-    return;
-  }
-  // Like a CD player: back goes to the start of this chapter unless you're already near it.
-  const cur = it.chapters[i];
-  if (cur && position - cur.startSec > 3) seek(cur.startSec);
-  else seek(it.chapters[Math.max(0, i - 1)]?.startSec ?? 0);
-}
-
-export function setSpeed(s: number) {
-  const speed = clampSpeed(s);
-  set({ speed });
-  media.setRate(speed);
-  const it = state.item;
-  if (!it) return;
-  set({ item: { ...it, speed } });
-  if (it.type === "episode" && it.podcastId) {
-    void api(`/api/podcasts/${it.podcastId}`, { method: "PATCH", body: { speed } }).catch(() => undefined);
-  } else {
-    save();
-  }
-}
-
-let sleepTimer: ReturnType<typeof setInterval> | null = null;
-export function setSleep(s: SleepTimer) {
-  set({ sleep: s });
-  if (sleepTimer) clearInterval(sleepTimer);
-  sleepTimer = null;
-  if (s.mode !== "timer") return;
-  sleepTimer = setInterval(() => {
-    if (Date.now() < s.endsAt) return;
-    media.pause();
-    setSleep({ mode: "off" });
-  }, 1000);
-}
-
-export function setSkip(s: SkipSettings) {
-  set({ skip: s });
-  setJson(SKIP_KEY, s);
-  lockScreen.skipChanged();
-}
-
-/** Marks the current item finished (or not) and saves it. */
 /**
  * Marks a book or episode finished, or back to the start, from a list or page. It goes through
  * the outbox like the player's own saves, so it works offline and syncs later.
@@ -1147,63 +458,27 @@ export function setFinished(itemType: "book" | "episode", itemId: string, durati
   queueProgress({ itemType, itemId, positionSec: finished ? durationSec : 0, durationSec, finished, updatedAt: Date.now() }, true);
 }
 
-export function markCurrent(finished: boolean) {
-  endHold();
-  if (finished) {
-    // Finishing clears it from the player, like the web player.
-    save(true);
-    clear();
-  } else {
-    seek(0);
-    setPosition(0);
-    save(false, true);
-  }
-}
-
-export function stop() {
-  if (state.playing) save();
-  clear();
-}
-
-/** Empties the player without saving; status events for the old item are ignored after this. */
-function clear() {
-  set({ item: null, playing: false, loading: false, error: null });
-  if (players) player().pause();
-  // Closing or stopping while casting stops the TV too.
-  castPlayer.stop();
-  lockScreen.clear();
-  if (players) player().replace(null);
-  dropPreloaded();
-  removeKey(NOW_PLAYING_KEY);
-}
+// ---------- Restore ----------
 
 /** Called once signed in: loads Up Next and puts back whatever was playing last, paused. */
 export async function restorePlayer() {
   void flush();
   void refreshBookmarks();
   // Up Next comes back from the server with its place, so next and previous work after a restart.
-  void refreshUpNext();
+  void core.refreshUpNext();
   // Older servers have no shuffle or repeat; those stay off.
-  const musicPrefs = (p: UserPrefs) => setMusicPrefs({ shuffle: p.shuffle ?? false, repeat: p.repeat ?? "off" }, false);
-  const cached = queryClient.getQueryData<UserPrefs>(keys.prefs);
-  if (cached) musicPrefs(cached);
-  fetchPrefs().then(musicPrefs, () => undefined);
+  fetchPrefs().then((p) => core.setMusicPrefs({ shuffle: p.shuffle ?? false, repeat: p.repeat ?? "off" }, false), () => undefined);
   await restoreNowPlaying();
-}
-
-function putBack(it: Playable) {
-  set({ item: it, speed: it.speed });
-  load(it, it.startAt, false);
-  void lockScreen.show(it);
 }
 
 /** Puts back what was playing when the app closed, paused: from what's on the phone at once, then as the server has it. */
 async function restoreNowPlaying() {
   const saved = getJson<SavedPlace>(NOW_PLAYING_KEY);
-  if (!saved || state.item) return;
+  if (!saved || core.getState().item) return;
   const cached = cachedPlayable(saved);
-  if (cached) putBack(cached);
-  await refreshRestored(saved, cached?.startAt ?? null);
+  // At the place saved with it, which is newer than the details.
+  if (cached) core.restore(saved, cached);
+  await refreshRestored(saved, cached ? core.getPosition() : null);
 }
 
 /**
@@ -1212,24 +487,24 @@ async function restoreNowPlaying() {
  * offline, or with the server down, it tries again when the phone is back online.
  */
 async function refreshRestored(saved: SavedPlace, shownAt: number | null) {
-  const untouched = () => state.item && isCurrent(state, saved.itemType, saved.itemId) && !state.playing && !media.playing && Math.abs(position - shownAt!) < 2;
+  const untouched = () => {
+    const s = core.getState();
+    return !!s.item && isCurrent(s, saved.itemType, saved.itemId) && !s.playing && !media.playing && Math.abs(core.getPosition() - shownAt!) < 2;
+  };
   try {
     const fresh = resumeFrom(await fetchPlayable(saved));
     if (shownAt === null) {
-      if (!state.item) putBack(fresh);
+      if (!core.getState().item) core.putBack(fresh);
       return;
     }
     if (!untouched()) return;
     // An episode's length and chapters came from the file and the server since; a book's details are all here.
-    const item = fresh.type === "book" ? fresh : { ...state.item!, startAt: fresh.startAt, speed: fresh.speed };
-    const faster = fresh.speed !== state.speed;
-    set({ item, speed: fresh.speed });
-    if (Math.abs(fresh.startAt - position) > 1) load(item, fresh.startAt, false);
-    else if (faster) media.setRate(fresh.speed);
+    const cur = core.getState().item!;
+    core.updateItem(fresh.type === "book" ? fresh : { ...cur, startAt: fresh.startAt, speed: fresh.speed }, fresh.startAt);
   } catch (err) {
     if (err instanceof HttpError && (err.status === 404 || err.status === 410)) {
       if (shownAt === null) removeKey(NOW_PLAYING_KEY);
-      else if (untouched()) clear();
+      else if (untouched()) core.clear();
       return;
     }
     const unsubscribe = onlineManager.subscribe((online) => {

@@ -58,7 +58,7 @@ export function AlbumSortSheet({ open, onClose, sort, onPick }: { open: boolean;
 /** Cover with title and a sub line; `badge` puts the add / added button on the cover. */
 export function AlbumCard({ album, sub, badge }: { album: AlbumSummary; sub?: string | null; badge?: boolean }) {
   // Any of its songs, from the album itself or from a playlist or Up Next.
-  const current = usePlayerSelect((s) => s.item?.type === "track" && s.item.albumId === album.id);
+  const current = usePlayerSelect((s) => s.item?.type === "track" && s.item.album?.id === album.id);
   const playing = usePlayerSelect((s) => current && s.playing);
   return (
     <div className={`card${current ? " playing" : ""}`}>

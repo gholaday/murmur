@@ -6,7 +6,7 @@ import { getJson, setJson } from "@/lib/storage";
 import { createSavedStore } from "@/lib/store";
 
 // The modes and skip rules are shared with the web player; this keeps the phone's copy.
-export { AD_MODES, adBreak, adModeFor, adToSkip, playedThrough, setShowMode, type AdMode, type AdPrefs } from "@murmur/shared/client";
+export { AD_MODES, adBreak, adModeFor, setShowMode, type AdMode, type AdPrefs } from "@murmur/shared/client";
 
 export const adPrefsStore = createSavedStore<AdPrefs>(AD_PREFS_KEY, parseAdPrefs(getJson<Partial<AdPrefs>>(AD_PREFS_KEY)));
 
