@@ -1,7 +1,8 @@
 import { AppState } from "react-native";
 import { onlineManager } from "@tanstack/react-query";
 import { apiPaths, type ListeningStore, ListeningTracker, type ProgressItem, storageKeys, type UpNextSource } from "@murmur/shared/client";
-import { api, HttpError } from "@/lib/api";
+import { toast } from "@/components/toast";
+import { api, refused } from "@/lib/api";
 import { flushBookmarks, forgetBookmarks, refreshBookmarks } from "@/lib/bookmarks";
 import { invalidateProgress } from "@/lib/data";
 import { getJson, removeKey, setJson } from "@/lib/storage";
@@ -68,19 +69,35 @@ export async function flush(refreshLists = false, listeningNow = refreshLists) {
         flushAgain = false;
         const items = Object.values(getJson<Outbox>(OUTBOX_KEY) ?? {});
         if (items.length === 0) break;
-        await api(apiPaths.progress, { method: "PUT", body: { items } });
+        let accepted = true;
+        try {
+          await api(apiPaths.progress, { method: "PUT", body: { items } });
+        } catch (err) {
+          // Unreachable: it all stays for the next save or reconnect (the outer catch).
+          if (!refused(err)) throw err;
+          // Turned down for good: sending it again would only be turned down again, so it goes.
+          accepted = false;
+          placeNotSaved();
+        }
         // Drop what was sent unless it changed meanwhile.
         const now = getJson<Outbox>(OUTBOX_KEY) ?? {};
         for (const i of items) {
           const k = `${i.itemType}:${i.itemId}`;
-          sent.set(k, i);
+          if (accepted) sent.set(k, i);
           if (now[k]?.updatedAt === i.updatedAt) delete now[k];
         }
         setJson(OUTBOX_KEY, now);
       } while (flushAgain);
       const report = listeningDue || Date.now() - listeningSentAt >= LISTENING_EVERY_MS ? listening.pending() : null;
       if (report) {
-        await api(apiPaths.listening, { method: "PUT", body: report });
+        try {
+          await api(apiPaths.listening, { method: "PUT", body: report });
+        } catch (err) {
+          if (!refused(err)) throw err;
+          // Turned down for good, so it's dropped rather than sent again forever; nothing on
+          // screen was waiting on it, so it's only noted.
+          console.warn(`Listening time was turned down: ${(err as Error).message}`);
+        }
         listening.sent(report);
         listeningSentAt = Date.now();
       }
@@ -95,10 +112,19 @@ export async function flush(refreshLists = false, listeningNow = refreshLists) {
       invalidateProgress([...sent.values()]);
     }
   } catch {
-    // Stays in the outbox until the next save or reconnect.
+    // Couldn't reach the server: stays in the outbox until the next save or reconnect.
   } finally {
     flushing = false;
   }
+}
+
+let toldNotSaved = false;
+
+/** Said once: after that the next place turned down goes quietly, rather than a toast every few seconds. */
+function placeNotSaved() {
+  if (toldNotSaved) return;
+  toldNotSaved = true;
+  toast.error("Couldn't save your place.");
 }
 
 // ---------- Song plays (kept in their own list, so plays made offline count later) ----------
@@ -145,8 +171,8 @@ function flushPlays(): Promise<void> {
         try {
           await api(apiPaths.trackPlays, { method: "POST", body: next });
         } catch (err) {
-          const refused = err instanceof HttpError && err.status >= 400 && err.status < 500 && err.status !== 401 && err.status !== 429;
-          if (!refused) return;
+          // A song that's gone is turned down for good and dropped; a play isn't worth a toast.
+          if (!refused(err)) return;
         }
         setJson(PLAYS_KEY, (getJson<PlayEntry[]>(PLAYS_KEY) ?? []).filter((p) => p.playId !== next.playId));
       }

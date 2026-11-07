@@ -33,7 +33,7 @@ import {
   type UserPrefs,
   type BookDetail,
 } from "@murmur/shared/client";
-import { api } from "../api";
+import { api, refused } from "../api";
 import { useBookmarkSync } from "../bookmarks";
 import { CAST_FAILED, CastMedia, MEDIA_EVENTS, type MediaEventName, stopCasting, useCast } from "../cast/cast";
 import { getJson, removeKey, setJson } from "../storage";
@@ -354,6 +354,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     createPlayerCore({
       media,
       api: (path, init) => api(path, init),
+      refused,
       toast: (message, action) => toast(message, action ? { duration: 5000, action: { label: action.label, onClick: action.run } } : undefined),
       toastError: (message) => toast.error(message),
       getJson,

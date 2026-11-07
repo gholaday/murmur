@@ -15,6 +15,12 @@ export class HttpError extends Error {
   }
 }
 
+/**
+ * The server turned a request down for good (a 4xx other than 401 and 429), rather than couldn't
+ * be reached or asked to wait. Clients retry the others and say so once for these.
+ */
+export const refusedStatus = (status: number) => status >= 400 && status < 500 && status !== 401 && status !== 429;
+
 /** A 400's text for a request that failed its schema: the field, then what's wrong with it. */
 export function invalidRequestText(err: ZodError): string {
   const issue = err.issues[0];

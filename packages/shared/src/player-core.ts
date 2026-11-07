@@ -211,6 +211,8 @@ export interface PlayerMedia {
 export interface PlayerPlatform {
   media: PlayerMedia;
   api<T>(path: string, init?: { method: string; body?: unknown }): Promise<T>;
+  /** The server turned a call down for good, rather than couldn't be reached (see refusedStatus). */
+  refused(err: unknown): boolean;
   /** A toast, with an Undo-style action when `action` is given. */
   toast(message: string, action?: { label: string; run: () => void }): void;
   toastError(message: string): void;
@@ -619,8 +621,25 @@ export function createPlayerCore(platform: PlayerPlatform) {
     set(prefs);
     if (!persist) return;
     platform.musicPrefsChanged?.({ shuffle: state.shuffle, repeat: state.repeat });
-    void platform.api(apiPaths.prefs, { method: "PUT", body: prefs }).catch(() => undefined);
+    saveQuietly(platform.api(apiPaths.prefs, { method: "PUT", body: prefs }), "Couldn't save shuffle and repeat.");
   }
+
+  /**
+   * A save the player makes along the way. Offline it's dropped, as the next one sends the same;
+   * turned down by the server, it says so.
+   */
+  function saveQuietly(saving: Promise<unknown>, failed: string) {
+    void saving.then(
+      () => refusedShown.delete(failed),
+      (err: unknown) => {
+        if (!platform.refused(err) || refusedShown.has(failed)) return;
+        refusedShown.add(failed);
+        platform.toastError(failed);
+      },
+    );
+  }
+  /** Each kind of refused save is said once, until one of that kind goes through again. */
+  const refusedShown = new Set<string>();
 
   /** Turns shuffle on or off, reordering the album's or list's songs still to come. */
   function toggleShuffle() {
@@ -641,7 +660,7 @@ export function createPlayerCore(platform: PlayerPlatform) {
   function setList(l: UpNextDto, saveAs: "list" | "index" | false) {
     set({ upNext: l, upNextLoaded: true });
     platform.upNextChanged?.(l);
-    if (saveAs === "index") void platform.api(apiPaths.upNext, { method: "PATCH", body: { index: l.index } }).catch(() => undefined);
+    if (saveAs === "index") saveQuietly(platform.api(apiPaths.upNext, { method: "PATCH", body: { index: l.index } }), "Couldn't save your place in the queue.");
     // A change you made (not just moving along the list) says so when it didn't save.
     if (saveAs === "list") void platform.api(apiPaths.upNext, { method: "PUT", body: toRefs(l) }).catch(() => platform.toastError("Couldn't save the queue."));
   }
@@ -712,7 +731,7 @@ export function createPlayerCore(platform: PlayerPlatform) {
     if (fromList || it.type === "track") return;
     dropPreloaded();
     if (it.type === "book") setList(startSingle(state.upNext, null), "list");
-    else void putRefs(startSingle(toRefs(state.upNext), { itemType: "episode", itemId: it.id, added: false })).catch(() => undefined);
+    else saveQuietly(putRefs(startSingle(toRefs(state.upNext), { itemType: "episode", itemId: it.id, added: false })), "Couldn't save the queue.");
   }
 
   async function playRef(ref: PlayRef, startAt?: number) {
@@ -869,7 +888,7 @@ export function createPlayerCore(platform: PlayerPlatform) {
     set({ item: { ...it, speed } });
     // An episode's speed belongs to its show; a book's goes with its place.
     if (it.type === "episode" && it.podcastId) {
-      void platform.api(apiPaths.podcast(it.podcastId), { method: "PATCH", body: { speed } }).catch(() => undefined);
+      saveQuietly(platform.api(apiPaths.podcast(it.podcastId), { method: "PATCH", body: { speed } }), "Couldn't save the show's speed.");
     } else void save();
   }
 

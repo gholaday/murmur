@@ -26,6 +26,7 @@ import {
   type UserPrefsPatch,
   type VideoQuality,
   EPISODE_PAGE,
+  errorText,
 } from "@murmur/shared/client";
 import { toast } from "@/components/toast";
 import { api, HttpError } from "./api";
@@ -375,7 +376,7 @@ export async function setPlayNext(bookId: string, on: boolean, undoing = false) 
       onPress: () => {
         // Re-adding goes to the end; the old order puts it back in its place.
         if (on) void setPlayNext(bookId, false, true);
-        else void setPlayNext(bookId, true, true).then(() => orderPlayNext(before).catch(() => undefined));
+        else void setPlayNext(bookId, true, true).then(() => orderPlayNext(before).catch((err: unknown) => toast.error(errorText(err))));
       },
     },
   });

@@ -41,7 +41,7 @@ import {
   cueAt,
 } from "@murmur/shared/client";
 import { toast } from "sonner";
-import { api } from "../api";
+import { api, refused } from "../api";
 import { CAST_FAILED, CastMedia, MEDIA_EVENTS, type MediaEventName, stopCasting, useCast } from "../cast/cast";
 import { CastButton } from "../cast/cast-button";
 import {
@@ -314,6 +314,8 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   const [countdown, setCountdown] = useState<number | null>(null);
   const nextDismissed = useRef(false);
   const touched = useRef(false);
+  /** A save the server turned down is said once, not every few seconds. */
+  const saveRefused = useRef(false);
   /** The last time update while playing, for watch time; null after a pause or seek, so the next one counts nothing. */
   const lastTick = useRef<{ at: number; pos: number } | null>(null);
   const lastTap = useRef({ at: 0, x: 0 });
@@ -586,7 +588,9 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
 
   /** The lighter conversion from the "too slow" note: saved to your settings too, so the next video starts there. */
   const lowerQuality = () => {
-    void api(apiPaths.prefs, { method: "PUT", body: { videoQuality: "light" } }).catch(() => undefined);
+    void api(apiPaths.prefs, { method: "PUT", body: { videoQuality: "light" } }).catch((err: unknown) => {
+      if (refused(err)) toast.error("Couldn't save the lighter quality to your settings.");
+    });
     pickQuality("light");
   };
 
@@ -670,7 +674,12 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
             },
           ],
         },
-      }).catch(() => undefined);
+      }).catch((err: unknown) => {
+        // Offline, the next save sends the same place.
+        if (!refused(err) || saveRefused.current) return;
+        saveRefused.current = true;
+        toast.error("Couldn't save your place.");
+      });
     },
     [item.progressId, item.durationSec, position, media],
   );

@@ -35,7 +35,10 @@ export function autoMatching(): boolean {
   return state.running !== null;
 }
 
-/** Matches what's new; asked while a pass runs, another pass follows it. */
+/**
+ * Matches what's new; asked while a pass runs, another pass follows it. A failure rejects, so the
+ * scan that asked shows it.
+ */
 export function autoMatchPending(getCtx: () => Promise<AppContext>): Promise<void> {
   if (state.running) {
     state.again = true;
@@ -48,11 +51,9 @@ export function autoMatchPending(getCtx: () => Promise<AppContext>): Promise<voi
       await matchBooks(ctx);
       await matchAlbums(ctx);
     } while (state.again);
-  })()
-    .catch((err: unknown) => log.warn("auto-match failed", { error: errorMessage(err) }))
-    .finally(() => {
-      state.running = null;
-    });
+  })().finally(() => {
+    state.running = null;
+  });
   return state.running;
 }
 

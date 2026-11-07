@@ -16,15 +16,17 @@ export function noteBackupFailed() {
 /** When the newest nightly backup was written, from the backups folder so it survives a restart. */
 export function backupStatus(): BackupStatusDto {
   let at: number | null = null;
+  let unreadable = false;
   try {
     for (const f of fs.readdirSync(env.backupsDir)) {
       if (!f.startsWith("nightly-") || !f.endsWith(".db")) continue;
       const t = fs.statSync(`${env.backupsDir}/${f}`).mtimeMs;
       if (at === null || t > at) at = t;
     }
-  } catch {
-    // No backups folder yet: none have run.
+  } catch (err) {
+    // No backups folder yet means none have run; one Murmur can't read is a failure.
+    unreadable = (err as NodeJS.ErrnoException).code !== "ENOENT";
   }
   const failedAt = globalThis.__murmurBackupFailedAt ?? null;
-  return { at, failed: failedAt !== null && (at === null || failedAt > at), hour: env.backupHour };
+  return { at, failed: unreadable || (failedAt !== null && (at === null || failedAt > at)), hour: env.backupHour };
 }

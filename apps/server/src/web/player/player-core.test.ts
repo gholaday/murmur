@@ -58,6 +58,7 @@ function setup() {
   const core = createPlayerCore({
     media,
     api: () => Promise.reject(new Error("offline")),
+    refused: () => false,
     toast: () => undefined,
     toastError: () => undefined,
     getJson: () => null,

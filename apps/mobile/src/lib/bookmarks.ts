@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { type BookmarkDto, createBookmarkStore, type PlayType } from "@murmur/shared/client";
 import { toast } from "@/components/toast";
-import { api, HttpError } from "./api";
+import { api, refused } from "./api";
 import { getJson, removeKey, setJson } from "./storage";
 
 // Your bookmarks, offline first: the shared store (an outbox replayed on the last list from the
@@ -15,8 +15,7 @@ const store = createBookmarkStore({
   setJson,
   removeKey,
   toastError: (message) => toast.error(message),
-  // Only the server turning it down drops a change; offline, a 401 or a 429 tries again later.
-  refused: (err) => err instanceof HttpError && err.status >= 400 && err.status < 500 && err.status !== 401 && err.status !== 429,
+  refused,
 });
 
 export const addBookmark = store.add;

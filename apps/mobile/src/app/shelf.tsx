@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { apiPaths, type BookSummary, duration, SHELF_IDS, SHELF_TITLES, shelfBooks, type ShelfId, shelfSub } from "@murmur/shared/client";
+import { apiPaths, type BookSummary, duration, errorText, SHELF_IDS, SHELF_TITLES, shelfBooks, type ShelfId, shelfSub } from "@murmur/shared/client";
 import { AllBooks } from "@/components/all-books";
 import { BookCard } from "@/components/book-card";
 import { Cover } from "@/components/cover";
@@ -10,6 +10,7 @@ import { Grid, PAD, safeShelf, safeShelfTitle, todayKey, useGridWidth } from "@/
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { BackRow, Empty, NestedScreen, PageTitle, useBottomPad, useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
+import { toast } from "@/components/toast";
 import { DragHandle, SortableList, SortableScrollView } from "@/components/sortable-list";
 import { IconButton, Text } from "@/components/ui";
 import { orderPlayNext, setPlayNext, useBooks } from "@/lib/data";
@@ -68,7 +69,7 @@ function PlayNextList() {
               items={list}
               keyOf={(b) => b.id}
               liftInset={8}
-              onReorder={(ids) => void orderPlayNext(ids).catch(() => undefined)}
+              onReorder={(ids) => void orderPlayNext(ids).catch((err: unknown) => toast.error(errorText(err)))}
               renderRow={(b) => <PlayNextRow book={b} onMenu={() => setMenu(b)} />}
             />
           </View>

@@ -1,4 +1,4 @@
-import { type ApiError, apiPaths, CHANGES_HEADER, type HealthProbeDto } from "@murmur/shared/client";
+import { type ApiError, apiPaths, CHANGES_HEADER, type HealthProbeDto, HttpError, refusedStatus } from "@murmur/shared/client";
 
 // The signed-in server and token live here so non-React code (player, downloads, sync)
 // can call the API too. session.tsx keeps them in step with what's stored.
@@ -20,14 +20,14 @@ export function onChangesHeader(fn: (token: string | null) => void) {
   noteChanges = fn;
 }
 
-export class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+// The shared class, so an error from here and one checked anywhere else are the same kind.
+export { HttpError };
+
+/**
+ * The server turned a request down for good, rather than couldn't be reached: say so once and
+ * drop it. Anything else is tried again later.
+ */
+export const refused = (err: unknown) => err instanceof HttpError && refusedStatus(err.status);
 
 /** Absolute URL for a server path, e.g. a cover or stream. */
 export function absolute(path: string): string {

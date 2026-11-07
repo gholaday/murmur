@@ -2,9 +2,17 @@
 // null and writes last only as long as the value in memory.
 
 export function getJson<T>(key: string): T | null {
+  let text: string | null;
   try {
-    return JSON.parse(localStorage.getItem(key) ?? "null") as T | null;
+    text = localStorage.getItem(key);
   } catch {
+    return null;
+  }
+  try {
+    return JSON.parse(text ?? "null") as T | null;
+  } catch {
+    // Something else wrote here. Starting over is all a page can do, but it shouldn't be silent.
+    console.warn(`Ignored unreadable saved data in ${key}.`);
     return null;
   }
 }

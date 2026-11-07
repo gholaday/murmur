@@ -49,16 +49,27 @@ async function json<T>(res: Response): Promise<T> {
 const post = <T>(path: string, body: unknown) => call(path, { method: "POST", body: JSON.stringify(body) }).then((r) => json<T>(r));
 
 /** The add-on's state, or null when it can't be reached. */
-export async function videoHealth(): Promise<VideoAddonHealth | null> {
-  if (!env.addonSecret) return null;
+/** The add-on's health, or why it couldn't be had. */
+export type VideoAddonCheck = { health: VideoAddonHealth; problem: null } | { health: null; problem: string };
+
+export async function videoHealth(): Promise<VideoAddonCheck> {
+  const failed = (problem: string) => ({ health: null, problem }) as const;
+  if (!env.addonSecret) return failed(env.addonSecretProblem ?? "Set ADDON_SECRET on Murmur and the video add-on to read movies and shows.");
+  let res: Response;
   try {
-    const res = await fetch(`${env.videoUrl}${paths.health}`, {
+    res = await fetch(`${env.videoUrl}${paths.health}`, {
       headers: { Authorization: addonAuthorization(env.addonSecret) },
       signal: AbortSignal.timeout(3000),
     });
-    return res.ok ? ((await res.json()) as VideoAddonHealth) : null;
   } catch {
-    return null;
+    return failed(UNREACHABLE);
+  }
+  if (res.status === 401) return failed("The video add-on has a different ADDON_SECRET. Set the same one on Murmur and murmur-video.");
+  if (!res.ok) return failed(`The video add-on answered ${res.status}.`);
+  try {
+    return { health: (await res.json()) as VideoAddonHealth, problem: null };
+  } catch {
+    return failed("The video add-on's answer wasn't readable.");
   }
 }
 
@@ -71,18 +82,18 @@ const ENCODER_NAME: Record<VideoAddonHealth["encoder"], string> = {
   cpu: "the CPU",
 };
 
-/** What stops the add-on reading files (null when it can't be reached counts). */
-function blocked(health: VideoAddonHealth | null): string | null {
-  if (!env.addonSecret) return env.addonSecretProblem ?? "Set ADDON_SECRET on Murmur and the video add-on to read movies and shows.";
-  if (!health) return UNREACHABLE;
-  if (!health.ffmpeg) return "ffmpeg isn't working in the video add-on, so movies and shows can't be read.";
+/** What stops the add-on reading files. */
+function blocked(check: VideoAddonCheck): string | null {
+  if (!check.health) return check.problem;
+  if (!check.health.ffmpeg) return "ffmpeg isn't working in the video add-on, so movies and shows can't be read.";
   return null;
 }
 
 /** Settings' Video row from the add-on's health (null when it can't be reached). */
-export function videoStatus(health: VideoAddonHealth | null): VideoStatus {
-  const problem = blocked(health) ?? addonVersionProblem("video", health?.version, env.version);
-  return problem ? { problem } : { problem: null, working: `Working, converts video with ${ENCODER_NAME[health!.encoder]}` };
+export function videoStatus(check: VideoAddonCheck): VideoStatus {
+  if (!check.health) return { problem: check.problem };
+  const problem = blocked(check) ?? addonVersionProblem("video", check.health.version, env.version);
+  return problem ? { problem } : { problem: null, working: `Working, converts video with ${ENCODER_NAME[check.health.encoder]}` };
 }
 
 /** Why Watch can't read files right now, or null when the add-on is there with ffmpeg. Another major version is only reported, so scans still run. */

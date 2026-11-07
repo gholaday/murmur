@@ -59,19 +59,27 @@ export async function runScan(opts: { state: ScanState; log: Logger; name: strin
     do {
       state.rerunRequested = false;
       const started = Date.now();
+      let finishedAt = 0;
       try {
         const { stats, problems, finished } = await once();
         state.lastStats = stats;
         state.lastError = problems.length ? problems.join(" ") : null;
         log.info(finished ?? `${name} finished`, { ...stats, ms: Date.now() - started });
         // Not awaited: online lookups mustn't hold up the next scan or the status.
-        void afterScan?.().catch((err: unknown) => log.warn("after-scan step failed", { error: errorMessage(err) }));
+        // Its failure shows beside this scan's own problems, unless another scan has finished since.
+        void afterScan?.().catch((err: unknown) => {
+          log.warn("after-scan step failed", { error: errorMessage(err) });
+          if (state.lastFinishedAt !== finishedAt) return;
+          const message = `After the scan: ${errorMessage(err)}`;
+          state.lastError = state.lastError ? `${state.lastError} ${message}` : message;
+        });
       } catch (err) {
         state.lastError = errorMessage(err);
         log.error(`${name} failed`, { error: state.lastError });
       } finally {
-        state.lastFinishedAt = Date.now();
-        state.lastDurationMs = Date.now() - started;
+        finishedAt = Date.now();
+        state.lastFinishedAt = finishedAt;
+        state.lastDurationMs = finishedAt - started;
       }
     } while (state.rerunRequested);
   } finally {

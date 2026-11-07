@@ -58,6 +58,7 @@ let appActive = AppState.currentState === "active";
 function updateScan() {
   try {
     const discovery = CastContext.getDiscoveryManager();
+    // A scan that won't start only means no button; the next screen or return to the app tries again.
     void (scanners > 0 && appActive ? discovery.startDiscovery() : discovery.stopDiscovery()).catch(() => undefined);
   } catch {
     // No Cast support: nothing to scan with.
@@ -87,6 +88,7 @@ export const pickCastDevice = () =>
     () => toast.error("Couldn't open the cast picker."),
   );
 
+// Failing to end a session means it's already gone, which is what was wanted.
 const endSession = () => void CastContext.getSessionManager().endCurrentSession(true).catch(() => undefined);
 
 // ---------- The session ----------
@@ -122,6 +124,7 @@ try {
   sessions.onSessionStarted(connected);
   sessions.onSessionResumed(connected);
   sessions.onSessionEnded(disconnected);
+  // The state and a session left from before are only a head start; the listeners above catch up.
   void CastContext.getCastState().then((s) => s && setStatus({ available: s !== CastState.NO_DEVICES_AVAILABLE }), () => undefined);
   void sessions.getCurrentCastSession().then((s) => s && connected(s), () => undefined);
 } catch {
@@ -258,6 +261,8 @@ export class CastPlayer {
     })();
   }
 
+  // The controls below ignore a failed command: the TV's next status says what it's really doing,
+  // and the player follows that.
   play() {
     this.playing = true;
     if (this.active) void client?.play().catch(() => undefined);

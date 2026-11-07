@@ -19,9 +19,9 @@ async function watchHealth(ctx: Awaited<ReturnType<typeof getContext>>): Promise
   const video = await videoHealth();
   return {
     ...counts,
-    addon: video !== null,
-    ffmpeg: video?.ffmpeg ?? false,
-    encoder: video?.encoder ?? "cpu",
+    addon: video.health !== null,
+    ffmpeg: video.health?.ffmpeg ?? false,
+    encoder: video.health?.encoder ?? "cpu",
     status: videoStatus(video),
     tmdb: ctx.watch.tmdb !== null,
     scan: { running: s.running, lastFinishedAt: s.lastFinishedAt, lastError: s.lastError },

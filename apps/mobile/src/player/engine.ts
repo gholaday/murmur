@@ -24,7 +24,7 @@ import {
   type UpNextDto,
   type UserPrefs,
 } from "@murmur/shared/client";
-import { absolute, api, authHeaders, HttpError } from "@/lib/api";
+import { absolute, api, authHeaders, HttpError, refused } from "@/lib/api";
 import { addBookmark, bookmarksFor, newBookmark, refreshBookmarks } from "@/lib/bookmarks";
 import { fetchBook, fetchEpisode, fetchPrefs, keys } from "@/lib/data";
 import { downloadTypeOf, getDownload, localTrackUri, localUri, savedTrack, saveDownloadAds } from "@/lib/downloads";
@@ -307,6 +307,7 @@ const core = createPlayerCore({
   api: (path, init) => api(path, init),
   toast: (message, action) => toast.show(message, action ? { duration: 5000, action: { label: action.label, onPress: action.run } } : undefined),
   toastError: (message) => toast.error(message),
+  refused,
   getJson,
   setJson,
   removeKey,
@@ -467,6 +468,7 @@ export async function restorePlayer() {
   // Up Next comes back from the server with its place, so next and previous work after a restart.
   void core.refreshUpNext();
   // Older servers have no shuffle or repeat; those stay off.
+  // Unreachable, the last known shuffle and repeat stand, and the next start asks again.
   fetchPrefs().then((p) => core.setMusicPrefs({ shuffle: p.shuffle ?? false, repeat: p.repeat ?? "off" }, false), () => undefined);
   await restoreNowPlaying();
 }
@@ -507,6 +509,8 @@ async function refreshRestored(saved: SavedPlace, shownAt: number | null) {
       else if (untouched()) core.clear();
       return;
     }
+    // Turned down some other way: asking again would get the same, and what's shown stays playable.
+    if (refused(err)) return;
     const unsubscribe = onlineManager.subscribe((online) => {
       if (!online) return;
       unsubscribe();
