@@ -2,22 +2,26 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   albumCover,
   apiPaths,
   duration,
   errorText,
+  FALLBACK_TINT,
   type PlaylistDetail,
   type PlaylistSummary,
   playlistCoverTiles,
   plural,
+  type SongSort,
+  sortSongs,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
+import { useWide } from "../layout";
 import { Mixer } from "../mixer";
-import { MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
+import { DownIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
 import { type MusicSource, usePlayerControls, usePlayerSelect } from "../player/engine";
 import { ConfirmSheet, Sheet, SheetItem } from "../sheet";
@@ -121,6 +125,26 @@ function NameForm({ name, setName, busy, label, onSubmit }: { name: string; setN
   );
 }
 
+type PlaylistSort = { col: SongSort; desc: boolean } | null;
+
+/** A column head that sorts the playlist by it; the arrow shows on the one in use. */
+function SortHead({ col, label, sort, onSort }: { col: SongSort; label: string; sort: PlaylistSort; onSort: (col: SongSort) => void }) {
+  const on = sort?.col === col;
+  return (
+    <button
+      type="button"
+      className="sort-head"
+      aria-pressed={on}
+      aria-label={on ? `Sorted by ${label}${sort.desc ? ", reversed" : ""}` : `Sort by ${label}`}
+      data-desc={on && sort.desc ? true : undefined}
+      onClick={() => onSort(col)}
+    >
+      {label}
+      {on ? <DownIcon size={14} /> : null}
+    </button>
+  );
+}
+
 /** One playlist: play or shuffle it, drag songs to reorder, remove them, rename or delete it. */
 export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }) {
   const router = useRouter();
@@ -132,7 +156,15 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const { tracks } = playlist;
-  const source: MusicSource = { kind: "playlist", refId: playlist.id, title: playlist.name, tracks };
+  // Wide screens can sort by a column head; phones always show the playlist's own order.
+  const wide = useWide();
+  const [sortBy, setSortBy] = useState<PlaylistSort>(null);
+  const sort = wide ? sortBy : null;
+  const shown = useMemo(() => (sort ? sortSongs(tracks, sort.col, sort.desc) : tracks), [tracks, sort]);
+  // Again reverses; a third time goes back to the playlist's order.
+  const sortOn = (col: SongSort) => setSortBy(sort?.col !== col ? { col, desc: false } : sort.desc ? null : { col, desc: true });
+  // Plays in the order shown.
+  const source: MusicSource = { kind: "playlist", refId: playlist.id, title: playlist.name, tracks: shown };
   const from = usePlayerSelect((s) => s.isPlayingFrom("playlist", playlist.id));
   const nowId = usePlayerSelect((s) => (s.item?.type === "track" ? s.item.id : null));
   const nowHere = nowId !== null && tracks.some((t) => t.id === nowId);
@@ -190,43 +222,63 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
 
   return (
     <>
-      <BackRow fallback="/music">
-        <button type="button" className="icon-btn" aria-label="Playlist options" onClick={() => setMenu(true)}>
-          <MoreIcon />
-        </button>
-      </BackRow>
-      <div className="show-hero">
-        <PlaylistCover playlist={playlist} large />
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>
-          <div className="eyebrow">Playlist</div>
-          <h1 className="show-title">{playlist.name}</h1>
-          <div className="pills">
-            <span className="pill">{plural(playlist.trackCount, "song")}</span>
-            {playlist.durationSec ? <span className="pill">{duration(playlist.durationSec)}</span> : null}
+      <div className="detail playlist-detail" style={{ "--tint": FALLBACK_TINT.page } as React.CSSProperties}>
+        <BackRow fallback="/music">
+          <button type="button" className="icon-btn" aria-label="Playlist options" onClick={() => setMenu(true)}>
+            <MoreIcon />
+          </button>
+        </BackRow>
+        {/* Wide screens (music.css): the cover, then the title, pills and buttons beside it in one row. */}
+        <div className="playlist-top">
+          <div className="show-hero">
+            <PlaylistCover playlist={playlist} large />
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>
+              <div className="eyebrow">Playlist</div>
+              <h1 className="show-title">{playlist.name}</h1>
+              <div className="pills">
+                <span className="pill">{plural(playlist.trackCount, "song")}</span>
+                {playlist.durationSec ? <span className="pill">{duration(playlist.durationSec)}</span> : null}
+              </div>
+            </div>
           </div>
+          {tracks.length ? (
+            <div className="actions">
+              <button type="button" className="btn btn-primary btn-big" onClick={onPlay}>
+                {from && playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
+                <span>{from ? (playing ? "Pause" : "Resume") : "Play"}</span>
+              </button>
+              <ShuffleButton source={source} />
+              <Link href={`/music/playlist/${playlist.id}/add`} className="btn-round add-songs" aria-label="Add songs">
+                <PlusIcon />
+                <span className="add-songs-label">Add songs</span>
+              </Link>
+            </div>
+          ) : null}
         </div>
-      </div>
 
-      {tracks.length ? (
-        <>
-          <div className="actions">
-            <button type="button" className="btn btn-primary btn-big" onClick={onPlay}>
-              {from && playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
-              <span>{from ? (playing ? "Pause" : "Resume") : "Play"}</span>
-            </button>
-            <ShuffleButton source={source} />
-            <Link href={`/music/playlist/${playlist.id}/add`} className="btn-round" aria-label="Add songs">
-              <PlusIcon />
-            </Link>
-          </div>
+        {tracks.length ? (
           <section className="section">
+            {/* Wide screens only: column heads that sort the list. Songs carry no date they were added on, so there's no Added column. */}
+            <div className={`song-head song-row${sort ? "" : " has-handle"}`}>
+              <span className="song-head-title">
+                <SortHead col="title" label="Title" sort={sort} onSort={sortOn} />
+              </span>
+              <span className="song-album">
+                <SortHead col="album" label="Album" sort={sort} onSort={sortOn} />
+              </span>
+              <span className="song-len">
+                <SortHead col="length" label="Length" sort={sort} onSort={sortOn} />
+              </span>
+              <span className="song-head-end" />
+            </div>
             <div ref={sortable.listRef} className={`list ${sortable.sorting ? "sorting" : ""}`}>
-              {tracks.map((t, i) => (
+              {shown.map((t, i) => (
                 <SongRow
                   key={t.id}
                   track={t}
                   onPlay={() => player.playMusic(source, i)}
-                  sortable={{ list: sortable, index: i }}
+                  // Dragging sets the playlist's own order, so it's only there while that order shows.
+                  sortable={sort ? undefined : { list: sortable, index: i }}
                   menuExtra={(close) => (
                     <SheetItem
                       danger
@@ -242,16 +294,16 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
               ))}
             </div>
           </section>
-        </>
-      ) : (
-        <EmptyState title="No songs yet" style={{ marginTop: 24 }}>
-          <div className="muted small">Find songs and add them with one tap.</div>
-          <Link href={`/music/playlist/${playlist.id}/add`} className="btn btn-primary btn-big" style={{ marginTop: 12 }}>
-            <PlusIcon size={20} />
-            <span>Add songs</span>
-          </Link>
-        </EmptyState>
-      )}
+        ) : (
+          <EmptyState title="No songs yet" style={{ marginTop: 24 }}>
+            <div className="muted small">Find songs and add them with one tap.</div>
+            <Link href={`/music/playlist/${playlist.id}/add`} className="btn btn-primary btn-big" style={{ marginTop: 12 }}>
+              <PlusIcon size={20} />
+              <span>Add songs</span>
+            </Link>
+          </EmptyState>
+        )}
+      </div>
 
       <Sheet open={menu} onClose={() => setMenu(false)} title={playlist.name}>
         {tracks.length ? (
