@@ -5,58 +5,32 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Cover } from "../cover";
 import { Marquee } from "../marquee";
-import { ChapterList } from "../chapter-list";
 import {
   bookFinished,
   type BookmarkDto,
   bookmarkNear,
   bookmarkSpot,
   chapterAt,
-  clampSpeed,
   clock,
-  MAX_SPEED,
-  MIN_SPEED,
   showMarkPlayed,
   SLEEP_MINUTES,
-  sleepLabel,
-  SPEED_STEP,
-  speedText,
-  thirdTile,
-  timeLeft,
   FALLBACK_TINT,
 } from "@murmur/shared/client";
-import { BookmarkNoteSheet, BookmarkRows } from "../bookmark-rows";
+import { BookmarkNoteSheet } from "../bookmark-rows";
 import { newBookmark, useBookmarks } from "../bookmarks";
-import {
-  BookmarkIcon,
-  CheckIcon,
-  CloseIcon,
-  ChevronIcon,
-  DownIcon,
-  ListIcon,
-  MinusIcon,
-  MoonIcon,
-  MoreIcon,
-  NextChapterIcon,
-  PauseIcon,
-  PlayIcon,
-  PlusIcon,
-  PrevChapterIcon,
-  QueueIcon,
-  RepeatIcon,
-  RepeatOneIcon,
-  ShuffleIcon,
-  SkipBackIcon,
-  SkipForwardIcon,
-} from "../icons";
+import { BookmarkIcon, CheckIcon, CloseIcon, ChevronIcon, DownIcon, MoreIcon, NextChapterIcon } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
-import { Chip, Chips, CountPill, EmptyState } from "../ui";
+import { Chip, Chips } from "../ui";
 import { UpNextSheet } from "../up-next";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } from "./ad-prefs";
 import { CastButton } from "../cast/cast-button";
 import { cssMs, isNarrow } from "../css-vars";
 import { useCast } from "../cast/cast";
 import { playableHref, usePlayer, usePosition, useTint } from "./engine";
+import { NowBookmarks, NowChapters } from "./now-lists";
+import { Scrubber } from "./scrubber";
+import { PlayerTiles } from "./tiles";
+import { Transport } from "./transport";
 import { VolumeRow } from "./volume-control";
 
 /**
@@ -123,11 +97,8 @@ export function FullPlayer() {
   const bookmarks = useBookmarks(p.item?.type, p.item?.id);
   const adPrefs = useAdPrefs();
   const [speedOpen, setSpeedOpen] = useState(false);
-  /** Slider value while dragging; saved once you let go. */
-  const [speedDraft, setSpeedDraft] = useState<number | null>(null);
+  /** Where the scrubber is being dragged to; the player follows it until it's let go. */
   const [scrub, setScrub] = useState<number | null>(null);
-  /** Where a mouse hovers over a chaptered bar, for the bubble. */
-  const [hoverAt, setHoverAt] = useState<number | null>(null);
   const { item, expanded, setExpanded } = p;
   const tint = useTint(item);
   const speedOpenRef = useRef(false);
@@ -171,37 +142,20 @@ export function FullPlayer() {
   const ci = chapterAt(item.chapters, pos);
   const chapter = item.chapters[ci];
   const multiChapter = item.chapters.length > 1;
-  // Without chapters, an episode's outer buttons step through Up Next and then its show.
-  const inList = item.type !== "book";
-  // An episode's chapters split the bar into segments over the whole episode; a book's bar spans
-  // the current chapter, like Pocket Casts. Without chapters it's the whole item.
+  // An episode's chapters are segments on the bar, so its line under the title stays the show.
   const segmented = item.type === "episode" && multiChapter;
-  const span =
-    chapter && multiChapter && !segmented ? { start: chapter.startSec, end: chapter.endSec } : { start: 0, end: item.durationSec || 0 };
-  const within = Math.max(0, pos - span.start);
-  const spanLen = Math.max(1, span.end - span.start);
-  const commitScrub = () => {
-    if (scrub !== null) p.seek(scrub);
-    setScrub(null);
-  };
+  const closeSheet = () => setSheet(null);
   const choose = (fn: () => void) => () => {
     fn();
-    setSheet(null);
+    closeSheet();
   };
   // Ads only ever exist for episodes, and their setting lives in More.
   const showAds = item.type === "episode" && p.adsEnabled;
-  const slot = thirdTile(item.type, multiChapter);
   // Songs: previous and next instead of skips and chapters, no speed, no position kept.
   const song = item.type === "track";
   const nearBookmark = song ? null : bookmarkNear(bookmarks, pos);
   const onBookmark = () =>
     setEditingBookmark(nearBookmark ? { bookmark: nearBookmark, isNew: false } : { bookmark: newBookmark(item, bookmarkSpot(position, p.playing, p.speed)), isNew: true });
-  const jumpToBookmark = (b: BookmarkDto) => {
-    setSheet(null);
-    void p.jumpTo({ itemType: b.itemType, itemId: b.itemId }, b.positionSec);
-  };
-  const noBookmarks = <EmptyState title="No bookmarks yet">Tap the bookmark beside the title to save a spot.</EmptyState>;
-  const waiting = p.upNext.items.length - p.upNext.index - 1;
   const adMode = adModeFor(adPrefs, item.podcastId);
   const marks = showAds && adMode !== "off" ? p.ads : [];
   const adIndex = marks.findIndex((a) => pos >= a.startSec && pos < a.endSec);
@@ -209,12 +163,6 @@ export function FullPlayer() {
   // An ad that runs to the end leaves nothing to skip to once the time is up.
   const canSkipAd = inAd !== null && !(item.durationSec && item.durationSec - pos < 1);
   const markPlayed = showMarkPlayed(item.type, item.durationSec, pos);
-  // Hovering a mouse over the bar lights up that chapter's segment and shows its title in the
-  // times row; a drag shows the chapter it would land in the same way. Both in accent.
-  const hoverIndex = segmented && scrub === null && hoverAt !== null ? chapterAt(item.chapters, hoverAt) : -1;
-  const lineIndex = hoverIndex >= 0 ? hoverIndex : ci;
-  const previewing = hoverIndex >= 0 || (segmented && scrub !== null);
-  const pct = (sec: number) => `${(Math.min(Math.max(sec - span.start, 0), spanLen) / spanLen) * 100}%`;
 
   return (
     <div
@@ -306,267 +254,13 @@ export function FullPlayer() {
           )}
         </div>
 
-        <div className={`player-scrub${segmented ? " chaptered" : ""}`}>
-          <div className={`scrub-wrap${scrub !== null ? " dragging" : ""}`}>
-            {segmented ? (
-              <div className="scrub-segs" aria-hidden="true">
-                {item.chapters.map((c, i) => (
-                  <div
-                    key={c.index}
-                    className={`scrub-seg${i < ci ? " played" : i === ci ? " current" : i === hoverIndex ? " hovered" : ""}`}
-                    style={
-                      {
-                        left: pct(c.startSec),
-                        // A 3px gap before the next chapter; a very short chapter stays a dot.
-                        width: `max(2px, calc(${pct(c.endSec)} - ${pct(c.startSec)} - ${i < item.chapters.length - 1 ? 3 : 0}px))`,
-                        "--fill": `${Math.min(100, Math.max(0, ((pos - c.startSec) / (c.endSec - c.startSec || 1)) * 100))}%`,
-                      } as React.CSSProperties
-                    }
-                  />
-                ))}
-                {marks.map((a) => (
-                  <div
-                    key={a.startSec}
-                    className="scrub-ad"
-                    style={
-                      {
-                        left: pct(a.startSec),
-                        width: `calc(${pct(a.endSec)} - ${pct(a.startSec)})`,
-                        "--heard": `${Math.min(100, Math.max(0, ((pos - a.startSec) / (a.endSec - a.startSec || 1)) * 100))}%`,
-                      } as React.CSSProperties
-                    }
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="scrub-track" aria-hidden="true">
-                <div className="scrub-played" style={{ width: pct(pos) }} />
-                {marks.map((a) => (
-                  <div
-                    key={a.startSec}
-                    className="scrub-ad"
-                    style={
-                      {
-                        left: pct(a.startSec),
-                        width: `calc(${pct(a.endSec)} - ${pct(a.startSec)})`,
-                        "--heard": `${Math.min(100, Math.max(0, ((pos - a.startSec) / (a.endSec - a.startSec || 1)) * 100))}%`,
-                      } as React.CSSProperties
-                    }
-                  />
-                ))}
-              </div>
-            )}
-            {bookmarks.length ? (
-              <div className="scrub-bookmarks" aria-hidden="true">
-                {bookmarks
-                  .filter((b) => b.positionSec >= span.start && b.positionSec <= span.end)
-                  .map((b) => (
-                    <span key={b.id} style={{ left: pct(b.positionSec) }} />
-                  ))}
-              </div>
-            ) : null}
-          <input
-            type="range"
-            className="scrubber"
-            aria-label="Position"
-            min={0}
-            max={Math.floor(spanLen)}
-            step={1}
-            value={Math.min(Math.floor(within), Math.floor(spanLen))}
-            onChange={(e) => setScrub(span.start + Number(e.target.value))}
-            onPointerUp={commitScrub}
-            onKeyUp={commitScrub}
-            onPointerMove={(e) => {
-              if (!segmented || e.pointerType !== "mouse") return;
-              const r = e.currentTarget.getBoundingClientRect();
-              setHoverAt(span.start + Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * spanLen);
-            }}
-            onPointerLeave={() => setHoverAt(null)}
-          />
-          </div>
-          <div className="player-times">
-            <span>{clock(within)}</span>
-            {/* With chapters, the playing one's title takes the middle; the time left is on the right anyway. */}
-            {segmented && item.chapters[lineIndex] ? (
-              <button
-                type="button"
-                className={`player-chapter-line${previewing ? " preview" : ""}`}
-                onClick={() => setSheet("chapters")}
-              >
-                {item.chapters[lineIndex]!.title}
-              </button>
-            ) : (
-              <span>{item.durationSec && !song ? timeLeft(item.durationSec, pos) : ""}</span>
-            )}
-            <span>-{clock(spanLen - within)}</span>
-          </div>
-        </div>
-
-        <div className="player-controls">
-          {song ? (
-            <>
-              <button
-                type="button"
-                className={`icon-btn dim${p.repeat !== "off" ? " on" : ""}`}
-                onClick={p.cycleRepeat}
-                aria-label={p.repeat === "one" ? "Repeat song" : p.repeat === "all" ? "Repeat all" : "Repeat off"}
-              >
-                {p.repeat === "one" ? <RepeatOneIcon /> : <RepeatIcon />}
-              </button>
-              <button type="button" className="skip-btn" onClick={() => p.trackStep(-1)} aria-label="Previous song">
-                <PrevChapterIcon size={32} />
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="icon-btn dim"
-                onClick={() => p.chapterStep(-1)}
-                aria-label={multiChapter ? "Previous chapter" : inList ? "Previous" : "Back 30 seconds"}
-              >
-                <PrevChapterIcon />
-              </button>
-              <button type="button" className="skip-btn" onClick={() => p.skipBy(-p.skip.back)} aria-label={`Skip back ${p.skip.back} seconds`}>
-                <SkipBackIcon size={36} />
-                <span>{p.skip.back}</span>
-              </button>
-            </>
-          )}
-          <button
-            type="button"
-            className="play-btn"
-            onClick={p.toggle}
-            aria-label={bookFinished(item.type, item.durationSec, pos, p.playing || p.loading) ? "Play from the start" : p.playing ? "Pause" : "Play"}
-            data-loading={p.loading || undefined}
-          >
-            {p.playing ? <PauseIcon size={32} /> : <PlayIcon size={32} />}
-          </button>
-          {song ? (
-            <>
-              <button type="button" className="skip-btn" onClick={() => p.trackStep(1)} aria-label="Next song">
-                <NextChapterIcon size={32} />
-              </button>
-              <button
-                type="button"
-                className={`icon-btn dim${p.shuffle ? " on" : ""}`}
-                onClick={p.toggleShuffle}
-                aria-label="Shuffle"
-                aria-pressed={p.shuffle}
-              >
-                <ShuffleIcon />
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="skip-btn"
-                onClick={() => p.skipBy(p.skip.forward)}
-                aria-label={`Skip forward ${p.skip.forward} seconds`}
-              >
-                <SkipForwardIcon size={36} />
-                <span>{p.skip.forward}</span>
-              </button>
-              <button
-                type="button"
-                className="icon-btn dim"
-                onClick={() => p.chapterStep(1)}
-                aria-label={multiChapter ? "Next chapter" : inList ? "Next" : "Forward 30 seconds"}
-              >
-                <NextChapterIcon />
-              </button>
-            </>
-          )}
-        </div>
+        <Scrubber item={item} pos={pos} scrub={scrub} onScrub={setScrub} marks={marks} onChapters={() => setSheet("chapters")} />
+        <Transport item={item} pos={pos} />
         <VolumeRow />
         {p.error ? <p className="error player-error">{p.error}</p> : null}
       </div>
 
-      <div className="player-tiles">
-        <div className="speed-wrap" hidden={song}>
-          {speedOpen ? (
-            <>
-              <div className="speed-scrim" onClick={() => setSpeedOpen(false)} aria-hidden="true" />
-              <div className="speed-pop" role="group" aria-label="Playback speed">
-                <div className="speed-head">
-                  <span className="speed-value">{speedText(speedDraft ?? p.speed)}</span>
-                  {(speedDraft ?? p.speed) !== 1 ? (
-                    <button type="button" className="speed-reset" onClick={() => p.setSpeed(1)}>
-                      Reset
-                    </button>
-                  ) : null}
-                </div>
-                <div className="speed-row">
-                  <button
-                    type="button"
-                    className="speed-step"
-                    aria-label={`Slower by ${SPEED_STEP}`}
-                    disabled={p.speed <= MIN_SPEED}
-                    onClick={() => p.setSpeed(clampSpeed(p.speed - SPEED_STEP))}
-                  >
-                    <MinusIcon size={20} />
-                  </button>
-                  <input
-                    type="range"
-                    className="scrubber speed-slider"
-                    aria-label="Playback speed"
-                    min={MIN_SPEED}
-                    max={MAX_SPEED}
-                    step={0.05}
-                    value={speedDraft ?? p.speed}
-                    style={{ "--pct": `${(((speedDraft ?? p.speed) - MIN_SPEED) / (MAX_SPEED - MIN_SPEED)) * 100}%` } as React.CSSProperties}
-                    onChange={(e) => setSpeedDraft(clampSpeed(Number(e.target.value)))}
-                    onPointerUp={() => {
-                      if (speedDraft !== null) p.setSpeed(speedDraft);
-                      setSpeedDraft(null);
-                    }}
-                    onKeyUp={() => {
-                      if (speedDraft !== null) p.setSpeed(speedDraft);
-                      setSpeedDraft(null);
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="speed-step"
-                    aria-label={`Faster by ${SPEED_STEP}`}
-                    disabled={p.speed >= MAX_SPEED}
-                    onClick={() => p.setSpeed(clampSpeed(p.speed + SPEED_STEP))}
-                  >
-                    <PlusIcon size={20} />
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : null}
-          <button type="button" className="tile" onClick={() => setSpeedOpen((o) => !o)} aria-expanded={speedOpen}>
-            <strong>{speedText(p.speed)}</strong>
-            <span>Speed</span>
-          </button>
-        </div>
-        <button type="button" className="tile" onClick={() => setSheet("sleep")} aria-pressed={p.sleep.mode !== "off"}>
-          <MoonIcon size={20} />
-          <span>{sleepLabel(p.sleep, Date.now())}</span>
-        </button>
-        {slot === "chapters" ? (
-          <button type="button" className="tile" onClick={() => setSheet("chapters")}>
-            <ListIcon size={20} />
-            <span>Chapters</span>
-          </button>
-        ) : slot === "bookmarks" ? (
-          <button type="button" className="tile" onClick={() => setSheet("bookmarks")}>
-            <BookmarkIcon size={20} />
-            <span>Bookmarks</span>
-          </button>
-        ) : null}
-        <button type="button" className="tile" onClick={() => setSheet("upnext")}>
-          <QueueIcon size={20} />
-          <span>
-            Queue
-            {waiting ? <CountPill count={waiting} /> : null}
-          </span>
-        </button>
-      </div>
+      <PlayerTiles item={item} speedOpen={speedOpen} onSpeedOpen={setSpeedOpen} onSheet={setSheet} />
 
       <UpNextSheet open={sheet === "upnext"} onClose={() => setSheet(null)} />
 
@@ -604,19 +298,11 @@ export function FullPlayer() {
             Bookmarks
           </Chip>
         </Chips>
-        {chaptersTab === "bookmarks" ? (
-          bookmarks.length ? (
-            <BookmarkRows bookmarks={bookmarks} onJump={jumpToBookmark} />
-          ) : (
-            noBookmarks
-          )
-        ) : (
-          <ChapterList chapters={item.chapters} current={ci} playing={p.playing} onPick={(sec) => choose(() => p.seek(sec))()} />
-        )}
+        {chaptersTab === "bookmarks" ? <NowBookmarks onPicked={closeSheet} /> : <NowChapters onPicked={closeSheet} />}
       </Sheet>
 
       <Sheet open={sheet === "bookmarks"} onClose={() => setSheet(null)} title="Bookmarks" count={bookmarks.length}>
-        {bookmarks.length ? <BookmarkRows bookmarks={bookmarks} onJump={jumpToBookmark} /> : noBookmarks}
+        <NowBookmarks onPicked={closeSheet} />
       </Sheet>
 
       <BookmarkNoteSheet bookmark={editingBookmark?.bookmark ?? null} isNew={editingBookmark?.isNew} onClose={() => setEditingBookmark(null)} />

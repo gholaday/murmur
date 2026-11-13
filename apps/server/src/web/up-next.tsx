@@ -50,11 +50,7 @@ function BookRow({ item }: { item: Playable }) {
 export function UpNextSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const player = usePlayerControls();
   const upNext = usePlayerSelect((p) => p.upNext);
-  const upNextLoaded = usePlayerSelect((p) => p.upNextLoaded);
-  const item = usePlayerSelect((p) => p.item);
-  const { items, index } = upNext;
-  const waiting = items.length - index - 1;
-  const sortable = useSortable(player.moveItem);
+  const waiting = upNext.items.length - upNext.index - 1;
 
   // Opens on the item playing, with a little of what played above it.
   const playingRow = useRef<HTMLDivElement>(null);
@@ -83,6 +79,21 @@ export function UpNextSheet({ open, onClose }: { open: boolean; onClose: () => v
         ) : null
       }
     >
+      <UpNextList playingRowRef={playingRow} />
+    </Sheet>
+  );
+}
+
+/** The queue's rows: a book playing on its own on top, then Up Next with what played above the item playing. */
+function UpNextList({ playingRowRef }: { playingRowRef?: React.Ref<HTMLDivElement> }) {
+  const player = usePlayerControls();
+  const upNext = usePlayerSelect((p) => p.upNext);
+  const upNextLoaded = usePlayerSelect((p) => p.upNextLoaded);
+  const item = usePlayerSelect((p) => p.item);
+  const { items, index } = upNext;
+  const sortable = useSortable(player.moveItem);
+  return (
+    <>
       {item?.type === "book" ? <BookRow item={item} /> : null}
       {!upNextLoaded ? (
         <QueueRowsSkeleton />
@@ -96,13 +107,13 @@ export function UpNextSheet({ open, onClose }: { open: boolean; onClose: () => v
               entry={e}
               index={i}
               state={i < index ? "played" : i === index ? "playing" : "next"}
-              rowRef={i === index ? playingRow : undefined}
+              rowRef={i === index ? playingRowRef : undefined}
               sortable={sortable}
             />
           ))}
         </div>
       )}
-    </Sheet>
+    </>
   );
 }
 
