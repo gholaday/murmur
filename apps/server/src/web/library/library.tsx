@@ -34,6 +34,7 @@ import { useNowPlaying } from "../player/engine";
 import { CustomizeIcon, FilterIcon } from "../icons";
 import { BookActions } from "../book/book-actions";
 import { ChoiceSheet } from "../sheet";
+import { scrollPageToTop } from "../layout";
 import { DragHandle, reorder, useSortable } from "../sortable";
 import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SectionTitle, useSavedChoice } from "../ui";
 import { BookCard } from "./book-card";
@@ -144,7 +145,7 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
     // (and its loading placeholder); Next keeps useSearchParams in step with pushState.
     window.history.pushState(null, "", qs ? `${pathname}?${qs}` : pathname);
     // A shelf, author or series opens like a new page, at the top. Tab switches stay put.
-    if (next.shelf || next.author || next.series) window.scrollTo(0, 0);
+    if (next.shelf || next.author || next.series) scrollPageToTop();
   };
 
   const continuing = useMemo(() => continueListening(books), [books]);

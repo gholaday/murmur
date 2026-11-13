@@ -26,6 +26,7 @@ import { Cover } from "../cover";
 import { Mixer } from "../mixer";
 import { useNowPlaying } from "../player/engine";
 import { FilterIcon, PlusIcon } from "../icons";
+import { scrollPageToTop } from "../layout";
 import { EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle } from "../ui";
 import { ChoiceSheet, Sheet } from "../sheet";
 import { EpisodeRow } from "./episode-row";
@@ -73,7 +74,7 @@ export function PodcastsView({
   // Every list is built from data already here, so skip the server round trip, like the Library shelves.
   const open = (id: PodcastListId) => {
     window.history.pushState(null, "", `${pathname}?list=${id}`);
-    window.scrollTo(0, 0);
+    scrollPageToTop();
   };
 
   const sortButton =

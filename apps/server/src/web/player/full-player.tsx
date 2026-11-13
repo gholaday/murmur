@@ -24,7 +24,8 @@ import { Chip, Chips } from "../ui";
 import { UpNextSheet } from "../up-next";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } from "./ad-prefs";
 import { CastButton } from "../cast/cast-button";
-import { cssMs, isNarrow } from "../css-vars";
+import { cssMs } from "../css-vars";
+import { useWide } from "../layout";
 import { useCast } from "../cast/cast";
 import { playableHref, usePlayer, usePosition, useTint } from "./engine";
 import { NowBookmarks, NowChapters } from "./now-lists";
@@ -40,6 +41,7 @@ import { VolumeRow } from "./volume-control";
 export function usePullToClose(onClose: () => void) {
   const ref = useRef<HTMLDivElement>(null);
   const [pulled, setPulled] = useState(false);
+  const wide = useWide();
   const drag = useRef<{ y: number; t: number; dy: number; v: number } | null>(null);
   const settle = (el: HTMLElement, transform: string, easing: string) => {
     el.style.transition = `transform ${cssMs("--player-close")}ms ${easing}`;
@@ -65,7 +67,7 @@ export function usePullToClose(onClose: () => void) {
   };
   const handlers = {
     onPointerDown: (e: React.PointerEvent) => {
-      if (e.button !== 0 || !isNarrow()) return;
+      if (e.button !== 0 || wide) return;
       drag.current = { y: e.clientY, t: e.timeStamp, dy: 0, v: 0 };
     },
     onPointerMove: (e: React.PointerEvent) => {

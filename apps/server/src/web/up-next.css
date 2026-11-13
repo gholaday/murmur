@@ -19,12 +19,12 @@
  */
 .book-section { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 260ms ease, opacity 260ms ease; }
 .book-section.collapsed { grid-template-rows: 0fr; opacity: 0; }
-.book-section-inner { min-height: 0; overflow: hidden; margin: 0 -20px; padding: 24px 20px 0; display: flex; flex-direction: column; gap: 12px; }
+.book-section-inner { min-height: 0; overflow: hidden; margin: 0 calc(-1 * var(--page-x)); padding: 24px var(--page-x) 0; display: flex; flex-direction: column; gap: 12px; }
 .book-section .section-head { position: relative; }
 .book-section.is-hidden .section-title { color: var(--faint); transition: color 200ms ease; }
-.section-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 260ms ease, opacity 200ms ease; margin: 0 -20px; }
+.section-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 260ms ease, opacity 200ms ease; margin: 0 calc(-1 * var(--page-x)); }
 .section-body.collapsed { grid-template-rows: 0fr; opacity: 0; }
-.section-body-inner { min-height: 0; overflow: hidden; padding: 0 20px; }
+.section-body-inner { min-height: 0; overflow: hidden; padding: 0 var(--page-x); }
 /* Customize controls sit over the heading's right end, so fading them in moves nothing. */
 .customize-actions {
   position: absolute; right: 0; top: 50%; transform: translateY(-50%);

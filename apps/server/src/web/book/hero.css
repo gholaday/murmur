@@ -4,7 +4,7 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  margin: -28px -20px 0;
+  margin: -28px calc(-1 * var(--page-x)) 0;
   padding: 16px 12px 22px;
   background: linear-gradient(to bottom, color-mix(in srgb, var(--tint) 14%, var(--bg)), var(--bg));
 }
@@ -106,6 +106,6 @@
 .subtabs .muted { margin-left: auto; }
 /* A show's episode list heading. It stays at the top while you scroll a long list, with
    the search box when it's open, on the page's background so rows pass under it. */
-.episodes-head { position: sticky; top: 0; z-index: 5; margin: 12px -20px 0; padding: 8px 20px 10px; background: var(--bg); }
+.episodes-head { position: sticky; top: 0; z-index: 5; margin: 12px calc(-1 * var(--page-x)) 0; padding: 8px var(--page-x) 10px; background: var(--bg); }
 .episodes-head .section-head { align-items: center; min-height: 40px; }
 .episodes-head .search { margin: 8px 0 0; }

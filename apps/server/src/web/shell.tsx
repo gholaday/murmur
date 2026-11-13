@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { startCast } from "./cast/cast";
 import { useDragToScroll } from "./drag-scroll";
+import { useWide } from "./layout";
 import { useLiveChanges } from "./live-changes";
 import type { UserPrefs } from "@murmur/shared/client";
 import { AppIcon, CloseIcon, LibraryIcon, MusicIcon, PodcastIcon, ProfileIcon, SearchIcon, WatchIcon } from "./icons";
@@ -23,7 +24,10 @@ const TABS = [
   { href: "/you", label: "You", Icon: ProfileIcon, match: (p: string) => p.startsWith("/you") },
 ];
 
-/** A bottom bar of Search and the tabs on phones, a sidebar on wide screens, and the player on top of both. */
+/**
+ * A bottom bar of Search and the tabs on phones, with the player on top. On wide screens a grid
+ * (shell.css): the sidebar, the page, a side panel slot on the right and a bar slot along the bottom.
+ */
 export function Shell({
   tabs,
   children,
@@ -66,23 +70,43 @@ export function Shell({
           ))}
         </nav>
         <main className="page">{children}</main>
-      <MiniPlayer />
-      <FullPlayer />
+        <MiniPlayer />
+        <FullPlayer />
         {video.item ? <VideoPlayer key={video.item.progressId} item={video.item} autoplay={video.autoplay} mini={miniVideo} /> : null}
       </div>
     </SearchProvider>
   );
 }
 
+/** Typing "/" anywhere but in a field. */
+const isSlashKey = (e: KeyboardEvent) =>
+  e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !(e.target as HTMLElement).closest("input, textarea, select, [contenteditable]");
+
 /**
  * Search as the first tab. On phones, opening it grows its box out of the tab across the bar,
  * pushing the other tabs aside, with an X at the end; closing slides them back. In the
- * wide-screen sidebar it's a plain item, and the box is on the page.
+ * wide-screen sidebar the box is always there (and "/" jumps to it): typing in it opens the
+ * search page.
  */
 function DockSearch({ searching, onHeading }: { searching: boolean; onHeading: (to: "open" | "closed") => void }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const wide = useWide();
   const { query, setQuery, submit } = useSearchState();
   const field = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!wide) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!isSlashKey(e)) return;
+      e.preventDefault();
+      field.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [wide]);
+  const toSearch = () => {
+    if (wide && !pathname.startsWith("/search")) router.push("/search");
+  };
   const close = () => {
     onHeading("closed");
     setQuery("");
@@ -114,6 +138,7 @@ function DockSearch({ searching, onHeading }: { searching: boolean; onHeading: (
             e.preventDefault();
             submit();
             field.current?.blur();
+            toSearch();
           }}
         >
           <label className="search-field">
@@ -124,11 +149,21 @@ function DockSearch({ searching, onHeading }: { searching: boolean; onHeading: (
               enterKeyHint="search"
               aria-label="Search"
               placeholder="Search"
-              tabIndex={searching ? undefined : -1}
+              tabIndex={searching || wide ? undefined : -1}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Escape" && close()}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                toSearch();
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== "Escape") return;
+                if (wide) field.current?.blur();
+                else close();
+              }}
             />
+            <kbd className="search-key" aria-hidden="true">
+              /
+            </kbd>
           </label>
         </form>
       </div>

@@ -3,9 +3,9 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
 /**
- * What's typed in Search, shared by the box in the bottom bar (phones) and the one on the
- * page (wide screens). It lives in the shell so the bar's box survives moving to /search,
- * which is what lets it grow out of the Search tab instead of appearing.
+ * What's typed in Search: the shell's box (in the bottom bar on phones, the sidebar on wide
+ * screens) and the search page share it. It lives in the shell so the box survives moving to
+ * /search, which is what lets it grow out of the Search tab instead of appearing.
  */
 interface SearchState {
   query: string;
