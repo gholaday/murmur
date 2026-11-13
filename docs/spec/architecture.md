@@ -11,7 +11,7 @@
 | Video | `ffmpeg` and `ffprobe`, with the VAAPI drivers, in the video add-on's image (`addons/video`) | Reads video files and their subtitle tracks, grabs stills, and makes HLS streams and downloads; only Watch needs them, and Murmur's own image has no ffmpeg |
 | RSS | `rss-parser` | Parses podcast feeds and iTunes tags |
 | Auth | Session cookie for web, bearer token for the app; passwords hashed with argon2 | Simple, no external provider |
-| Web styling | Plain CSS with custom properties, a file per feature loaded in order by `apps/server/src/app/globals.css` | Light and dark themes without a build step |
+| Web styling | Plain CSS with custom properties, a file per feature loaded in order by `apps/server/src/app/globals.css`. One breakpoint, 900px: below it the phone layout, from it the wide layout (sidebar, page area, side panel, player bar), with `useWide()` choosing components where the two differ | Light and dark themes without a build step; CSS lays out both widths, so the same components serve both |
 | Android app | Expo (React Native) + Expo Router | React and TypeScript; shares types with the server |
 | App playback | `expo-audio` | Background audio, lock-screen and notification controls, Bluetooth buttons |
 | App downloads | `expo-file-system` | Offline books, episodes, music, movies and TV episodes |
