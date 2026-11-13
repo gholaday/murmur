@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import {
   apiPaths,
   CAST_SUPPORT,
@@ -51,6 +52,7 @@ import {
   CloseIcon,
   DownIcon,
   FullscreenIcon,
+  ListIcon,
   MoreIcon,
   NextChapterIcon,
   PauseIcon,
@@ -61,13 +63,16 @@ import {
   SkipForwardIcon,
   SubtitlesIcon,
 } from "../icons";
+import { useWide } from "../layout";
 import { addWatching, sendListening, usePlayerControls, usePlayerSelect } from "../player/engine";
 import { usePullToClose } from "../player/full-player";
-import { effectiveVolume, useVolume } from "../player/volume";
-import { VolumeControl } from "../player/volume-control";
+import { effectiveVolume, useVolume, volumeStore } from "../player/volume";
+import { VolumeBar, VolumeControl } from "../player/volume-control";
 import { setFinished } from "../progress";
 import { Sheet, SheetItem } from "../sheet";
+import { Description } from "../ui";
 import { playHref, Still } from "./cards";
+import { NextPanel, useNextPanel } from "./next-panel";
 import { QualitySheet } from "./quality-pick";
 import { useQualityPref } from "./quality-pref";
 import { readSubtitle, saveSubtitle, SubtitleSheet } from "./subtitle-pick";
@@ -107,6 +112,8 @@ export interface PlayerItem {
   autoplayNext: boolean;
   /** The audio language is remembered per movie and per show. */
   memoryKey: string;
+  /** The movie's or episode's, under the picture on wide screens. */
+  description: string | null;
 }
 
 const {
@@ -194,10 +201,10 @@ function Scrubber({ store, total, onScrub, onRelease }: { store: Clock; total: n
 }
 
 /** Played and left, with the time left between them. */
-function Times({ store, total }: { store: Clock; total: number }) {
+function Times({ store, total, className = "vp-times" }: { store: Clock; total: number; className?: string }) {
   const { time } = useClock(store);
   return (
-    <div className="vp-times">
+    <div className={className}>
       <span className="vp-time">{clock(time)}</span>
       <span className="vp-time vp-note">{timeLeft(total, time)}</span>
       <span className="vp-time">-{clock(Math.max(0, total - time))}</span>
@@ -236,14 +243,26 @@ function SubtitleLine({ cues, position }: { cues: SubtitleCue[]; position: () =>
   );
 }
 
+/** The wide player bar's third line: "S1 E4, 22m left", or just the time left. */
+function BarLine({ store, total, label }: { store: Clock; total: number; label: string | null }) {
+  const left = timeLeft(total, useClock(store).time);
+  return <span className="mini-sub">{label ? `${label}, ${left}` : left}</span>;
+}
+
+function LeftPill({ store, total }: { store: Clock; total: number }) {
+  return <span className="pill">{timeLeft(total, useClock(store).time)}</span>;
+}
+
 function MiniBar({ store, total }: { store: Clock; total: number }) {
   return <div className="mini-bar" style={{ transform: `scaleX(${percentDone(useClock(store).time, total) / 100})` }} />;
 }
 
 /**
  * The video player: the file played as it is, in a <video>. Upright on a phone, the video sits at
- * the top with the details and next episodes under it; sideways, in full screen or on a wide
- * screen it fills the window, with controls that fade after a few seconds.
+ * the top with the details and next episodes under it; sideways or in full screen it fills the
+ * window, with controls that fade after a few seconds. On a wide screen it sits in the shell: the
+ * picture in the page area, its controls in the bar slot and the next episodes in the panel slot,
+ * and minimised the picture docks in the bar.
  */
 export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autoplay: boolean; mini: boolean }) {
   const router = useRouter();
@@ -323,6 +342,12 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
   const lastTick = useRef<{ at: number; pos: number } | null>(null);
   const lastTap = useRef({ at: 0, x: 0 });
   const next = item.next[0] ?? null;
+  // Wide screens: the controls go in the shell's bar slot and the next episodes in its panel slot,
+  // rendered into the shell (this player's parent) so the <video> itself never moves.
+  const wide = useWide();
+  const nextPanel = useNextPanel();
+  const [shell, setShell] = useState<Element | null>(null);
+  useEffect(() => setShell(rootRef.current?.parentElement ?? null), []);
 
   // A video takes over from whatever audio was on: it saves its place and leaves the mini player.
   // It also takes the browser's media controls (below), and hands them back when it closes.
@@ -770,19 +795,26 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     }
   };
 
-  // Keyboard: space or K plays and pauses, arrows skip, F is full screen, Escape minimises. Only on the player's own page.
+  // Keyboard: space or K plays and pauses, arrows skip, F is full screen, M mutes, Escape minimises. Only on the player's own page.
   const backRef = useRef(() => {});
+  const muteRef = useRef(() => {});
+  muteRef.current = () =>
+    volumeStore.set(volume.muted || volume.level === 0 ? { level: volume.level || 0.5, muted: false } : { ...volume, muted: true });
   useEffect(() => {
     if (mini) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement && e.target.type !== "range") return;
+      const t = e.target;
+      if (t instanceof HTMLInputElement && t.type !== "range") return;
+      // A focused button or slider does its own thing with these keys.
+      if ((e.key === " " && t instanceof HTMLButtonElement) || (e.key.startsWith("Arrow") && t instanceof HTMLInputElement)) return;
       if (e.key === " " || e.key === "k") {
         e.preventDefault();
         toggle();
       } else if (e.key === "ArrowLeft") skip(-audioSkip.back);
       else if (e.key === "ArrowRight") skip(audioSkip.forward);
       else if (e.key === "f") void toggleFullscreen();
-      else if (e.key === "Escape" && !document.querySelector("dialog[open]") && !document.fullscreenElement) backRef.current();
+      else if (e.key === "m") muteRef.current();
+      else if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector("dialog[open]") && !document.fullscreenElement) backRef.current();
       else return;
       poke();
     };
@@ -826,12 +858,22 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     }
   }, [item.title, item.showTitle, item.label, next, goNext, skip, audioSkip.back, audioSkip.forward]);
 
+  /** Wide screens, on its own page and not filling the screen: the picture sits in the shell's page area. */
+  const inShell = wide && !mini && !fullscreen && !sideways;
+  /** Wide screens, minimised: just the picture, docked over the bar's thumbnail (full screen still fills the screen). */
+  const docked = wide && mini && !fullscreen;
+
   const onStageTap = (e: React.MouseEvent<HTMLDivElement>) => {
     if (mini) {
       router.push(item.href);
       return;
     }
     if ((e.target as HTMLElement).closest("button, a, input")) return;
+    // In the shell a click plays and pauses, as on a computer's video players; a double click fills the screen.
+    if (inShell) {
+      toggle();
+      return;
+    }
     const now = Date.now();
     const rect = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
@@ -999,6 +1041,126 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
       </button>
     ) : null;
   const subtitleTracks = item.file.subtitleTracks;
+  const from = castDevice ? `Playing on ${castDevice}` : `Playing from ${item.kind === "movie" ? "Movies" : "Shows"}`;
+  const quality = plan?.kind === "transcode" && qualityMatters(item.file) ? QUALITY_LABEL[qualityShown] : null;
+
+  const onScrub = (to: number) => {
+    times.set({ time: to });
+    seekTo(to, false);
+    poke();
+  };
+  const transport = (
+    <div className="player-controls">
+      <button type="button" className="icon-btn dim" aria-label="Start over" onClick={() => seekTo(0)}>
+        <PrevChapterIcon />
+      </button>
+      <button type="button" className="skip-btn" aria-label={`Skip back ${audioSkip.back} seconds`} onClick={() => skip(-audioSkip.back)}>
+        <SkipBackIcon size={36} />
+        <span>{audioSkip.back}</span>
+      </button>
+      <button
+      type="button"
+      className={`play-btn${buffering ? " buffering" : ""}`}
+      aria-label={playing ? "Pause" : "Play"}
+      onClick={toggle}
+      disabled={!src && !stream}
+    >
+        {playing ? <PauseIcon size={32} /> : <PlayIcon size={32} />}
+      </button>
+      <button type="button" className="skip-btn" aria-label={`Skip forward ${audioSkip.forward} seconds`} onClick={() => skip(audioSkip.forward)}>
+        <SkipForwardIcon size={36} />
+        <span>{audioSkip.forward}</span>
+      </button>
+      <button type="button" className="icon-btn dim" aria-label="Next episode" onClick={goNext} disabled={!next}>
+        <NextChapterIcon />
+      </button>
+    </div>
+  );
+
+  /** The bar's left end: a still of what's playing (the picture itself docks over it when minimised), title, show and time left. */
+  const barText = (
+    <>
+      <span className="vp-bar-thumb" style={item.art ? { backgroundImage: `url("${item.art}")` } : undefined} />
+      <span className="mini-text">
+        <span className="mini-title">{item.title}</span>
+        {item.showTitle ? <span className="mini-sub">{item.showTitle}</span> : null}
+        {castDevice ? (
+          <span className="mini-sub mini-cast">
+            <CastIcon size={13} />
+            {castDevice}
+          </span>
+        ) : (
+          <BarLine store={times} total={total} label={item.label} />
+        )}
+      </span>
+    </>
+  );
+
+  // Wide screens: the audio player bar's layout, with the video's controls. On the player's page
+  // its round button minimises the player; elsewhere it opens it again.
+  const bar =
+    wide && shell
+      ? createPortal(
+          <div
+            className="shell-bar pbar vp-bar"
+            role="region"
+            aria-label="Player"
+            style={{ "--tint": item.color ?? FALLBACK_TINT.artwork, ...(item.art ? { "--art": `url("${item.art}")` } : {}) } as React.CSSProperties}
+          >
+            <div className="pbar-art" aria-hidden="true" />
+            {mini ? (
+              <Link className="pbar-open" href={item.href} aria-label={`Open player: ${item.title}`}>
+                {barText}
+              </Link>
+            ) : (
+              <div className="pbar-open">{barText}</div>
+            )}
+            <div className="pbar-mid" onPointerDown={poke}>
+              {transport}
+              <div className="player-scrub">
+                <div className="scrub-wrap">
+                  <Scrubber store={times} total={total} onScrub={onScrub} onRelease={(to) => seekTo(to)} />
+                </div>
+                <Times store={times} total={total} className="player-times" />
+              </div>
+            </div>
+            <div className="pbar-end">
+              {subtitleTracks.length ? (
+                <button type="button" className="icon-btn" aria-label="Subtitles" aria-pressed={!!subtitle} onClick={() => setSubtitlesOpen(true)}>
+                  <SubtitlesIcon size={20} />
+                </button>
+              ) : null}
+              {audioButton}
+              <VolumeBar />
+              <span className="pbar-divider" aria-hidden="true" />
+              {item.next.length ? (
+                <button type="button" className="icon-btn" data-panel-toggle onClick={nextPanel.toggle} aria-pressed={nextPanel.open} aria-label="Next episodes">
+                  <ListIcon size={20} />
+                </button>
+              ) : null}
+              {casting ? null : (
+                <>
+                  <button type="button" className="icon-btn" aria-label="Picture in picture" onClick={pip}>
+                    <PipIcon size={20} />
+                  </button>
+                  <button type="button" className="icon-btn" aria-label="Full screen" onClick={toggleFullscreen}>
+                    <FullscreenIcon size={20} />
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                className={`icon-btn pbar-expand${mini ? "" : " on"}`}
+                onClick={() => (mini ? router.push(item.href) : back())}
+                aria-label={mini ? "Open player" : "Minimise player"}
+              >
+                <DownIcon size={20} />
+              </button>
+            </div>
+          </div>,
+          shell,
+        )
+      : null;
 
   return (
     <div
@@ -1006,10 +1168,17 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         rootRef.current = el;
         pull.ref.current = el;
       }}
-      className={mini ? "mini vp-mini" : `vp ${item.next.length ? "vp-has-next" : ""} ${controls ? "vp-show" : ""} ${fullscreen || sideways ? "vp-over" : ""} ${pull.pulled ? "pulled" : ""}`}
+      className={
+        docked
+          ? "vp-docked"
+          : mini
+            ? "mini vp-mini"
+            : `vp ${item.next.length ? "vp-has-next" : ""} ${controls ? "vp-show" : ""} ${fullscreen || sideways ? "vp-over" : ""} ${pull.pulled ? "pulled" : ""}${inShell ? " vp-shell" : ""}`
+      }
       style={{ "--tint": item.color ?? FALLBACK_TINT.artwork } as React.CSSProperties}
-      role={mini ? "region" : undefined}
-      aria-label={mini ? "Now watching" : undefined}
+      role={mini && !docked ? "region" : undefined}
+      aria-label={mini && !docked ? "Now watching" : undefined}
+      onDoubleClick={(e) => inShell && (e.target as HTMLElement).closest(".vp-stage") && !(e.target as HTMLElement).closest("button, a") && void toggleFullscreen()}
       onPointerMove={(e) => e.pointerType === "mouse" && poke()}
       onPointerLeave={(e) => e.pointerType === "mouse" && playing && setControls(false)}
     >
@@ -1017,7 +1186,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         <button type="button" className="icon-btn" aria-label="Close player" onClick={back}>
           <DownIcon />
         </button>
-        <div className="player-from">{castDevice ? `Playing on ${castDevice}` : `Playing from ${item.kind === "movie" ? "Movies" : "Shows"}`}</div>
+        <div className="player-from">{from}</div>
         <div className="player-top-end">
           <CastButton />
           <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMoreOpen(true)}>
@@ -1095,6 +1264,29 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         ) : null}
       </div>
 
+      {/* Wide screens: what's playing under the picture; its controls are in the bar. */}
+      {inShell ? (
+        <div className="vp-about">
+          <div className="vp-about-top">
+            <div className="player-from">{from}</div>
+            <div className="player-top-end">
+              <CastButton />
+              <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMoreOpen(true)}>
+                <MoreIcon />
+              </button>
+            </div>
+          </div>
+          <h1 className="player-title">{item.title}</h1>
+          {item.showTitle ? <div className="player-sub">{item.showTitle}</div> : null}
+          <div className="pills">
+            {item.label ? <span className="pill">{item.label}</span> : null}
+            <LeftPill store={times} total={total} />
+            {quality ? <span className="pill">{quality}</span> : null}
+          </div>
+          {item.description ? <Description text={item.description} /> : null}
+        </div>
+      ) : null}
+
       {/* Under the video when upright, laid out like the audio player; the controls sit along the bottom of the picture sideways or in full screen. */}
       <div className="vp-main">
         <div className="player-info-row vp-info">
@@ -1105,42 +1297,9 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
           <VolumeControl />
         </div>
         <div className="vp-controls" onPointerDown={poke}>
-          <Scrubber
-            store={times}
-            total={total}
-            onScrub={(to) => {
-              times.set({ time: to });
-              seekTo(to, false);
-              poke();
-            }}
-            onRelease={(to) => seekTo(to)}
-          />
+          <Scrubber store={times} total={total} onScrub={onScrub} onRelease={(to) => seekTo(to)} />
           <Times store={times} total={total} />
-          <div className="player-controls">
-            <button type="button" className="icon-btn dim" aria-label="Start over" onClick={() => seekTo(0)}>
-              <PrevChapterIcon />
-            </button>
-            <button type="button" className="skip-btn" aria-label={`Skip back ${audioSkip.back} seconds`} onClick={() => skip(-audioSkip.back)}>
-              <SkipBackIcon size={36} />
-              <span>{audioSkip.back}</span>
-            </button>
-            <button
-            type="button"
-            className={`play-btn${buffering ? " buffering" : ""}`}
-            aria-label={playing ? "Pause" : "Play"}
-            onClick={toggle}
-            disabled={!src && !stream}
-          >
-              {playing ? <PauseIcon size={32} /> : <PlayIcon size={32} />}
-            </button>
-            <button type="button" className="skip-btn" aria-label={`Skip forward ${audioSkip.forward} seconds`} onClick={() => skip(audioSkip.forward)}>
-              <SkipForwardIcon size={36} />
-              <span>{audioSkip.forward}</span>
-            </button>
-            <button type="button" className="icon-btn dim" aria-label="Next episode" onClick={goNext} disabled={!next}>
-              <NextChapterIcon />
-            </button>
-          </div>
+          {transport}
           {/* Sideways or in full screen: what the tiles hold, at the bottom right of the picture. */}
           <div className="vp-tools">
             <VolumeControl />
@@ -1216,7 +1375,10 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         </div>
       </div>
 
-      {mini ? (
+      {bar}
+      {wide && shell && item.next.length > 0 && nextPanel.open ? createPortal(<NextPanel episodes={item.next} replace={!mini} />, shell) : null}
+
+      {mini && !wide ? (
         <div className="mini-row vp-mini-row">
           <Link className="mini-open" href={item.href} aria-label={`Open player: ${item.title}`}>
             <span className="mini-text">

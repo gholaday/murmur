@@ -55,6 +55,7 @@ export function Shell({
   );
   const video = useVideo();
   // The video player has the whole screen on its own page, and is the mini player everywhere else.
+  // On wide screens it takes the page area there instead, and the bar slot everywhere.
   const watching = pathname.startsWith("/watch/play/");
   const miniVideo = !!video.item && !watching;
   // The bar starts opening or closing Search on the tap, not once the page has changed.
@@ -63,7 +64,7 @@ export function Shell({
   const searching = heading ? heading === "open" : pathname.startsWith("/search");
   return (
     <SearchProvider>
-      <div className={`shell ${item || miniVideo ? "has-player" : ""}${miniVideo ? " has-video-mini" : ""}`}>
+      <div className={`shell ${item || miniVideo ? "has-player" : ""}`}>
         <nav
           className={`tabs${searching ? " searching" : ""}`}
           aria-label="Main"

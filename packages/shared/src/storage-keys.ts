@@ -36,6 +36,8 @@ export const storageKeys = {
   volume: "murmur.volume",
   /** SidePanel: whether the wide layout's side panel is open, and on which tab. */
   sidePanel: "murmur.sidePanel",
+  /** NextPanel: whether the video player's Next episodes panel is open on wide screens. */
+  videoPanel: "murmur.videoPanel",
 
   // ---------- App ----------
   server: "murmur.server",

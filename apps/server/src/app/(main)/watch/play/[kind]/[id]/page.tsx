@@ -53,6 +53,7 @@ export default async function PlayPage({
       next: [],
       autoplayNext: false,
       memoryKey: movie.id,
+      description: movie.description,
     };
   } else if (kind === "episode") {
     const play = await getEpisodePlay(ctx, user.id, id);
@@ -77,6 +78,7 @@ export default async function PlayPage({
       next: play.next,
       autoplayNext: prefs.autoplayNext,
       memoryKey: play.show.id,
+      description: e.description,
     };
   } else notFound();
   return <OpenVideo item={item} versions={versions} />;

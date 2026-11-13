@@ -58,7 +58,7 @@ function subscribeRoomy(onChange: () => void) {
 }
 
 /** The window is wide enough for the panel to sit beside the page. */
-function useRoomy(): boolean {
+export function useRoomy(): boolean {
   return useSyncExternalStore(
     subscribeRoomy,
     () => window.matchMedia(ROOMY).matches,
@@ -108,28 +108,7 @@ export function SidePanel() {
   const item = usePlayerSelect((p) => p.item);
   const panel = useSidePanel(item);
   const ref = useRef<HTMLElement>(null);
-  const floating = panel.open && !panel.roomy;
-
-  useEffect(() => {
-    if (!floating) return;
-    // A sheet or a toast over the page, or the bar's own buttons for the panel, aren't outside it.
-    const keep = (t: EventTarget | null) => t instanceof Element && (ref.current?.contains(t) || t.closest("dialog[open], [data-sonner-toaster], [data-panel-toggle]"));
-    const onDown = (e: PointerEvent) => {
-      if (!keep(e.target)) closePanel();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      // A sheet or a speed popover takes Escape first, and Now playing under the panel waits for the next one.
-      if (e.key !== "Escape" || e.defaultPrevented || document.querySelector("dialog[open], .speed-pop")) return;
-      e.preventDefault();
-      closePanel();
-    };
-    document.addEventListener("pointerdown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [floating]);
+  usePanelDismiss(ref, panel.open && !panel.roomy, closePanel);
 
   if (!item || !panel.open) return null;
   const songOnly = panel.tabs.length === 1;
@@ -158,9 +137,37 @@ export function SidePanel() {
   );
 }
 
-function CloseButton() {
+/**
+ * While a panel floats over the page (900 to 1199px), a click outside it or Escape closes it. A
+ * sheet or a toast over the page, or the bar's own buttons for the panel, aren't outside it.
+ */
+export function usePanelDismiss(ref: React.RefObject<HTMLElement | null>, floating: boolean, close: () => void) {
+  const closeRef = useRef(close);
+  closeRef.current = close;
+  useEffect(() => {
+    if (!floating) return;
+    const keep = (t: EventTarget | null) => t instanceof Element && (ref.current?.contains(t) || t.closest("dialog[open], [data-sonner-toaster], [data-panel-toggle]"));
+    const onDown = (e: PointerEvent) => {
+      if (!keep(e.target)) closeRef.current();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      // A sheet or a speed popover takes Escape first, and Now playing or the video player under the panel waits for the next one.
+      if (e.key !== "Escape" || e.defaultPrevented || document.querySelector("dialog[open], .speed-pop")) return;
+      e.preventDefault();
+      closeRef.current();
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [floating, ref]);
+}
+
+export function CloseButton({ onClose = closePanel }: { onClose?: () => void }) {
   return (
-    <button type="button" className="icon-btn" onClick={closePanel} aria-label="Close panel">
+    <button type="button" className="icon-btn" onClick={onClose} aria-label="Close panel">
       <CloseIcon />
     </button>
   );

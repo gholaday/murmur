@@ -29,13 +29,16 @@ import { WatchMenuItems } from "./poster-menu";
 import { QualityPick } from "./quality-pick";
 import { SubtitleRow } from "./subtitle-pick";
 
-/** An episode row: still with how far you are, title, "S1 E2" with the time, and a watched toggle. */
-function EpisodeRow({ e, onMark }: { e: VideoEpisode; onMark: (e: VideoEpisode, done: boolean) => void }) {
+/**
+ * An episode row: still with how far you are, title, "S1 E2" with the time, and a watched toggle.
+ * `replace`: from the video player's own page, the next episode takes its place in the history.
+ */
+export function EpisodeRow({ e, onMark, replace }: { e: VideoEpisode; onMark: (e: VideoEpisode, done: boolean) => void; replace?: boolean }) {
   const finished = !!e.progress?.finished;
   const position = e.progress && !finished ? e.progress.positionSec : 0;
   return (
     <div className={`episode-row ${finished ? "watched" : ""}`}>
-      <Link className="episode-row-main" href={playHref("episode", e.id)}>
+      <Link className="episode-row-main" href={playHref("episode", e.id)} replace={replace}>
         <div className="card-cover episode-still">
           <Still videoId={e.id} hash={e.stillHash} title={e.title} />
           {position > 0 ? (

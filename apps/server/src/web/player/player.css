@@ -53,30 +53,12 @@
 .mini-split > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .mini-time { flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .mini-bar { position: absolute; left: 0; bottom: 0; width: 100%; height: 2px; background: var(--accent); transform-origin: left; }
-@media (min-width: 900px) {
-  .mini {
-    left: calc(var(--side-w) + 16px);
-    right: 16px;
-    bottom: 16px;
-    max-width: 880px;
-    margin: 0 auto;
-    transform-origin: bottom center;
-    transition: height 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
-  }
-}
-@media (min-width: 900px) and (hover: hover) {
-  /* :focus-visible, not :focus-within, so a mouse click on the bar doesn't keep it open;
-     keyboard users still get it while tabbing through. */
-  .mini:hover, .mini:has(:focus-visible) { height: calc(var(--mini-h) + 30px); transform: scale(1.015); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); }
-  .mini:hover .mini-seek, .mini:has(:focus-visible) .mini-seek { display: flex; }
-  .mini:hover .mini-bar, .mini:has(:focus-visible) .mini-bar { opacity: 0; }
-}
 
 /* ---------- Player bar: wide screens, docked in the shell's bar slot ---------- */
 
 @media (min-width: 900px) {
-  /* The bar replaces the audio mini player (the video one stays until the video gets its own bar). */
-  .mini:not(.vp-mini) { display: none; }
+  /* The bar replaces the mini players, audio and video (watch.css docks the video's picture in it). */
+  .mini { display: none; }
   .pbar {
     position: relative;
     z-index: 21;
