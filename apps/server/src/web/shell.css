@@ -115,7 +115,11 @@
     margin: 0;
     overflow-y: auto;
     padding-bottom: 48px;
+    /* Pages lay themselves out by the room they have (the side panel can take some), not the window's. */
+    container: page / size;
   }
+  /* Focused on navigation so the keyboard scrolls it (Shell); no ring for that. */
+  .shell .page:focus { outline: none; }
   .tabs {
     grid-area: side;
     position: static;

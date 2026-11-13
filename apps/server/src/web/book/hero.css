@@ -109,3 +109,74 @@
 .episodes-head { position: sticky; top: 0; z-index: 5; margin: 12px calc(-1 * var(--page-x)) 0; padding: 8px var(--page-x) 10px; background: var(--bg); }
 .episodes-head .section-head { align-items: center; min-height: 40px; }
 .episodes-head .search { margin: 8px 0 0; }
+
+/* A book's chapters and bookmarks follow the description under their own headings; the tabs over
+   them are for the column beside the book (below). */
+.book-side-tabs { display: none; }
+/* A movie's or show's settings card (version, subtitles) under the description. */
+.detail-side { margin-top: 18px; }
+
+/*
+ * Detail pages on wide screens (book, podcast, movie, TV show; .detail wraps the page). The
+ * cover's colour washes the top of the page area edge to edge and fades out, with the back arrow
+ * and More alone on the top row. With room, the page splits into two columns.
+ */
+@media (min-width: 900px) {
+  .detail {
+    position: relative; isolation: isolate; overflow: clip;
+    margin: -28px calc(-1 * var(--page-x)) 0; padding: 72px var(--page-x) 0;
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--tint) 14%, var(--bg)), var(--bg) 480px);
+  }
+  .detail .hero { position: static; isolation: auto; overflow: visible; margin: 0; padding: 0 0 6px; background: none; border-radius: 0; }
+  .detail .hero::before { inset: 0 0 auto; height: 560px; background-position: var(--page-x) 72px; }
+  .detail .hero-bar { position: absolute; top: 16px; left: calc(var(--page-x) - 10px); right: calc(var(--page-x) - 10px); }
+  .detail .book-hero, .detail .show-hero, .detail .show-actions { padding-left: 0; padding-right: 0; }
+  .detail .book-hero { padding-top: 0; }
+  /* A movie's or show's backdrop, across the top behind the hero, fading into the page. */
+  .detail-backdrop {
+    position: absolute; z-index: -1; inset: 0 0 auto; height: 440px;
+    background: center 25% / cover no-repeat; opacity: 0.6;
+    mask-image: linear-gradient(to bottom, #000 35%, transparent);
+  }
+  .detail:has(.detail-backdrop) .hero::before { display: none; }
+  /* Settings (version, audio, subtitles) keep a readable width. */
+  .detail-side { max-width: 560px; }
+}
+.detail-backdrop { display: none; }
+@media (min-width: 900px) { .detail-backdrop { display: block; } }
+
+@container page (min-width: 840px) {
+  /* Book: the book, its description and actions on the left; chapters and bookmarks as two text
+     tabs in a column on the right that stays in view and scrolls inside itself. */
+  .book-detail { display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 34%, 420px); column-gap: 40px; align-items: start; }
+  .book-side {
+    position: sticky; top: 16px; display: flex; flex-direction: column; max-height: calc(100cqh - 12px);
+    padding: 6px 12px 8px; border-radius: var(--radius); background: color-mix(in srgb, var(--surface) 80%, transparent);
+  }
+  .book-side-tabs { display: block; flex: none; margin: 0 8px 4px; }
+  .book-side .section { flex: 1; min-height: 0; margin: 0; padding: 0 8px; overflow-y: auto; scrollbar-width: thin; }
+  .book-side .section-head { display: none; }
+  .book-side[data-tab="chapters"] .book-side-bookmarks, .book-side[data-tab="bookmarks"] .book-side-chapters { display: none; }
+  .book-side .chapter-list li:last-child button { border-bottom: 0; }
+
+  /* Podcast: the show on the left, staying in view with its own back arrow and More; its episodes
+     on the right, starting under that top row. */
+  .show-detail { display: grid; grid-template-columns: clamp(240px, 28%, 300px) minmax(0, 1fr); column-gap: 40px; align-items: start; padding-top: 16px; }
+  .show-detail .detail-main { position: sticky; top: 16px; max-height: calc(100cqh + 44px); overflow-y: auto; scrollbar-width: none; padding-bottom: 16px; }
+  .show-detail .hero-bar { position: static; margin: 0 -10px 8px; }
+  .show-detail .show-hero { flex-direction: column; align-items: stretch; gap: 20px; }
+  .show-detail .show-hero .cover { width: 100%; }
+  .show-detail .show-title { font-size: 28px; line-height: 1.15; }
+  .show-detail .show-episodes { margin-top: 52px; }
+  /* The sticky head is see-through until it sticks, so the page's colour wash shows behind it. */
+  .show-detail .episodes-head { margin: 0; padding: 0 0 8px; background: none; container-type: scroll-state; }
+  .show-detail .episodes-head::before { content: ""; position: absolute; z-index: -1; inset: 0 -1px; background: var(--bg); }
+
+  /* Movie and TV show: the settings card beside the hero and actions; the rest full width under them. */
+  .video-detail { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 34%, 400px); column-gap: 40px; }
+  .video-detail > :not(.detail-backdrop) { grid-column: 1 / -1; }
+  .video-detail > .hero, .video-detail > .actions { grid-column: 1; }
+  .video-detail > .detail-side { grid-column: 2; grid-row: 1 / span 2; align-self: end; max-width: none; margin-top: 0; }
+  .video-detail .description { max-width: 720px; }
+}
+@container scroll-state(stuck: none) { .show-detail .episodes-head::before { opacity: 0; } }

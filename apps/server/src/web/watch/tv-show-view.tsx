@@ -109,8 +109,9 @@ export function TvShowView({ show }: { show: ShowDetail }) {
 
   return (
     <>
+      {/* Wide screens show the backdrop across the top, and with room the settings beside the hero (hero.css). */}
       <div
-        className="hero"
+        className="detail video-detail"
         style={
           {
             "--tint": show.color ?? FALLBACK_TINT.page,
@@ -118,78 +119,81 @@ export function TvShowView({ show }: { show: ShowDetail }) {
           } as React.CSSProperties
         }
       >
-        <HeroBar fallback="/watch" onMore={() => setMenu(true)} />
-        <div className="show-hero">
-          <Poster kind="show" id={show.id} hash={show.posterHash} color={show.color} title={show.title} sub={show.year} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>
-            <h1 className="show-title">{show.title}</h1>
-            <div className="pills">
-              {pills.map((p) => (
-                <span key={p} className="pill">
-                  {p}
-                </span>
-              ))}
+        {backdropSrc ? <div className="detail-backdrop" style={{ backgroundImage: `url("${backdropSrc}")` }} /> : null}
+        <div className="hero">
+          <HeroBar fallback="/watch" onMore={() => setMenu(true)} />
+          <div className="show-hero">
+            <Poster kind="show" id={show.id} hash={show.posterHash} color={show.color} title={show.title} sub={show.year} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>
+              <h1 className="show-title">{show.title}</h1>
+              <div className="pills">
+                {pills.map((p) => (
+                  <span key={p} className="pill">
+                    {p}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="actions">
-        {upNext ? (
-          <>
-            <Link className="btn btn-primary btn-big" href={playHref("episode", upNext.id, undefined, quality)}>
-              <PlayIcon size={22} />
-              <span>
-                {upNextPosition > 0 ? "Resume" : "Play"} {episodeLabel(upNext.season, upNext.episode)}
-              </span>
-            </Link>
-            <QualityPick file={upNext.file} value={quality} onChange={setQuality} />
-          </>
-        ) : (
-          <button type="button" className="btn btn-big" disabled>
-            <CheckIcon size={20} />
-            <span>All watched</span>
+        <div className="actions">
+          {upNext ? (
+            <>
+              <Link className="btn btn-primary btn-big" href={playHref("episode", upNext.id, undefined, quality)}>
+                <PlayIcon size={22} />
+                <span>
+                  {upNextPosition > 0 ? "Resume" : "Play"} {episodeLabel(upNext.season, upNext.episode)}
+                </span>
+              </Link>
+              <QualityPick file={upNext.file} value={quality} onChange={setQuality} />
+            </>
+          ) : (
+            <button type="button" className="btn btn-big" disabled>
+              <CheckIcon size={20} />
+              <span>All watched</span>
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn-round"
+            aria-label={seasonDone ? `Mark ${seasonName(season)} as not watched` : `Mark ${seasonName(season)} as watched`}
+            aria-pressed={seasonDone}
+            onClick={() => mark(episodes, !seasonDone, seasonName(season))}
+          >
+            <CheckIcon />
           </button>
-        )}
-        <button
-          type="button"
-          className="btn-round"
-          aria-label={seasonDone ? `Mark ${seasonName(season)} as not watched` : `Mark ${seasonName(season)} as watched`}
-          aria-pressed={seasonDone}
-          onClick={() => mark(episodes, !seasonDone, seasonName(season))}
-        >
-          <CheckIcon />
-        </button>
-      </div>
-
-      {show.description ? <Description text={show.description} /> : null}
-
-      {upNext?.file.subtitleTracks.length ? (
-        <div style={{ marginTop: 18 }}>
-          <SettingsCard>
-            <SubtitleRow file={upNext.file} memoryKey={show.id} />
-          </SettingsCard>
         </div>
-      ) : null}
 
-      <section className="section">
-        {show.seasonList.length > 1 ? (
-          <Chips kind="tabs" label="Seasons">
-            {show.seasonList.map((s) => (
-              <Chip key={s.season} selected={s.season === season} onClick={() => setSeason(s.season)}>
-                {seasonName(s.season)}
-              </Chip>
+        {show.description ? <Description text={show.description} /> : null}
+
+        {upNext?.file.subtitleTracks.length ? (
+          <div className="detail-side">
+            <SettingsCard>
+              <SubtitleRow file={upNext.file} memoryKey={show.id} />
+            </SettingsCard>
+          </div>
+        ) : null}
+
+        <section className="section">
+          {show.seasonList.length > 1 ? (
+            <Chips kind="tabs" label="Seasons">
+              {show.seasonList.map((s) => (
+                <Chip key={s.season} selected={s.season === season} onClick={() => setSeason(s.season)}>
+                  {seasonName(s.season)}
+                </Chip>
+              ))}
+            </Chips>
+          ) : (
+            <h2 className="section-title">{seasonName(season)}</h2>
+          )}
+          <div className="video-episodes">
+            {episodes.map((e) => (
+              <EpisodeRow key={e.id} e={e} onMark={(ep, done) => mark([ep], done, episodeLabel(ep.season, ep.episode))} />
             ))}
-          </Chips>
-        ) : (
-          <h2 className="section-title">{seasonName(season)}</h2>
-        )}
-        <div>
-          {episodes.map((e) => (
-            <EpisodeRow key={e.id} e={e} onMark={(ep, done) => mark([ep], done, episodeLabel(ep.season, ep.episode))} />
-          ))}
-        </div>
-      </section>
+          </div>
+        </section>
+      </div>
 
       <MenuSheet
         open={menu}

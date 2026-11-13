@@ -151,3 +151,55 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--tex
 .thumb { width: 48px; height: 48px; flex-shrink: 0; border-radius: 8px; }
 .thumb .cover-fallback-title { font-size: 8px; }
 .thumb .cover-fallback-sub { display: none; }
+
+/* ---------- Wide screens (900px+) ---------- */
+
+/* Continue cards: phones show the cover on top and the card is the way in; the play button and
+   the podcasts' card grid are wide-screen only. */
+.continue-item { display: contents; }
+.continue-play, .continue-grid { display: none; }
+@media (min-width: 900px) {
+  /* Shelves show as many cards of about 150px as fit their own width, edge to edge, so the
+     arrows page by whole cards. The steps keep cards between about 140 and 170px. */
+  .scroll-row { container-type: inline-size; }
+  .shelf { --n: 4; grid-auto-columns: calc((100cqw - (var(--n) - 1) * 16px) / var(--n)); }
+  @container (min-width: 700px) { .shelf { --n: 5; } }
+  @container (min-width: 860px) { .shelf { --n: 6; } }
+  @container (min-width: 1020px) { .shelf { --n: 7; } }
+  @container (min-width: 1180px) { .shelf { --n: 8; } }
+  @container (min-width: 1340px) { .shelf { --n: 9; } }
+  @container (min-width: 1500px) { .shelf { --n: 10; } }
+  /* 16:9 stills (TV episodes in search) get wider columns. */
+  .shelf:has(> .watch-card) { grid-auto-columns: 260px; }
+  .shelf > .watch-card { width: auto; }
+  /* Grids fill the width with cards of the same size. */
+  .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+
+  /* Continue rows wrap into a grid of wide cards instead of scrolling sideways. */
+  .row-scroll, .continue-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card-min, 300px), 1fr)); gap: 12px; overflow: visible; margin: 0; padding: 0; }
+  .row-scroll .continue-card { width: auto; }
+  .continue-rows { display: none; }
+  /* The wide card: cover on the left; title, author, progress and time left; a round play button. */
+  .continue-item { display: block; position: relative; min-width: 0; }
+  .continue-item .continue-card {
+    width: auto; height: 100%; display: grid; grid-template-columns: 72px minmax(0, 1fr); align-content: center; gap: 0 14px;
+    padding: 12px 68px 12px 12px; border-radius: var(--radius); background: var(--surface); transition: background 150ms ease;
+  }
+  .continue-item .continue-card:hover { background: color-mix(in srgb, var(--surface), var(--text) 5%); }
+  .continue-item .card-cover { grid-row: 1 / 5; align-self: center; }
+  .continue-item .cover-fallback { padding: 6px; }
+  .continue-item .cover-fallback-title { font-size: 9px; }
+  .continue-item .cover-fallback-sub { display: none; }
+  .continue-item .mixer { width: 36px; height: 36px; }
+  .continue-item .continue-text { display: contents; }
+  .continue-item .card-title { grid-column: 2; grid-row: 1; font-size: 15px; }
+  .continue-item .card-sub { grid-column: 2; grid-row: 2; margin-top: 0; }
+  .continue-item .bar { grid-column: 2; grid-row: 3; height: 3px; margin: 8px 0 5px; }
+  .continue-item .card-sub:last-child { grid-row: 4; font-variant-numeric: tabular-nums; }
+  .continue-play {
+    display: flex; align-items: center; justify-content: center; position: absolute; top: 50%; right: 12px; translate: 0 -50%;
+    width: 44px; height: 44px; border-radius: 50%; background: var(--surface-2); color: var(--text);
+  }
+  .continue-play:hover { background: color-mix(in srgb, var(--surface-2), var(--text) 8%); }
+}
+@media (prefers-reduced-motion: reduce) { .continue-item .continue-card { transition: none; } }

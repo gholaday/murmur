@@ -9,7 +9,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Children, createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { plural } from "@murmur/shared/client";
-import { BackIcon, ChevronIcon, MoreIcon, SearchIcon } from "./icons";
+import { BackIcon, ChevronIcon, MoreIcon, PauseIcon, PlayIcon, SearchIcon } from "./icons";
+
+/** The round play button on a wide Continue card (.continue-item); hidden on phones, where the card itself is the way in. */
+export function ContinuePlay({ playing, title, onPlay }: { playing: boolean; title: string; onPlay: () => void }) {
+  return (
+    <button type="button" className="continue-play" aria-label={`${playing ? "Pause" : "Play"} ${title}`} onClick={onPlay}>
+      {playing ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
+    </button>
+  );
+}
 
 /**
  * A sideways row (`shelf` or `row-scroll`) with arrows that page it left and right. They only

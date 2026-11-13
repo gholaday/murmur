@@ -255,3 +255,13 @@ button.setting-link { width: 100%; text-align: left; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .vp-docked { animation: none; }
 }
+
+/* Pages on wide screens: Continue watching and Next episodes wrap into a grid of stills (the
+   .row-scroll grid in library.css); a show's episodes take two columns when there's room. */
+@media (min-width: 900px) {
+  .row-scroll:has(.watch-card) { --card-min: 190px; }
+  .detail .episode-still { width: 160px; }
+}
+@container page (min-width: 840px) {
+  .video-episodes { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); column-gap: 32px; }
+}

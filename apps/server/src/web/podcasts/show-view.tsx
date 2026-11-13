@@ -102,109 +102,116 @@ export function ShowView({
 
   return (
     <>
-      <div className="hero" style={{ "--tint": podcast.coverColor ?? FALLBACK_TINT.show } as React.CSSProperties}>
-        <HeroBar fallback="/podcasts" onMore={() => setSheet("menu")} />
-        <div className="show-hero">
-          <Cover
-            src={podcast.coverHash ? apiPaths.podcastCoverUrl(podcast.id, podcast.coverHash, 600) : null}
-            color={podcast.coverColor}
-            title={podcast.title}
-            large
-          />
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingBottom: 4, minWidth: 0 }}>
-            <h1 className="show-title">{podcast.title}</h1>
-            {podcast.author ? <div className="show-by">{podcast.author}</div> : null}
-            <div className="show-by muted" style={{ display: "flex", flexWrap: "wrap", gap: "2px 14px" }}>
-              <span>{plural(podcast.episodeCount, "episode")}</span>
-              {podcast.latestPublishedAt ? <span>Latest {shortDate(podcast.latestPublishedAt)}</span> : null}
-            </div>
-            {/* Told by the feed itself (a key in its URL, or itunes:block); never sent for ad detection. */}
-            {podcast.privateFeed ? (
-              <div className="pills">
-                <span className="pill" title="A personal feed, so it isn't sent for ad detection">
-                  <LockIcon size={12} />
-                  Private
-                </span>
+      {/* With room (hero.css): the show on the left, staying in view, and its episodes on the right. */}
+      <div className="detail show-detail" style={{ "--tint": podcast.coverColor ?? FALLBACK_TINT.show } as React.CSSProperties}>
+        <div className="detail-main">
+          <div className="hero">
+            <HeroBar fallback="/podcasts" onMore={() => setSheet("menu")} />
+            <div className="show-hero">
+              <Cover
+                src={podcast.coverHash ? apiPaths.podcastCoverUrl(podcast.id, podcast.coverHash, 600) : null}
+                color={podcast.coverColor}
+                title={podcast.title}
+                large
+              />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingBottom: 4, minWidth: 0 }}>
+                <h1 className="show-title">{podcast.title}</h1>
+                {podcast.author ? <div className="show-by">{podcast.author}</div> : null}
+                <div className="show-by muted" style={{ display: "flex", flexWrap: "wrap", gap: "2px 14px" }}>
+                  <span>{plural(podcast.episodeCount, "episode")}</span>
+                  {podcast.latestPublishedAt ? <span>Latest {shortDate(podcast.latestPublishedAt)}</span> : null}
+                </div>
+                {/* Told by the feed itself (a key in its URL, or itunes:block); never sent for ad detection. */}
+                {podcast.privateFeed ? (
+                  <div className="pills">
+                    <span className="pill" title="A personal feed, so it isn't sent for ad detection">
+                      <LockIcon size={12} />
+                      Private
+                    </span>
+                  </div>
+                ) : null}
               </div>
+            </div>
+            <div className="show-actions">
+              <button type="button" className="btn btn-primary" onClick={() => setSheet("unsubscribe")}>
+                <CheckIcon size={16} />
+                Subscribed
+              </button>
+              {bookmarks.length ? (
+                <button type="button" className="btn btn-tint" onClick={() => setSheet("bookmarks")}>
+                  <BookmarkIcon size={16} />
+                  Bookmarks
+                  <CountPill count={bookmarks.length} />
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          {podcast.lastError ? (
+            <p className="error small" role="alert">
+              Last feed check failed: {podcast.lastError}
+            </p>
+          ) : null}
+
+          {podcast.description ? <Description text={podcast.description} longerThan={140} lines={2} /> : null}
+        </div>
+
+        <div className="show-episodes">
+          <div className="episodes-head">
+            <div className="section-head">
+              <SectionTitle title="Episodes" count={podcast.episodeCount} noun="episode" />
+              <div style={{ display: "flex", gap: 4 }}>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label="Search episodes"
+                  aria-pressed={searching}
+                  onClick={() => {
+                    // Searching covers every episode, so fetch them as the box opens.
+                    if (!searching && !complete) void loadAll();
+                    setSearching((s) => !s);
+                    setQuery("");
+                  }}
+                >
+                  <SearchIcon />
+                </button>
+                <button type="button" className="icon-btn" aria-label="Sort episodes" onClick={() => setSheet("sort")}>
+                  <FilterIcon />
+                </button>
+              </div>
+            </div>
+            {searching ? (
+              <SearchBox value={query} onChange={setQuery} placeholder="Search episodes" label="Search episodes" />
             ) : null}
           </div>
-        </div>
-        <div className="show-actions" style={{ "--tint": podcast.coverColor ?? FALLBACK_TINT.show } as React.CSSProperties}>
-          <button type="button" className="btn btn-primary" onClick={() => setSheet("unsubscribe")}>
-            <CheckIcon size={16} />
-            Subscribed
-          </button>
-          {bookmarks.length ? (
-            <button type="button" className="btn btn-tint" onClick={() => setSheet("bookmarks")}>
-              <BookmarkIcon size={16} />
-              Bookmarks
-              <CountPill count={bookmarks.length} />
-            </button>
-          ) : null}
-        </div>
-      </div>
 
-      {podcast.lastError ? (
-        <p className="error small" role="alert">
-          Last feed check failed: {podcast.lastError}
-        </p>
-      ) : null}
-
-      {podcast.description ? <Description text={podcast.description} longerThan={140} lines={2} /> : null}
-
-      <div className="episodes-head">
-        <div className="section-head">
-          <SectionTitle title="Episodes" count={podcast.episodeCount} noun="episode" />
-          <div style={{ display: "flex", gap: 4 }}>
-            <button
-              type="button"
-              className="icon-btn"
-              aria-label="Search episodes"
-              aria-pressed={searching}
-              onClick={() => {
-                // Searching covers every episode, so fetch them as the box opens.
-                if (!searching && !complete) void loadAll();
-                setSearching((s) => !s);
-                setQuery("");
-              }}
-            >
-              <SearchIcon />
-            </button>
-            <button type="button" className="icon-btn" aria-label="Sort episodes" onClick={() => setSheet("sort")}>
-              <FilterIcon />
-            </button>
-          </div>
-        </div>
-        {searching ? (
-          <SearchBox value={query} onChange={setQuery} placeholder="Search episodes" label="Search episodes" />
-        ) : null}
-      </div>
-
-      {q && !complete ? (
-        <EmptyState>Searching…</EmptyState>
-      ) : visible.length === 0 ? (
-        <EmptyState>{q ? "No episodes match." : "No episodes."}</EmptyState>
-      ) : (
-        <div>
-          {visible.slice(0, limit).map((e) => (
-            <EpisodeRow key={e.id} episode={e} firstBookmarks={firstByEpisode.get(e.id)} onChanged={changed} />
-          ))}
-          {(complete ? visible.length : podcast.episodeCount) > limit ? (
-            <div style={{ textAlign: "center", padding: 16 }}>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
-                  if (!complete) void loadAll();
-                  setLimit((l) => l + pageSize);
-                }}
-              >
-                Show more ({(complete ? visible.length : podcast.episodeCount) - limit} left)
-              </button>
+          {q && !complete ? (
+            <EmptyState>Searching…</EmptyState>
+          ) : visible.length === 0 ? (
+            <EmptyState>{q ? "No episodes match." : "No episodes."}</EmptyState>
+          ) : (
+            <div>
+              {visible.slice(0, limit).map((e) => (
+                <EpisodeRow key={e.id} episode={e} firstBookmarks={firstByEpisode.get(e.id)} onChanged={changed} />
+              ))}
+              {(complete ? visible.length : podcast.episodeCount) > limit ? (
+                <div style={{ textAlign: "center", padding: 16 }}>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      if (!complete) void loadAll();
+                      setLimit((l) => l + pageSize);
+                    }}
+                  >
+                    Show more ({(complete ? visible.length : podcast.episodeCount) - limit} left)
+                  </button>
+                </div>
+              ) : null}
             </div>
-          ) : null}
+          )}
         </div>
-      )}
+      </div>
 
       <Sheet open={sheet === "sort"} onClose={() => setSheet(null)} title="Sort episodes">
         {[false, true].map((oldest) => (

@@ -30,13 +30,13 @@ import {
 import { api } from "../api";
 import { Cover } from "../cover";
 import { Mixer } from "../mixer";
-import { useNowPlaying } from "../player/engine";
+import { useNowPlaying, usePlayerControls } from "../player/engine";
 import { CustomizeIcon, FilterIcon } from "../icons";
 import { BookActions } from "../book/book-actions";
 import { ChoiceSheet } from "../sheet";
 import { scrollPageToTop } from "../layout";
 import { DragHandle, reorder, useSortable } from "../sortable";
-import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SectionTitle, useSavedChoice } from "../ui";
+import { Chip, Chips, ContinuePlay, EmptyState, NestedHead, ScrollRow, SectionTitle, useSavedChoice } from "../ui";
 import { BookCard } from "./book-card";
 import { PlayNextList } from "./play-next-list";
 
@@ -485,30 +485,45 @@ function BookSections({
   );
 }
 
-/** A Continue listening card. Only this card re-renders when its book plays or pauses, not the page. */
+/**
+ * A Continue listening card. Only this card re-renders when its book plays or pauses, not the page.
+ * Phones show the cover on top; wide screens lay it out as a wide card with a play button (library.css).
+ */
 function ContinueCard({ book: b }: { book: BookSummary }) {
   const { current, playing } = useNowPlaying((n) => n.type === "book" && n.id === b.id);
+  const player = usePlayerControls();
   return (
-    <Link href={`/book/${b.id}`} className={`continue-card${current ? " playing" : ""}`}>
-      <div className="card-cover">
-        <Cover
-          src={b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 600) : null}
-          color={b.coverColor}
-          title={b.title}
-          subtitle={b.author}
-          large
-        />
-        {current ? <Mixer playing={playing} /> : null}
-      </div>
-      <div className="bar thick">
-        <div style={{ width: `${progressPct(b)}%` }} />
-      </div>
-      <div className="continue-text">
-        <div className="card-title">{b.title}</div>
-        {b.author ? <div className="card-sub">{b.author}</div> : null}
-        <div className="card-sub">{timeLeft(b.durationSec, b.progress!.positionSec)}</div>
-      </div>
-    </Link>
+    <div className="continue-item">
+      <Link href={`/book/${b.id}`} className={`continue-card${current ? " playing" : ""}`}>
+        <div className="card-cover">
+          <Cover
+            src={b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 600) : null}
+            color={b.coverColor}
+            title={b.title}
+            subtitle={b.author}
+            large
+          />
+          {current ? <Mixer playing={playing} /> : null}
+        </div>
+        <div className="bar thick">
+          <div style={{ width: `${progressPct(b)}%` }} />
+        </div>
+        <div className="continue-text">
+          <div className="card-title">{b.title}</div>
+          {b.author ? <div className="card-sub">{b.author}</div> : null}
+          <div className="card-sub">{timeLeft(b.durationSec, b.progress!.positionSec)}</div>
+        </div>
+      </Link>
+      <ContinuePlay
+        playing={current && playing}
+        title={b.title}
+        onPlay={() => {
+          if (current) return player.toggle();
+          void player.playRef({ itemType: "book", itemId: b.id });
+          player.setExpanded(true);
+        }}
+      />
+    </div>
   );
 }
 

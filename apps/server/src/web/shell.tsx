@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { startCast } from "./cast/cast";
 import { useDragToScroll } from "./drag-scroll";
-import { useWide } from "./layout";
+import { usePageArea, useWide } from "./layout";
 import { useLiveChanges } from "./live-changes";
 import type { UserPrefs } from "@murmur/shared/client";
 import { AppIcon, CloseIcon, LibraryIcon, MusicIcon, PodcastIcon, ProfileIcon, SearchIcon, WatchIcon } from "./icons";
@@ -47,6 +47,7 @@ export function Shell({
   const nowPlaying = wide && expanded && !!item;
   useDragToScroll();
   useLiveChanges();
+  usePageArea(wide);
   // Looks for Chromecasts; Chromium browsers only, and nothing shows until one is found.
   useEffect(() => startCast(), []);
   // Everything but You shows as you've set it in You > Tabs.
@@ -83,7 +84,8 @@ export function Shell({
             </Link>
           ))}
         </nav>
-        <main className="page" inert={nowPlaying}>
+        {/* Focusable on wide screens, where it scrolls instead of the window (usePageArea). */}
+        <main className="page" inert={nowPlaying} tabIndex={wide ? -1 : undefined}>
           {children}
         </main>
         {/* The bar on wide screens, the floating mini player on phones (shell.css hides it from 900px before this knows). */}

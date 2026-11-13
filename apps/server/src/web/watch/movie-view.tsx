@@ -107,8 +107,9 @@ export function MovieView({ movie }: { movie: MovieDetail }) {
 
   return (
     <>
+      {/* Wide screens show the backdrop across the top, and with room the settings beside the hero (hero.css). */}
       <div
-        className="hero"
+        className="detail video-detail"
         style={
           {
             "--tint": movie.color ?? FALLBACK_TINT.page,
@@ -116,66 +117,69 @@ export function MovieView({ movie }: { movie: MovieDetail }) {
           } as React.CSSProperties
         }
       >
-        <HeroBar fallback="/watch" onMore={() => setMenu(true)} />
-        <div className="show-hero">
-          <Poster kind="movie" id={movie.id} hash={movie.posterHash} color={movie.color} title={movie.title} sub={movie.year} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>
-            <h1 className="show-title">{movie.title}</h1>
-            <div className="pills">
-              {pills.map((p) => (
-                <span key={p} className="pill">
-                  {p}
-                </span>
-              ))}
+        {backdropSrc ? <div className="detail-backdrop" style={{ backgroundImage: `url("${backdropSrc}")` }} /> : null}
+        <div className="hero">
+          <HeroBar fallback="/watch" onMore={() => setMenu(true)} />
+          <div className="show-hero">
+            <Poster kind="movie" id={movie.id} hash={movie.posterHash} color={movie.color} title={movie.title} sub={movie.year} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>
+              <h1 className="show-title">{movie.title}</h1>
+              <div className="pills">
+                {pills.map((p) => (
+                  <span key={p} className="pill">
+                    {p}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="actions">
-        <Link
-          className="btn btn-primary btn-big"
-          aria-label={`${started ? "Resume" : "Play"}, ${playSub}`}
-          href={playHref("movie", movie.id, versionId === movie.versionList[0]!.id ? undefined : versionId, quality)}
-        >
-          <PlayIcon size={22} />
-          <span>{playSub}</span>
-        </Link>
-        <QualityPick file={version.file} value={quality} onChange={setQuality} />
-        <button
-          type="button"
-          className="btn-round"
-          aria-label={finished ? "Mark as not watched" : "Mark as watched"}
-          aria-pressed={finished}
-          onClick={() => mark(!finished)}
-        >
-          <CheckIcon />
-        </button>
-      </div>
-
-      {movie.description ? <Description text={movie.description} /> : null}
-
-      {movie.versionList.length > 1 || version.file.subtitleTracks.length ? (
-        <div style={{ marginTop: 18 }}>
-          <SettingsCard>
-            {movie.versionList.length > 1 ? (
-              <button type="button" className="setting setting-link" onClick={() => setPicking(true)}>
-                <span className="setting-title">Version</span>
-                <span className="setting-value">
-                  <span>{versionLabel(version)}</span>
-                  <ChevronIcon />
-                </span>
-              </button>
-            ) : null}
-            {version.file.subtitleTracks.length ? <SubtitleRow file={version.file} memoryKey={movie.id} /> : null}
-          </SettingsCard>
+        <div className="actions">
+          <Link
+            className="btn btn-primary btn-big"
+            aria-label={`${started ? "Resume" : "Play"}, ${playSub}`}
+            href={playHref("movie", movie.id, versionId === movie.versionList[0]!.id ? undefined : versionId, quality)}
+          >
+            <PlayIcon size={22} />
+            <span>{playSub}</span>
+          </Link>
+          <QualityPick file={version.file} value={quality} onChange={setQuality} />
+          <button
+            type="button"
+            className="btn-round"
+            aria-label={finished ? "Mark as not watched" : "Mark as watched"}
+            aria-pressed={finished}
+            onClick={() => mark(!finished)}
+          >
+            <CheckIcon />
+          </button>
         </div>
-      ) : null}
 
-      {movie.collection ? <MovieShelf title={movie.collection.name} items={movie.collection.items} current={movie.id} /> : null}
-      {movie.similar?.length ? <MovieShelf title="More like this" items={movie.similar} current={movie.id} /> : null}
+        {movie.description ? <Description text={movie.description} /> : null}
 
-      <FileDetails file={version.file} />
+        {movie.versionList.length > 1 || version.file.subtitleTracks.length ? (
+          <div className="detail-side">
+            <SettingsCard>
+              {movie.versionList.length > 1 ? (
+                <button type="button" className="setting setting-link" onClick={() => setPicking(true)}>
+                  <span className="setting-title">Version</span>
+                  <span className="setting-value">
+                    <span>{versionLabel(version)}</span>
+                    <ChevronIcon />
+                  </span>
+                </button>
+              ) : null}
+              {version.file.subtitleTracks.length ? <SubtitleRow file={version.file} memoryKey={movie.id} /> : null}
+            </SettingsCard>
+          </div>
+        ) : null}
+
+        {movie.collection ? <MovieShelf title={movie.collection.name} items={movie.collection.items} current={movie.id} /> : null}
+        {movie.similar?.length ? <MovieShelf title="More like this" items={movie.similar} current={movie.id} /> : null}
+
+        <FileDetails file={version.file} />
+      </div>
 
       <Sheet open={picking} onClose={() => setPicking(false)} title="Version">
         {movie.versionList.map((v) => (

@@ -43,3 +43,48 @@ a.episode-show:hover { color: var(--accent); }
 .episode-icon:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 7%, transparent); }
 .episode-icon[aria-pressed="true"] { color: var(--accent); }
 .episode-icon:disabled { opacity: 0.4; cursor: default; }
+
+/*
+ * Wide screens: one line per episode, in columns. The thumb (lists across shows), the title over
+ * the show or the description, then the date and the length right-aligned, then queue, played and
+ * a round play button. The row's parts keep their phone markup; the boxes around them step aside.
+ */
+.episode-when { display: contents; }
+.episode-len { display: none; }
+@media (min-width: 900px) {
+  .episode {
+    display: grid; align-items: center; gap: 0; padding: 8px 0;
+    grid-template-columns: var(--thumb-col, 0px) minmax(0, 1fr) 92px 68px 52px 40px 52px;
+    /* The flexible first and fourth rows take any spare height, so the title and its line stay
+       together, centred on the thumb and buttons; opened notes go underneath. */
+    grid-template-rows: 1fr auto auto 1fr auto;
+    grid-template-areas:
+      "thumb . date len queue played play"
+      "thumb text date len queue played play"
+      "thumb show date len queue played play"
+      "thumb . date len queue played play"
+      ". notes notes notes notes notes notes";
+  }
+  .episode:has(> .episode-thumb) { --thumb-col: 62px; }
+  .episode-main, .episode-info, .episode-meta, .episode-actions { display: contents; }
+  .episode-thumb { grid-area: thumb; }
+  .episode .thumb { width: 48px; height: 48px; border-radius: 6px; }
+  .episode-text { grid-area: text; gap: 1px; }
+  .episode:not(.episode-open) .episode-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .episode-show { grid-area: show; justify-self: start; max-width: 100%; font-size: 12px; font-weight: 500; color: var(--muted); }
+  /* Lists across shows name the show under the title; the notes open in place as before. */
+  .episode:has(> .episode-thumb):not(.episode-open) .episode-desc { display: none; }
+  .episode-when { grid-area: date; display: flex; flex-direction: row-reverse; align-items: center; gap: 6px; }
+  .episode-date, .episode-len { font-size: 12px; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .episode-len { display: block; grid-area: len; justify-self: end; }
+  .episode-bar { grid-area: len; justify-self: end; width: 48px; margin: 26px 0 0; }
+  .episode-more { grid-area: show; justify-self: end; position: static; }
+  .episode:has(.episode-more) .episode-show { margin-right: 72px; }
+  .episode-icon { justify-self: end; }
+  .episode-actions > .episode-icon:nth-last-of-type(2) { grid-area: queue; }
+  .episode-actions > .episode-icon:last-of-type { grid-area: played; }
+  .episode-play { grid-area: play; justify-self: end; width: 40px; height: 40px; padding: 0; margin: 0; border-radius: 50%; justify-content: center; background: var(--surface-2); color: var(--text); }
+  .episode-play:hover { filter: none; background: color-mix(in srgb, var(--surface-2), var(--text) 8%); }
+  .episode-play > span { display: none; }
+  .episode-bookmarks { grid-area: notes; }
+}
