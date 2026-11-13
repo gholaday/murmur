@@ -1,27 +1,22 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { Cover } from "../cover";
 import { Marquee } from "../marquee";
-import { bookFinished, type BookmarkDto, chapterAt, clock, showMarkPlayed, FALLBACK_TINT } from "@murmur/shared/client";
+import { type BookmarkDto, chapterAt, FALLBACK_TINT } from "@murmur/shared/client";
 import { BookmarkNoteSheet } from "../bookmark-rows";
-import { CheckIcon, CloseIcon, ChevronIcon, DownIcon, MoreIcon, NextChapterIcon } from "../icons";
-import { Sheet, SheetItem } from "../sheet";
-import { Chip, Chips } from "../ui";
+import { DownIcon, MoreIcon } from "../icons";
 import { UpNextSheet } from "../up-next";
-import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdPrefs } from "./ad-prefs";
 import { CastButton } from "../cast/cast-button";
 import { cssMs } from "../css-vars";
 import { useWide } from "../layout";
-import { useCast } from "../cast/cast";
-import { playableHref, usePlayer, usePosition, useTint } from "./engine";
+import { usePlayer, usePosition, useTint } from "./engine";
 import { BookmarkButton } from "./bookmark-button";
 import { NowBookmarksSheet, NowChaptersSheet } from "./now-lists";
+import { CoverPills, GoBackCard, MoreSheets, useAdMarks, usePlayingFrom } from "./player-parts";
 import { Scrubber } from "./scrubber";
 import { SleepSheet } from "./sleep";
-import { PlayerTiles } from "./tiles";
+import { PlayerTiles, type TileSheet } from "./tiles";
 import { Transport } from "./transport";
 import { VolumeRow } from "./volume-control";
 
@@ -83,15 +78,14 @@ export function usePullToClose(onClose: () => void) {
 
 export function FullPlayer() {
   const p = usePlayer();
-  const castDevice = useCast().device;
-  const [sheet, setSheet] = useState<null | "sleep" | "chapters" | "bookmarks" | "more" | "ads" | "upnext">(null);
+  const [sheet, setSheet] = useState<null | TileSheet | "more" | "ads">(null);
   const [editingBookmark, setEditingBookmark] = useState<{ bookmark: BookmarkDto; isNew: boolean } | null>(null);
-  const adPrefs = useAdPrefs();
   const [speedOpen, setSpeedOpen] = useState(false);
   /** Where the scrubber is being dragged to; the player follows it until it's let go. */
   const [scrub, setScrub] = useState<number | null>(null);
   const { item, expanded, setExpanded } = p;
   const tint = useTint(item);
+  const marks = useAdMarks(item);
   const speedOpenRef = useRef(false);
   speedOpenRef.current = speedOpen;
   // Minimizing plays the opening animation in reverse before the player unmounts.
@@ -105,6 +99,7 @@ export function FullPlayer() {
   }
   // Minimized, the player draws nothing, so it needn't redraw on every tick.
   const position = usePosition(expanded || closing);
+  const from = usePlayingFrom(item, scrub ?? position);
   useEffect(() => {
     if (!closing) return;
     const t = setTimeout(() => setClosing(false), cssMs("--player-close"));
@@ -136,21 +131,8 @@ export function FullPlayer() {
   // An episode's chapters are segments on the bar, so its line under the title stays the show.
   const segmented = item.type === "episode" && multiChapter;
   const closeSheet = () => setSheet(null);
-  const choose = (fn: () => void) => () => {
-    fn();
-    closeSheet();
-  };
-  // Ads only ever exist for episodes, and their setting lives in More.
-  const showAds = item.type === "episode" && p.adsEnabled;
   // Songs: previous and next instead of skips and chapters, no speed, no position kept.
   const song = item.type === "track";
-  const adMode = adModeFor(adPrefs, item.podcastId);
-  const marks = showAds && adMode !== "off" ? p.ads : [];
-  const adIndex = marks.findIndex((a) => pos >= a.startSec && pos < a.endSec);
-  const inAd = adIndex >= 0 ? adBreak(marks, adIndex) : null;
-  // An ad that runs to the end leaves nothing to skip to once the time is up.
-  const canSkipAd = inAd !== null && !(item.durationSec && item.durationSec - pos < 1);
-  const markPlayed = showMarkPlayed(item.type, item.durationSec, pos);
 
   return (
     <div
@@ -172,13 +154,7 @@ export function FullPlayer() {
         <button type="button" className="icon-btn" onClick={() => setExpanded(false)} aria-label="Close player">
           <DownIcon />
         </button>
-        <div className="player-from">
-          {bookFinished(item.type, item.durationSec, pos, p.playing || p.loading)
-            ? "Finished"
-            : castDevice
-              ? `Playing on ${castDevice}`
-              : `Playing from ${song ? (p.upNext.source?.title ?? "Music") : item.type === "book" ? "Books" : "Podcasts"}`}
-        </div>
+        <div className="player-from">{from}</div>
         <div className="player-top-end">
           <CastButton />
           <button type="button" className="icon-btn" onClick={() => setSheet("more")} aria-label="More options">
@@ -186,46 +162,12 @@ export function FullPlayer() {
           </button>
         </div>
       </div>
-      {p.goBackTo !== null ? (
-        <div className="float-card" role="status">
-          <span>You were at {clock(p.goBackTo)}</span>
-          <button type="button" className="more-link" onClick={p.goBack}>
-            Go back
-          </button>
-          <button type="button" className="icon-btn dim" aria-label="Stay here" onClick={p.stayHere}>
-            <CloseIcon size={18} />
-          </button>
-        </div>
-      ) : null}
+      <GoBackCard />
 
       <div className="player-main">
-        {/* Skip ad and Mark played sit on the cover so they never move the controls. */}
         <div className="player-cover-wrap player-pull" {...pull.handlers}>
           <Cover src={item.coverPathLarge} color={item.color} title={item.title} subtitle={item.subtitle} className="player-cover" large />
-          {canSkipAd || markPlayed ? (
-            <div className="cover-pills">
-              {markPlayed ? (
-                // Marking it played closes the player, as reaching the end does.
-                <button
-                  type="button"
-                  className="finish-pill"
-                  onClick={() => {
-                    void p.markCurrent(true);
-                    toast("Marked as played");
-                  }}
-                >
-                  Mark played
-                  <CheckIcon size={16} />
-                </button>
-              ) : null}
-              {canSkipAd ? (
-                <button type="button" className="skip-ad" onClick={() => p.seek(inAd.endSec)}>
-                  Skip ad
-                  <NextChapterIcon size={16} />
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+          <CoverPills item={item} pos={pos} marks={marks} />
         </div>
 
         <div className="player-info-row">
@@ -254,71 +196,7 @@ export function FullPlayer() {
 
       <BookmarkNoteSheet bookmark={editingBookmark?.bookmark ?? null} isNew={editingBookmark?.isNew} onClose={() => setEditingBookmark(null)} />
 
-      <Sheet open={sheet === "ads"} onClose={() => setSheet(null)} title="Ads">
-        <p className="sheet-note">This device only</p>
-        {AD_MODES.map((m) => (
-          <SheetItem key={m.id} active={adPrefs.mode === m.id} onClick={() => adPrefsStore.set({ ...adPrefs, mode: m.id })}>
-            <span className="sheet-item-text">
-              <span>{m.label}</span>
-              <span className="sheet-item-sub">{m.hint}</span>
-            </span>
-          </SheetItem>
-        ))}
-        {item.podcastId ? (
-          <div className="sheet-group">
-            <div className="sheet-group-title">{item.subtitle ?? "This podcast"}</div>
-            <Chips kind="radio" label="Ads for this podcast">
-              {[{ id: null, label: "Default" }, ...AD_MODES].map((m) => (
-                <Chip
-                  key={m.id ?? "default"}
-                  selected={(adPrefs.shows[item.podcastId!] ?? null) === m.id}
-                  onClick={() => adPrefsStore.set(setShowMode(adPrefs, item.podcastId!, m.id))}
-                >
-                  {m.label}
-                </Chip>
-              ))}
-            </Chips>
-          </div>
-        ) : null}
-      </Sheet>
-
-      <Sheet open={sheet === "more"} onClose={() => setSheet(null)} title={item.title}>
-        <Link
-          href={playableHref(item)}
-          className="sheet-item"
-          onClick={() => {
-            setSheet(null);
-            setExpanded(false);
-          }}
-        >
-          Go to {song ? "album" : item.type === "book" ? "book" : "podcast"}
-        </Link>
-        {song ? null : (
-          <>
-            <SheetItem
-              onClick={choose(() => {
-                void p.markCurrent(true);
-                toast(item.type === "book" ? "Marked as finished" : "Marked as played");
-              })}
-            >
-              {item.type === "book" ? "Mark as finished" : "Mark played"}
-            </SheetItem>
-            <SheetItem onClick={choose(() => p.markCurrent(false))}>Start from the beginning</SheetItem>
-            {showAds ? (
-              <SheetItem onClick={() => setSheet("ads")}>
-                <span className="sheet-item-grow">Ads</span>
-                <span className="setting-value">
-                  <span>{AD_MODES.find((m) => m.id === adMode)?.short}</span>
-                  <ChevronIcon size={18} />
-                </span>
-              </SheetItem>
-            ) : null}
-          </>
-        )}
-        <SheetItem danger onClick={choose(() => p.stop())}>
-          Stop playback
-        </SheetItem>
-      </Sheet>
+      <MoreSheets item={item} sheet={sheet === "more" || sheet === "ads" ? sheet : null} onSheet={setSheet} />
     </div>
   );
 }

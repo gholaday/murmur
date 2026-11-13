@@ -19,12 +19,18 @@ export function PlayerTiles({
   speedOpen,
   onSpeedOpen,
   onSheet,
+  panelTab,
 }: {
   item: Playable;
   /** The speed popover is open; the parent holds it so Escape can close it first. */
   speedOpen: boolean;
   onSpeedOpen: (open: boolean) => void;
   onSheet: (sheet: TileSheet) => void;
+  /**
+   * On wide screens Chapters, Bookmarks and Queue open the side panel instead of a sheet: the
+   * tab it's showing (null while closed), so that tile shows as on.
+   */
+  panelTab?: TileSheet | null;
 }) {
   const speed = usePlayerSelect((s) => s.speed);
   const sleep = usePlayerSelect((s) => s.sleep);
@@ -32,6 +38,8 @@ export function PlayerTiles({
   const song = item.type === "track";
   const slot = thirdTile(item.type, item.chapters.length > 1);
   const waiting = upNext.items.length - upNext.index - 1;
+  // The side panel's toggles: pressed while showing their tab, and not a click outside the floating panel.
+  const panel = (tab: TileSheet) => (panelTab === undefined ? {} : { "aria-pressed": panelTab === tab, "data-panel-toggle": true });
   return (
     <div className="player-tiles">
       <div className="speed-wrap" hidden={song}>
@@ -51,17 +59,17 @@ export function PlayerTiles({
         <span>{sleepLabel(sleep, Date.now())}</span>
       </button>
       {slot === "chapters" ? (
-        <button type="button" className="tile" onClick={() => onSheet("chapters")}>
+        <button type="button" className="tile" onClick={() => onSheet("chapters")} {...panel("chapters")}>
           <ListIcon size={20} />
           <span>Chapters</span>
         </button>
       ) : slot === "bookmarks" ? (
-        <button type="button" className="tile" onClick={() => onSheet("bookmarks")}>
+        <button type="button" className="tile" onClick={() => onSheet("bookmarks")} {...panel("bookmarks")}>
           <BookmarkIcon size={20} />
           <span>Bookmarks</span>
         </button>
       ) : null}
-      <button type="button" className="tile" onClick={() => onSheet("upnext")}>
+      <button type="button" className="tile" onClick={() => onSheet("upnext")} {...panel("upnext")}>
         <QueueIcon size={20} />
         <span>
           Queue

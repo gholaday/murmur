@@ -141,6 +141,9 @@
   .pbar-end .pbar-expand { margin-left: 4px; background: color-mix(in srgb, var(--text) 9%, transparent); }
   .pbar-end .pbar-expand:hover { background: color-mix(in srgb, var(--text) 15%, transparent); }
   .pbar-expand svg { transform: rotate(180deg); }
+  /* Now playing is open: accent, pointing down to close it. */
+  .pbar-end .pbar-expand.on, .pbar-end .pbar-expand.on:hover { background: var(--accent); color: var(--on-accent); }
+  .pbar-expand.on svg { transform: none; }
 }
 /* A narrower window drops the volume slider and the sleep timer first; mute stays. */
 @media (min-width: 900px) and (max-width: 1099px) {
@@ -179,18 +182,72 @@
   .side-panel, .side-panel .view-fade { animation: none; }
 }
 
+/* ---------- Now playing: wide screens, over the page area (now-playing.tsx) ---------- */
+
+@media (min-width: 900px) {
+  /*
+   * It shares the page's grid area and sits on top, so the page keeps its place underneath:
+   * above the page's sticky heads and menus, below the floating side panel and the bar.
+   */
+  .now {
+    --tint-top: 42%;
+    --tint-bottom: 10%;
+    grid-area: page;
+    position: relative;
+    z-index: 12;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--tint) var(--tint-top), var(--bg)), color-mix(in srgb, var(--tint) var(--tint-bottom), var(--bg)) 560px);
+    animation: fade-in 0.22s ease-out;
+  }
+  .now-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 16px var(--page-x) 48px; container-type: inline-size; }
+  .now-top { display: flex; align-items: center; justify-content: space-between; margin: 0 -10px 8px; }
+  .now-body { max-width: 1040px; margin: 0 auto; }
+  /* Stacked while narrow; the cover moves beside the text once there's room for both. */
+  .now-main { display: grid; gap: 24px; align-items: start; }
+  .now-cover { position: relative; width: min(100%, 280px); }
+  @container (min-width: 600px) {
+    .now-main { grid-template-columns: clamp(240px, 40%, 340px) minmax(0, 1fr); gap: 40px; }
+    .now-cover { width: 100%; }
+  }
+  .now-info { min-width: 0; }
+  .now .player-from { text-align: left; }
+  .now .player-info-row { padding-top: 8px; }
+  .now .player-title { font-size: 30px; letter-spacing: -0.5px; line-height: 1.15; }
+  .now .player-sub { font-size: 15px; color: var(--text-2); }
+  .now-segs { display: flex; align-items: center; gap: 2px; height: 10px; margin: 22px 0 8px; }
+  .now-segs span { flex: 1; min-width: 2px; height: 6px; border-radius: 3px; background: var(--track); }
+  .now-segs .played { background: var(--accent); }
+  .now-segs .current { height: 10px; background: linear-gradient(to right, var(--accent) var(--fill), color-mix(in srgb, var(--text) 22%, var(--track)) var(--fill)); }
+  .now-chapter { font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .now .now-pills { justify-content: flex-start; margin-top: 14px; }
+  /* The tiles sit under the text, four across from the left. */
+  .now .player-tiles { max-width: none; margin: 20px 0 0; padding: 0; justify-content: flex-start; }
+  .now-bookmarks { margin-top: 32px; }
+  .now-bookmarks .section-title { margin-bottom: 4px; }
+  /* Go back sits between the top row's buttons, and stays there while the view scrolls under it. */
+  .now > .float-card { top: 12px; bottom: auto; left: 16px; right: 16px; max-width: 376px; margin: 0 auto; padding-left: 20px; }
+}
+:root[data-theme="light"] .now { --tint-top: 36%; --tint-bottom: 12%; }
+@media (prefers-reduced-motion: reduce) {
+  .now { animation: none; }
+}
+
 [data-loading] { animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.55; } }
 
 /* ---------- Full player ---------- */
 
-.player {
-  --tint-top: 42%;
-  --tint-bottom: 10%;
-  /* Ad breaks on the seek bar. */
+/* Ad breaks on the seek bar, and Skip ad. */
+.player, .pbar, .now {
   --ad: #ef9f27;
   --ad-heard: #ba7517;
   --on-ad: #412402;
+}
+.player {
+  --tint-top: 42%;
+  --tint-bottom: 10%;
   position: fixed;
   z-index: 40;
   inset: 0;

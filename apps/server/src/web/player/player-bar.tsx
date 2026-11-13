@@ -5,10 +5,10 @@ import { type BookmarkDto, sleepLabel, speedText, thirdTile } from "@murmur/shar
 import { BookmarkNoteSheet } from "../bookmark-rows";
 import { Cover } from "../cover";
 import { DownIcon, ListIcon, MoonIcon, QueueIcon } from "../icons";
-import { adModeFor, useAdPrefs } from "./ad-prefs";
 import { BookmarkButton } from "./bookmark-button";
 import { type Playable, type PlayerApi, usePlayerControls, usePlayerSelect, usePosition, useTint } from "./engine";
 import { MiniText } from "./mini-player";
+import { useAdMarks } from "./player-parts";
 import { Scrubber } from "./scrubber";
 import { useSidePanel } from "./side-panel";
 import { SleepSheet } from "./sleep";
@@ -23,11 +23,10 @@ import { VolumeBar } from "./volume-control";
  */
 export function PlayerBar() {
   const item = usePlayerSelect((p) => p.item);
-  const adsEnabled = usePlayerSelect((p) => p.adsEnabled);
-  const ads = usePlayerSelect((p) => p.ads);
   const speed = usePlayerSelect((p) => p.speed);
+  const expanded = usePlayerSelect((p) => p.expanded);
   const { setExpanded } = usePlayerControls();
-  const adPrefs = useAdPrefs();
+  const marks = useAdMarks(item);
   const tint = useTint(item);
   const [scrub, setScrub] = useState<number | null>(null);
   const [speedOpen, setSpeedOpen] = useState(false);
@@ -38,7 +37,10 @@ export function PlayerBar() {
   useEffect(() => {
     if (!speedOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !document.querySelector("dialog[open]")) setSpeedOpen(false);
+      if (e.key !== "Escape" || document.querySelector("dialog[open]")) return;
+      // Handled, so Now playing and the side panel don't close with it.
+      e.preventDefault();
+      setSpeedOpen(false);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -47,7 +49,6 @@ export function PlayerBar() {
   if (!item) return null;
   const song = item.type === "track";
   const list = thirdTile(item.type, item.chapters.length > 1);
-  const marks = item.type === "episode" && adsEnabled && adModeFor(adPrefs, item.podcastId) !== "off" ? ads : [];
   const showing = (tab: "chapters" | "bookmarks" | "upnext") => panel.open && panel.tab === tab;
 
   return (
@@ -63,7 +64,7 @@ export function PlayerBar() {
       }
     >
       <div className="pbar-art" aria-hidden="true" />
-      <button type="button" className="pbar-open" onClick={() => setExpanded(true)} aria-label={`Open player: ${item.title}`}>
+      <button type="button" className="pbar-open" onClick={() => setExpanded(true)} aria-label={`Open now playing: ${item.title}`}>
         <Cover src={item.coverPath} color={item.color} title={item.title} className="pbar-cover" />
         <MiniText item={item} scrub={scrub} />
       </button>
@@ -104,7 +105,13 @@ export function PlayerBar() {
         <button type="button" className="icon-btn" data-panel-toggle onClick={() => panel.toggle("upnext")} aria-pressed={showing("upnext")} aria-label="Queue">
           <QueueIcon size={20} />
         </button>
-        <button type="button" className="icon-btn pbar-expand" onClick={() => setExpanded(true)} aria-label="Open player">
+        {/* Up opens Now playing over the page; while it's open, in accent, down closes it. */}
+        <button
+          type="button"
+          className={`icon-btn pbar-expand${expanded ? " on" : ""}`}
+          onClick={() => setExpanded(!expanded)}
+          aria-label={expanded ? "Close now playing" : "Open now playing"}
+        >
           <DownIcon size={20} />
         </button>
       </div>

@@ -118,8 +118,10 @@ export function SidePanel() {
       if (!keep(e.target)) closePanel();
     };
     const onKey = (e: KeyboardEvent) => {
-      // A sheet or the bar's speed popover takes Escape first.
-      if (e.key === "Escape" && !document.querySelector("dialog[open], .pbar .speed-pop")) closePanel();
+      // A sheet or a speed popover takes Escape first, and Now playing under the panel waits for the next one.
+      if (e.key !== "Escape" || e.defaultPrevented || document.querySelector("dialog[open], .speed-pop")) return;
+      e.preventDefault();
+      closePanel();
     };
     document.addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);

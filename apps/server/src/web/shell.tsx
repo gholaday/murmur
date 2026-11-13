@@ -12,9 +12,10 @@ import { AppIcon, CloseIcon, LibraryIcon, MusicIcon, PodcastIcon, ProfileIcon, S
 import { SearchProvider, useSearchState } from "./search/search-state";
 import { FullPlayer } from "./player/full-player";
 import { MiniPlayer } from "./player/mini-player";
+import { NowPlaying } from "./player/now-playing";
 import { PlayerBar } from "./player/player-bar";
 import { SidePanel } from "./player/side-panel";
-import { usePlayerSelect } from "./player/engine";
+import { usePlayerControls, usePlayerSelect } from "./player/engine";
 import { VideoPlayer } from "./watch/video-player";
 import { useVideo } from "./watch/video-session";
 
@@ -39,7 +40,11 @@ export function Shell({
 }) {
   const pathname = usePathname();
   const item = usePlayerSelect((p) => p.item);
+  const expanded = usePlayerSelect((p) => p.expanded);
+  const { setExpanded } = usePlayerControls();
   const wide = useWide();
+  // On wide screens Now playing covers the page, which waits underneath, scrolled where it was.
+  const nowPlaying = wide && expanded && !!item;
   useDragToScroll();
   useLiveChanges();
   // Looks for Chromecasts; Chromium browsers only, and nothing shows until one is found.
@@ -59,7 +64,12 @@ export function Shell({
   return (
     <SearchProvider>
       <div className={`shell ${item || miniVideo ? "has-player" : ""}${miniVideo ? " has-video-mini" : ""}`}>
-        <nav className={`tabs${searching ? " searching" : ""}`} aria-label="Main">
+        <nav
+          className={`tabs${searching ? " searching" : ""}`}
+          aria-label="Main"
+          // A tab closes Now playing, even the one already showing underneath it.
+          onClick={(e) => nowPlaying && (e.target as Element).closest("a") && setExpanded(false)}
+        >
           <div className="tabs-brand">
             <AppIcon />
             Murmur
@@ -72,11 +82,14 @@ export function Shell({
             </Link>
           ))}
         </nav>
-        <main className="page">{children}</main>
+        <main className="page" inert={nowPlaying}>
+          {children}
+        </main>
         {/* The bar on wide screens, the floating mini player on phones (shell.css hides it from 900px before this knows). */}
         {wide ? <PlayerBar /> : <MiniPlayer />}
         {wide ? <SidePanel /> : null}
-        <FullPlayer />
+        {/* Expanded, the player covers the window on phones and the page area on wide screens. */}
+        {wide ? <NowPlaying /> : <FullPlayer />}
         {video.item ? <VideoPlayer key={video.item.progressId} item={video.item} autoplay={video.autoplay} mini={miniVideo} /> : null}
       </div>
     </SearchProvider>
@@ -109,8 +122,12 @@ function DockSearch({ searching, onHeading }: { searching: boolean; onHeading: (
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [wide]);
+  const { setExpanded } = usePlayerControls();
+  // The results show in the page, so Now playing gives way to them.
   const toSearch = () => {
-    if (wide && !pathname.startsWith("/search")) router.push("/search");
+    if (!wide) return;
+    setExpanded(false);
+    if (!pathname.startsWith("/search")) router.push("/search");
   };
   const close = () => {
     onHeading("closed");
