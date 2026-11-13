@@ -13,6 +13,7 @@ import { SearchProvider, useSearchState } from "./search/search-state";
 import { FullPlayer } from "./player/full-player";
 import { MiniPlayer } from "./player/mini-player";
 import { PlayerBar } from "./player/player-bar";
+import { SidePanel } from "./player/side-panel";
 import { usePlayerSelect } from "./player/engine";
 import { VideoPlayer } from "./watch/video-player";
 import { useVideo } from "./watch/video-session";
@@ -74,6 +75,7 @@ export function Shell({
         <main className="page">{children}</main>
         {/* The bar on wide screens, the floating mini player on phones (shell.css hides it from 900px before this knows). */}
         {wide ? <PlayerBar /> : <MiniPlayer />}
+        {wide ? <SidePanel /> : null}
         <FullPlayer />
         {video.item ? <VideoPlayer key={video.item.progressId} item={video.item} autoplay={video.autoplay} mini={miniVideo} /> : null}
       </div>

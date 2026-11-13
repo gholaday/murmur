@@ -149,6 +149,36 @@
 @media (hover: none) and (pointer: coarse) { .pbar-vol-slider { display: none; } }
 :root[data-theme="light"] .pbar { background: color-mix(in srgb, var(--tint, var(--surface-2)) 16%, var(--nav)); }
 
+/* ---------- Side panel: wide screens, in the shell's panel slot (side-panel.tsx) ---------- */
+
+@media (min-width: 900px) {
+  /* The head stays put and only the list under it scrolls. */
+  .side-panel {
+    width: 344px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--nav);
+    border-left: 1px solid var(--line);
+    animation: fade-in 0.2s ease-out;
+  }
+  .side-panel-head { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 12px 8px 4px 20px; }
+  .side-panel-tabs { align-items: flex-end; padding-bottom: 0; box-shadow: inset 0 -1px var(--line); }
+  .side-panel-tabs .chips { flex: 1; min-width: 0; gap: 20px; box-shadow: none; }
+  .side-panel-title { flex: 1; min-width: 0; }
+  .side-panel-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 20px 20px; scrollbar-width: thin; }
+  .side-panel .queue-row { background: var(--nav); }
+  .side-panel-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; }
+  .side-panel-from { min-width: 0; display: flex; align-items: center; }
+  .side-panel-from .page-sub { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+/* Narrower, it floats over the right of the page instead of pushing it. */
+@media (min-width: 900px) and (max-width: 1199px) {
+  .side-panel { position: fixed; z-index: 20; top: 0; right: 0; bottom: var(--bar-h); box-shadow: var(--shadow); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .side-panel, .side-panel .view-fade { animation: none; }
+}
+
 [data-loading] { animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.55; } }
 

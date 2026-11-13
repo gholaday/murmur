@@ -43,7 +43,7 @@ export function NowBookmarksSheet({ open, onClose }: { open: boolean; onClose: (
 }
 
 /** The chapters of what's playing, the current one marked; picking one seeks there. */
-function NowChapters({ onPicked }: { onPicked?: () => void }) {
+export function NowChapters({ onPicked }: { onPicked?: () => void }) {
   const item = usePlayerSelect((p) => p.item);
   const playing = usePlayerSelect((p) => p.playing);
   const position = usePosition();
@@ -63,7 +63,7 @@ function NowChapters({ onPicked }: { onPicked?: () => void }) {
 }
 
 /** The bookmarks of what's playing; picking one jumps there, offering a way back. */
-function NowBookmarks({ onPicked }: { onPicked?: () => void }) {
+export function NowBookmarks({ onPicked }: { onPicked?: () => void }) {
   const item = usePlayerSelect((p) => p.item);
   const bookmarks = useBookmarks(item?.type, item?.id);
   const { jumpTo } = usePlayerControls();

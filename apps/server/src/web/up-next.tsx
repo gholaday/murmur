@@ -48,9 +48,7 @@ function BookRow({ item }: { item: Playable }) {
  * what's next follows it. Any row plays when tapped (the playing one pauses), and moves or comes out.
  */
 export function UpNextSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const player = usePlayerControls();
-  const upNext = usePlayerSelect((p) => p.upNext);
-  const waiting = upNext.items.length - upNext.index - 1;
+  const { waiting, from, clear } = useQueueHead();
 
   // Opens on the item playing, with a little of what played above it.
   const playingRow = useRef<HTMLDivElement>(null);
@@ -58,34 +56,40 @@ export function UpNextSheet({ open, onClose }: { open: boolean; onClose: () => v
     if (open) playingRow.current?.scrollIntoView({ block: "center" });
   }, [open]);
 
-  const clear = () => {
-    const before = upNext;
-    player.clearUpNext();
-    toast("Queue cleared", { action: { label: "Undo", onClick: () => player.restoreUpNext(before) } });
-  };
-
   return (
-    <Sheet
-      open={open}
-      onClose={onClose}
-      title="Queue"
-      count={Math.max(0, waiting)}
-      sub={upNext.source ? `From ${upNext.source.title}` : null}
-      action={
-        waiting > 0 ? (
-          <button type="button" className="btn" style={{ background: "none", color: "var(--accent)", padding: 0, minHeight: 0 }} onClick={clear}>
-            Clear
-          </button>
-        ) : null
-      }
-    >
+    <Sheet open={open} onClose={onClose} title="Queue" count={waiting} sub={from} action={clear}>
       <UpNextList playingRowRef={playingRow} />
     </Sheet>
   );
 }
 
+/**
+ * What the queue's title row shows: how many are waiting, where they came from, and Clear
+ * (with an Undo) while anything waits.
+ */
+export function useQueueHead() {
+  const player = usePlayerControls();
+  const upNext = usePlayerSelect((p) => p.upNext);
+  const waiting = Math.max(0, upNext.items.length - upNext.index - 1);
+  const clear = () => {
+    const before = upNext;
+    player.clearUpNext();
+    toast("Queue cleared", { action: { label: "Undo", onClick: () => player.restoreUpNext(before) } });
+  };
+  return {
+    waiting,
+    from: upNext.source ? `From ${upNext.source.title}` : null,
+    clear:
+      waiting > 0 ? (
+        <button type="button" className="btn" style={{ background: "none", color: "var(--accent)", padding: 0, minHeight: 0 }} onClick={clear}>
+          Clear
+        </button>
+      ) : null,
+  };
+}
+
 /** The queue's rows: a book playing on its own on top, then Up Next with what played above the item playing. */
-function UpNextList({ playingRowRef }: { playingRowRef?: React.Ref<HTMLDivElement> }) {
+export function UpNextList({ playingRowRef }: { playingRowRef?: React.Ref<HTMLDivElement> }) {
   const player = usePlayerControls();
   const upNext = usePlayerSelect((p) => p.upNext);
   const upNextLoaded = usePlayerSelect((p) => p.upNextLoaded);

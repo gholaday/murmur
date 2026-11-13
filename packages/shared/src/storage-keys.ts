@@ -34,6 +34,8 @@ export const storageKeys = {
 
   // ---------- Web ----------
   volume: "murmur.volume",
+  /** SidePanel: whether the wide layout's side panel is open, and on which tab. */
+  sidePanel: "murmur.sidePanel",
 
   // ---------- App ----------
   server: "murmur.server",

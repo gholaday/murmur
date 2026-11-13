@@ -5,20 +5,16 @@ import { type BookmarkDto, sleepLabel, speedText, thirdTile } from "@murmur/shar
 import { BookmarkNoteSheet } from "../bookmark-rows";
 import { Cover } from "../cover";
 import { DownIcon, ListIcon, MoonIcon, QueueIcon } from "../icons";
-import { UpNextSheet } from "../up-next";
 import { adModeFor, useAdPrefs } from "./ad-prefs";
 import { BookmarkButton } from "./bookmark-button";
 import { type Playable, type PlayerApi, usePlayerControls, usePlayerSelect, usePosition, useTint } from "./engine";
 import { MiniText } from "./mini-player";
-import { NowBookmarksSheet, NowChaptersSheet } from "./now-lists";
 import { Scrubber } from "./scrubber";
+import { useSidePanel } from "./side-panel";
 import { SleepSheet } from "./sleep";
 import { SpeedPop } from "./tiles";
 import { Transport } from "./transport";
 import { VolumeBar } from "./volume-control";
-
-/** What the Chapters and Queue buttons open. */
-type BarList = "chapters" | "bookmarks" | "upnext";
 
 /**
  * The player docked along the bottom on wide screens, in the shell's bar slot: what's playing on
@@ -35,7 +31,8 @@ export function PlayerBar() {
   const tint = useTint(item);
   const [scrub, setScrub] = useState<number | null>(null);
   const [speedOpen, setSpeedOpen] = useState(false);
-  const [sheet, setSheet] = useState<null | "sleep" | BarList>(null);
+  const [sleepOpen, setSleepOpen] = useState(false);
+  const panel = useSidePanel(item);
   const [editingBookmark, setEditingBookmark] = useState<{ bookmark: BookmarkDto; isNew: boolean } | null>(null);
 
   useEffect(() => {
@@ -51,9 +48,7 @@ export function PlayerBar() {
   const song = item.type === "track";
   const list = thirdTile(item.type, item.chapters.length > 1);
   const marks = item.type === "episode" && adsEnabled && adModeFor(adPrefs, item.podcastId) !== "off" ? ads : [];
-  const closeSheet = () => setSheet(null);
-  // The Chapters and Queue buttons open their sheets.
-  const openList = (to: BarList) => setSheet(to);
+  const showing = (tab: "chapters" | "bookmarks" | "upnext") => panel.open && panel.tab === tab;
 
   return (
     <div
@@ -73,7 +68,7 @@ export function PlayerBar() {
         <MiniText item={item} scrub={scrub} />
       </button>
 
-      <BarMiddle item={item} scrub={scrub} onScrub={setScrub} marks={marks} onChapters={() => openList("chapters")} />
+      <BarMiddle item={item} scrub={scrub} onScrub={setScrub} marks={marks} onChapters={() => panel.toggle("chapters")} />
 
       <div className="pbar-end">
         {song ? null : (
@@ -89,16 +84,24 @@ export function PlayerBar() {
             </button>
           </div>
         )}
-        <SleepButton onOpen={() => setSheet("sleep")} />
+        <SleepButton onOpen={() => setSleepOpen(true)} />
         {song ? null : <BarBookmark item={item} onEdit={setEditingBookmark} />}
         <VolumeBar />
         <span className="pbar-divider" aria-hidden="true" />
+        {/* They open the side panel on their tab, and close it from there. */}
         {list ? (
-          <button type="button" className="icon-btn" onClick={() => openList(list)} aria-label={list === "chapters" ? "Chapters" : "Bookmarks"}>
+          <button
+            type="button"
+            className="icon-btn"
+            data-panel-toggle
+            onClick={() => panel.toggle(list)}
+            aria-pressed={showing(list)}
+            aria-label={list === "chapters" ? "Chapters" : "Bookmarks"}
+          >
             <ListIcon size={20} />
           </button>
         ) : null}
-        <button type="button" className="icon-btn" onClick={() => openList("upnext")} aria-label="Queue">
+        <button type="button" className="icon-btn" data-panel-toggle onClick={() => panel.toggle("upnext")} aria-pressed={showing("upnext")} aria-label="Queue">
           <QueueIcon size={20} />
         </button>
         <button type="button" className="icon-btn pbar-expand" onClick={() => setExpanded(true)} aria-label="Open player">
@@ -106,10 +109,7 @@ export function PlayerBar() {
         </button>
       </div>
 
-      <SleepSheet open={sheet === "sleep"} onClose={closeSheet} />
-      <NowChaptersSheet open={sheet === "chapters"} onClose={closeSheet} />
-      <NowBookmarksSheet open={sheet === "bookmarks"} onClose={closeSheet} />
-      <UpNextSheet open={sheet === "upnext"} onClose={closeSheet} />
+      <SleepSheet open={sleepOpen} onClose={() => setSleepOpen(false)} />
       <BookmarkNoteSheet bookmark={editingBookmark?.bookmark ?? null} isNew={editingBookmark?.isNew} onClose={() => setEditingBookmark(null)} />
     </div>
   );
