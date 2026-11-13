@@ -92,11 +92,11 @@
 .recent-row .list-row-title { color: var(--text); font-weight: 600; }
 
 @media (min-width: 900px) {
-  :root { --side-w: 220px; --page-x: 32px; }
+  :root { --side-w: 220px; --page-x: 32px; --bar-h: 86px; }
   /*
    * Sidebar, page and a side panel slot in a row, with a bar slot along the bottom under all
    * three. The window doesn't scroll: the page does, and the rest stays put. The player bar
-   * and the side panel drop into .shell-bar and .shell-panel; until then both are empty.
+   * (player.css) is the .shell-bar; the side panel drops into .shell-panel.
    */
   .shell {
     display: grid;
@@ -116,7 +116,8 @@
     overflow-y: auto;
     padding-bottom: 48px;
   }
-  .shell.has-player .page { padding-bottom: calc(var(--mini-h) + 48px); }
+  /* The audio player is a row of the grid, but the video's mini player still floats over the page. */
+  .shell.has-video-mini .page { padding-bottom: calc(var(--mini-h) + 48px); }
   .tabs {
     grid-area: side;
     position: static;

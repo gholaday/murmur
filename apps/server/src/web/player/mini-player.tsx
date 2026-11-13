@@ -15,10 +15,8 @@ export function MiniPlayer() {
   const item = usePlayerSelect((p) => p.item);
   const playing = usePlayerSelect((p) => p.playing);
   const loading = usePlayerSelect((p) => p.loading);
-  const error = usePlayerSelect((p) => p.error);
   const skip = usePlayerSelect((p) => p.skip);
   const { toggle, skipBy, setExpanded, trackStep } = usePlayerControls();
-  const castDevice = useCast().device;
   const [scrub, setScrub] = useState<number | null>(null);
   const tint = useTint(item);
   if (!item) return null;
@@ -40,19 +38,7 @@ export function MiniPlayer() {
       <div className="mini-row">
         <button type="button" className="mini-open" onClick={() => setExpanded(true)} aria-label={`Open player: ${item.title}`}>
           <Cover src={item.coverPath} color={item.color} title={item.title} className="mini-cover" />
-          <span className="mini-text">
-            <span className="mini-title">{item.title}</span>
-            {error ? (
-              <span className="mini-sub error">{error}</span>
-            ) : castDevice ? (
-              <span className="mini-sub mini-cast">
-                <CastIcon size={13} />
-                {castDevice}
-              </span>
-            ) : (
-              <MiniLine item={item} scrub={scrub} />
-            )}
-          </span>
+          <MiniText item={item} scrub={scrub} />
         </button>
         {song ? (
           <button type="button" className="mini-skip" onClick={() => trackStep(-1)} aria-label="Previous song">
@@ -80,6 +66,27 @@ export function MiniPlayer() {
       </div>
       <MiniProgress item={item} scrub={scrub} onScrub={setScrub} />
     </div>
+  );
+}
+
+/** The title and the line under it, or the error, or the device it's casting to. The player bar shows the same. */
+export function MiniText({ item, scrub }: { item: Playable; scrub: number | null }) {
+  const error = usePlayerSelect((p) => p.error);
+  const castDevice = useCast().device;
+  return (
+    <span className="mini-text">
+      <span className="mini-title">{item.title}</span>
+      {error ? (
+        <span className="mini-sub error">{error}</span>
+      ) : castDevice ? (
+        <span className="mini-sub mini-cast">
+          <CastIcon size={13} />
+          {castDevice}
+        </span>
+      ) : (
+        <MiniLine item={item} scrub={scrub} />
+      )}
+    </span>
   );
 }
 

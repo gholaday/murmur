@@ -73,7 +73,7 @@ export function PlayerTiles({
 }
 
 /** The speed popover: the speed, Reset, and a slider between slower and faster steps. */
-function SpeedPop() {
+export function SpeedPop() {
   const { setSpeed } = usePlayerControls();
   const speed = usePlayerSelect((s) => s.speed);
   /** Slider value while dragging; saved once you let go. */

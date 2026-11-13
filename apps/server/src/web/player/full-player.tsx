@@ -5,20 +5,9 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Cover } from "../cover";
 import { Marquee } from "../marquee";
-import {
-  bookFinished,
-  type BookmarkDto,
-  bookmarkNear,
-  bookmarkSpot,
-  chapterAt,
-  clock,
-  showMarkPlayed,
-  SLEEP_MINUTES,
-  FALLBACK_TINT,
-} from "@murmur/shared/client";
+import { bookFinished, type BookmarkDto, chapterAt, clock, showMarkPlayed, FALLBACK_TINT } from "@murmur/shared/client";
 import { BookmarkNoteSheet } from "../bookmark-rows";
-import { newBookmark, useBookmarks } from "../bookmarks";
-import { BookmarkIcon, CheckIcon, CloseIcon, ChevronIcon, DownIcon, MoreIcon, NextChapterIcon } from "../icons";
+import { CheckIcon, CloseIcon, ChevronIcon, DownIcon, MoreIcon, NextChapterIcon } from "../icons";
 import { Sheet, SheetItem } from "../sheet";
 import { Chip, Chips } from "../ui";
 import { UpNextSheet } from "../up-next";
@@ -28,8 +17,10 @@ import { cssMs } from "../css-vars";
 import { useWide } from "../layout";
 import { useCast } from "../cast/cast";
 import { playableHref, usePlayer, usePosition, useTint } from "./engine";
-import { NowBookmarks, NowChapters } from "./now-lists";
+import { BookmarkButton } from "./bookmark-button";
+import { NowBookmarksSheet, NowChaptersSheet } from "./now-lists";
 import { Scrubber } from "./scrubber";
+import { SleepSheet } from "./sleep";
 import { PlayerTiles } from "./tiles";
 import { Transport } from "./transport";
 import { VolumeRow } from "./volume-control";
@@ -94,9 +85,7 @@ export function FullPlayer() {
   const p = usePlayer();
   const castDevice = useCast().device;
   const [sheet, setSheet] = useState<null | "sleep" | "chapters" | "bookmarks" | "more" | "ads" | "upnext">(null);
-  const [chaptersTab, setChaptersTab] = useState<"chapters" | "bookmarks">("chapters");
   const [editingBookmark, setEditingBookmark] = useState<{ bookmark: BookmarkDto; isNew: boolean } | null>(null);
-  const bookmarks = useBookmarks(p.item?.type, p.item?.id);
   const adPrefs = useAdPrefs();
   const [speedOpen, setSpeedOpen] = useState(false);
   /** Where the scrubber is being dragged to; the player follows it until it's let go. */
@@ -155,9 +144,6 @@ export function FullPlayer() {
   const showAds = item.type === "episode" && p.adsEnabled;
   // Songs: previous and next instead of skips and chapters, no speed, no position kept.
   const song = item.type === "track";
-  const nearBookmark = song ? null : bookmarkNear(bookmarks, pos);
-  const onBookmark = () =>
-    setEditingBookmark(nearBookmark ? { bookmark: nearBookmark, isNew: false } : { bookmark: newBookmark(item, bookmarkSpot(position, p.playing, p.speed)), isNew: true });
   const adMode = adModeFor(adPrefs, item.podcastId);
   const marks = showAds && adMode !== "off" ? p.ads : [];
   const adIndex = marks.findIndex((a) => pos >= a.startSec && pos < a.endSec);
@@ -249,11 +235,7 @@ export function FullPlayer() {
             </h1>
             <div className="player-sub">{multiChapter && !segmented && chapter ? chapter.title : item.subtitle}</div>
           </div>
-          {song ? null : (
-            <button type="button" className={`icon-btn${nearBookmark ? " on" : ""}`} aria-label={nearBookmark ? "Edit bookmark" : "Bookmark this spot"} aria-pressed={!!nearBookmark} onClick={onBookmark}>
-              <BookmarkIcon filled={!!nearBookmark} />
-            </button>
-          )}
+          {song ? null : <BookmarkButton item={item} pos={pos} onEdit={setEditingBookmark} />}
         </div>
 
         <Scrubber item={item} pos={pos} scrub={scrub} onScrub={setScrub} marks={marks} onChapters={() => setSheet("chapters")} />
@@ -266,46 +248,9 @@ export function FullPlayer() {
 
       <UpNextSheet open={sheet === "upnext"} onClose={() => setSheet(null)} />
 
-      <Sheet open={sheet === "sleep"} onClose={() => setSheet(null)} title="Sleep timer">
-        <SheetItem active={p.sleep.mode === "off"} onClick={choose(() => p.setSleep({ mode: "off" }))}>
-          Off
-        </SheetItem>
-        {SLEEP_MINUTES.map((m) => (
-          <SheetItem key={m} onClick={choose(() => p.setSleep({ mode: "timer", endsAt: Date.now() + m * 60_000 }))}>
-            {m} minutes
-          </SheetItem>
-        ))}
-        <SheetItem
-          active={p.sleep.mode === "chapter"}
-          disabled={!(multiChapter && chapter) && !item.durationSec}
-          onClick={choose(() =>
-            p.setSleep({ mode: "chapter", endSec: multiChapter && chapter ? chapter.endSec : item.durationSec }),
-          )}
-        >
-          End of {multiChapter ? "chapter" : song ? "song" : item.type === "book" ? "book" : "episode"}
-        </SheetItem>
-      </Sheet>
-
-      <Sheet
-        open={sheet === "chapters"}
-        onClose={() => setSheet(null)}
-        title={chaptersTab === "chapters" ? "Chapters" : "Bookmarks"}
-        count={chaptersTab === "chapters" ? item.chapters.length : bookmarks.length}
-      >
-        <Chips kind="tabs" label="Chapters or bookmarks">
-          <Chip selected={chaptersTab === "chapters"} onClick={() => setChaptersTab("chapters")}>
-            Chapters
-          </Chip>
-          <Chip selected={chaptersTab === "bookmarks"} onClick={() => setChaptersTab("bookmarks")}>
-            Bookmarks
-          </Chip>
-        </Chips>
-        {chaptersTab === "bookmarks" ? <NowBookmarks onPicked={closeSheet} /> : <NowChapters onPicked={closeSheet} />}
-      </Sheet>
-
-      <Sheet open={sheet === "bookmarks"} onClose={() => setSheet(null)} title="Bookmarks" count={bookmarks.length}>
-        <NowBookmarks onPicked={closeSheet} />
-      </Sheet>
+      <SleepSheet open={sheet === "sleep"} onClose={closeSheet} />
+      <NowChaptersSheet open={sheet === "chapters"} onClose={closeSheet} />
+      <NowBookmarksSheet open={sheet === "bookmarks"} onClose={closeSheet} />
 
       <BookmarkNoteSheet bookmark={editingBookmark?.bookmark ?? null} isNew={editingBookmark?.isNew} onClose={() => setEditingBookmark(null)} />
 

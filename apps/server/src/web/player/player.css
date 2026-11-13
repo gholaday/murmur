@@ -72,6 +72,83 @@
   .mini:hover .mini-bar, .mini:has(:focus-visible) .mini-bar { opacity: 0; }
 }
 
+/* ---------- Player bar: wide screens, docked in the shell's bar slot ---------- */
+
+@media (min-width: 900px) {
+  /* The bar replaces the audio mini player (the video one stays until the video gets its own bar). */
+  .mini:not(.vp-mini) { display: none; }
+  .pbar {
+    position: relative;
+    z-index: 21;
+    height: var(--bar-h);
+    padding: 0 16px;
+    /* The ends make room for their buttons; the middle stays centred while they fit. */
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(max-content, 1fr);
+    align-items: center;
+    gap: 24px;
+    border-top: 1px solid var(--line);
+    /* Tinted by the playing cover, like the mini player. */
+    background: color-mix(in srgb, var(--tint, var(--surface-2)) 22%, var(--nav));
+    transition: background-color 400ms ease;
+    isolation: isolate;
+    animation: fade-in 0.2s ease-out;
+  }
+  .pbar-art { position: absolute; z-index: -1; inset: 0; overflow: hidden; pointer-events: none; }
+  .pbar-art::before { content: ""; position: absolute; inset: -40px; background: var(--art, none) center / cover; filter: blur(32px) saturate(1.4); opacity: 0.18; }
+
+  .pbar-open { justify-self: start; max-width: 100%; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; border-radius: 8px; }
+  .pbar-cover { width: 56px; border-radius: 6px; flex-shrink: 0; }
+  .pbar-cover .cover-fallback-title { font-size: 8px; }
+  .pbar-cover .cover-fallback-sub { display: none; }
+  /* A book's chapter and its time left on two lines. */
+  .pbar .mini-split { flex-direction: column; gap: 2px; }
+
+  .pbar-mid { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .pbar .player-controls { justify-content: center; gap: 6px; padding-top: 0; }
+  .pbar .player-controls .icon-btn, .pbar .skip-btn { width: 40px; height: 40px; border-radius: 20px; }
+  .pbar .skip-btn:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
+  .pbar .player-controls .icon-btn svg, .pbar .skip-btn:not(:has(span)) svg { width: 20px; height: 20px; }
+  .pbar .skip-btn svg { width: 26px; height: 26px; }
+  .pbar .skip-btn span { font-size: 8px; padding-top: 2px; }
+  .pbar .play-btn { width: 44px; height: 44px; margin: 0 6px; background: var(--text); color: var(--bg); }
+  .pbar .play-btn svg { width: 20px; height: 20px; }
+  /* The times either side of the seek bar; the chapter title between them stays in the player. */
+  .pbar .player-scrub { padding-top: 0; display: grid; grid-template-columns: 52px minmax(0, 1fr) 52px; align-items: center; column-gap: 10px; }
+  .pbar .scrub-wrap { grid-area: 1 / 2; }
+  .pbar .player-times { display: contents; font-size: 11px; }
+  .pbar .player-times > :first-child { grid-area: 1 / 1; text-align: right; }
+  .pbar .player-times > :nth-child(2) { display: none; }
+  .pbar .player-times > :last-child { grid-area: 1 / 3; }
+  .pbar .scrub-played, .pbar .scrub-seg.played { background-color: var(--accent); }
+  .pbar .scrub-seg.current { background-image: linear-gradient(to right, var(--accent) var(--fill), transparent var(--fill)); }
+  .pbar .scrubber::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -4px; }
+  .pbar .scrubber::-moz-range-thumb { width: 12px; height: 12px; }
+  .pbar .scrub-bookmarks { left: 6px; right: 6px; }
+
+  .pbar-end { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+  .pbar-end .icon-btn { width: 40px; height: 40px; border-radius: 20px; }
+  .pbar-end .icon-btn svg { width: 20px; height: 20px; }
+  .pbar-end .icon-btn.on, .pbar-end .icon-btn[aria-pressed="true"] { color: var(--accent); }
+  .pbar-speed { height: 32px; padding: 0 12px; margin-right: 4px; border-radius: 16px; background: color-mix(in srgb, var(--text) 9%, transparent); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .pbar-speed:hover, .pbar-speed[aria-expanded="true"] { background: color-mix(in srgb, var(--text) 15%, transparent); }
+  .pbar .speed-pop { left: 50%; width: 320px; margin-left: -160px; bottom: calc(100% + 22px); }
+  .pbar-vol { display: flex; align-items: center; }
+  .pbar .pbar-vol-slider { width: 84px; margin: 0 10px 0 2px; }
+  .pbar-vol-slider::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -4px; }
+  .pbar-vol-slider::-moz-range-thumb { width: 12px; height: 12px; }
+  .pbar-divider { width: 1px; height: 24px; margin: 0 6px; flex-shrink: 0; background: color-mix(in srgb, var(--text) 14%, transparent); }
+  .pbar-end .pbar-expand { margin-left: 4px; background: color-mix(in srgb, var(--text) 9%, transparent); }
+  .pbar-end .pbar-expand:hover { background: color-mix(in srgb, var(--text) 15%, transparent); }
+  .pbar-expand svg { transform: rotate(180deg); }
+}
+/* A narrower window drops the volume slider and the sleep timer first; mute stays. */
+@media (min-width: 900px) and (max-width: 1099px) {
+  .pbar-vol-slider, .pbar-sleep { display: none; }
+}
+@media (hover: none) and (pointer: coarse) { .pbar-vol-slider { display: none; } }
+:root[data-theme="light"] .pbar { background: color-mix(in srgb, var(--tint, var(--surface-2)) 16%, var(--nav)); }
+
 [data-loading] { animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.55; } }
 

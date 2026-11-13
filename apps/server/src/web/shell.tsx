@@ -12,6 +12,7 @@ import { AppIcon, CloseIcon, LibraryIcon, MusicIcon, PodcastIcon, ProfileIcon, S
 import { SearchProvider, useSearchState } from "./search/search-state";
 import { FullPlayer } from "./player/full-player";
 import { MiniPlayer } from "./player/mini-player";
+import { PlayerBar } from "./player/player-bar";
 import { usePlayerSelect } from "./player/engine";
 import { VideoPlayer } from "./watch/video-player";
 import { useVideo } from "./watch/video-session";
@@ -37,6 +38,7 @@ export function Shell({
 }) {
   const pathname = usePathname();
   const item = usePlayerSelect((p) => p.item);
+  const wide = useWide();
   useDragToScroll();
   useLiveChanges();
   // Looks for Chromecasts; Chromium browsers only, and nothing shows until one is found.
@@ -55,7 +57,7 @@ export function Shell({
   const searching = heading ? heading === "open" : pathname.startsWith("/search");
   return (
     <SearchProvider>
-      <div className={`shell ${item || miniVideo ? "has-player" : ""}`}>
+      <div className={`shell ${item || miniVideo ? "has-player" : ""}${miniVideo ? " has-video-mini" : ""}`}>
         <nav className={`tabs${searching ? " searching" : ""}`} aria-label="Main">
           <div className="tabs-brand">
             <AppIcon />
@@ -70,7 +72,8 @@ export function Shell({
           ))}
         </nav>
         <main className="page">{children}</main>
-        <MiniPlayer />
+        {/* The bar on wide screens, the floating mini player on phones (shell.css hides it from 900px before this knows). */}
+        {wide ? <PlayerBar /> : <MiniPlayer />}
         <FullPlayer />
         {video.item ? <VideoPlayer key={video.item.progressId} item={video.item} autoplay={video.autoplay} mini={miniVideo} /> : null}
       </div>
