@@ -168,9 +168,12 @@
 @container page (min-width: 840px) {
   /* Book: the book, its description and actions on the left; chapters and bookmarks as two text
      tabs in a column on the right that stays in view and scrolls inside itself. */
-  .book-detail { display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 34%, 420px); column-gap: 40px; align-items: start; }
+  .book-detail { display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 34%, 420px); column-gap: 40px; align-items: start; padding-top: 16px; }
+  /* The back arrow and More sit over the book only, so the column starts at the very top. */
+  .book-detail .hero-bar { position: static; margin: 0 -10px 12px; }
   .book-side {
-    position: sticky; top: 16px; display: flex; flex-direction: column; max-height: calc(100cqh - 12px);
+    /* Sticky offsets count from inside the page's 28px top padding: this is 16px from the top. */
+    position: sticky; top: -12px; display: flex; flex-direction: column; max-height: calc(100cqh + 44px);
     padding: 6px 12px 8px; border-radius: var(--radius); background: color-mix(in srgb, var(--surface) 80%, transparent);
   }
   .book-side-tabs { display: block; flex: none; margin: 0 8px 4px; }
