@@ -56,3 +56,67 @@ button.track-title:hover { color: var(--accent); }
 .songs-actions { display: flex; gap: 10px; margin-bottom: 8px; }
 .songs-actions .btn { flex: 1; max-width: 200px; height: 44px; }
 .songs-actions .btn-round { width: 44px; height: 44px; }
+
+/* ---------- Wide screens (900px+) ---------- */
+
+/* Parts only wide screens show: a song's album column, its artist alone (when the album has its own
+   column), the add to queue button, a playlist's column heads, the album's added button. */
+.song-album, .song-artist, .song-queue, .song-head, .album-mine, .add-songs-label { display: none; }
+@media (min-width: 900px) {
+  /* Song rows lay out by their own width, so they work beside the side panel too. */
+  .song-row { container: song / inline-size; }
+  .song-queue, .album-mine { display: inline-flex; }
+  .song-queue[aria-pressed="true"] { color: var(--accent); }
+  .song-queue:disabled { opacity: 0.35; }
+  .song-len { width: 48px; flex-shrink: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .album-mine { color: var(--accent); }
+
+  /* A playlist's column heads, lined up with its rows: thumb and gap, album, length, then the row's buttons. */
+  .song-head { display: flex; align-items: center; gap: 12px; height: 36px; border-bottom: 1px solid var(--line); }
+  .song-head-title { flex: 1; min-width: 0; padding-left: 60px; }
+  .song-head .song-len { display: flex; justify-content: flex-end; }
+  .song-head-end { width: 100px; flex-shrink: 0; }
+  .song-head.has-handle .song-head-end { width: 156px; }
+  .sort-head { display: inline-flex; align-items: center; gap: 4px; height: 28px; font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+  .sort-head:hover, .sort-head[aria-pressed="true"] { color: var(--text); }
+  .sort-head svg { color: var(--accent); stroke-width: 2.6; rotate: 180deg; }
+  .sort-head[data-desc] svg { rotate: none; }
+
+  /* Album and playlist pages sit on the cover's colour wash (hero.css .detail); the back row is
+     placed by it, and rows let the wash show through (the lifted row keeps its own background). */
+  .detail .back-row { margin: 0; }
+  .playlist-detail .queue-row { background: none; }
+
+  /* Playlist: the cover, then the title, pills and buttons beside it; Add songs gets its label. */
+  .playlist-top { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: 1fr auto; column-gap: 28px; align-items: end; }
+  .playlist-top .show-hero { display: contents; }
+  .playlist-top .show-hero > :first-child { grid-row: 1 / 3; }
+  .playlist-top .actions { grid-column: 2; margin-top: 16px; }
+  .playlist-top .actions .btn-big { flex: none; padding: 0 30px; }
+  .add-songs.btn-round { width: auto; gap: 8px; padding: 0 20px 0 16px; background: none; border: 1px solid var(--track); font-size: 15px; font-weight: 700; }
+  .add-songs.btn-round:hover { background: var(--surface-2); }
+  .add-songs-label { display: inline; }
+  .playlist-detail .section { gap: 0; }
+
+  .artist-head .artist-photo { width: 140px; height: 140px; }
+  .artist-head { gap: 24px; }
+}
+/* With room, the album's title column swaps "Artist, Album" for the artist and an Album column. */
+@container song (min-width: 700px) {
+  .song-album { display: block; flex: 0 0 30%; min-width: 0; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  a.song-album:hover { color: var(--accent); }
+  .song-sub { display: none; }
+  .song-artist { display: block; }
+}
+/* Album: the album on the left, staying in view; its numbered songs on the right, from the cover's top. */
+@container page (min-width: 840px) {
+  .detail.album-detail { display: grid; grid-template-columns: clamp(240px, 28%, 300px) minmax(0, 1fr); column-gap: 40px; align-items: start; padding-top: 16px; }
+  .album-detail .detail-main { position: sticky; top: 16px; max-height: calc(100cqh + 44px); overflow-y: auto; scrollbar-width: none; padding-bottom: 16px; }
+  .detail.album-detail .hero-bar { position: static; margin: 0 -10px 8px; }
+  .album-detail .show-hero { flex-direction: column; align-items: stretch; gap: 20px; }
+  .album-detail .show-hero .cover { width: 100%; }
+  .album-detail .show-title { font-size: 28px; line-height: 1.15; }
+  .album-detail .actions .btn-big { flex: 1; }
+  .album-tracks { margin-top: 52px; }
+  .album-tracks > .section:first-child { margin-top: 0; }
+}

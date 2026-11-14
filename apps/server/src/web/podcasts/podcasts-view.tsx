@@ -20,13 +20,15 @@ import {
   type PodcastSearchResult,
   type PodcastSummary,
   sortShows,
+  timeLeft,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { Mixer } from "../mixer";
-import { useNowPlaying } from "../player/engine";
+import { episodeToPlayable, useNowPlaying, usePlayerControls } from "../player/engine";
 import { FilterIcon, PlusIcon } from "../icons";
-import { EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle } from "../ui";
+import { scrollPageToTop } from "../layout";
+import { ContinuePlay, EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle } from "../ui";
 import { ChoiceSheet, Sheet } from "../sheet";
 import { EpisodeRow } from "./episode-row";
 
@@ -42,6 +44,41 @@ export function PodcastCard({ podcast: p }: { podcast: PodcastSummary }) {
       <div className="card-title">{p.title}</div>
       {p.lastError ? <div className="card-sub error">Feed problem</div> : null}
     </Link>
+  );
+}
+
+/** An episode you're partway through as a wide Continue card, like the books' (wide screens only). */
+function ContinueEpisodeCard({ episode: e }: { episode: EpisodeWithShow }) {
+  const { current, playing } = useNowPlaying((n) => n.type === "episode" && n.id === e.id);
+  const player = usePlayerControls();
+  const dur = e.durationSec ?? 0;
+  const position = e.progress?.positionSec ?? 0;
+  return (
+    <div className="continue-item">
+      <Link href={`/podcasts/${e.podcastId}`} className={`continue-card${current ? " playing" : ""}`}>
+        <div className="card-cover">
+          <Cover src={e.podcastCoverHash ? apiPaths.podcastCoverUrl(e.podcastId, e.podcastCoverHash, 200) : null} color={e.podcastCoverColor} title={e.podcastTitle} />
+          {current ? <Mixer playing={playing} /> : null}
+        </div>
+        <div className="bar thick">
+          <div style={{ width: `${dur ? Math.min(100, (position / dur) * 100) : 0}%` }} />
+        </div>
+        <div className="continue-text">
+          <div className="card-title">{e.title}</div>
+          <div className="card-sub">{e.podcastTitle}</div>
+          <div className="card-sub">{dur ? timeLeft(dur, position) : ""}</div>
+        </div>
+      </Link>
+      <ContinuePlay
+        playing={current && playing}
+        title={e.title}
+        onPlay={() => {
+          if (current) return player.toggle();
+          player.play(episodeToPlayable(e));
+          player.setExpanded(true);
+        }}
+      />
+    </div>
   );
 }
 
@@ -73,7 +110,7 @@ export function PodcastsView({
   // Every list is built from data already here, so skip the server round trip, like the Library shelves.
   const open = (id: PodcastListId) => {
     window.history.pushState(null, "", `${pathname}?list=${id}`);
-    window.scrollTo(0, 0);
+    scrollPageToTop();
   };
 
   const sortButton =
@@ -195,9 +232,15 @@ export function PodcastsView({
               <div className="section-head">
                 <SectionTitle title={PODCAST_LIST_TITLES.continue} count={continueEpisodes.length} noun="episode" onOpen={() => open("continue")} />
               </div>
-              <div>
+              {/* Rows on phones, a grid of wide cards on wide screens (library.css). */}
+              <div className="continue-rows">
                 {continueEpisodes.slice(0, PODCAST_SECTION_SIZE).map((e) => (
                   <EpisodeRow key={e.id} episode={e} showThumb onChanged={refresh} />
+                ))}
+              </div>
+              <div className="continue-grid">
+                {continueEpisodes.slice(0, PODCAST_SECTION_SIZE).map((e) => (
+                  <ContinueEpisodeCard key={e.id} episode={e} />
                 ))}
               </div>
             </section>

@@ -120,17 +120,20 @@ export function EpisodeRow({
                 {episode.podcastTitle}
               </Link>
             ) : null}
-            <span className="episode-date">{shortDate(episode.publishedAt)}</span>
-            {episode.adsChecked ? (
-              <span className="ads-checked" data-tip="Checked for ads" aria-label="Checked for ads">
-                <AdsCheckedIcon size={14} />
-              </span>
-            ) : null}
-            {bookmarks.length ? (
-              <span className="ads-checked" data-tip="Has bookmarks" aria-label="Has bookmarks">
-                <BookmarkIcon size={14} />
-              </span>
-            ) : null}
+            {/* Its own column on wide screens (episodes.css). */}
+            <span className="episode-when">
+              <span className="episode-date">{shortDate(episode.publishedAt)}</span>
+              {episode.adsChecked ? (
+                <span className="ads-checked" data-tip="Checked for ads" aria-label="Checked for ads">
+                  <AdsCheckedIcon size={14} />
+                </span>
+              ) : null}
+              {bookmarks.length ? (
+                <span className="ads-checked" data-tip="Has bookmarks" aria-label="Has bookmarks">
+                  <BookmarkIcon size={14} />
+                </span>
+              ) : null}
+            </span>
           </span>
           {/* The title and description expand the notes in place. */}
           <button type="button" className="episode-text" onClick={toggleNotes} aria-expanded={open}>
@@ -155,6 +158,8 @@ export function EpisodeRow({
             {pausing ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
             <span>{time}</span>
           </button>
+          {/* Wide screens: the time in its own column, and the play button round at the end. */}
+          <span className="episode-len">{time}</span>
           {pastStart(position) && !played ? (
             <span className="episode-bar" aria-hidden="true">
               <span style={{ width: `${pct}%` }} />

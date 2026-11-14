@@ -8,24 +8,40 @@ import { effectiveVolume, useVolume, volumeStore } from "./volume";
  * speaker at the far end. Hidden on phones, which use their own buttons (see .vol-row).
  */
 export function VolumeRow() {
-  const volume = useVolume();
-  const level = effectiveVolume(volume);
   return (
     <div className="vol-row">
       <MuteButton size={18} quiet />
-      <input
-        type="range"
-        className="scrubber"
-        aria-label="Volume"
-        min={0}
-        max={1}
-        step={0.01}
-        value={level}
-        style={{ "--pct": `${level * 100}%` } as React.CSSProperties}
-        onChange={(e) => volumeStore.set({ level: Number(e.target.value), muted: false })}
-      />
+      <VolumeSlider className="scrubber" />
       <VolumeIcon level={1} size={18} aria-hidden="true" />
     </div>
+  );
+}
+
+/** The player bar's: the mute button and a slider beside it, which a narrow window drops (see .pbar-vol). */
+export function VolumeBar() {
+  return (
+    <div className="pbar-vol">
+      <MuteButton size={20} />
+      <VolumeSlider className="scrubber pbar-vol-slider" />
+    </div>
+  );
+}
+
+function VolumeSlider({ className }: { className: string }) {
+  const volume = useVolume();
+  const level = effectiveVolume(volume);
+  return (
+    <input
+      type="range"
+      className={className}
+      aria-label="Volume"
+      min={0}
+      max={1}
+      step={0.01}
+      value={level}
+      style={{ "--pct": `${level * 100}%` } as React.CSSProperties}
+      onChange={(e) => volumeStore.set({ level: Number(e.target.value), muted: false })}
+    />
   );
 }
 
@@ -52,21 +68,9 @@ function MuteButton({ size, quiet = false }: { size?: number; quiet?: boolean })
  * they don't get one (see .vol in watch/watch.css).
  */
 export function VolumeControl({ size }: { size?: number }) {
-  const volume = useVolume();
-  const level = effectiveVolume(volume);
   return (
     <div className="vol">
-      <input
-        type="range"
-        className="scrubber vol-slider"
-        aria-label="Volume"
-        min={0}
-        max={1}
-        step={0.01}
-        value={level}
-        style={{ "--pct": `${level * 100}%` } as React.CSSProperties}
-        onChange={(e) => volumeStore.set({ level: Number(e.target.value), muted: false })}
-      />
+      <VolumeSlider className="scrubber vol-slider" />
       <MuteButton size={size} />
     </div>
   );

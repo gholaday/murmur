@@ -364,6 +364,24 @@ export function sortAlbums(albums: AlbumSummary[], sort: AlbumSort): AlbumSummar
   return list.sort((a, b) => (b.year ?? "").localeCompare(a.year ?? "") || byText(a.title, b.title));
 }
 
+/** A column a playlist's songs can be sorted by on wide screens; the playlist's own order is no sort. */
+export type SongSort = "title" | "album" | "length";
+
+/**
+ * Songs in a column's order, A to Z or shortest first, or the reverse with `desc`. Ties keep
+ * a stable order: an album's songs by disc and track, everything else by title.
+ */
+export function sortSongs(tracks: TrackDto[], sort: SongSort, desc = false): TrackDto[] {
+  const inAlbum = (a: TrackDto, b: TrackDto) => (a.discNo ?? 0) - (b.discNo ?? 0) || (a.trackNo ?? 0) - (b.trackNo ?? 0);
+  const by: Record<SongSort, (a: TrackDto, b: TrackDto) => number> = {
+    title: (a, b) => byText(a.title, b.title) || byText(artistKey(a.artist), artistKey(b.artist)),
+    album: (a, b) => byText(a.album, b.album) || byText(artistKey(a.artist), artistKey(b.artist)) || inAlbum(a, b) || byText(a.title, b.title),
+    length: (a, b) => a.durationSec - b.durationSec || byText(a.title, b.title),
+  };
+  const list = [...tracks].sort(by[sort]);
+  return desc ? list.reverse() : list;
+}
+
 /** Each artist's own albums, newest first. */
 export function albumsByArtist(albums: AlbumSummary[]): Map<string, AlbumSummary[]> {
   const out = new Map<string, AlbumSummary[]>();

@@ -154,19 +154,21 @@ export function ProfileView({
         <h1 className="page-title">You</h1>
       </div>
 
-      <section className="section">
-        <StatsCard kinds={statsKindsShown(tabs)} />
-      </section>
+      <div className="you-home">
+        <section className="section">
+          <StatsCard kinds={statsKindsShown(tabs)} />
+        </section>
 
-      <section className="section">
-        <h2 className="section-title">Settings</h2>
-        <SettingsCard>
-          {/* Library holds only Podcasts for everyone but admins, so it goes when that tab is hidden. */}
-          {SECTIONS.filter((s) => (user.isAdmin || !s.admin) && (s.id !== "podcasts" || tabs.podcasts || user.isAdmin)).map((s) => (
-            <SettingLink key={s.id} title={s.title} value={values[s.id]} href={`/you/${s.id}`} />
-          ))}
-        </SettingsCard>
-      </section>
+        <section className="section">
+          <h2 className="section-title">Settings</h2>
+          <SettingsCard>
+            {/* Library holds only Podcasts for everyone but admins, so it goes when that tab is hidden. */}
+            {SECTIONS.filter((s) => (user.isAdmin || !s.admin) && (s.id !== "podcasts" || tabs.podcasts || user.isAdmin)).map((s) => (
+              <SettingLink key={s.id} title={s.title} value={values[s.id]} href={`/you/${s.id}`} />
+            ))}
+          </SettingsCard>
+        </section>
+      </div>
     </>
   );
 }

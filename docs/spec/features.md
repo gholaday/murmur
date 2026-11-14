@@ -2,7 +2,7 @@
 
 ## Search
 
-- One search for books, authors and series, the podcasts you follow and their episodes, music, and movies, shows and TV episodes, from the Search pill in the bottom bar (the sidebar on wide screens)
+- One search for books, authors and series, the podcasts you follow and their episodes, music, and movies, shows and TV episodes, from the Search pill in the bottom bar (on wide web screens, a box always open in the sidebar, which "/" jumps to)
 - Matches any part of a word, ignoring case and accents, in names and people (not descriptions, notes or chapter titles); names count most
 - Tabs narrow it to one kind; recent searches show while the box is empty; offline, the app searches what's downloaded
 
@@ -36,7 +36,7 @@ Optional. More in [Music](music.md).
 - Albums, artists and songs from the tags, with covers from the folder or the files
 - Your music: each person adds the albums or songs they want, and Browse has the rest
 - Play or shuffle an album, an artist's songs, your songs or a playlist, with the next song loaded early so albums play without a gap
-- Playlists of your own, and single songs in the queue
+- Playlists of your own, and single songs in the queue. On wide web screens a playlist has Title, Album and Length column heads that sort it for the moment, without changing its saved order
 - Download albums or songs to the phone
 - Album Match and artist photos for admins
 
@@ -65,6 +65,7 @@ Optional. More in [Watch](watch.md).
 ## Player
 
 - Mini player, expanding to a full-screen player tinted from the cover
+- On the web from 900px wide, a layout of its own (below that, the web is laid out like the app): a sidebar with the tabs and an always-open search box, a page area that fills the width and scrolls on its own, a player bar docked along the bottom in place of the mini player, Now playing inside the page area in place of the full-screen player, with no controls of its own (the bar has them), and a side panel on the right for the queue, chapters and bookmarks in place of their sheets. The panel docks beside the page from 1200px and floats over it from 900 to 1199px; whether it's open, and on which tab, is remembered per browser (`murmur.sidePanel`)
 - Skip back and forward (configurable, defaults 10 s and 30 s), chapter skip. On an episode without chapters, previous and next (in the player, media keys and the notification) go to the item before or after it in the queue, and past either end to the episode above or below it in its show's list (`GET /episodes/:id/neighbor`). Previous restarts the episode first once it's more than 3 s in
 - Playback speed 0.5× to 3× (2× on Android), remembered per book and per show
 - Sleep timer: minutes or end of chapter
@@ -72,7 +73,7 @@ Optional. More in [Watch](watch.md).
 - The third player tile is Chapters for anything with more than one chapter, where its sheet also has your bookmarks, else Bookmarks. Songs have none. The ad setting is in the episode's ⋯ menu. Which one is decided when the item loads, so tiles never change mid-listen
 - Bookmarks on books and episodes, per person, on the web and in the app (see [Bookmarks](#bookmarks))
 - In an episode's last 3 minutes, a Mark played button on the cover marks it played and closes the player, so a long outro needn't run out (not on episodes under 6 minutes). During an ad it sits above Skip ad, and Skip ad goes once the episode is in its last second
-- Volume slider and mute in the web player on desktop, remembered per browser (phones use their own buttons): a row under the audio player's controls, and a speaker that slides a slider out on the video player
+- Volume slider and mute in the web player on desktop, remembered per browser (phones use their own buttons): on wide screens in the player bar, for audio and video; in a narrow window, a row under the audio player's controls, and a speaker that slides a slider out on the video player
 - Lock screen, notification, Bluetooth and headphone controls in the app
 - Casting books, podcasts, music, movies and shows to a Chromecast from the web (Chrome and Edge) and the app (see [Casting](casting.md))
 
@@ -81,7 +82,7 @@ Optional. More in [Watch](watch.md).
 - Tap the bookmark beside the player's title to open a sheet for a note, and Save there adds it. While playing it lands 10 seconds of listening earlier, since you tap after you hear the thing. A toast confirms it and offers Undo. The app's media notification has a bookmark button too, which saves right away
 - The icon fills within 15 seconds of a bookmark. Tapping it then opens that bookmark's sheet
 - A note runs up to 500 characters, and the sheet can move the bookmark 15 seconds either way
-- Bookmarks show as ticks on the scrubber, in the player's sheet, in a section on the book's page, and on an expanded episode row. A podcast's page has a Bookmarks button once it has any, opening them grouped by episode
+- Bookmarks show as ticks on the scrubber, in the player's sheet (the side panel and Now playing on wide web screens), in a section on the book's page, and on an expanded episode row. A podcast's page has a Bookmarks button once it has any, opening them grouped by episode
 - Jumping more than 30 seconds to a bookmark offers Go back to your real place. Until you take it, close it with the X, play for 5 minutes, or play up to that place, your saved position stays where it was, so a look back doesn't move Continue listening. Finishing the item ends it too, and leaving the item or closing the player keeps the old position. A bookmark in another book or episode does the same against that item's saved place
 - They're kept until you delete them or your account goes. If a book or podcast is removed they're hidden, and they return with it
 - A bookmark is a time, so one in an episode whose ads change, or a book whose files are replaced by another edition, can land in a slightly different spot

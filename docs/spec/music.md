@@ -32,7 +32,7 @@ Music is optional. It comes from one or more music folders, set up like the book
 - A song always plays from the start at 1×, keeps no position and is never marked finished. It counts as played after 30 seconds or half its length, whichever is shorter (`track_plays`, kept per person with no foreign key, like progress). The app keeps each counted play in a small outbox of its own and sends it when it can, so plays made offline still reach Jump back in and Stats: each carries an id, so a retry counts once (`track_play_ids`, kept for 30 days), and the time it was played, which the server caps at its own clock and never lets move a song's last play backwards.
 - Playing an album, an artist's songs, your songs or a playlist fills the queue with its songs (see Queue below) and remembers where they came from and their own order, for Shuffle.
 - While that music is playing, its Play button turns into Pause and Resume, like a book's.
-- Starting something new from a book's, album's or playlist's Play, an episode's play button or Downloads opens the full player. Pausing and resuming stay on the page, and tapping a song row doesn't open it.
+- Starting something new from a book's, album's or playlist's Play, an episode's play button or Downloads opens the full player (Now playing, inside the page, on wide web screens). Pausing and resuming stay on the page, and tapping a song row doesn't open it.
 - Shuffle and Repeat work like Spotify's and are kept in your settings (`shuffle`, `repeat` in `users.prefs`), so they stay on between sessions and devices. The player for songs shows Repeat left of Previous and Shuffle right of Next, in the accent colour when on. The round Shuffle beside Play lights up while Shuffle is on; it turns Shuffle on and plays, or just toggles it when on or when that music is already playing.
   - With Shuffle on, Play starts on any song, and tapping a song plays it first and then the rest shuffled.
   - Turning Shuffle on mid-play moves the item playing to the top, with nothing above it, and shuffles all the album's other songs after it, in a new order each time. Songs you added that are still to come and waiting episodes keep their places. Turning it off puts the whole album back in its own order around the song playing: the songs before it go above it and the ones after it are still to come.
@@ -45,6 +45,7 @@ Music is optional. It comes from one or more music folders, set up like the book
 ## Playlists
 
 - Playlists are each person's own (`playlists`, `playlist_tracks`). A playlist plays as its own context, and its songs can be reordered by dragging, removed, renamed or deleted. `.m3u` files in the music folders are not read.
+- On wide web screens a playlist has Title, Album and Length column heads. A click sorts by that column (A to Z, shortest first for Length), a second reverses it and a third goes back to the playlist's own order (`sortSongs` in `packages/shared/src/music.ts`, with tests). The sort lasts only while the page is open: it isn't saved and doesn't change the playlist, Play and Shuffle follow the order shown, and rows can't be dragged while it's sorted. There's no Added column, since the API doesn't send when a song was added. Phones keep the playlist's own order.
 - A playlist's + button (and Add songs on an empty one) opens Add songs: search your songs, what you played recently (`GET /music/plays`) or Browse, and tap + to add a song to the end or its check to take it out, with Undo. Songs from Browse join the playlist without being added to your music.
 - Every song has a menu: Add to queue (Remove from queue while it's waiting there), Add to playlist, Go to album. An album's menu and a playlist's also have Add to queue, which adds all their songs in order.
 
@@ -52,7 +53,7 @@ Music is optional. It comes from one or more music folders, set up like the book
 
 One running list of songs and episodes, like YouTube Music's (`up_next`, one row per person: the items in order, which one is playing, and where the songs came from). The rules are shared (`packages/shared/src/up-next.ts`).
 
-- What played stays above the item playing and what's next follows it. The sheet opens on the item playing.
+- What played stays above the item playing and what's next follows it. The sheet (the side panel's Queue on wide web screens) opens on the item playing.
 - Tapping a row plays it; tapping the one playing pauses and resumes. Any row, played or not, can be dragged to a new place or taken out. Taking out the one playing starts the one after it.
 - Starting an album, artist, your songs or a playlist replaces the list with its songs. Starting an episode from its show, or a book, does the same with nothing but that episode. Either way, episodes you added that haven't played yet stay, after the new songs.
 - Add to queue on a song puts it right after the item playing and anything you added just before; an episode goes at the end. Something already waiting moves instead of doubling up.

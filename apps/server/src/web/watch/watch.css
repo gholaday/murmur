@@ -26,8 +26,7 @@ button.setting-link { width: 100%; text-align: left; color: inherit; }
 
 /* The video player, laid out like the audio one: tinted by the poster, the video where the cover
    goes, then the title, scrubber, controls and tiles. Upright on a phone the next episodes follow;
-   sideways, in full screen or on a wide screen, the video fills the window. */
-/* Upright the page sits in the same column as the rest of the app on wide screens. */
+   sideways or in full screen the video fills the window. Wide screens put it in the shell (below). */
 .vp {
   --tint-top: 42%;
   --tint-bottom: 10%;
@@ -179,7 +178,6 @@ button.setting-link { width: 100%; text-align: left; color: inherit; }
 
 /* The video playing on in the mini player: the picture where the cover goes, the page's parts hidden. */
 .mini.vp-mini { flex-direction: row; align-items: center; gap: 12px; padding-left: 8px; }
-.mini.vp-mini:hover, .mini.vp-mini:has(:focus-visible) { height: var(--mini-h); }
 .vp-mini .vp-head, .vp-mini .vp-overlay, .vp-mini .vp-main, .vp-mini .vp-next { display: none; }
 .vp-mini .vp-stage { height: calc(var(--mini-h) - 16px); margin: 0; border-radius: 6px; cursor: pointer; }
 .vp-mini-row { flex: 1; min-width: 0; }
@@ -206,3 +204,68 @@ button.setting-link { width: 100%; text-align: left; color: inherit; }
 .vp-over .vp-tools { display: flex; align-items: center; gap: 4px; position: absolute; right: 20px; bottom: calc(env(safe-area-inset-bottom) + 24px); }
 .vp-over .player-controls .play-btn { width: 64px; height: 64px; background: rgba(255, 255, 255, 0.16); color: #fff; backdrop-filter: blur(6px); }
 .vp-over .vp-next { bottom: 150px; }
+
+/* ---------- Wide screens (900px+): the player inside the shell ---------- */
+
+@media (min-width: 900px) {
+  /*
+   * On its own page the player takes the page area, like Now playing: the picture at 16:9 along
+   * the top (shorter windows centre a smaller one, so the title stays in view), what's playing
+   * under it. Its controls are the bar's (.vp-bar), its next episodes the side panel's.
+   */
+  .vp.vp-shell {
+    grid-area: page; position: relative; inset: auto; z-index: 12; min-height: 0; display: block;
+    padding: 0; overflow-y: auto; background: linear-gradient(to bottom, color-mix(in srgb, var(--tint) var(--tint-top), var(--bg)), color-mix(in srgb, var(--tint) var(--tint-bottom), var(--bg)) 700px);
+  }
+  .vp-shell .vp-head, .vp-shell .vp-main { display: none; }
+  .vp.vp-shell .vp-stage {
+    width: min(100%, max(480px, calc((100dvh - var(--bar-h) - 210px) * 16 / 9))); margin: 0 auto;
+    border-radius: 0; box-shadow: none; cursor: pointer;
+  }
+  .vp-shell .vp-stage > .vp-slow { display: flex; top: auto; right: auto; bottom: 12px; left: 16px; max-width: 380px; background: rgba(0, 0, 0, 0.78); color: #fff; }
+  .vp-shell .vp-slow .icon-btn { color: #fff; }
+  /* Under 1200px the open panel floats over the picture's right side, so the Next episode card moves to its top left. */
+  @media (max-width: 1199px) {
+    .shell:has(> .side-panel) > .vp-shell .vp-next { top: 12px; bottom: auto; left: 16px; right: auto; }
+  }
+  .vp-about { padding: 16px var(--page-x) 48px; }
+  .vp-about-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-right: -10px; }
+  .vp-about .player-from { text-align: left; }
+  .vp-about .player-title { font-size: 30px; letter-spacing: -0.5px; line-height: 1.15; }
+  .vp-about .player-sub { margin-top: 2px; font-size: 15px; color: var(--text-2); }
+  .vp-about .pills { justify-content: flex-start; margin: 14px 0; }
+  .vp-about .description { max-width: 640px; }
+
+  /* The bar: the audio one's layout (player.css), with a 16:9 thumbnail and the video's seek bar. */
+  .vp-bar {
+    --scrub-loaded: color-mix(in srgb, var(--text) 32%, transparent);
+    --scrub-rest: color-mix(in srgb, var(--text) 14%, transparent);
+    --scrub-thumb: var(--text);
+  }
+  .vp-bar-thumb { width: 100px; aspect-ratio: 16 / 9; flex-shrink: 0; border-radius: 6px; background: var(--tint) center / cover; }
+  .vp-bar .play-btn:disabled { opacity: 0.5; }
+  .vp-bar .vp-time { font-size: 11px; }
+  .vp-bar .vp-scrub::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -4px; }
+  .vp-bar .vp-scrub::-moz-range-thumb { width: 12px; height: 12px; }
+
+  /* Minimised: only the picture, docked over the bar's thumbnail, so it plays on without starting again. */
+  .vp-docked {
+    position: fixed; z-index: 22; left: 16px; bottom: calc((var(--bar-h) - 56px) / 2); width: 100px; height: 56px;
+    border-radius: 6px; overflow: hidden; animation: fade-in 200ms ease-out both;
+  }
+  .vp-docked .vp-head, .vp-docked .vp-overlay, .vp-docked .vp-main, .vp-docked .vp-next, .vp-docked .float-card { display: none; }
+  .vp-docked .vp-stage { position: absolute; inset: 0; margin: 0; aspect-ratio: auto; border-radius: 0; box-shadow: none; cursor: pointer; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vp-docked, .vp.vp-shell { animation: none; }
+}
+
+/* Pages on wide screens: Continue watching and Next episodes wrap into a grid of stills (the
+   .row-scroll grid in library.css); a show's episodes take two columns when there's room. */
+@media (min-width: 900px) {
+  .row-scroll:has(.watch-card) { --card-min: 190px; }
+  .detail .episode-still { width: 160px; }
+}
+@container page (min-width: 840px) {
+  .video-episodes { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); column-gap: 32px; }
+}

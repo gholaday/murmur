@@ -266,9 +266,9 @@ export function createWatchScanner(deps: WatchScannerDeps) {
     // Local art wins over TMDB's, which matching may have put there first.
     const setParentArt = (table: "shows" | "movies") =>
       sqlite.prepare(
-        `UPDATE ${table} SET poster_hash = COALESCE(?1, poster_hash), poster_tmdb = CASE WHEN ?1 IS NOT NULL THEN 0 ELSE poster_tmdb END,
-           backdrop_hash = COALESCE(?2, backdrop_hash), backdrop_tmdb = CASE WHEN ?2 IS NOT NULL THEN 0 ELSE backdrop_tmdb END
-         WHERE id = ?3`,
+        `UPDATE ${table} SET poster_hash = COALESCE(@poster, poster_hash), poster_tmdb = CASE WHEN @poster IS NOT NULL THEN 0 ELSE poster_tmdb END,
+           backdrop_hash = COALESCE(@backdrop, backdrop_hash), backdrop_tmdb = CASE WHEN @backdrop IS NOT NULL THEN 0 ELSE backdrop_tmdb END
+         WHERE id = @id`,
       );
     for (const table of ["shows", "movies"] as const) {
       const parents = sqlite
@@ -298,7 +298,7 @@ export function createWatchScanner(deps: WatchScannerDeps) {
         const backdropName = p.backdrop_hash && !p.backdrop_tmdb ? null : pickArt(names, loose ? [`${fileStem}-fanart`] : ART_NAMES.backdrop(null));
         const poster = posterName ? await storeImage(root, dir, posterName, "poster") : null;
         const backdrop = backdropName ? await storeImage(root, dir, backdropName, "wide") : null;
-        if (poster || backdrop) setArt.run(poster, backdrop, p.id);
+        if (poster || backdrop) setArt.run({ poster, backdrop, id: p.id });
       }
     }
 

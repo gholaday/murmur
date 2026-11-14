@@ -54,14 +54,13 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
       (k.id === "watch" && tabs.watch),
   );
   const startKind = params.get("kind") as SearchKind | null;
-  // The box is shared with the bottom bar's, which keeps what's typed while you open a result.
+  // The box is the shell's (the bottom bar's on phones, the sidebar's on wide screens), which keeps what's typed while you open a result.
   const { query, setQuery, submits } = useSearchState();
   const [kind, setKind] = useState<SearchKind>(kinds.some((k) => k.id === startKind) ? startKind! : "all");
   const [results, setResults] = useState<SearchResultsDto | null>(null);
   const [allResults, setAllResults] = useState<SearchResultsDto | null>(null);
   const [failed, setFailed] = useState(false);
   const [recent, setRecent] = useState<string[]>([]);
-  const input = useRef<HTMLInputElement>(null);
   const q = query.trim();
 
   useEffect(() => {
@@ -73,7 +72,7 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Enter in the bottom bar's box.
+  // Enter in the shell's box.
   const lastSubmits = useRef(submits);
   useEffect(() => {
     if (submits === lastSubmits.current) return;
@@ -144,30 +143,6 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
       <div className="page-head">
         <h1 className="page-title">Search</h1>
       </div>
-      {/* Wide screens only: on phones the box is in the bottom bar. */}
-      <form
-        className="search-bar"
-        role="search"
-        onSubmit={(e) => {
-          e.preventDefault();
-          remember(q);
-          input.current?.blur();
-        }}
-      >
-        <label className="search-field">
-          <SearchIcon size={20} />
-          <input
-            ref={input}
-            type="search"
-            enterKeyHint="search"
-            aria-label="Search"
-            placeholder="Books, podcasts, music and more"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </label>
-      </form>
-
       {q && shown.length > 1 ? (
         <Chips kind="tabs" label="Search in">
           {shown.map((k) => (

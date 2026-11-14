@@ -424,7 +424,12 @@ export async function getEpisodePlay(ctx: AppContext, userId: number, id: string
   if (at < 0) return null;
   const art = row.poster_hash || episodes[at]!.stillHash;
   const color = colorOf(await colorsFor([art]), art);
-  return { episode: episodes[at]!, show: { id: row.show_id, title: row.title, color }, next: episodes.slice(at + 1) };
+  return {
+    episode: episodes[at]!,
+    show: { id: row.show_id, title: row.title, color },
+    next: episodes.slice(at + 1),
+    previous: episodes[at - 1] ?? null,
+  };
 }
 
 type ShowArt = { title: string; backdrop_hash: string | null; poster_hash: string | null };

@@ -488,7 +488,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       pause: core.pause,
       seek: core.seek,
       async jumpTo(ref: PlayRef, sec: number) {
-        // Go back lives in the full player.
+        // Go back lives in the full player (Now playing on wide screens).
         if (await core.jumpTo(ref, sec)) setExpanded(true);
       },
       goBack: core.goBack,

@@ -12,6 +12,7 @@ import {
   type ArtistDetail,
   artistImage,
   artistSub,
+  FALLBACK_TINT,
   guestArtist,
   plural,
   songLength,
@@ -20,7 +21,7 @@ import {
 } from "@murmur/shared/client";
 import { useAdmin } from "../admin";
 import { Cover } from "../cover";
-import { MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
+import { CheckIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
 import { MixerBars } from "../mixer";
 import { BackRow, SectionTitle } from "../ui";
@@ -32,7 +33,7 @@ import { ArtistPhotoDialog } from "./match";
 import { MineToggle, useMineChange } from "./mine";
 import { SongMenuButton } from "./song-menu";
 import { AlbumCard } from "./music-view";
-import { SongRow } from "./song-row";
+import { SongQueueButton, SongRow } from "./song-row";
 
 export function AlbumView({ album }: { album: AlbumDetail }) {
   const send = useMineChange();
@@ -63,86 +64,98 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
 
   return (
     <>
-      <BackRow fallback="/music">
-        <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMenu(true)}>
-          <MoreIcon />
-        </button>
-      </BackRow>
-      {/* Cover beside the title, as in the app. */}
-      <div className="show-hero">
-        <Cover src={albumCover(album.id, album.coverHash, 600)} color={album.coverColor} title={album.title} subtitle={album.artist} large />
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>
-          <h1 className="show-title">{album.title}</h1>
-          <Link className="book-author" href={`/music/artist/${album.artistId}`}>
-            {album.artist}
-          </Link>
-          <div className="pills">
-            {albumPills(album).map((p) => (
-              <span key={p} className="pill">
-                {p}
-              </span>
-            ))}
+      {/* Wide screens with room (hero.css, music.css): the album on the left, staying in view, and its songs on the right. */}
+      <div className="detail album-detail" style={{ "--tint": album.coverColor ?? FALLBACK_TINT.page } as React.CSSProperties}>
+        <div className="detail-main">
+          <BackRow fallback="/music">
+            <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMenu(true)}>
+              <MoreIcon />
+            </button>
+          </BackRow>
+          {/* Cover beside the title, as in the app. */}
+          <div className="show-hero">
+            <Cover src={albumCover(album.id, album.coverHash, 600)} color={album.coverColor} title={album.title} subtitle={album.artist} large />
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>
+              <h1 className="show-title">{album.title}</h1>
+              <Link className="book-author" href={`/music/artist/${album.artistId}`}>
+                {album.artist}
+              </Link>
+              <div className="pills">
+                {albumPills(album).map((p) => (
+                  <span key={p} className="pill">
+                    {p}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
+
+          {state === "all" ? (
+            <div className="actions">
+              <button type="button" className="btn btn-primary btn-big" onClick={onPlay}>
+                {from && playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
+                <span>{from ? (playing ? "Pause" : "Resume") : "Play"}</span>
+              </button>
+              <ShuffleButton source={source} />
+              {/* Wide screens only; phones remove it from the ⋯ menu. */}
+              <button type="button" className="btn-round album-mine" aria-label={`Remove ${album.title} from your music`} disabled={busy} onClick={() => change(false)}>
+                <CheckIcon />
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="actions">
+                <button type="button" className="btn btn-primary btn-big" disabled={busy} onClick={() => change(true)}>
+                  <PlusIcon size={20} />
+                  <span>{state === "none" ? "Add to your music" : `Add the other ${plural(toAdd, "song")}`}</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-round"
+                  aria-label={from && playing ? "Pause" : "Play"}
+                  onClick={onPlay}
+                >
+                  {from && playing ? <PauseIcon /> : <PlayIcon />}
+                </button>
+              </div>
+              {state === "some" ? (
+                <p className="muted small" style={{ margin: "10px 0 0" }}>
+                  {`${album.songsInMusic} of ${plural(album.trackCount, "song")} in your music`}
+                </p>
+              ) : null}
+            </>
+          )}
+        </div>
+
+        <div className="album-tracks">
+          {albumDiscs(album.tracks).map((d) => (
+            <section key={d.disc ?? 0} className="section">
+              {d.disc !== null ? <h2 className="section-title">Disc {d.disc}</h2> : null}
+              <ol className="track-list">
+                {d.tracks.map((t, i) => (
+                  <li key={t.id} className={nowId === t.id ? "playing" : undefined}>
+                    <span className="track-num">{nowId === t.id ? <MixerBars playing={playing} /> : songNumber(t, i)}</span>
+                    <span className="track-main">
+                      <button type="button" className="track-title" onClick={() => p.playMusic(source, album.tracks.indexOf(t))}>
+                        {t.title}
+                      </button>
+                      {guestArtist(t, album.artistId) ? (
+                        <Link className="track-artist" href={`/music/artist/${t.artistId}`}>
+                          {t.artist}
+                        </Link>
+                      ) : null}
+                    </span>
+                    <span className="muted small song-len">{songLength(t)}</span>
+                    <MineToggle title={t.title} added={t.inMusic} change={{ trackIds: [t.id] }} />
+                    <SongQueueButton track={t} current={nowId === t.id} />
+                    <SongMenuButton track={t} hideAlbum />
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ))}
         </div>
       </div>
-
-      {state === "all" ? (
-        <div className="actions">
-          <button type="button" className="btn btn-primary btn-big" onClick={onPlay}>
-            {from && playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
-            <span>{from ? (playing ? "Pause" : "Resume") : "Play"}</span>
-          </button>
-          <ShuffleButton source={source} />
-        </div>
-      ) : (
-        <>
-          <div className="actions">
-            <button type="button" className="btn btn-primary btn-big" disabled={busy} onClick={() => change(true)}>
-              <PlusIcon size={20} />
-              <span>{state === "none" ? "Add to your music" : `Add the other ${plural(toAdd, "song")}`}</span>
-            </button>
-            <button
-              type="button"
-              className="btn-round"
-              aria-label={from && playing ? "Pause" : "Play"}
-              onClick={onPlay}
-            >
-              {from && playing ? <PauseIcon /> : <PlayIcon />}
-            </button>
-          </div>
-          {state === "some" ? (
-            <p className="muted small" style={{ margin: "10px 0 0" }}>
-              {`${album.songsInMusic} of ${plural(album.trackCount, "song")} in your music`}
-            </p>
-          ) : null}
-        </>
-      )}
-
-      {albumDiscs(album.tracks).map((d) => (
-        <section key={d.disc ?? 0} className="section">
-          {d.disc !== null ? <h2 className="section-title">Disc {d.disc}</h2> : null}
-          <ol className="track-list">
-            {d.tracks.map((t, i) => (
-              <li key={t.id} className={nowId === t.id ? "playing" : undefined}>
-                <span className="track-num">{nowId === t.id ? <MixerBars playing={playing} /> : songNumber(t, i)}</span>
-                <span className="track-main">
-                  <button type="button" className="track-title" onClick={() => p.playMusic(source, album.tracks.indexOf(t))}>
-                    {t.title}
-                  </button>
-                  {guestArtist(t, album.artistId) ? (
-                    <Link className="track-artist" href={`/music/artist/${t.artistId}`}>
-                      {t.artist}
-                    </Link>
-                  ) : null}
-                </span>
-                <span className="muted small">{songLength(t)}</span>
-                <MineToggle title={t.title} added={t.inMusic} change={{ trackIds: [t.id] }} />
-                <SongMenuButton track={t} hideAlbum />
-              </li>
-            ))}
-          </ol>
-        </section>
-      ))}
 
       <MenuSheet
         open={menu}

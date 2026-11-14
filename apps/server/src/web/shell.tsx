@@ -5,13 +5,17 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { startCast } from "./cast/cast";
 import { useDragToScroll } from "./drag-scroll";
+import { usePageArea, useWide } from "./layout";
 import { useLiveChanges } from "./live-changes";
 import type { UserPrefs } from "@murmur/shared/client";
 import { AppIcon, CloseIcon, LibraryIcon, MusicIcon, PodcastIcon, ProfileIcon, SearchIcon, WatchIcon } from "./icons";
 import { SearchProvider, useSearchState } from "./search/search-state";
 import { FullPlayer } from "./player/full-player";
 import { MiniPlayer } from "./player/mini-player";
-import { usePlayerSelect } from "./player/engine";
+import { NowPlaying } from "./player/now-playing";
+import { PlayerBar } from "./player/player-bar";
+import { SidePanel } from "./player/side-panel";
+import { usePlayerControls, usePlayerSelect } from "./player/engine";
 import { VideoPlayer } from "./watch/video-player";
 import { useVideo } from "./watch/video-session";
 
@@ -23,7 +27,10 @@ const TABS = [
   { href: "/you", label: "You", Icon: ProfileIcon, match: (p: string) => p.startsWith("/you") },
 ];
 
-/** A bottom bar of Search and the tabs on phones, a sidebar on wide screens, and the player on top of both. */
+/**
+ * A bottom bar of Search and the tabs on phones, with the player on top. On wide screens a grid
+ * (shell.css): the sidebar, the page, a side panel slot on the right and a bar slot along the bottom.
+ */
 export function Shell({
   tabs,
   children,
@@ -33,8 +40,14 @@ export function Shell({
 }) {
   const pathname = usePathname();
   const item = usePlayerSelect((p) => p.item);
+  const expanded = usePlayerSelect((p) => p.expanded);
+  const { setExpanded } = usePlayerControls();
+  const wide = useWide();
+  // On wide screens Now playing covers the page, which waits underneath, scrolled where it was.
+  const nowPlaying = wide && expanded && !!item;
   useDragToScroll();
   useLiveChanges();
+  usePageArea(wide);
   // Looks for Chromecasts; Chromium browsers only, and nothing shows until one is found.
   useEffect(() => startCast(), []);
   // Everything but You shows as you've set it in You > Tabs.
@@ -43,6 +56,7 @@ export function Shell({
   );
   const video = useVideo();
   // The video player has the whole screen on its own page, and is the mini player everywhere else.
+  // On wide screens it takes the page area there instead, and the bar slot everywhere.
   const watching = pathname.startsWith("/watch/play/");
   const miniVideo = !!video.item && !watching;
   // The bar starts opening or closing Search on the tap, not once the page has changed.
@@ -52,7 +66,12 @@ export function Shell({
   return (
     <SearchProvider>
       <div className={`shell ${item || miniVideo ? "has-player" : ""}`}>
-        <nav className={`tabs${searching ? " searching" : ""}`} aria-label="Main">
+        <nav
+          className={`tabs${searching ? " searching" : ""}`}
+          aria-label="Main"
+          // A tab closes Now playing, even the one already showing underneath it.
+          onClick={(e) => nowPlaying && (e.target as Element).closest("a") && setExpanded(false)}
+        >
           <div className="tabs-brand">
             <AppIcon />
             Murmur
@@ -65,24 +84,54 @@ export function Shell({
             </Link>
           ))}
         </nav>
-        <main className="page">{children}</main>
-      <MiniPlayer />
-      <FullPlayer />
+        {/* Focusable on wide screens, where it scrolls instead of the window (usePageArea). */}
+        <main className="page" inert={nowPlaying} tabIndex={wide ? -1 : undefined}>
+          {children}
+        </main>
+        {/* The bar on wide screens, the floating mini player on phones (shell.css hides it from 900px before this knows). */}
+        {wide ? <PlayerBar /> : <MiniPlayer />}
+        {wide ? <SidePanel /> : null}
+        {/* Expanded, the player covers the window on phones and the page area on wide screens. */}
+        {wide ? <NowPlaying /> : <FullPlayer />}
         {video.item ? <VideoPlayer key={video.item.progressId} item={video.item} autoplay={video.autoplay} mini={miniVideo} /> : null}
       </div>
     </SearchProvider>
   );
 }
 
+/** Typing "/" anywhere but in a field. */
+const isSlashKey = (e: KeyboardEvent) =>
+  e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !(e.target as HTMLElement).closest("input, textarea, select, [contenteditable]");
+
 /**
  * Search as the first tab. On phones, opening it grows its box out of the tab across the bar,
  * pushing the other tabs aside, with an X at the end; closing slides them back. In the
- * wide-screen sidebar it's a plain item, and the box is on the page.
+ * wide-screen sidebar the box is always there (and "/" jumps to it): typing in it opens the
+ * search page.
  */
 function DockSearch({ searching, onHeading }: { searching: boolean; onHeading: (to: "open" | "closed") => void }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const wide = useWide();
   const { query, setQuery, submit } = useSearchState();
   const field = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!wide) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!isSlashKey(e)) return;
+      e.preventDefault();
+      field.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [wide]);
+  const { setExpanded } = usePlayerControls();
+  // The results show in the page, so Now playing gives way to them.
+  const toSearch = () => {
+    if (!wide) return;
+    setExpanded(false);
+    if (!pathname.startsWith("/search")) router.push("/search");
+  };
   const close = () => {
     onHeading("closed");
     setQuery("");
@@ -114,6 +163,7 @@ function DockSearch({ searching, onHeading }: { searching: boolean; onHeading: (
             e.preventDefault();
             submit();
             field.current?.blur();
+            toSearch();
           }}
         >
           <label className="search-field">
@@ -124,11 +174,21 @@ function DockSearch({ searching, onHeading }: { searching: boolean; onHeading: (
               enterKeyHint="search"
               aria-label="Search"
               placeholder="Search"
-              tabIndex={searching ? undefined : -1}
+              tabIndex={searching || wide ? undefined : -1}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Escape" && close()}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                toSearch();
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== "Escape") return;
+                if (wide) field.current?.blur();
+                else close();
+              }}
             />
+            <kbd className="search-key" aria-hidden="true">
+              /
+            </kbd>
           </label>
         </form>
       </div>

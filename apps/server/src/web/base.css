@@ -25,13 +25,13 @@
   --radius: 14px;
   --tab-h: 72px;
   --mini-h: 64px;
+  /* The page's side padding; full-bleed rows (shelves, the hero) reach out by the same amount. */
+  --page-x: 20px;
   /* Also read by the code (web/css-vars.ts), so each number lives only here. */
   --toast-top: 66px;
   --player-close: 200ms;
   color-scheme: dark;
 }
-/* Phones and narrow windows: bottom tabs, and the full player pulls down to close. */
-@media (max-width: 899px) { :root { --narrow: 1; } }
 
 /* Light theme: chosen in Profile, or the device's when set to "System" (THEME_SCRIPT in web/theme.ts). */
 :root[data-theme="light"] {

@@ -5,7 +5,7 @@
 .page {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 28px 20px calc(var(--tab-h) + 32px);
+  padding: 28px var(--page-x) calc(var(--tab-h) + 32px);
 }
 .has-player .page { padding-bottom: calc(var(--tab-h) + var(--mini-h) + 40px); }
 
@@ -44,7 +44,7 @@
 /*
  * Search is the first tab. Opening it on a phone grows its box out of the tab across the bar:
  * the other tabs give up their width and fade, and the X slides in at the end. Closing runs
- * it backwards. Wide screens keep a plain sidebar item and put the box on the page.
+ * it backwards. In the wide-screen sidebar the box is always open, and the tab and X hide.
  */
 .dock-search { position: relative; flex: 1 1 0; min-width: 0; display: flex; }
 .dock-search > .tab-search { flex: 1 1 0; transition: opacity 0.18s; }
@@ -69,9 +69,6 @@
   .tabs .tab-hideable, .dock-search, .dock-close, .dock-field, .dock-search > .tab-search { transition: none; }
 }
 
-/* The search page's box: wide screens only, as phones use the bottom bar's. */
-.search-bar { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
-@media (max-width: 899px) { .page > .search-bar { display: none; } }
 .search-field {
   flex: 1;
   min-width: 0;
@@ -89,16 +86,46 @@
 .search-field input { flex: 1; min-width: 0; height: 24px; margin: 0; padding: 0; border: 0; border-radius: 0; appearance: none; -webkit-appearance: none; background: transparent; color: var(--text); font: inherit; font-size: 15px; font-weight: 600; line-height: 24px; outline: none; }
 .search-field input::-webkit-search-cancel-button,
 .search-field input::-webkit-search-decoration { -webkit-appearance: none; display: none; }
+/* The "/" hint in the sidebar's box. */
+.search-key { display: none; }
 .recent-row .list-row-play { color: var(--muted); }
 .recent-row .list-row-title { color: var(--text); font-weight: 600; }
 
 @media (min-width: 900px) {
-  :root { --side-w: 220px; }
+  :root { --side-w: 220px; --page-x: 32px; --bar-h: 86px; }
+  /*
+   * Sidebar, page and a side panel slot in a row, with a bar slot along the bottom under all
+   * three. The window doesn't scroll: the page does, and the rest stays put. The player bar
+   * (player.css) is the .shell-bar; the side panel drops into .shell-panel.
+   */
+  .shell {
+    display: grid;
+    grid-template-columns: var(--side-w) minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas: "side page panel" "bar bar bar";
+    height: 100dvh;
+    min-height: 0;
+  }
+  .shell-panel { grid-area: panel; min-height: 0; }
+  .shell-bar { grid-area: bar; }
+  .shell .page {
+    grid-area: page;
+    min-height: 0;
+    max-width: none;
+    margin: 0;
+    overflow-y: auto;
+    padding-bottom: 48px;
+    /* Pages lay themselves out by the room they have (the side panel can take some), not the window's. */
+    container: page / size;
+  }
+  /* Focused on navigation so the keyboard scrolls it (Shell); no ring for that. */
+  .shell .page:focus { outline: none; }
   .tabs {
-    top: 0;
-    right: auto;
-    width: var(--side-w);
+    grid-area: side;
+    position: static;
     height: auto;
+    min-height: 0;
+    overflow-y: auto;
     padding: 24px 12px;
     border-top: 0;
     border-right: 1px solid var(--line);
@@ -109,12 +136,15 @@
   }
   .tabs-brand { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 800; letter-spacing: -0.4px; padding: 0 12px 20px; }
   .tab { flex: none; align-self: auto; flex-direction: row; justify-content: flex-start; gap: 14px; height: 46px; padding: 0 12px; border-radius: 12px; font-size: 14px; }
-  .dock-search { display: contents; }
-  .dock-search > .tab-search { flex: none; }
-  .dock-field, .dock-close { display: none; }
-  .tabs.searching .tab-hideable, .tabs.searching .dock-search > .tab-search { opacity: 1; pointer-events: auto; }
+  .tabs .dock-search, .tabs.searching .dock-search { flex: none; display: block; margin-bottom: 12px; }
+  .dock-search > .tab-search, .dock-close { display: none; }
+  .dock-field, .tabs.searching .dock-field { position: static; transform: none; opacity: 1; pointer-events: auto; transition: none; }
+  .tabs.searching .tab-hideable { opacity: 1; pointer-events: auto; }
+  .tabs .search-field { height: 44px; gap: 10px; padding: 0 10px 0 12px; border-radius: 12px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+  .tabs .search-field:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .tabs .search-field input { font-size: 14px; font-weight: 500; }
+  .search-key { display: block; padding: 2px 7px; border-radius: 6px; background: var(--chip); color: var(--muted); font: inherit; font-size: 11px; font-weight: 700; }
+  .search-field:focus-within .search-key { display: none; }
   .tab:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
   .tab[aria-current="page"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
-  .shell .page { margin-left: calc(var(--side-w) + max(0px, (100vw - var(--side-w) - 1080px) / 2)); padding-bottom: 48px; }
-  .shell.has-player .page { padding-bottom: calc(var(--mini-h) + 48px); }
 }

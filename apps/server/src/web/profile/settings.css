@@ -25,6 +25,8 @@
 .settings-page { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
 .settings-page .section-title { margin-top: 16px; }
 .settings-page > .btn { align-self: flex-start; }
+/* Settings stay a readable width on wide screens. */
+@media (min-width: 900px) { .you-home, .settings-page { max-width: 720px; } }
 .folder-path { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 
 .login { max-width: 360px; margin: 14vh auto; padding: 0 20px; display: flex; flex-direction: column; gap: 12px; }

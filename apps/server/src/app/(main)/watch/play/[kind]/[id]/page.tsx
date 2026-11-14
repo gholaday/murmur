@@ -51,8 +51,10 @@ export default async function PlayPage({
       startAt: movie.progress && !movie.progress.finished ? movie.progress.positionSec : 0,
       backHref: `/watch/movie/${movie.id}`,
       next: [],
+      previous: null,
       autoplayNext: false,
       memoryKey: movie.id,
+      description: movie.description,
     };
   } else if (kind === "episode") {
     const play = await getEpisodePlay(ctx, user.id, id);
@@ -75,8 +77,10 @@ export default async function PlayPage({
       startAt: e.progress && !e.progress.finished ? e.progress.positionSec : 0,
       backHref: `/watch/show/${play.show.id}?season=${e.season}`,
       next: play.next,
+      previous: play.previous,
       autoplayNext: prefs.autoplayNext,
       memoryKey: play.show.id,
+      description: e.description,
     };
   } else notFound();
   return <OpenVideo item={item} versions={versions} />;
