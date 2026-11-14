@@ -122,21 +122,41 @@
  * and More alone on the top row. With room, the page splits into two columns.
  */
 @media (min-width: 900px) {
+  /* The wash fills at least the page area and eases out to the plain page colour at its end, or
+     over two screens on a long page, so it never stops at a visible line. */
   .detail {
     position: relative; isolation: isolate; overflow: clip;
+    min-height: calc(100cqh + 28px); align-content: start;
     margin: -28px calc(-1 * var(--page-x)) 0; padding: 72px var(--page-x) 0;
-    background: linear-gradient(to bottom, color-mix(in srgb, var(--tint) 14%, var(--bg)), var(--bg) 480px);
+    background: linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--tint) 14%, var(--bg)),
+        color-mix(in srgb, var(--tint) 12%, var(--bg)) 25%,
+        color-mix(in srgb, var(--tint) 9%, var(--bg)) 48%,
+        color-mix(in srgb, var(--tint) 6%, var(--bg)) 68%,
+        color-mix(in srgb, var(--tint) 3%, var(--bg)) 84%,
+        color-mix(in srgb, var(--tint) 1%, var(--bg)) 94%,
+        var(--bg)
+      )
+      top / 100% min(100%, 200cqh) no-repeat;
   }
   .detail .hero { position: static; isolation: auto; overflow: visible; margin: 0; padding: 0 0 6px; background: none; border-radius: 0; }
-  .detail .hero::before { inset: 0 0 auto; height: 560px; background-position: var(--page-x) 72px; }
+  /* The blurred art glows around the cover and thins out from its middle down, so its edge melts into the wash. */
+  .detail .hero::before {
+    inset: 0 0 auto; height: 640px; background-position: var(--page-x) 72px;
+    mask-image: linear-gradient(to bottom, #000 200px, rgba(0, 0, 0, 0.7) 300px, rgba(0, 0, 0, 0.35) 400px, rgba(0, 0, 0, 0.1) 500px, transparent 600px);
+  }
   .detail .hero-bar { position: absolute; top: 16px; left: calc(var(--page-x) - 10px); right: calc(var(--page-x) - 10px); }
   .detail .book-hero, .detail .show-hero, .detail .show-actions { padding-left: 0; padding-right: 0; }
   .detail .book-hero { padding-top: 0; }
+  /* A show's episodes head is see-through until it sticks, so the wash shows behind it. */
+  .detail .episodes-head { background: none; container-type: scroll-state; }
+  .detail .episodes-head::before { content: ""; position: absolute; z-index: -1; inset: 0 -1px; background: var(--bg); }
   /* A movie's or show's backdrop, across the top behind the hero, fading into the page. */
   .detail-backdrop {
-    position: absolute; z-index: -1; inset: 0 0 auto; height: 440px;
+    position: absolute; z-index: -1; inset: 0 0 auto; height: 600px;
     background: center 25% / cover no-repeat; opacity: 0.6;
-    mask-image: linear-gradient(to bottom, #000 35%, transparent);
+    mask-image: linear-gradient(to bottom, #000 25%, rgba(0, 0, 0, 0.55) 48%, rgba(0, 0, 0, 0.22) 68%, rgba(0, 0, 0, 0.06) 86%, transparent);
   }
   .detail:has(.detail-backdrop) .hero::before { display: none; }
   /* Settings (version, audio, subtitles) keep a readable width. */
@@ -168,9 +188,7 @@
   .show-detail .show-hero .cover { width: 100%; }
   .show-detail .show-title { font-size: 28px; line-height: 1.15; }
   .show-detail .show-episodes { margin-top: 52px; }
-  /* The sticky head is see-through until it sticks, so the page's colour wash shows behind it. */
-  .show-detail .episodes-head { margin: 0; padding: 0 0 8px; background: none; container-type: scroll-state; }
-  .show-detail .episodes-head::before { content: ""; position: absolute; z-index: -1; inset: 0 -1px; background: var(--bg); }
+  .show-detail .episodes-head { margin: 0; padding: 0 0 8px; }
 
   /* Movie and TV show: the settings card beside the hero and actions; the rest full width under them. */
   .video-detail { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 34%, 400px); column-gap: 40px; }
@@ -179,4 +197,4 @@
   .video-detail > .detail-side { grid-column: 2; grid-row: 1 / span 2; align-self: end; max-width: none; margin-top: 0; }
   .video-detail .description { max-width: 720px; }
 }
-@container scroll-state(stuck: none) { .show-detail .episodes-head::before { opacity: 0; } }
+@container scroll-state(stuck: none) { .detail .episodes-head::before { opacity: 0; } }
