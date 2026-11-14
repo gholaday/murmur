@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { chapterAt } from "@murmur/shared/client";
 import { BookmarkRows } from "../bookmark-rows";
 import { useBookmarks } from "../bookmarks";
@@ -11,9 +10,21 @@ import { usePlayerControls, usePlayerSelect, usePosition } from "./engine";
 
 // What's playing's chapters and bookmarks, wired to the player: the lists the player's sheets show.
 
-/** The Chapters sheet, with a Bookmarks tab beside its chapters. Picking from either closes it. */
-export function NowChaptersSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [tab, setTab] = useState<"chapters" | "bookmarks">("chapters");
+/**
+ * The Chapters sheet, with a Bookmarks tab beside its chapters. Picking from either closes it.
+ * The tab is the player's, so it's still the last one used after the player is minimised.
+ */
+export function NowChaptersSheet({
+  open,
+  onClose,
+  tab,
+  setTab,
+}: {
+  open: boolean;
+  onClose: () => void;
+  tab: "chapters" | "bookmarks";
+  setTab: (tab: "chapters" | "bookmarks") => void;
+}) {
   const item = usePlayerSelect((p) => p.item);
   const bookmarks = useBookmarks(item?.type, item?.id);
   return (

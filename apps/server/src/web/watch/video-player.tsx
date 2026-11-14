@@ -108,6 +108,8 @@ export interface PlayerItem {
   backHref: string;
   /** Episodes: the rest of the show, next one first. */
   next: VideoEpisode[];
+  /** Episodes: the one before, for the wide bar's Previous episode; null for a movie or a show's first. */
+  previous: VideoEpisode | null;
   /** Your Play next episode setting: off, the next-episode card waits for a tap. */
   autoplayNext: boolean;
   /** The audio language is remembered per movie and per show. */
@@ -752,6 +754,13 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     router.replace(playHref("episode", next.id));
   }, [next, router, save]);
 
+  const previous = item.previous;
+  const goPrevious = useCallback(() => {
+    if (!previous) return;
+    save();
+    router.replace(playHref("episode", previous.id));
+  }, [previous, router, save]);
+
   const toggleFullscreen = useCallback(async () => {
     const el = rootRef.current;
     if (!el) return;
@@ -1049,11 +1058,18 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
     seekTo(to, false);
     poke();
   };
-  const transport = (
+  // The wide bar steps back an episode when there is one; elsewhere the first button starts over.
+  const transport = (inBar: boolean) => (
     <div className="player-controls">
-      <button type="button" className="icon-btn dim" aria-label="Start over" onClick={() => seekTo(0)}>
-        <PrevChapterIcon />
-      </button>
+      {inBar && item.previous ? (
+        <button type="button" className="icon-btn dim" aria-label="Previous episode" onClick={goPrevious}>
+          <PrevChapterIcon />
+        </button>
+      ) : (
+        <button type="button" className="icon-btn dim" aria-label="Start over" onClick={() => seekTo(0)}>
+          <PrevChapterIcon />
+        </button>
+      )}
       <button type="button" className="skip-btn" aria-label={`Skip back ${audioSkip.back} seconds`} onClick={() => skip(-audioSkip.back)}>
         <SkipBackIcon size={36} />
         <span>{audioSkip.back}</span>
@@ -1116,7 +1132,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
               <div className="pbar-open">{barText}</div>
             )}
             <div className="pbar-mid" onPointerDown={poke}>
-              {transport}
+              {transport(true)}
               <div className="player-scrub">
                 <div className="scrub-wrap">
                   <Scrubber store={times} total={total} onScrub={onScrub} onRelease={(to) => seekTo(to)} />
@@ -1299,7 +1315,7 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
         <div className="vp-controls" onPointerDown={poke}>
           <Scrubber store={times} total={total} onScrub={onScrub} onRelease={(to) => seekTo(to)} />
           <Times store={times} total={total} />
-          {transport}
+          {transport(false)}
           {/* Sideways or in full screen: what the tiles hold, at the bottom right of the picture. */}
           <div className="vp-tools">
             <VolumeControl />

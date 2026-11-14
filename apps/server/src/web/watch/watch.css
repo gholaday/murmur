@@ -224,6 +224,10 @@ button.setting-link { width: 100%; text-align: left; color: inherit; }
   }
   .vp-shell .vp-stage > .vp-slow { display: flex; top: auto; right: auto; bottom: 12px; left: 16px; max-width: 380px; background: rgba(0, 0, 0, 0.78); color: #fff; }
   .vp-shell .vp-slow .icon-btn { color: #fff; }
+  /* Under 1200px the open panel floats over the picture's right side, so the Next episode card moves to its top left. */
+  @media (max-width: 1199px) {
+    .shell:has(> .side-panel) > .vp-shell .vp-next { top: 12px; bottom: auto; left: 16px; right: auto; }
+  }
   .vp-about { padding: 16px var(--page-x) 48px; }
   .vp-about-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-right: -10px; }
   .vp-about .player-from { text-align: left; }
@@ -253,7 +257,7 @@ button.setting-link { width: 100%; text-align: left; color: inherit; }
   .vp-docked .vp-stage { position: absolute; inset: 0; margin: 0; aspect-ratio: auto; border-radius: 0; box-shadow: none; cursor: pointer; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .vp-docked { animation: none; }
+  .vp-docked, .vp.vp-shell { animation: none; }
 }
 
 /* Pages on wide screens: Continue watching and Next episodes wrap into a grid of stills (the

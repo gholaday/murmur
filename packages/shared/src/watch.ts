@@ -314,6 +314,8 @@ export interface EpisodePlayDto {
   show: { id: string; title: string; color: string | null };
   /** The rest of the show in order, starting with the next episode. */
   next: VideoEpisode[];
+  /** The episode before it, or null for the show's first. */
+  previous: VideoEpisode | null;
 }
 
 /** A video counts as watched once you're this far through. */

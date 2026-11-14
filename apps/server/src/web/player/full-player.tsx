@@ -81,6 +81,8 @@ export function FullPlayer() {
   const [sheet, setSheet] = useState<null | TileSheet | "more" | "ads">(null);
   const [editingBookmark, setEditingBookmark] = useState<{ bookmark: BookmarkDto; isNew: boolean } | null>(null);
   const [speedOpen, setSpeedOpen] = useState(false);
+  // Kept here, not in the sheet, so it outlives the player being minimised.
+  const [chaptersTab, setChaptersTab] = useState<"chapters" | "bookmarks">("chapters");
   /** Where the scrubber is being dragged to; the player follows it until it's let go. */
   const [scrub, setScrub] = useState<number | null>(null);
   const { item, expanded, setExpanded } = p;
@@ -191,7 +193,7 @@ export function FullPlayer() {
       <UpNextSheet open={sheet === "upnext"} onClose={() => setSheet(null)} />
 
       <SleepSheet open={sheet === "sleep"} onClose={closeSheet} />
-      <NowChaptersSheet open={sheet === "chapters"} onClose={closeSheet} />
+      <NowChaptersSheet open={sheet === "chapters"} onClose={closeSheet} tab={chaptersTab} setTab={setChaptersTab} />
       <NowBookmarksSheet open={sheet === "bookmarks"} onClose={closeSheet} />
 
       <BookmarkNoteSheet bookmark={editingBookmark?.bookmark ?? null} isNew={editingBookmark?.isNew} onClose={() => setEditingBookmark(null)} />
