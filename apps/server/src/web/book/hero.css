@@ -163,21 +163,28 @@
   .detail-side { max-width: 560px; }
 }
 .detail-backdrop { display: none; }
-@media (min-width: 900px) { .detail-backdrop { display: block; } }
+@media (min-width: 900px) {
+  .detail-backdrop { display: block; }
+  /* A book page keeps its bottom space inside .detail, so its side column can reach the bottom edge. */
+  .shell .page:has(.book-detail) { padding-bottom: 0; }
+  .book-detail { padding-bottom: 48px; }
+}
 
 @container page (min-width: 840px) {
   /* Book: the book, its description and actions on the left; chapters and bookmarks as two text
-     tabs in a column on the right that stays in view and scrolls inside itself. */
-  .book-detail { display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 34%, 420px); column-gap: 40px; align-items: start; padding-top: 16px; }
-  /* The back arrow and More sit over the book only, so the column starts at the very top. */
+     tabs in a full-height column on the right, flush with the top, right and bottom of the page
+     area like the side panel, that stays in view and scrolls inside itself. */
+  .book-detail { display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 34%, 420px); column-gap: 32px; align-items: start; padding-top: 16px; }
+  /* The back arrow and More sit over the book only. */
   .book-detail .hero-bar { position: static; margin: 0 -10px 12px; }
   .book-side {
-    /* Sticky offsets count from inside the page's 28px top padding: this is 16px from the top. */
-    position: sticky; top: -12px; display: flex; flex-direction: column; max-height: calc(100cqh + 44px);
-    padding: 6px 12px 8px; border-radius: var(--radius); background: color-mix(in srgb, var(--surface) 80%, transparent);
+    /* Sticky offsets count from inside the page's 28px top padding: this is the very top. */
+    position: sticky; top: -28px; display: flex; flex-direction: column; height: calc(100cqh + 28px);
+    margin: -16px calc(-1 * var(--page-x)) -48px 0; padding-top: 12px;
+    background: var(--nav); border-left: 1px solid var(--line);
   }
-  .book-side-tabs { display: block; flex: none; margin: 0 8px 4px; }
-  .book-side .section { flex: 1; min-height: 0; margin: 0; padding: 0 8px; overflow-y: auto; scrollbar-width: thin; }
+  .book-side-tabs { display: block; flex: none; margin: 0 20px; }
+  .book-side .section { flex: 1; min-height: 0; margin: 0; padding: 8px 20px 20px; overflow-y: auto; scrollbar-width: thin; }
   .book-side .section-head { display: none; }
   .book-side[data-tab="chapters"] .book-side-bookmarks, .book-side[data-tab="bookmarks"] .book-side-chapters { display: none; }
   .book-side .chapter-list li:last-child button { border-bottom: 0; }
