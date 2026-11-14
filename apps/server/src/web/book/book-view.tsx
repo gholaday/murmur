@@ -2,19 +2,40 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
-import { apiPaths, type BookDetail, type BookmarkDto, chapterAt, duration, FALLBACK_TINT, pastStart, plural, timeLeft } from "@murmur/shared/client";
+import { useCallback, useState, useSyncExternalStore } from "react";
+import { apiPaths, storageKeys, type BookDetail, type BookmarkDto, chapterAt, duration, FALLBACK_TINT, pastStart, plural, timeLeft } from "@murmur/shared/client";
 import { useAdmin } from "../admin";
 import { BookmarkRows } from "../bookmark-rows";
 import { useBookmarks } from "../bookmarks";
 import { MenuSheet } from "../card-menu";
 import { ChapterList } from "../chapter-list";
 import { Cover } from "../cover";
-import { CheckIcon, PauseIcon, PlayIcon, QueueAddIcon } from "../icons";
+import { CheckIcon, CloseIcon, ListIcon, PauseIcon, PlayIcon, QueueAddIcon } from "../icons";
 import { bookToPlayable, usePlayerControls, usePlayerSelect, usePosition } from "../player/engine";
 import { Chip, Chips, Description, HeroBar, SectionTitle } from "../ui";
 import { BookMenuItems, useBookActions } from "./book-actions";
 import { EditBookDialog, type EditTab } from "./edit-dialog";
+import { getJson, setJson } from "../storage";
+
+// Whether the side column is open, for every book, remembered in this browser. Open until closed.
+let sideOpen: boolean | undefined;
+const sideListeners = new Set<() => void>();
+
+function loadSideOpen() {
+  sideOpen ??= getJson<boolean>(storageKeys.bookSide) !== false;
+  return sideOpen;
+}
+
+function saveSideOpen(open: boolean) {
+  sideOpen = open;
+  setJson(storageKeys.bookSide, open);
+  sideListeners.forEach((l) => l());
+}
+
+function subscribeSide(onChange: () => void) {
+  sideListeners.add(onChange);
+  return () => sideListeners.delete(onChange);
+}
 
 export function BookView({ book, bookmarks: firstBookmarks }: { book: BookDetail; bookmarks: BookmarkDto[] }) {
   const router = useRouter();
@@ -60,6 +81,8 @@ export function BookView({ book, bookmarks: firstBookmarks }: { book: BookDetail
     ...(bookmarks.length ? [{ id: "bookmarks" as const, label: "Bookmarks" }] : []),
   ];
   const shownTab = sideTabs.find((t) => t.id === sideTab)?.id ?? sideTabs[0]?.id;
+  const sideShown = useSyncExternalStore(subscribeSide, loadSideOpen, () => true);
+  const sideName = sideTabs.map((t) => t.label.toLowerCase()).join(" and ");
 
   return (
     <>
@@ -74,7 +97,13 @@ export function BookView({ book, bookmarks: firstBookmarks }: { book: BookDetail
       >
         <div className="detail-main">
           <div className="hero">
-            <HeroBar onMore={() => setMenu(true)} />
+            <HeroBar onMore={() => setMenu(true)}>
+              {sideTabs.length && !sideShown ? (
+                <button type="button" className="icon-btn book-side-open" aria-label={`Show ${sideName}`} onClick={() => saveSideOpen(true)}>
+                  <ListIcon />
+                </button>
+              ) : null}
+            </HeroBar>
             <div className="book-hero">
               <Cover
                 src={coverSrc}
@@ -155,8 +184,8 @@ export function BookView({ book, bookmarks: firstBookmarks }: { book: BookDetail
         </div>
 
         {sideTabs.length ? (
-          <aside className="book-side" data-tab={shownTab}>
-            <div className="book-side-tabs">
+          <aside className={sideShown ? "book-side" : undefined} data-tab={shownTab}>
+            <div className="book-side-tabs side-panel-head side-panel-tabs">
               <Chips kind="tabs" label="Chapters and bookmarks">
                 {sideTabs.map((t) => (
                   <Chip key={t.id} selected={t.id === shownTab} onClick={() => setSideTab(t.id)}>
@@ -164,6 +193,9 @@ export function BookView({ book, bookmarks: firstBookmarks }: { book: BookDetail
                   </Chip>
                 ))}
               </Chips>
+              <button type="button" className="icon-btn" aria-label={`Hide ${sideName}`} onClick={() => saveSideOpen(false)}>
+                <CloseIcon />
+              </button>
             </div>
             {bookmarks.length ? (
               <section className="section book-side-bookmarks">
