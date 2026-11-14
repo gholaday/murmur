@@ -916,8 +916,12 @@ export function VideoPlayer({ item, autoplay, mini }: { item: PlayerItem; autopl
       lastTick.current = { at: now, pos: at };
     }
     const left = total - at;
+    // Moving back out of the last seconds puts the card away; it comes up again, counting afresh, on the way back in.
+    if (left > NEXT_CARD_AT_SEC) {
+      if (countdown !== null) setCountdown(null);
+    }
     // The next episode only comes on by itself on the player's page, never from the mini player.
-    if (!mini && next && countdown === null && !nextDismissed.current && left > 0 && left <= NEXT_CARD_AT_SEC) setCountdown(COUNTDOWN);
+    else if (!mini && next && countdown === null && !nextDismissed.current && left > 0) setCountdown(COUNTDOWN);
   };
 
   const onLoaded = () => {
