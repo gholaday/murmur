@@ -38,7 +38,6 @@ export const storageKeys = {
   sidePanel: "murmur.sidePanel",
   /** NextPanel: whether the video player's Next episodes panel is open on wide screens. */
   videoPanel: "murmur.videoPanel",
-  bookSide: "murmur.bookSide",
 
   // ---------- App ----------
   server: "murmur.server",

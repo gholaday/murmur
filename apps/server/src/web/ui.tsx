@@ -130,19 +130,16 @@ export function BackRow({ fallback, onClick, children }: { fallback?: string; on
   );
 }
 
-/** The top row of a page with a hero (a book, show, movie): the back arrow, and More on the right, after any `children`. */
-export function HeroBar({ fallback, onMore, children }: { fallback?: string; onMore?: () => void; children?: React.ReactNode }) {
+/** The top row of a page with a hero (a book, show, movie): the back arrow, and More on the right. */
+export function HeroBar({ fallback, onMore }: { fallback?: string; onMore?: () => void }) {
   return (
     <div className="hero-bar">
       <BackButton fallback={fallback} />
-      <div className="hero-bar-end">
-        {children}
-        {onMore ? (
-          <button type="button" className="icon-btn" aria-label="More options" onClick={onMore}>
-            <MoreIcon />
-          </button>
-        ) : null}
-      </div>
+      {onMore ? (
+        <button type="button" className="icon-btn" aria-label="More options" onClick={onMore}>
+          <MoreIcon />
+        </button>
+      ) : null}
     </div>
   );
 }
