@@ -115,9 +115,14 @@ const similarItem = (b: BookSummary): SimilarItem & { book: BookSummary } => ({
   book: b,
 });
 
-/** The book More like is about: the one you finished last that has genres, or at least an author. */
+/**
+ * The book More like is about: the one you finished last that has genres, or at least an author.
+ * One you only marked finished doesn't count; a server too old to say is taken as listened.
+ */
 export function moreLikeSource(books: BookSummary[]): BookSummary | null {
-  const finished = books.filter((b) => present(b) && b.progress?.finished).sort((a, b) => b.progress!.updatedAt - a.progress!.updatedAt);
+  const finished = books
+    .filter((b) => present(b) && b.progress?.finished && b.listened !== false)
+    .sort((a, b) => b.progress!.updatedAt - a.progress!.updatedAt);
   return finished.find((b) => (b.genres ?? []).length > 0) ?? finished.find((b) => b.author) ?? null;
 }
 

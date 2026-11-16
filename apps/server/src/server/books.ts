@@ -1,4 +1,4 @@
-import type { BookDetail, BookSummary, ChapterDto, MatchProvider } from "@murmur/shared";
+import { type BookDetail, type BookSummary, type ChapterDto, type MatchProvider, STATS_MIN_SEC } from "@murmur/shared";
 import type { AppContext } from "./context";
 import { env } from "./env";
 import { coverColors } from "./library/covers";
@@ -22,6 +22,7 @@ interface BookRow {
   p_speed: number | null;
   play_next: number | null;
   genres: string | null;
+  listened: number;
 }
 
 /** A JSON list of names from the database; null or anything broken reads as none, so one bad row can't break a page. */
@@ -45,13 +46,15 @@ const SUMMARY_COLUMNS = `
   b.duration_sec, COALESCE(o.cover_hash, b.cover_hash) AS cover_hash, b.added_at, b.missing_since,
   (o.provider IS NOT NULL OR o.marked_matched = 1) AS matched, COALESCE(o.marked_matched, 0) AS marked_matched,
   p.position_sec AS p_position, p.finished AS p_finished, p.updated_at AS p_updated, p.speed AS p_speed,
-  pn.position AS play_next, o.genres`;
+  pn.position AS play_next, o.genres, COALESCE(ls.sec, 0) >= ${STATS_MIN_SEC.book} AS listened`;
 
 /** Takes @user for the person's place and Play next; a null @user (Match, edits) has neither. */
 const JOINS = `
   LEFT JOIN book_overrides o ON o.book_id = b.id
   LEFT JOIN progress p ON p.user_id = @user AND p.item_type = 'book' AND p.item_id = b.id
-  LEFT JOIN play_next pn ON pn.user_id = @user AND pn.book_id = b.id`;
+  LEFT JOIN play_next pn ON pn.user_id = @user AND pn.book_id = b.id
+  LEFT JOIN (SELECT item_id, SUM(listened_sec) AS sec FROM listening_days WHERE user_id = @user AND item_type = 'book' GROUP BY item_id) ls
+    ON ls.item_id = b.id`;
 
 function toSummary(r: BookRow, colors: Map<string, string>): BookSummary {
   return {
@@ -70,6 +73,7 @@ function toSummary(r: BookRow, colors: Map<string, string>): BookSummary {
     markedMatched: r.marked_matched === 1,
     playNext: r.play_next,
     genres: stringList(r.genres),
+    listened: r.listened === 1,
     progress:
       r.p_updated === null
         ? null

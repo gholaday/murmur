@@ -496,12 +496,17 @@ async function refreshRestored(saved: SavedPlace, shownAt: number | null) {
   try {
     const fresh = resumeFrom(await fetchPlayable(saved));
     if (shownAt === null) {
-      if (!core.getState().item) core.putBack(fresh);
+      // A song's place is only on the phone, saved with it.
+      if (core.getState().item) return;
+      if (fresh.type === "track") core.restore(saved, fresh);
+      else core.putBack(fresh);
       return;
     }
     if (!untouched()) return;
     // An episode's length and chapters came from the file and the server since; a book's details are all here.
     const cur = core.getState().item!;
+    // The server keeps no place for a song, so it stays where the phone put it.
+    if (fresh.type === "track") return;
     core.updateItem(fresh.type === "book" ? fresh : { ...cur, startAt: fresh.startAt, speed: fresh.speed }, fresh.startAt);
   } catch (err) {
     if (err instanceof HttpError && (err.status === 404 || err.status === 410)) {

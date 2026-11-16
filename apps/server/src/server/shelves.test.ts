@@ -153,7 +153,9 @@ it("ranks More like on the last finished book with genres, deeper matches first"
   const classic = sf("Monte Cristo", ["Literature & Fiction > Classics"]);
   const rootOnly = sf("Romance", ["Literature & Fiction > Romance"]);
   const byAuthor = sf("Screwtape", [], { author: "C.S. Lewis, Someone Else" });
-  const books = [done, later, deep, shallow, classic, rootOnly, byAuthor];
+  // Marked finished later without being listened to: skipped too.
+  const marked = sf("Marked", ["Literature & Fiction > Romance"], { listened: false, progress: { finished: true, positionSec: 3600, speed: 1, updatedAt: 30 } });
+  const books = [done, later, marked, deep, shallow, classic, rootOnly, byAuthor];
   expect(moreLikeSource(books)?.id).toBe("Perelandra");
   expect(shelfTitle("like", books)).toBe("More like Perelandra");
   // Hail Mary shares the whole three-level ladder. Monte Cristo beats Dune because Classics is rarer here

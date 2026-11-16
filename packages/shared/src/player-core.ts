@@ -420,7 +420,9 @@ export function createPlayerCore(platform: PlayerPlatform) {
     if (!it) return Promise.resolve();
     if (finished) endHold();
     lastSaved = platform.now();
-    // Songs keep no position, and a hold leaves the real place alone; only the listening time goes up.
+    // A song's place is only kept on this device, to put it back after a restart; the server keeps none.
+    if (it.type === "track") platform.setJson(NOW_PLAYING_KEY, { itemType: it.type, itemId: it.id, at: finished ? 0 : position } satisfies SavedPlace);
+    // And a hold leaves the real place alone; only the listening time goes up.
     if (it.type === "track" || hold) return Promise.resolve(platform.saveListening(!state.playing));
     const dur = it.durationSec || media.duration || 0;
     const at = finished ? dur : position;
@@ -801,7 +803,7 @@ export function createPlayerCore(platform: PlayerPlatform) {
 
   /** Puts back what was playing when the page or app closed, paused, at the place saved with it. */
   function restore(saved: SavedPlace, it: Playable) {
-    putBack(it.type !== "track" && saved.at !== undefined ? { ...it, startAt: saved.at } : it);
+    putBack(saved.at !== undefined ? { ...it, startAt: saved.at } : it);
   }
 
   /** Back to the real place. */
