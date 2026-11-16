@@ -425,6 +425,8 @@ export interface BookSummary {
   progress: Pick<ProgressDto, "positionSec" | "finished" | "speed" | "updatedAt"> | null;
   /** Audible genre ladders ("A > B > C") saved when the book was matched; empty otherwise. */
   genres: string[];
+  /** You've listened to it for the 5 minutes Stats asks for, at any time. Older servers don't send it. */
+  listened?: boolean;
 }
 
 interface BookFileDto {
