@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { createPlayerCore, DEFAULT_AD_PREFS, type Playable, type PlayerMedia, type ProgressItem, type TrackDto } from "@murmur/shared/client";
+import { createPlayerCore, DEFAULT_AD_PREFS, type Playable, type PlayerMedia, type ProgressItem, type SavedPlace, storageKeys, type TrackDto, trackToPlayable } from "@murmur/shared/client";
 
 // The shared player's ordering and timing rules, with fake audio.
 
@@ -21,6 +21,7 @@ const track = (id: string, durationSec = 200): TrackDto => ({
 function setup() {
   const saved: ProgressItem[] = [];
   const loads: Array<{ id: string; at: number }> = [];
+  const json = new Map<string, unknown>();
   let clock = 0;
   const media: PlayerMedia & { preloadedId: string | null; isPlaying: boolean } = {
     preloadedId: null,
@@ -62,7 +63,7 @@ function setup() {
     toast: () => undefined,
     toastError: () => undefined,
     getJson: () => null,
-    setJson: () => undefined,
+    setJson: (key, value) => void json.set(key, value),
     removeKey: () => undefined,
     saveProgress: (entry) => void saved.push(entry),
     saveListening: () => undefined,
@@ -79,7 +80,7 @@ function setup() {
       core.time(t, true);
     }
   };
-  return { core, media, loads, saved, playOn };
+  return { core, media, loads, saved, json, playOn };
 }
 
 const album = { kind: "album" as const, refId: "al", title: "Album", tracks: [track("a"), track("b"), track("c")] };
@@ -104,6 +105,27 @@ it("restarts the song on Previous once it's more than 3 seconds in", () => {
   expect(core.getState().item?.id).toBe("b");
   core.trackStep(-1);
   expect(core.getState().item?.id).toBe("a");
+});
+
+it("keeps a song's place on the device, not on the server, and puts it back paused there", () => {
+  const { core, media, loads, saved, json, playOn } = setup();
+  core.playMusic(album, 1);
+  core.playingChanged(true);
+  playOn(0, 42);
+  core.playingChanged(false);
+  const place = json.get(storageKeys.nowPlaying) as SavedPlace;
+  expect(place).toEqual({ itemType: "track", itemId: "b", at: 42 });
+  expect(saved).toEqual([]);
+
+  const next = setup();
+  next.core.restore(place, trackToPlayable(track("b")));
+  expect(next.loads).toEqual([{ id: "b", at: 42 }]);
+  expect(next.media.isPlaying).toBe(false);
+  // The next song starts from the top, and is saved without a place.
+  core.trackStep(1);
+  expect(loads.at(-1)).toEqual({ id: "c", at: 0 });
+  expect(json.get(storageKeys.nowPlaying)).toEqual({ itemType: "track", itemId: "c" });
+  expect(media.isPlaying).toBe(true);
 });
 
 it("saves a book's place on pause, but not a pause right at its end", () => {
