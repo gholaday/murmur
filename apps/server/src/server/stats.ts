@@ -67,15 +67,19 @@ async function topOf(ctx: AppContext, userId: number, byItem: Map<string, number
   return [...(await topBooks(ctx, userId, byItem, 1)), ...topPodcasts(ctx, byItem, 1), ...musicStats(ctx, userId, byItem, 1).top.filter((t) => t.kind !== "song"), ...watchStats(ctx, byItem, 1).top];
 }
 
-/** Books finished between two instants, latest first, with how many days each took. */
+/**
+ * Books finished between two instants (user, from, to), and listened to for long enough to reach
+ * the top list (the last parameter): one only marked finished, never played, isn't counted.
+ */
+const FINISHED_BOOKS = `FROM progress p
+  WHERE p.user_id = ? AND p.item_type = 'book' AND p.finished = 1 AND p.updated_at >= ? AND p.updated_at < ?
+    AND (SELECT SUM(l.listened_sec) FROM listening_days l WHERE l.user_id = p.user_id AND l.item_type = 'book' AND l.item_id = p.item_id) >= ?`;
+
+/** Those books, latest first, with how many days each took. */
 async function finishedBooks(ctx: AppContext, userId: number, fromMs: number, toMs: number, tzMinutes: number): Promise<StatsFinished[]> {
   const rows = ctx.sqlite
-    .prepare(
-      `SELECT item_id AS id, updated_at AS at FROM progress
-       WHERE user_id = ? AND item_type = 'book' AND finished = 1 AND updated_at >= ? AND updated_at < ?
-       ORDER BY updated_at DESC LIMIT ?`,
-    )
-    .all(userId, fromMs, toMs, MAX_FINISHED) as Array<{ id: string; at: number }>;
+    .prepare(`SELECT p.item_id AS id, p.updated_at AS at ${FINISHED_BOOKS} ORDER BY p.updated_at DESC LIMIT ?`)
+    .all(userId, fromMs, toMs, STATS_MIN_SEC.book, MAX_FINISHED) as Array<{ id: string; at: number }>;
   if (!rows.length) return [];
   const books = await booksByIds(
     ctx,
@@ -149,12 +153,8 @@ export async function getStats(ctx: AppContext, userId: number, period: StatsPer
   // Progress times are real instants, so the period's days become instants in the listener's zone.
   const startMs = (day: string) => Date.parse(`${day}T00:00:00Z`) - tzMinutes * 60_000;
   const finished = db
-    .prepare(
-      `SELECT COUNT(*) AS n FROM progress
-       WHERE user_id = ? AND item_type = 'book' AND finished = 1 AND updated_at >= ? AND updated_at < ?`,
-    )
-    // All time starts at the first listening day, but books finished before stats began still count.
-    .get(userId, period === "all" ? 0 : startMs(range.from), startMs(range.to) + 86_400_000) as { n: number };
+    .prepare(`SELECT COUNT(*) AS n ${FINISHED_BOOKS}`)
+    .get(userId, period === "all" ? 0 : startMs(range.from), startMs(range.to) + 86_400_000, STATS_MIN_SEC.book) as { n: number };
 
   const ids = (type: StatsType, atLeast: number) =>
     [...byItem].filter(([key, sec]) => key.startsWith(`${type}:`) && sec >= atLeast).map(([key]) => key.slice(type.length + 1));
