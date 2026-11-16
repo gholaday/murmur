@@ -307,8 +307,8 @@ export const songNumber = (t: TrackDto, index: number): number => t.trackNo ?? i
 /** A song by someone other than the album's artist shows its own artist under the title. */
 export const guestArtist = (t: TrackDto, albumArtistId: string): string | null => (t.artistId !== albumArtistId ? t.artist : null);
 
-/** The grey pills on an album page: year, song count, length. */
-export function albumPills(a: AlbumSummary): string[] {
+/** The facts line under an album page's artist: year, song count, length. */
+export function albumFacts(a: AlbumSummary): string[] {
   return [a.year, plural(a.trackCount, "song"), duration(a.durationSec)].filter((p): p is string => !!p);
 }
 

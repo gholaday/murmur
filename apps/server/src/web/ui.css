@@ -32,7 +32,7 @@
   white-space: nowrap;
 }
 .count-pill { background: var(--chip); color: var(--muted); margin-left: 8px; vertical-align: 3px; }
-.badge-count, .episode-more { background: var(--accent); color: var(--on-accent); }
+.badge-count, .episode-more, .count-pill.accent { background: var(--accent); color: var(--on-accent); }
 .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.6px; text-transform: uppercase; }
 
 /* ---------- Loading ---------- */

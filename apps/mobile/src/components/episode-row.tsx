@@ -30,13 +30,9 @@ export const EpisodeRow = memo(function EpisodeRow({
   newCount?: number;
 }) {
   const t = useTheme();
-  // Only what this row shows, so play and pause elsewhere don't re-render every row.
-  const current = usePlayerSelect((s) => isCurrent(s, "episode", episode.id));
-  const playing = usePlayerSelect((s) => current && s.playing);
-  const loading = usePlayerSelect((s) => current && s.loading);
-  const liveDur = usePlayerSelect((s) => (current ? s.item?.durationSec : null));
+  const play = useEpisodePlay(episode);
+  const { current, played, finished, dur } = play;
   const queued = usePlayerSelect((s) => isWaiting(s.upNext, { itemType: "episode", itemId: episode.id }));
-  const live = useItemPosition("episode", episode.id) ?? 0;
   const dl = useDownload("podcast", episode.id);
   const bookmarks = useBookmarks("episode", episode.id);
   const [open, setOpen] = useState(false);
@@ -44,13 +40,7 @@ export const EpisodeRow = memo(function EpisodeRow({
   const [busy, setBusy] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
-  const played = !!episode.progress?.finished && !current;
-  const finished = !!episode.progress?.finished;
-  const dur = liveDur || episode.durationSec || 0;
-  const position = current ? live : episode.progress && !episode.progress.finished ? episode.progress.positionSec : 0;
-  const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
   const ref = { itemType: "episode" as const, itemId: episode.id };
-  const time = played ? "Played" : pastStart(position) && dur ? timeLeft(dur, position) : duration(dur);
 
   const openShow = () => router.push(`/show/${episode.podcastId}`);
 
@@ -64,13 +54,6 @@ export const EpisodeRow = memo(function EpisodeRow({
     } finally {
       setBusy(false);
     }
-  };
-
-  // Starting the episode opens the full player; pausing and resuming stay here.
-  const onPlay = () => {
-    if (current) return toggle();
-    play(episodeToPlayable(episode), played ? 0 : undefined);
-    router.push("/player");
   };
 
   const toggleQueue = () =>
@@ -165,38 +148,7 @@ export const EpisodeRow = memo(function EpisodeRow({
         ) : null}
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${playing ? "Pause" : played ? "Play again" : "Play"}, ${time}`}
-            onPress={onPlay}
-            style={({ pressed }) => ({
-              height: 32,
-              borderRadius: 16,
-              paddingLeft: 8,
-              paddingRight: 12,
-              marginRight: 6,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              backgroundColor: t.accent,
-              opacity: pressed ? 0.85 : 1,
-            })}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color={t.onAccent} style={{ width: 16, height: 16 }} />
-            ) : playing ? (
-              <PauseIcon size={16} color={t.onAccent} />
-            ) : (
-              <PlayIcon size={16} color={t.onAccent} />
-            )}
-            <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: t.onAccent }}>{time}</Text>
-          </Pressable>
-          {pct > 0 && !played ? (
-            // Shrinks on narrow phones so the action bar never overflows.
-            <View style={{ flexBasis: 56, flexShrink: 1, minWidth: 14, height: 4, borderRadius: 2, backgroundColor: t.line, overflow: "hidden", marginRight: 6 }}>
-              <View style={{ width: `${pct}%`, height: "100%", backgroundColor: t.accent }} />
-            </View>
-          ) : null}
+          <EpisodePlay play={play} />
           <ActionIcon label={queued ? "Remove from queue" : "Add to queue"} selected={queued} disabled={busy || current} onPress={() => void toggleQueue()}>
             <QueueAddIcon size={20} queued={queued} color={queued ? t.accent : t.text2} />
           </ActionIcon>
@@ -222,6 +174,78 @@ export const EpisodeRow = memo(function EpisodeRow({
     </View>
   );
 });
+
+/**
+ * What an episode's play pill shows, following the player: only what it needs, so play and pause
+ * elsewhere don't re-render every row.
+ */
+export function useEpisodePlay(episode: EpisodeWithShow) {
+  const current = usePlayerSelect((s) => isCurrent(s, "episode", episode.id));
+  const playing = usePlayerSelect((s) => current && s.playing);
+  const loading = usePlayerSelect((s) => current && s.loading);
+  const liveDur = usePlayerSelect((s) => (current ? s.item?.durationSec : null));
+  const live = useItemPosition("episode", episode.id) ?? 0;
+  const played = !!episode.progress?.finished && !current;
+  const dur = liveDur || episode.durationSec || 0;
+  const position = current ? live : episode.progress && !episode.progress.finished ? episode.progress.positionSec : 0;
+  return {
+    current,
+    playing,
+    loading,
+    played,
+    finished: !!episode.progress?.finished,
+    dur,
+    pct: dur ? Math.min(100, (position / dur) * 100) : 0,
+    time: played ? "Played" : pastStart(position) && dur ? timeLeft(dur, position) : duration(dur),
+    // Starting the episode opens the full player; pausing and resuming stay here.
+    onPlay: () => {
+      if (current) return toggle();
+      play(episodeToPlayable(episode), played ? 0 : undefined);
+      router.push("/player");
+    },
+  };
+}
+
+/** The accent play pill with the time, then the progress bar once started. */
+export function EpisodePlay({ play: p }: { play: ReturnType<typeof useEpisodePlay> }) {
+  const t = useTheme();
+  return (
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${p.playing ? "Pause" : p.played ? "Play again" : "Play"}, ${p.time}`}
+        onPress={p.onPlay}
+        style={({ pressed }) => ({
+          height: 32,
+          borderRadius: 16,
+          paddingLeft: 8,
+          paddingRight: 12,
+          marginRight: 6,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+          backgroundColor: t.accent,
+          opacity: pressed ? 0.85 : 1,
+        })}
+      >
+        {p.loading ? (
+          <ActivityIndicator size="small" color={t.onAccent} style={{ width: 16, height: 16 }} />
+        ) : p.playing ? (
+          <PauseIcon size={16} color={t.onAccent} />
+        ) : (
+          <PlayIcon size={16} color={t.onAccent} />
+        )}
+        <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: t.onAccent }}>{p.time}</Text>
+      </Pressable>
+      {p.pct > 0 && !p.played ? (
+        // Shrinks on narrow phones so the action bar never overflows.
+        <View style={{ flexBasis: 56, flexShrink: 1, minWidth: 14, height: 4, borderRadius: 2, backgroundColor: t.line, overflow: "hidden", marginRight: 6 }}>
+          <View style={{ width: `${p.pct}%`, height: "100%", backgroundColor: t.accent }} />
+        </View>
+      ) : null}
+    </>
+  );
+}
 
 function ActionIcon({
   label,

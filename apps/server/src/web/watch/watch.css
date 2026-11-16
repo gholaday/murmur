@@ -2,7 +2,9 @@
 
 .cover.poster { aspect-ratio: 2 / 3; }
 .cover.still { aspect-ratio: 16 / 9; }
-.show-hero .cover.poster { border-radius: 12px; }
+/* A poster in a book-style header: narrower than a square cover, so it stands about as tall. */
+.book-hero .cover.poster { width: 150px; }
+@media (min-width: 900px) { .book-hero .cover.poster { width: 180px; } }
 .poster-bar, .still-bar { position: absolute; left: 6px; right: 6px; bottom: 6px; background: rgba(255, 255, 255, 0.25); }
 .watch-card { width: 220px; }
 @media (min-width: 600px) { .watch-card { width: 280px; } }

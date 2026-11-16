@@ -8,28 +8,31 @@ import { CountPill, Text } from "./ui";
 /**
  * A section heading that sticks under the status bar while the list below it scrolls. Pass
  * `scrollProps` to an Animated scroll view or list whose `stickyHeaderIndices` points at the
- * heading, `topProps` to the View just above it, and `cover` to the heading. Neither the list
+ * heading, `topProps` to the View just above it, and `sticky` to the heading. Neither the list
  * nor its content container should pad its sides; the items do.
  *
- * The View above ends in a spacer a status bar tall that the heading overlaps, so the heading
- * sticks a status bar early: its padding then sits under the status bar and the title just
- * below. That padding is see-through until it sticks and solid after, so rows pass under the
- * status bar.
+ * On the page the heading sits just under what's above it. As it reaches the status bar it
+ * stops there, sliding down as the page goes up, until the list's own sticking takes over; a
+ * strip the colour of the page then fills in behind the status bar, so rows pass under it. It
+ * moves by transform only, so nothing changes size and nothing jumps.
  */
 export function useStickyHeading() {
   const top = useTopInset();
   const [y] = useState(() => new Animated.Value(0));
   const [onScroll] = useState(() => Animated.event([{ nativeEvent: { contentOffset: { y } } }], { useNativeDriver: true }));
+  // Where the page has scrolled when the heading reaches the status bar.
   const [at, setAt] = useState(0);
   const cover = y.interpolate({ inputRange: [at - 1, at], outputRange: [0, 1], extrapolate: "clamp" });
+  // The list sticks it at the very top a status bar later; this keeps it below the status bar.
+  const shift = y.interpolate({ inputRange: [at, at + top], outputRange: [0, top], extrapolate: "clamp" });
   return {
     scrollProps: { onScroll, scrollEventThrottle: 16 },
     topProps: {
       onLayout: (e: LayoutChangeEvent) => setAt(e.nativeEvent.layout.y + e.nativeEvent.layout.height - top),
-      // The spacer plus the gap above the heading, and the overlap.
-      style: { paddingBottom: top + 16, marginBottom: -top },
+      // The gap above the heading.
+      style: { paddingBottom: 12 },
     },
-    cover,
+    sticky: { cover, shift },
   };
 }
 
@@ -37,33 +40,36 @@ export function StickyHeading({
   title,
   count,
   right,
-  cover,
+  sticky,
   children,
 }: {
-  title: string;
+  /** Left out when the children make the heading, e.g. text tabs. */
+  title?: string;
   count?: number;
   right?: React.ReactNode;
-  cover: Animated.AnimatedInterpolation<number>;
+  sticky: ReturnType<typeof useStickyHeading>["sticky"];
   /** Shown under the title and sticking with it, e.g. a search box. */
   children?: React.ReactNode;
 }) {
   const t = useTheme();
   const top = useTopInset();
   return (
-    <View style={{ paddingTop: top }}>
-      <Animated.View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0, height: top, backgroundColor: t.bg, opacity: cover }} />
+    <Animated.View style={{ transform: [{ translateY: sticky.shift }] }}>
+      <Animated.View pointerEvents="none" style={{ position: "absolute", top: -top, left: 0, right: 0, height: top, backgroundColor: t.bg, opacity: sticky.cover }} />
       <View style={{ backgroundColor: t.bg, paddingHorizontal: PAD, paddingBottom: 6 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 }}>
-            <Text variant="heading" numberOfLines={1} style={{ flexShrink: 1 }}>
-              {title}
-            </Text>
-            {count !== undefined ? <CountPill count={count} /> : null}
+        {title !== undefined ? (
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 }}>
+              <Text variant="heading" numberOfLines={1} style={{ flexShrink: 1 }}>
+                {title}
+              </Text>
+              {count !== undefined ? <CountPill count={count} /> : null}
+            </View>
+            {right}
           </View>
-          {right}
-        </View>
+        ) : null}
         {children}
       </View>
-    </View>
+    </Animated.View>
   );
 }

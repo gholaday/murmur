@@ -88,7 +88,7 @@ export function TvShowView({ show }: { show: ShowDetail }) {
   const firstStill = all.find((e) => e.stillHash);
   // The blurred colour behind the header: the backdrop, else the poster, else a frame from an episode.
   const heroArt = backdropSrc ?? posterSrc ?? (firstStill ? apiPaths.videoStillUrl(firstStill.id, firstStill.stillHash!, "small") : null);
-  const pills = [show.year, plural(show.seasons, "season"), plural(show.episodes, "episode")].filter(Boolean) as string[];
+  const facts = [show.year, plural(show.seasons, "season"), plural(show.episodes, "episode")].filter(Boolean) as string[];
   const upNextPosition = upNext?.progress && !upNext.progress.finished ? upNext.progress.positionSec : 0;
 
   const mark = async (list: VideoEpisode[], done: boolean, what: string) => {
@@ -116,15 +116,14 @@ export function TvShowView({ show }: { show: ShowDetail }) {
         }
       >
         <HeroBar fallback="/watch" onMore={() => setMenu(true)} />
-        <div className="show-hero">
+        {/* Laid out like a book's page. */}
+        <div className="book-hero">
           <Poster kind="show" id={show.id} hash={show.posterHash} color={show.color} title={show.title} sub={show.year} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>
-            <h1 className="show-title">{show.title}</h1>
-            <div className="pills">
-              {pills.map((p) => (
-                <span key={p} className="pill">
-                  {p}
-                </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+            <h1 className="book-title">{show.title}</h1>
+            <div className="book-meta">
+              {facts.map((f) => (
+                <span key={f}>{f}</span>
               ))}
             </div>
           </div>

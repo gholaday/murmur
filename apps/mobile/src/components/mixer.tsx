@@ -14,7 +14,7 @@ import { type PlayerState, usePlayerSelect } from "@/player/engine";
 import { PlayIcon } from "./icons";
 
 // Same as the web's mixer (web/mixer.tsx): light bars on a dark disc in both themes, so it reads on any cover.
-const DISC = "rgba(11, 11, 13, 0.62)";
+const DISC ="rgba(11, 11, 13, 0.62)";
 const BAR = "#8e9bff";
 /**
  * Each bar's loop, how far into it the bar starts (so they bounce out of step), and its height at

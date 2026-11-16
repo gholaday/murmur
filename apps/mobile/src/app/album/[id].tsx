@@ -1,22 +1,20 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { albumCover, type AlbumDetail, albumDiscs, albumInMusic, albumPills, plural, songNumber, type TrackDto } from "@murmur/shared/client";
-import { Cover } from "@/components/cover";
+import { albumCover, type AlbumDetail, albumDiscs, albumFacts, albumInMusic, plural, songNumber, type TrackDto } from "@murmur/shared/client";
+import { Facts, HeroBackdrop, HeroBones, ItemHero } from "@/components/hero";
 import { CheckIcon, DownloadIcon, MoreIcon, PlusIcon } from "@/components/icons";
-import { ActionButton, AlbumActions, openArtist, Pills, PlayButton, ShuffleButton, SongSheet, TrackRow } from "@/components/music";
-import { Empty, NestedScreen, SectionTitle } from "@/components/page";
+import { ActionButton, AlbumActions, openArtist, PlayButton, ShuffleButton, SongSheet, TrackRow } from "@/components/music";
+import { Empty, NestedScreen, SectionTitle, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { RemoveDownloadSheet } from "@/components/sheet";
 import { Bone, FadeIn, Skeleton, useJustLoaded } from "@/components/skeleton";
-import { IconButton, Text } from "@/components/ui";
+import { ACTION_HEIGHT, IconButton, Text } from "@/components/ui";
 import { setInMusic, useAlbum } from "@/lib/data";
 import { downloadAlbum, removeDownload, useDownload } from "@/lib/downloads";
 import { selectHaptic } from "@/lib/haptics";
 import { playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
-
-const COVER = 140;
 
 const playAlbum = (a: AlbumDetail, index: number, shuffle = false) =>
   playMusic({ kind: "album", refId: a.id, title: a.title, tracks: a.tracks }, index, shuffle);
@@ -25,6 +23,7 @@ const playAlbum = (a: AlbumDetail, index: number, shuffle = false) =>
 export default function AlbumScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const t = useTheme();
+  const top = useTopInset();
   const album = useAlbum(id);
   const refresh = usePullRefresh(album.refetch);
   const fade = useJustLoaded(!album.isPending);
@@ -37,32 +36,23 @@ export default function AlbumScreen() {
   if (a) {
     body = (
       <FadeIn when={fade} style={{ gap: 16 }}>
-        <View style={{ flexDirection: "row", gap: 16, alignItems: "flex-end" }}>
-          <Cover path={albumCover(a.id, a.coverHash, 600)} title={a.title} color={a.coverColor} size={COVER} radius={12} />
-          <View style={{ flex: 1, gap: 6 }}>
-            <Text style={{ fontFamily: fonts.extrabold, fontSize: 24, lineHeight: 30, letterSpacing: -0.4, color: t.text }}>{a.title}</Text>
-            <Pressable
-              accessibilityRole="link"
-              onPress={() => openArtist(a.artistId)}
-              hitSlop={6}
-              style={({ pressed }) => ({ alignSelf: "flex-start", opacity: pressed ? 0.6 : 1 })}
-            >
-              <Text numberOfLines={2} style={{ fontFamily: fonts.bold, fontSize: 14, lineHeight: 20, color: t.accent }}>
-                {a.artist}
-              </Text>
-            </Pressable>
-            <Pills labels={albumPills(a)} />
-          </View>
-        </View>
+        <ItemHero cover={albumCover(a.id, a.coverHash, 600)} color={a.coverColor} title={a.title}>
+          <Pressable accessibilityRole="link" onPress={() => openArtist(a.artistId)} hitSlop={6} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+            <Text numberOfLines={2} style={{ fontFamily: fonts.bold, fontSize: 15, color: t.accent, textAlign: "center" }}>
+              {a.artist}
+            </Text>
+          </Pressable>
+          <Facts items={albumFacts(a)} />
+        </ItemHero>
 
         {state === "all" ? (
-          <View style={{ flexDirection: "row", gap: 10 }}>
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 6 }}>
             <PlayButton from={{ kind: "album", refId: a.id }} opensPlayer onPress={() => playAlbum(a, -1)} />
             <ShuffleButton from={{ kind: "album", refId: a.id }} onPlay={() => playAlbum(a, -1, true)} />
             <AlbumDownloadButton album={a} />
           </View>
         ) : (
-          <View style={{ gap: 10 }}>
+          <View style={{ gap: 10, marginTop: 6 }}>
             <View style={{ flexDirection: "row", gap: 10 }}>
               <ActionButton
                 label={state === "some" ? `Add the other ${plural(a.trackCount - a.songsInMusic, "song")}` : "Add to your music"}
@@ -106,15 +96,8 @@ export default function AlbumScreen() {
   } else {
     body = (
       <Skeleton style={{ gap: 16 }}>
-        <View style={{ flexDirection: "row", gap: 16, alignItems: "flex-end" }}>
-          <Bone width={COVER} height={COVER} radius={12} />
-          <View style={{ flex: 1, gap: 10 }}>
-            <Bone width="80%" height={22} />
-            <Bone width="50%" height={14} />
-            <Bone width="70%" height={22} radius={11} />
-          </View>
-        </View>
-        <Bone height={48} radius={24} />
+        <HeroBones />
+        <Bone height={ACTION_HEIGHT} radius={ACTION_HEIGHT / 2} style={{ marginTop: 6 }} />
         {[0, 1, 2, 3, 4].map((i) => (
           <Bone key={i} height={18} style={{ marginVertical: 19 }} />
         ))}
@@ -125,10 +108,11 @@ export default function AlbumScreen() {
   return (
     <NestedScreen
       refreshControl={refresh}
+      backdrop={a ? <HeroBackdrop path={albumCover(a.id, a.coverHash, 600)} color={a.coverColor} height={top + 460} /> : null}
       right={
         a ? (
-          <IconButton label="More options" onPress={() => setMore(true)}>
-            <MoreIcon size={22} color={t.text} />
+          <IconButton label="More options" onPress={() => setMore(true)} style={{ marginRight: -10 }}>
+            <MoreIcon color={t.text} />
           </IconButton>
         ) : null
       }
@@ -139,7 +123,7 @@ export default function AlbumScreen() {
         </>
       }
     >
-      <View style={{ marginTop: 8 }}>{body}</View>
+      {body}
     </NestedScreen>
   );
 }

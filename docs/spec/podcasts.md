@@ -74,6 +74,19 @@ The example stack gives the add-on a CPU limit, and it scans one episode at a ti
 
 Each episode has a scan status: queued, scanning, done or failed, with the attempt count and last error. After 3 failed attempts an episode stops being retried until an admin presses Retry.
 
+## Screens
+
+The same on the web and the app; the rules they share are in `packages/shared/src/podcasts.ts`.
+
+- **Podcasts tab:** Sort and Add at the top right, then Home and Shows text tabs (`PODCAST_TABS`). Home shows, hiding any that's empty:
+  - Continue listening: a sideways shelf of wide cards. Each card sits on `surface` mixed with 15% of the show's colour and has the cover, the show, the episode title (two lines at most), and the play pill and progress bar. The pill plays and the rest of the card opens the show.
+  - New episodes, with an accent count: the 6 latest, one row per show with how many are new (`newByShow`, `PODCAST_SECTION_SIZE`).
+
+  Both headings open their full lists. With neither, Home says "Nothing new" and "New episodes from your shows will show here." Shows is every show in a grid, in the chosen sort.
+- **A show's page:** the book page's header: the cover, title, author, and one muted line with the episode count, the latest date and Private. An accent check on the cover's top right corner shows you're subscribed and asks before unsubscribing; a show from search has a heart there that subscribes. Then the description. A sticky row holds Episodes, Unplayed and Bookmarks text tabs (`SHOW_TABS`) with search and sort on its right.
+  - Unplayed is every episode not finished (`unplayedEpisodes`), so it loads the full list the way search does. With nothing left it says "No unplayed episodes" and "You're all caught up."
+  - Bookmarks lists the show's bookmarks grouped by episode, newest first. It's only there while the show has some, and it hides search and sort.
+
 ## Player and settings
 
 - **Marks.** Ad spans are drawn on the seek bar in the web player and the app.
@@ -86,7 +99,7 @@ Each episode has a scan status: queued, scanning, done or failed, with the attem
 - **Fetching ads.** The player asks `GET /api/episodes/:id/ads` for the current episode and asks again every minute while its scan runs. Asking also marks the episode as playing, which moves its scan to the front. Without the add-on the answer is `enabled: false`, and the ad setting is hidden. `/api/health` also reports `adDetection`, so the app knows before playing anything.
 - **Checked badge.** Episode rows show a small accent shield once the episode has been checked for ads.
 - **Bookmarks.** The ad setting moved off the player's tiles to give Bookmarks that spot (see [Bookmarks](features.md#bookmarks)). A bookmark is a time, so if a feed changes an episode's ads it can land in a slightly different spot.
-- **Private feeds aren't scanned.** A paid, members-only or personal feed's audio shouldn't leave the server for Groq or Gemini, so Murmur keeps such shows away from the add-on on its own, with no setting. A feed counts as private when its URL carries a key (a username and password, a query like `auth=` or `token=`, Substack's `/private/` path) or is on a members-only host (Patreon, Supercast, Supporting Cast, Memberful and the like), or when the feed says `<itunes:block>Yes</itunes:block>` (`podcasts/private-feed.ts`). It's worked out on every feed check and kept in `podcasts.private_feed`. Such a show's episodes are never queued or handed out; when a show turns out to be private, scans not yet done are dropped (a report for one in progress then finds no scan and is refused), and ads already found stay. The show page says Private in a pill under the episode count. A private feed with a plain URL and no `itunes:block` still gets scanned; that's rare.
+- **Private feeds aren't scanned.** A paid, members-only or personal feed's audio shouldn't leave the server for Groq or Gemini, so Murmur keeps such shows away from the add-on on its own, with no setting. A feed counts as private when its URL carries a key (a username and password, a query like `auth=` or `token=`, Substack's `/private/` path) or is on a members-only host (Patreon, Supercast, Supporting Cast, Memberful and the like), or when the feed says `<itunes:block>Yes</itunes:block>` (`podcasts/private-feed.ts`). It's worked out on every feed check and kept in `podcasts.private_feed`. Such a show's episodes are never queued or handed out; when a show turns out to be private, scans not yet done are dropped (a report for one in progress then finds no scan and is refused), and ads already found stay. The show page says Private in a pill beside the episode count. A private feed with a plain URL and no `itunes:block` still gets scanned; that's rare.
 - **Fewer ads for Murmur.** Hosts that insert ads per download (Simplecast, for one) may insert fewer for apps they don't recognise, and Murmur identifies itself honestly. Its copy can have fewer ads than the same episode in a major podcast app.
 - **Admin settings:** episodes kept ready per show, cache usage against its cap, and the add-on's status (working, paused or error, "Not connected", and "Transcribing with Vosk" with the reason when Groq can't be used), with scan counts and Retry for failed episodes.
 - **Planned:** phone downloads keep the episode's ad times, so marks and skipping work offline.

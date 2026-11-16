@@ -7,9 +7,10 @@ import {
   albumCover,
   albumDiscs,
   type AlbumDetail,
+  albumFacts,
   albumInMusic,
-  albumPills,
   type ArtistDetail,
+  FALLBACK_TINT,
   artistImage,
   artistSub,
   guestArtist,
@@ -23,7 +24,7 @@ import { Cover } from "../cover";
 import { MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
 import { MixerBars } from "../mixer";
-import { BackRow, SectionTitle } from "../ui";
+import { BackRow, HeroBar, SectionTitle } from "../ui";
 import { Sheet, SheetItem } from "../sheet";
 import { type MusicSource, usePlayerControls, usePlayerSelect } from "../player/engine";
 import { MenuSheet } from "../card-menu";
@@ -42,6 +43,7 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
   const state = albumInMusic(album);
   const toAdd = album.trackCount - album.songsInMusic;
   const p = usePlayerControls();
+  const coverSrc = albumCover(album.id, album.coverHash, 600);
   const source: MusicSource = { kind: "album", refId: album.id, title: album.title, tracks: album.tracks };
   const from = usePlayerSelect((s) => s.isPlayingFrom("album", album.id));
   const nowId = usePlayerSelect((s) => (s.item?.type === "track" ? s.item.id : null));
@@ -63,25 +65,31 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
 
   return (
     <>
-      <BackRow fallback="/music">
-        <button type="button" className="icon-btn" aria-label="More options" onClick={() => setMenu(true)}>
-          <MoreIcon />
-        </button>
-      </BackRow>
-      {/* Cover beside the title, as in the app. */}
-      <div className="show-hero">
-        <Cover src={albumCover(album.id, album.coverHash, 600)} color={album.coverColor} title={album.title} subtitle={album.artist} large />
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>
-          <h1 className="show-title">{album.title}</h1>
-          <Link className="book-author" href={`/music/artist/${album.artistId}`}>
-            {album.artist}
-          </Link>
-          <div className="pills">
-            {albumPills(album).map((p) => (
-              <span key={p} className="pill">
-                {p}
-              </span>
-            ))}
+      {/* Laid out like a book's page: the cover over its title, artist and facts. */}
+      <div
+        className="hero"
+        style={
+          {
+            "--tint": album.coverColor ?? FALLBACK_TINT.page,
+            "--art": coverSrc ? `url("${coverSrc}")` : "none",
+          } as React.CSSProperties
+        }
+      >
+        <HeroBar fallback="/music" onMore={() => setMenu(true)} />
+        <div className="book-hero">
+          <Cover src={coverSrc} color={album.coverColor} title={album.title} subtitle={album.artist} large />
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+            <h1 className="book-title">{album.title}</h1>
+            <div className="book-by">
+              <Link className="book-author" href={`/music/artist/${album.artistId}`}>
+                {album.artist}
+              </Link>
+            </div>
+            <div className="book-meta">
+              {albumFacts(album).map((f) => (
+                <span key={f}>{f}</span>
+              ))}
+            </div>
           </div>
         </div>
       </div>

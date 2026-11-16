@@ -32,7 +32,7 @@ import { AddToPlaylistSheet } from "./playlists";
 import { Sheet, SheetDivider, SheetItem, useCardMenu, useMenuIdle } from "./sheet";
 import { DragHandle } from "./sortable-list";
 import { toast } from "./toast";
-import { IconButton, Pill, Pills, Text } from "./ui";
+import { ACTION_HEIGHT, IconButton, Pill, Pills, Text } from "./ui";
 
 // Shared by the Music tab, Album and Artist screens. The text helpers (songSub, albumPills and so
 // on) live in @murmur/shared, so the web and the app say the same thing.
@@ -258,9 +258,9 @@ export function ActionButton({
       onPress={onPress}
       style={({ pressed }) => ({
         flex: round ? undefined : 1,
-        width: round ? 48 : undefined,
-        height: 48,
-        borderRadius: 24,
+        width: round ? ACTION_HEIGHT : undefined,
+        height: ACTION_HEIGHT,
+        borderRadius: ACTION_HEIGHT / 2,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",

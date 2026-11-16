@@ -34,13 +34,13 @@ import { openVideoPlayer, subtitleTracks } from "@/lib/watch";
 import { convertsPicture, rememberVideoSubtitle, subtitleFor, useVideo, videoDownloadSource, videoPlace } from "@/player/video";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { HeroBackdrop } from "./hero";
+import { Facts, HERO_POSTER, HeroBackdrop, ItemHero } from "./hero";
 import { CheckIcon, ChevronIcon, DownloadIcon, PlayIcon } from "./icons";
 import { PAD } from "./library";
 import { BackRow, SectionTitle, useTopInset } from "./page";
 import { Row } from "./settings";
 import { RemoveDownloadSheet, Sheet, SHEET_ROW, SheetItem, useCardMenu } from "./sheet";
-import { IconButton, Pills, RoundButton, Text } from "./ui";
+import { ACTION_HEIGHT, IconButton, Pills, RoundButton, Text } from "./ui";
 import { WatchActions } from "./watch-edit";
 
 /** A 2:3 poster, or a tinted tile with the title when there's none. */
@@ -230,8 +230,8 @@ export function WidePlayButton({ label, text, done, onPress }: { label: string; 
       onPress={onPress}
       style={({ pressed }) => ({
         flex: 1,
-        height: 56,
-        borderRadius: 28,
+        height: ACTION_HEIGHT,
+        borderRadius: ACTION_HEIGHT / 2,
         backgroundColor: done ? t.chip : t.accent,
         flexDirection: "row",
         alignItems: "center",
@@ -278,9 +278,9 @@ export function QualityButton({ file, value, onChange }: { file: VideoFileInfo |
         accessibilityLabel={`Quality ${QUALITY_LABEL[current]}`}
         onPress={() => setOpen(true)}
         style={({ pressed }) => ({
-          height: 56,
+          height: ACTION_HEIGHT,
           paddingHorizontal: 18,
-          borderRadius: 28,
+          borderRadius: ACTION_HEIGHT / 2,
           backgroundColor: t.chip,
           alignItems: "center",
           justifyContent: "center",
@@ -472,7 +472,10 @@ export function VideoDownloadButton({
   );
 }
 
-/** The top of a movie or show page: the poster beside the title and pills, over the blurred art. */
+/**
+ * The top of a movie or show page, laid out like a book's: the poster centred, `above` (a movie's
+ * collection), the title and the facts line, over the blurred art.
+ */
 export function WatchHero({
   kind,
   id,
@@ -480,7 +483,8 @@ export function WatchHero({
   posterHash,
   color,
   art,
-  pills,
+  facts,
+  above,
   right,
 }: {
   kind: "movie" | "show";
@@ -490,26 +494,26 @@ export function WatchHero({
   color: string | null;
   /** What tints the header: the backdrop, else the poster, else a frame. */
   art: string | null;
-  pills: string[];
+  facts: string[];
+  above?: React.ReactNode;
   right?: React.ReactNode;
 }) {
   const top = useTopInset();
   return (
     // Out to the screen's edges, so the tint behind it does too.
     <View style={{ paddingTop: top, marginHorizontal: -PAD, paddingHorizontal: PAD }}>
-      <HeroBackdrop path={art} color={color} height={top + 330} />
+      <HeroBackdrop path={art} color={color} height={top + 460} />
       <BackRow right={right} />
-      <View style={{ flexDirection: "row", gap: 16, alignItems: "flex-end", marginTop: 4 }}>
-        <View style={{ borderRadius: 12, elevation: 10, shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } }}>
-          <Poster kind={kind} id={id} hash={posterHash} color={color} title={title} width={120} radius={12} large />
-        </View>
-        <View style={{ flex: 1, gap: 8, paddingBottom: 4 }}>
-          <Text variant="title" style={{ fontSize: 22, lineHeight: 28 }} numberOfLines={3}>
-            {title}
-          </Text>
-          <Pills labels={pills} />
-        </View>
-      </View>
+      <ItemHero
+        cover={null}
+        color={color}
+        title={title}
+        poster
+        art={<Poster kind={kind} id={id} hash={posterHash} color={color} title={title} width={HERO_POSTER} radius={12} large />}
+        above={above}
+      >
+        <Facts items={facts} />
+      </ItemHero>
     </View>
   );
 }

@@ -27,6 +27,8 @@ export function TextTabs<T extends string | number>({
   inset = PAD,
   style,
   memoryKey,
+  trailing,
+  gap = 24,
 }: {
   options: readonly { id: T; label: string }[];
   value: T;
@@ -38,6 +40,10 @@ export function TextTabs<T extends string | number>({
   style?: StyleProp<ViewStyle>;
   /** For tabs that remount when switched: where the line was is kept under this, so it still slides. */
   memoryKey?: string;
+  /** Icon buttons on the right of the same row, over the same hairline (a show page's search and sort). */
+  trailing?: React.ReactNode;
+  /** Space between the tabs; a row sharing its width with icons uses less. */
+  gap?: number;
 }) {
   const t = useTheme();
   const reduced = useReducedMotion();
@@ -88,15 +94,20 @@ export function TextTabs<T extends string | number>({
   const line = useAnimatedStyle(() => ({ width: lineWidth.value, transform: [{ translateX: lineX.value }] }));
 
   return (
-    <View style={[{ marginHorizontal: -inset }, style]} accessibilityRole="tablist" accessibilityLabel={label}>
+    <View
+      style={[{ marginHorizontal: -inset }, trailing ? { flexDirection: "row", alignItems: "center" } : null, style]}
+      accessibilityRole="tablist"
+      accessibilityLabel={label}
+    >
       {/* The hairline stays put under tabs that scroll. */}
       <View pointerEvents="none" style={{ position: "absolute", left: inset, right: inset, bottom: 0, height: 1, backgroundColor: t.line }} />
       <ScrollView
         ref={scroll}
         horizontal
+        style={trailing ? { flex: 1 } : null}
         showsHorizontalScrollIndicator={false}
         onLayout={(e) => (box.current = e.nativeEvent.layout.width)}
-        contentContainerStyle={{ paddingHorizontal: inset, gap: 24 }}
+        contentContainerStyle={{ paddingHorizontal: inset, gap }}
       >
         {options.map((o) => {
           const selected = o.id === value;
@@ -125,6 +136,7 @@ export function TextTabs<T extends string | number>({
         })}
         <Animated.View pointerEvents="none" style={[{ position: "absolute", left: 0, bottom: 0, height: 2, borderRadius: 1, backgroundColor: t.accent }, line]} />
       </ScrollView>
+      {trailing ? <View style={{ flexDirection: "row", marginRight: inset - 10 }}>{trailing}</View> : null}
     </View>
   );
 }

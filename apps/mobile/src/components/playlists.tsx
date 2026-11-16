@@ -25,19 +25,30 @@ const errorText = (err: unknown, fallback: string) => (err instanceof Error ? er
  * The playlist's albums tiled into one square, each shown once (see playlistCoverTiles); one
  * album is its own cover, and none is the name on a tile.
  */
-export function PlaylistCover({ playlist, size, children }: { playlist: PlaylistSummary; size?: number; /** Drawn over the cover, like the mixer. */ children?: React.ReactNode }) {
+export function PlaylistCover({
+  playlist,
+  size,
+  radius = 10,
+  children,
+}: {
+  playlist: PlaylistSummary;
+  size?: number;
+  radius?: number;
+  /** Drawn over the cover, like the mixer. */
+  children?: React.ReactNode;
+}) {
   const { covers, name } = playlist;
   if (covers.length < 2) {
     const first = covers[0];
     return (
       <View>
-        <Cover path={first ? albumCover(first.albumId, first.coverHash, 600) : null} title={name} size={size} />
+        <Cover path={first ? albumCover(first.albumId, first.coverHash, 600) : null} title={name} size={size} radius={radius} />
         {children}
       </View>
     );
   }
   return (
-    <View style={{ width: size ?? "100%", aspectRatio: 1, borderRadius: 10, overflow: "hidden" }}>
+    <View style={{ width: size ?? "100%", aspectRatio: 1, borderRadius: radius, overflow: "hidden" }}>
       {playlistCoverTiles(covers).map(({ cover, x, y, w, h }) => {
         // A full-height half needs the larger image to stay sharp.
         const path = albumCover(cover.albumId, cover.coverHash, h === 1 ? 600 : undefined)!;
@@ -118,7 +129,7 @@ export function NewPlaylistTile({ width, onPress }: { width: number; onPress: ()
 }
 
 /** "13 songs" and "52m", for the pills on a playlist's page. */
-export const playlistPills = (p: PlaylistSummary): string[] =>
+export const playlistFacts = (p: PlaylistSummary): string[] =>
   p.durationSec ? [plural(p.trackCount, "song"), duration(p.durationSec)] : [plural(p.trackCount, "song")];
 
 /** A name field and a button, for a new playlist or a rename. */

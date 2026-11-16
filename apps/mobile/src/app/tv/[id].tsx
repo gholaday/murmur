@@ -8,7 +8,8 @@ import { BottomMiniPlayer } from "@/components/mini-player";
 import { Empty, NestedFallback, SectionTitle, useBottomPad } from "@/components/page";
 import { Card } from "@/components/settings";
 import { SheetItem } from "@/components/sheet";
-import { FadeIn } from "@/components/skeleton";
+import { HeroBones } from "@/components/hero";
+import { FadeIn, Skeleton } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { TextTabs } from "@/components/text-tabs";
 import { IconButton, RoundButton, Text } from "@/components/ui";
@@ -24,7 +25,17 @@ export default function TvShowScreen() {
   const query = useShow(id);
   const [waited] = useState(!query.data);
   if (!query.data) {
-    return <NestedFallback>{query.isError ? <Empty title="Couldn't load this show">{query.error.message}</Empty> : null}</NestedFallback>;
+    return (
+      <NestedFallback>
+        {query.isError ? (
+          <Empty title="Couldn't load this show">{query.error.message}</Empty>
+        ) : (
+          <Skeleton>
+            <HeroBones poster />
+          </Skeleton>
+        )}
+      </NestedFallback>
+    );
   }
   return (
     <FadeIn when={waited} style={{ flex: 1 }}>
@@ -84,7 +95,7 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
   const firstStill = all.find((e) => e.stillHash);
   // The blurred colour behind the header: the backdrop, else the poster, else a frame from an episode.
   const art = backdropPath ?? posterPath ?? (firstStill ? apiPaths.videoStillUrl(firstStill.id, firstStill.stillHash!, "small") : null);
-  const pills = [show.year, plural(show.seasons, "season"), plural(show.episodes, "episode")].filter((p): p is string => !!p);
+  const facts = [show.year, plural(show.seasons, "season"), plural(show.episodes, "episode")].filter((p): p is string => !!p);
   const upNextPosition = upNext?.progress && !upNext.progress.finished ? upNext.progress.positionSec : 0;
 
   // The same function between renders, so the memoised rows don't all redraw.
@@ -100,7 +111,7 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
           posterHash={show.posterHash}
           color={show.color}
           art={art}
-          pills={pills}
+          facts={facts}
           right={
             <IconButton label="More options" onPress={() => setSheet("menu")} style={{ marginRight: -10 }}>
               <MoreIcon color={t.text} />

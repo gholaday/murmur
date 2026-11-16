@@ -14,16 +14,22 @@ export function sortShows(shows: PodcastSummary[], sort: PodcastSort): PodcastSu
   return out.sort((a, b) => (b.latestPublishedAt ?? 0) - (a.latestPublishedAt ?? 0));
 }
 
-export type PodcastListId = "continue" | "new" | "podcasts";
-export const PODCAST_LIST_IDS: PodcastListId[] = ["continue", "new", "podcasts"];
+export type PodcastTab = "home" | "shows";
+export const PODCAST_TABS: Array<{ id: PodcastTab; label: string }> = [
+  { id: "home", label: "Home" },
+  { id: "shows", label: "Shows" },
+];
+
+/** Home's sections, each opening its full list from the heading. Every show is on the Shows tab. */
+export type PodcastListId = "continue" | "new";
+export const PODCAST_LIST_IDS: PodcastListId[] = ["continue", "new"];
 export const PODCAST_LIST_TITLES: Record<PodcastListId, string> = {
   continue: "Continue listening",
   new: "New episodes",
-  podcasts: "Your podcasts",
 };
 
-/** How many rows each section on the Podcasts tab shows before its heading opens the full list. */
-export const PODCAST_SECTION_SIZE = 3;
+/** How many rows New episodes shows on Home before its heading opens the full list. */
+export const PODCAST_SECTION_SIZE = 6;
 /** New episodes shown per page in the full list. */
 export const NEW_EPISODES_PAGE = 10;
 
@@ -42,6 +48,19 @@ export function newByShow(episodes: EpisodeWithShow[]): { episode: EpisodeWithSh
 
 /** Episodes shown before the rest load. */
 export const EPISODE_PAGE = 20;
+
+export type ShowTab = "episodes" | "unplayed" | "bookmarks";
+/** The show page's tabs, in order. Bookmarks only shows when the show has some. */
+export const SHOW_TABS: Array<{ id: ShowTab; label: string }> = [
+  { id: "episodes", label: "Episodes" },
+  { id: "unplayed", label: "Unplayed" },
+  { id: "bookmarks", label: "Bookmarks" },
+];
+
+/** The Unplayed tab: episodes not finished, in progress ones included, in the order given. */
+export function unplayedEpisodes<T extends { progress: { finished: boolean } | null }>(episodes: T[]): T[] {
+  return episodes.filter((e) => !e.progress?.finished);
+}
 
 /**
  * Episode search on a show: the title or the notes, ignoring case. `query` is already

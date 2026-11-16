@@ -1,29 +1,40 @@
 import { useMemo, useState } from "react";
 import { Animated, Linking, Pressable, TextInput, View } from "react-native";
+import Reanimated from "react-native-reanimated";
 import { router, useLocalSearchParams } from "expo-router";
-import { apiPaths, type BookmarkDto, type EpisodeWithShow, errorText, matchesEpisode, plural, shortDate } from "@murmur/shared/client";
+import {
+  apiPaths,
+  type BookmarkDto,
+  type EpisodeWithShow,
+  errorText,
+  matchesEpisode,
+  SHOW_TABS,
+  type ShowTab,
+  unplayedEpisodes,
+} from "@murmur/shared/client";
 import { BookmarkRows, openBookmark } from "@/components/bookmarks";
-import { Cover } from "@/components/cover";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { EpisodeRow } from "@/components/episode-row";
 import { HeroBackdrop } from "@/components/hero";
-import { BookmarkIcon, CheckIcon, CloseIcon, FilterIcon, LockIcon, MoreIcon, SearchIcon } from "@/components/icons";
+import { CloseIcon, FilterIcon, MoreIcon, SearchIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BackRow, Empty, NestedFallback, useBottomPad, useTopInset } from "@/components/page";
 import { ConfirmSheet, Sheet, SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { usePullRefresh } from "@/components/pull-refresh";
+import { ShowHero, ShowHeroBones } from "@/components/podcasts";
 import { StickyHeading, useStickyHeading } from "@/components/sticky-heading";
-import { Button, CountPill, IconButton, Pill, Text } from "@/components/ui";
+import { TextTabs, useTabFade } from "@/components/text-tabs";
+import { Button, IconButton, Text } from "@/components/ui";
 import { api } from "@/lib/api";
 import { usePodcastBookmarks } from "@/lib/bookmarks";
 import { invalidateListening, keys, useEpisodes, useFirstEpisodes, usePodcast } from "@/lib/data";
 import { queryClient } from "@/lib/query";
 import { refreshUpNext } from "@/player/engine";
-import { fonts, mixColor, useTheme } from "@/theme";
+import { fonts, useTheme } from "@/theme";
 
-type Item = "top" | "heading" | "empty" | EpisodeWithShow;
+type Item = "top" | "heading" | "empty" | "bookmarks" | EpisodeWithShow;
 
 /** A podcast's bookmarks by episode, the most recently bookmarked first. */
 function byEpisode(bookmarks: BookmarkDto[]): BookmarkDto[][] {
@@ -48,7 +59,7 @@ export default function ShowScreen() {
   // A saved full list is cut to its newest episodes (with no fetch time), so it only counts as complete once fetched.
   const complete = wantAll && !!full.data && (full.dataUpdatedAt > 0 || full.isError);
   const [oldestFirst, setOldestFirst] = useState(false);
-  const [sheet, setSheet] = useState<null | "menu" | "unsubscribe" | "sort" | "bookmarks">(null);
+  const [sheet, setSheet] = useState<null | "menu" | "unsubscribe" | "sort">(null);
   const bookmarks = usePodcastBookmarks(id);
   const bookmarkGroups = useMemo(() => byEpisode(bookmarks), [bookmarks]);
   const [searching, setSearching] = useState(false);
@@ -73,27 +84,49 @@ export default function ShowScreen() {
         : [],
     [data, show],
   );
+  const [tab, setTab] = useState<ShowTab>("episodes");
+  // Bookmarks is only a tab while there are some; deleting the last one goes back to Episodes.
+  const shownTab: ShowTab = tab === "bookmarks" && !bookmarks.length ? "episodes" : tab;
+  // Kept there, so a bookmark added later doesn't switch tabs by itself.
+  if (shownTab !== tab) setTab(shownTab);
+  const tabs = useMemo(() => (bookmarks.length ? SHOW_TABS : SHOW_TABS.filter((s) => s.id !== "bookmarks")), [bookmarks.length]);
+  const tabFade = useTabFade(shownTab);
+  // Set when Unplayed had to wait for the full list, so its rows fade in when it comes.
+  const [unplayedWaited, setUnplayedWaited] = useState(false);
+  const pickTab = (next: ShowTab) => {
+    setTab(next);
+    // Unplayed needs every episode, as search does.
+    if (next === "unplayed") {
+      setWantAll(true);
+      if (!complete) setUnplayedWaited(true);
+    }
+  };
+
   // Oldest first waits for the full list, so it never shows the first page backwards.
   const ordered = useMemo(() => (oldestFirst && complete ? [...withShow].reverse() : withShow), [withShow, oldestFirst, complete]);
   // Matches titles and the start of the notes, the part the list carries.
   const q = query.trim().toLowerCase();
-  const visible = useMemo(
-    () => (q ? ordered.filter((e) => matchesEpisode(e, q)) : ordered),
-    [ordered, q],
-  );
+  const visible = useMemo(() => {
+    const list = shownTab === "unplayed" ? unplayedEpisodes(ordered) : ordered;
+    return q ? list.filter((e) => matchesEpisode(e, q)) : list;
+  }, [ordered, q, shownTab]);
   // Episodes still to load past the first page.
-  const left = q || complete ? 0 : (show?.episodeCount ?? 0) - visible.length;
+  const left = q || complete || shownTab !== "episodes" ? 0 : (show?.episodeCount ?? 0) - visible.length;
   const sticky = useStickyHeading();
   const refresh = usePullRefresh(() => Promise.all([podcast.refetch(), (wantAll ? full : first).refetch()]));
-  // The list's items: the top of the page, the heading (which sticks), then the episodes.
+  // The list's items: the top of the page, the heading (which sticks), then the tab's content.
   const items: Item[] = useMemo(() => {
+    if (shownTab === "bookmarks") return ["top", "heading", "bookmarks"];
+    // Unplayed waits for the full list, so it never shows the first page's unplayed as all of them.
+    // Offline the fetch pauses rather than runs, and whatever is cached shows.
+    if (shownTab === "unplayed" && !complete && full.isFetching) return ["top", "heading"];
     if (!data && (first.isFetching || full.isFetching)) return ["top", "heading"];
     return visible.length ? ["top", "heading", ...visible] : ["top", "heading", "empty"];
-  }, [data, first.isFetching, full.isFetching, visible]);
+  }, [data, first.isFetching, full.isFetching, visible, shownTab, complete]);
 
   if (!show) {
     return (
-      <NestedFallback>{podcast.isError ? <Empty title="Couldn't load this podcast">{podcast.error.message}</Empty> : null}</NestedFallback>
+      <NestedFallback>{podcast.isError ? <Empty title="Couldn't load this podcast">{podcast.error.message}</Empty> : <ShowHeroBones />}</NestedFallback>
     );
   }
 
@@ -113,7 +146,7 @@ export default function ShowScreen() {
 
   const topBlock = (
     <View>
-      <HeroBackdrop path={cover600} color={show.coverColor} height={top + 320} />
+      <HeroBackdrop path={cover600} color={show.coverColor} height={top + 400} />
       <View {...sticky.topProps} style={[sticky.topProps.style, { paddingTop: top, paddingHorizontal: PAD }]}>
         <BackRow
           right={
@@ -122,46 +155,16 @@ export default function ShowScreen() {
             </IconButton>
           }
         />
-        <View style={{ flexDirection: "row", gap: 16, alignItems: "flex-end", marginTop: 4 }}>
-          <Cover path={cover600} title={show.title} color={show.coverColor} size={128} radius={12} />
-          <View style={{ flex: 1, gap: 4 }}>
-            <Text variant="title" style={{ fontSize: 22, lineHeight: 28 }} numberOfLines={3}>
-              {show.title}
-            </Text>
-            {show.author ? <Text variant="small" numberOfLines={1}>{show.author}</Text> : null}
-            <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 14, rowGap: 2 }}>
-              <Text variant="small" style={{ color: t.muted }}>
-                {plural(show.episodeCount, "episode")}
-              </Text>
-              {show.latestPublishedAt ? (
-                <Text variant="small" style={{ color: t.muted }}>
-                  Latest {shortDate(show.latestPublishedAt)}
-                </Text>
-              ) : null}
-            </View>
-            {/* A personal feed, so the server never sends it for ad detection. */}
-            {show.privateFeed ? (
-              <View style={{ flexDirection: "row", marginTop: 4 }}>
-                <Pill label="Private" icon={<LockIcon size={12} color={t.accent} />} />
-              </View>
-            ) : null}
-          </View>
-        </View>
-
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 18 }}>
-          <Button label="Subscribed" icon={<CheckIcon size={16} color={t.onAccent} />} small onPress={() => setSheet("unsubscribe")} />
-          {bookmarks.length ? (
-            <Button
-              label="Bookmarks"
-              kind="secondary"
-              icon={<BookmarkIcon size={16} color={t.text} />}
-              trail={<CountPill count={bookmarks.length} />}
-              small
-              onPress={() => setSheet("bookmarks")}
-              style={{ backgroundColor: mixColor(show.coverColor ?? t.accent, t.surface2, 0.4) }}
-            />
-          ) : null}
-        </View>
+        <ShowHero
+          cover={cover600}
+          color={show.coverColor}
+          title={show.title}
+          author={show.author}
+          episodeCount={show.episodeCount}
+          latestPublishedAt={show.latestPublishedAt}
+          privateFeed={show.privateFeed}
+          onUnsubscribe={() => setSheet("unsubscribe")}
+        />
 
         {show.lastError ? (
           <Text variant="small" style={{ color: t.danger, marginTop: 14 }}>
@@ -184,12 +187,16 @@ export default function ShowScreen() {
   );
 
   const heading = (
-        <StickyHeading
-          title="Episodes"
-          count={show.episodeCount}
-          cover={sticky.cover}
-          right={
-            <View style={{ flexDirection: "row", marginRight: -10 }}>
+    <StickyHeading sticky={sticky.sticky}>
+      <TextTabs
+        options={tabs}
+        value={shownTab}
+        onPick={pickTab}
+        gap={20}
+        trailing={
+          // Search and sort are for episodes; the bookmarks are as they are.
+          shownTab === "bookmarks" ? null : (
+            <>
               <IconButton
                 label={searching ? "Close search" : "Search episodes"}
                 onPress={() => {
@@ -203,10 +210,11 @@ export default function ShowScreen() {
               <IconButton label="Sort episodes" onPress={() => setSheet("sort")}>
                 <FilterIcon color={t.text} />
               </IconButton>
-            </View>
-          }
-        >
-        {searching ? (
+            </>
+          )
+        }
+      />
+      {searching && shownTab !== "bookmarks" ? (
           <View
             style={{
               flexDirection: "row",
@@ -216,7 +224,7 @@ export default function ShowScreen() {
               paddingHorizontal: 14,
               borderRadius: 14,
               backgroundColor: t.surface,
-              marginTop: 4,
+              marginTop: 10,
             }}
           >
             <SearchIcon size={20} color={t.muted} />
@@ -231,7 +239,7 @@ export default function ShowScreen() {
             />
           </View>
         ) : null}
-        </StickyHeading>
+    </StickyHeading>
   );
 
   return (
@@ -259,11 +267,32 @@ export default function ShowScreen() {
             ) : item === "heading" ? (
               heading
             ) : item === "empty" ? (
-              <Empty>{q ? "No episodes match." : "No episodes."}</Empty>
+              <Reanimated.View style={tabFade}>
+                {q ? (
+                  <Empty>No episodes match.</Empty>
+                ) : shownTab === "unplayed" ? (
+                  <Empty title="No unplayed episodes">You&apos;re all caught up.</Empty>
+                ) : (
+                  <Empty>No episodes.</Empty>
+                )}
+              </Reanimated.View>
+            ) : item === "bookmarks" ? (
+              <Reanimated.View style={[{ paddingHorizontal: PAD - 12, paddingTop: 8, gap: 12 }, tabFade]}>
+                {bookmarkGroups.map((group) => (
+                  <View key={group[0]!.itemId} style={{ gap: 2 }}>
+                    <Text variant="bodyStrong" numberOfLines={2} style={{ paddingHorizontal: 12 }}>
+                      {group[0]!.title}
+                    </Text>
+                    <BookmarkRows bookmarks={group} onJump={openBookmark} />
+                  </View>
+                ))}
+              </Reanimated.View>
             ) : (
-              <FadeIn when={episodesWaited} style={{ paddingHorizontal: PAD }}>
-                <EpisodeRow episode={item} />
-              </FadeIn>
+              <Reanimated.View style={tabFade}>
+                <FadeIn when={episodesWaited || unplayedWaited} style={{ paddingHorizontal: PAD }}>
+                  <EpisodeRow episode={item} />
+                </FadeIn>
+              </Reanimated.View>
             )
           }
           ListFooterComponent={
@@ -322,34 +351,6 @@ export default function ShowScreen() {
             }}
           />
         ))}
-      </Sheet>
-
-      <Sheet
-        open={sheet === "bookmarks"}
-        onClose={() => setSheet(null)}
-        head={
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text variant="heading">Bookmarks</Text>
-            <CountPill count={bookmarks.length} />
-          </View>
-        }
-      >
-        <View style={{ gap: 12 }}>
-          {bookmarkGroups.map((group) => (
-            <View key={group[0]!.itemId} style={{ gap: 2 }}>
-              <Text variant="bodyStrong" numberOfLines={2} style={{ paddingHorizontal: 12 }}>
-                {group[0]!.title}
-              </Text>
-              <BookmarkRows
-                bookmarks={group}
-                onJump={(b) => {
-                  setSheet(null);
-                  openBookmark(b);
-                }}
-              />
-            </View>
-          ))}
-        </View>
       </Sheet>
 
       <ConfirmSheet

@@ -15,7 +15,7 @@ export function VolumeRow() {
       <MuteButton size={18} quiet />
       <input
         type="range"
-        className="scrubber"
+        className="scrubber hover-thumb"
         aria-label="Volume"
         min={0}
         max={1}
@@ -58,7 +58,7 @@ export function VolumeControl({ size }: { size?: number }) {
     <div className="vol">
       <input
         type="range"
-        className="scrubber vol-slider"
+        className="scrubber vol-slider hover-thumb"
         aria-label="Volume"
         min={0}
         max={1}

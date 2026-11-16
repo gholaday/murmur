@@ -367,7 +367,7 @@ export function FullPlayer() {
             ) : null}
           <input
             type="range"
-            className="scrubber"
+            className="scrubber hover-thumb"
             aria-label="Position"
             min={0}
             max={Math.floor(spanLen)}

@@ -89,13 +89,22 @@ export function PodcastsSkeleton() {
   return (
     <div className="skeleton" aria-busy="true" aria-label="Loading podcasts">
       <Head title="Podcasts" />
+      <div className="chips">
+        {[64, 64].map((w, i) => (
+          <div key={i} className="skel skel-pill" style={{ width: w }} />
+        ))}
+      </div>
       <section className="section">
-        <Line width={130} height={16} />
-        <Rows count={4} />
+        <Line width={170} height={16} />
+        <div className="row-scroll" style={{ overflow: "hidden" }}>
+          {[0, 1].map((i) => (
+            <div key={i} className="skel" style={{ width: 290, height: 132, borderRadius: 14, flexShrink: 0 }} />
+          ))}
+        </div>
       </section>
       <section className="section">
-        <Line width={120} height={16} />
-        <CardGrid count={6} />
+        <Line width={140} height={16} />
+        <Rows count={6} />
       </section>
     </div>
   );
@@ -161,7 +170,7 @@ export function SongRowsSkeleton({ count = 8 }: { count?: number }) {
  * A detail page while it loads: back row, then the cover beside its title (album, playlist, podcast)
  * or above it (book), or a round photo (artist), the Play button, and rows.
  */
-export function DetailSkeleton({ kind }: { kind: "book" | "show" | "artist" }) {
+export function DetailSkeleton({ kind }: { kind: "book" | "album" | "video" | "artist" | "podcast" }) {
   const back = (
     <div className="hero-bar">
       <div style={{ width: 44, height: 44, display: "grid", placeItems: "center" }}>
@@ -171,30 +180,34 @@ export function DetailSkeleton({ kind }: { kind: "book" | "show" | "artist" }) {
   );
   const lines = (
     <>
-      <Line width={kind === "book" ? 220 : "70%"} height={20} />
-      <Line width={kind === "book" ? 140 : "45%"} />
+      <Line width={kind === "artist" ? "70%" : 220} height={20} />
+      <Line width={kind === "artist" ? "45%" : 140} />
     </>
   );
   return (
     <div className="skeleton" aria-busy="true" aria-label="Loading">
       {back}
-      {kind === "book" ? (
-        <div className="book-hero">
-          <div className="skel" style={{ width: 196, aspectRatio: "1 / 1", borderRadius: 12 }} />
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>{lines}</div>
-        </div>
-      ) : kind === "artist" ? (
+      {kind === "artist" ? (
         <div className="artist-head">
           <div className="skel" style={{ width: 96, height: 96, borderRadius: "50%", flexShrink: 0 }} />
           <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>{lines}</div>
         </div>
       ) : (
-        <div className="show-hero">
-          <div className="skel show-skel-cover" />
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, paddingBottom: 4 }}>{lines}</div>
+        <div className="book-hero">
+          <div
+            className="skel"
+            style={kind === "video" ? { width: 150, aspectRatio: "2 / 3", borderRadius: 12 } : { width: 196, aspectRatio: "1 / 1", borderRadius: 12 }}
+          />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>{lines}</div>
         </div>
       )}
-      {kind === "artist" ? null : (
+      {kind === "podcast" ? (
+        <div className="chips" style={{ marginTop: 28 }}>
+          {[76, 76, 86].map((w, i) => (
+            <div key={i} className="skel skel-pill" style={{ width: w }} />
+          ))}
+        </div>
+      ) : kind === "artist" ? null : (
         <div className="actions">
           <div className="skel btn-big" />
         </div>

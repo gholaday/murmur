@@ -1,25 +1,24 @@
 import { useState } from "react";
 import { View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { type PlaylistDetail, type TrackDto } from "@murmur/shared/client";
+import { albumCover, type PlaylistDetail, type TrackDto } from "@murmur/shared/client";
+import { Facts, HERO_COVER, HeroBackdrop, HeroBones, ItemHero } from "@/components/hero";
 import { MoreIcon, PlusIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { ActionButton, addSongsToUpNext, Pills, PlayButton, ShuffleButton, SongRow, SongSheet } from "@/components/music";
+import { ActionButton, addSongsToUpNext, PlayButton, ShuffleButton, SongRow, SongSheet } from "@/components/music";
 import { BackRow, Empty, useBottomPad, useTopInset } from "@/components/page";
-import { NamePlaylistSheet, PlaylistCover, playlistPills } from "@/components/playlists";
+import { NamePlaylistSheet, PlaylistCover, playlistFacts } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { ConfirmSheet, Sheet, SheetItem } from "@/components/sheet";
 import { Bone, FadeIn, ListRowBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { SortableList, SortableScrollView } from "@/components/sortable-list";
 import { toast } from "@/components/toast";
-import { Caption, IconButton, Text } from "@/components/ui";
+import { ACTION_HEIGHT, IconButton, Text } from "@/components/ui";
 import { deletePlaylist, keys, updatePlaylist, usePlaylist } from "@/lib/data";
 import { queryClient } from "@/lib/query";
 import { type MusicSource, playMusic } from "@/player/engine";
-import { fonts, useTheme } from "@/theme";
-
-const COVER = 140;
+import { useTheme } from "@/theme";
 
 /** One of your playlists: play or shuffle it, drag songs to reorder, remove them, rename or delete it. */
 export default function PlaylistScreen() {
@@ -36,6 +35,8 @@ export default function PlaylistScreen() {
   const [deleting, setDeleting] = useState(false);
   const [song, setSong] = useState<TrackDto | null>(null);
   const source: MusicSource | null = p ? { kind: "playlist", refId: p.id, title: p.name, tracks: p.tracks } : null;
+  const first = p?.covers[0];
+  const firstCover = first ? albumCover(first.albumId, first.coverHash, 600) : null;
 
   // Shown at once; the server's answer replaces it, and a failure puts the old order back.
   const setOrder = (tracks: TrackDto[]) => {
@@ -59,18 +60,23 @@ export default function PlaylistScreen() {
   if (p && source) {
     body = (
       <FadeIn when={fade} style={{ gap: 16 }}>
-        <View style={{ flexDirection: "row", gap: 16, alignItems: "flex-end" }}>
-          <PlaylistCover playlist={p} size={COVER} />
-          <View style={{ flex: 1, gap: 6 }}>
-            <Caption>Playlist</Caption>
-            <Text style={{ fontFamily: fonts.extrabold, fontSize: 24, lineHeight: 30, letterSpacing: -0.4, color: t.text }}>{p.name}</Text>
-            <Pills labels={playlistPills(p)} />
-          </View>
-        </View>
+        <ItemHero
+          cover={null}
+          color={null}
+          title={p.name}
+          art={<PlaylistCover playlist={p} size={HERO_COVER} radius={12} />}
+          above={
+            <Text variant="small" style={{ marginTop: 14, color: t.text2 }}>
+              Playlist
+            </Text>
+          }
+        >
+          <Facts items={playlistFacts(p)} />
+        </ItemHero>
 
         {p.tracks.length ? (
           <>
-            <View style={{ flexDirection: "row", gap: 10 }}>
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 6 }}>
               <PlayButton from={source} opensPlayer onPress={() => playMusic(source, -1)} />
               <ShuffleButton from={source} onPlay={() => playMusic(source, -1, true)} />
               <ActionButton label="Add songs" round icon={<PlusIcon size={22} color={t.text} />} onPress={addSongs} />
@@ -102,15 +108,8 @@ export default function PlaylistScreen() {
   } else {
     body = (
       <Skeleton style={{ gap: 16 }}>
-        <View style={{ flexDirection: "row", gap: 16, alignItems: "flex-end" }}>
-          <Bone width={COVER} height={COVER} radius={12} />
-          <View style={{ flex: 1, gap: 10 }}>
-            <Bone width="40%" height={12} />
-            <Bone width="80%" height={22} />
-            <Bone width="60%" height={22} radius={11} />
-          </View>
-        </View>
-        <Bone height={48} radius={24} />
+        <HeroBones />
+        <Bone height={ACTION_HEIGHT} radius={ACTION_HEIGHT / 2} style={{ marginTop: 6 }} />
         {[0, 1, 2, 3, 4].map((i) => (
           <ListRowBone key={i} thumb={44} />
         ))}
@@ -121,16 +120,18 @@ export default function PlaylistScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <SortableScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }} refreshControl={refresh}>
+        {/* Tinted from the first album, as the web's is. */}
+        {p ? <HeroBackdrop path={firstCover} color={null} height={top + 460} /> : null}
         <BackRow
           right={
             p ? (
-              <IconButton label="Playlist options" onPress={() => setMore(true)}>
-                <MoreIcon size={22} color={t.text} />
+              <IconButton label="Playlist options" onPress={() => setMore(true)} style={{ marginRight: -10 }}>
+                <MoreIcon color={t.text} />
               </IconButton>
             ) : null
           }
         />
-        <View style={{ marginTop: 8 }}>{body}</View>
+        {body}
       </SortableScrollView>
       <BottomMiniPlayer />
       <SongSheet

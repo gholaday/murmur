@@ -53,23 +53,25 @@ export function PreviewView({ preview, error }: { preview?: PodcastPreview; erro
     <>
       <div className="hero" style={{ "--tint": FALLBACK_TINT.show } as React.CSSProperties}>
         <HeroBar fallback="/podcasts" />
-        <div className="show-hero">
+        <div className="book-hero">
           <Cover src={preview.artworkUrl} color={null} title={preview.title} large />
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingBottom: 4, minWidth: 0 }}>
-            <h1 className="show-title">{preview.title}</h1>
-            {preview.author ? <div className="show-by">{preview.author}</div> : null}
-            <div className="show-by muted" style={{ display: "flex", flexWrap: "wrap", gap: "2px 14px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+            <h1 className="book-title">{preview.title}</h1>
+            {preview.author ? <div className="book-narrator">{preview.author}</div> : null}
+            <div className="book-meta">
               <span>{plural(preview.episodeCount, "episode")}</span>
               {preview.latestPublishedAt ? <span>Latest {shortDate(preview.latestPublishedAt)}</span> : null}
             </div>
           </div>
         </div>
-        <div className="show-actions">
-          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void subscribe()}>
-            <PlusIcon size={16} />
-            {busy ? "Subscribing…" : "Subscribe"}
-          </button>
-        </div>
+      </div>
+
+      {/* Where a book has Play; once subscribed, the show's page only marks it with a check on the cover. */}
+      <div className="actions">
+        <button type="button" className="btn btn-primary btn-big" disabled={busy} onClick={() => void subscribe()}>
+          <PlusIcon size={20} />
+          <span>{busy ? "Subscribing…" : "Subscribe"}</span>
+        </button>
       </div>
 
       {preview.description ? <Description text={preview.description} longerThan={140} lines={2} /> : null}

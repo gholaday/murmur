@@ -26,6 +26,8 @@
 - Feeds are checked on a schedule (default every 30 minutes, and once at startup)
 - Episodes stream through the server, which keeps the newest episodes of each followed show on disk (see [Podcasts and ad detection](podcasts.md)); the phone can download any episode
 - A queue, and played, unplayed and archived states per episode
+- The Podcasts tab has Home and Shows. Home has Continue listening as a shelf of wide cards on each show's colour, and the 6 latest New episodes grouped by show; Shows is every show in a grid, in the chosen sort
+- A show's page has Episodes, Unplayed (episodes not finished) and Bookmarks (only when it has some, grouped by episode) as tabs, with search and sort beside them
 - Optional ad detection: ads marked on the seek bar, Skip ad, or Auto-skip with Undo
 
 ## Music
@@ -81,7 +83,7 @@ Optional. More in [Watch](watch.md).
 - Tap the bookmark beside the player's title to open a sheet for a note, and Save there adds it. While playing it lands 10 seconds of listening earlier, since you tap after you hear the thing. A toast confirms it and offers Undo. The app's media notification has a bookmark button too, which saves right away
 - The icon fills within 15 seconds of a bookmark. Tapping it then opens that bookmark's sheet
 - A note runs up to 500 characters, and the sheet can move the bookmark 15 seconds either way
-- Bookmarks show as ticks on the scrubber, in the player's sheet, in a section on the book's page, and on an expanded episode row. A podcast's page has a Bookmarks button once it has any, opening them grouped by episode
+- Bookmarks show as ticks on the scrubber, in the player's sheet, in a section on the book's page, and on an expanded episode row. A podcast's page has a Bookmarks tab once it has any, with them grouped by episode
 - Jumping more than 30 seconds to a bookmark offers Go back to your real place. Until you take it, close it with the X, play for 5 minutes, or play up to that place, your saved position stays where it was, so a look back doesn't move Continue listening. Finishing the item ends it too, and leaving the item or closing the player keeps the old position. A bookmark in another book or episode does the same against that item's saved place
 - They're kept until you delete them or your account goes. If a book or podcast is removed they're hidden, and they return with it
 - A bookmark is a time, so one in an episode whose ads change, or a book whose files are replaced by another edition, can land in a slightly different spot

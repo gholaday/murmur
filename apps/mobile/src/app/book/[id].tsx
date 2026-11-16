@@ -4,16 +4,15 @@ import { router, useLocalSearchParams } from "expo-router";
 import { apiPaths, type BookDetail, chapterAt, type ChapterDto, duration, pastStart, plural, timeLeft } from "@murmur/shared/client";
 import { BookmarkRows, openBookmark } from "@/components/bookmarks";
 import { ChapterList } from "@/components/chapters";
-import { Cover } from "@/components/cover";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { HeroBackdrop } from "@/components/hero";
+import { HeroBackdrop, ItemHero, MetaLine } from "@/components/hero";
 import { CheckIcon, DownloadIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "@/components/icons";
 import { openGroup, PAD } from "@/components/library";
 import { BackRow, Empty, NestedFallback, useBottomPad, SectionTitle, useTopInset } from "@/components/page";
 import { BookActions, useBookActions } from "@/components/book-card";
 import { RemoveDownloadSheet } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
-import { Bar, IconButton, RoundButton, Text } from "@/components/ui";
+import { ACTION_HEIGHT, Bar, IconButton, RoundButton, Text } from "@/components/ui";
 import { useBookmarks } from "@/lib/bookmarks";
 import { useBook } from "@/lib/data";
 import { downloadBook, getDownload, removeDownload, useDownload, type Download } from "@/lib/downloads";
@@ -118,23 +117,21 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
               </IconButton>
             }
           />
-          <View style={{ alignItems: "center", gap: 6, marginTop: 4 }}>
-            <View style={{ width: 210, borderRadius: 12, elevation: 12, shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 12 } }}>
-              <Cover path={cover600} title={book.title} color={book.coverColor} radius={12} />
-            </View>
-            {book.series ? (
-              <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
-                <Pressable accessibilityRole="link" onPress={() => openGroup({ series: book.series! })} hitSlop={6}>
-                  <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.accent }}>{book.series}</Text>
-                </Pressable>
-                {book.seriesPosition !== null ? <Text variant="small" style={{ fontFamily: fonts.semibold }}>Book {book.seriesPosition}</Text> : null}
-              </View>
-            ) : (
-              <View style={{ height: 14 }} />
-            )}
-            <Text variant="title" style={{ fontSize: 24, textAlign: "center" }}>
-              {book.title}
-            </Text>
+          <ItemHero
+            cover={cover600}
+            color={book.coverColor}
+            title={book.title}
+            above={
+              book.series ? (
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
+                  <Pressable accessibilityRole="link" onPress={() => openGroup({ series: book.series! })} hitSlop={6}>
+                    <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.accent }}>{book.series}</Text>
+                  </Pressable>
+                  {book.seriesPosition !== null ? <Text variant="small" style={{ fontFamily: fonts.semibold }}>Book {book.seriesPosition}</Text> : null}
+                </View>
+              ) : undefined
+            }
+          >
             {book.author ? (
               <Pressable accessibilityRole="link" onPress={() => openGroup({ author: book.author! })} hitSlop={6}>
                 <Text style={{ fontFamily: fonts.bold, fontSize: 15, color: t.accent }}>{book.author}</Text>
@@ -143,13 +140,13 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
               <Text variant="small">Unknown author</Text>
             )}
             {book.narrator ? <Text variant="small" style={{ color: t.text2 }}>Narrated by {book.narrator}</Text> : null}
-            <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", columnGap: 14 }}>
+            <MetaLine>
               <Text variant="small">{duration(book.durationSec)}</Text>
               {book.year ? <Text variant="small">{book.year}</Text> : null}
               {book.chapters.length > 1 ? <Text variant="small">{plural(book.chapters.length, "chapter")}</Text> : null}
               {book.missingSince ? <Text variant="small" style={{ color: t.danger }}>Files missing</Text> : null}
-            </View>
-          </View>
+            </MetaLine>
+          </ItemHero>
 
           <View style={{ flexDirection: "row", gap: 10, marginTop: 22 }}>
             <Pressable
@@ -158,8 +155,8 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
               onPress={onPlay}
               style={({ pressed }) => ({
                 flex: 1,
-                height: 56,
-                borderRadius: 28,
+                height: ACTION_HEIGHT,
+                borderRadius: ACTION_HEIGHT / 2,
                 backgroundColor: t.accent,
                 flexDirection: "row",
                 alignItems: "center",

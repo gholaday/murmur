@@ -43,3 +43,27 @@ a.episode-show:hover { color: var(--accent); }
 .episode-icon:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 7%, transparent); }
 .episode-icon[aria-pressed="true"] { color: var(--accent); }
 .episode-icon:disabled { opacity: 0.4; cursor: default; }
+
+/* Home's Continue listening shelf: wide cards on the show's colour, so the next one peeks in at the edge. */
+.pod-continue-row { --arrow-y: 64px; }
+.pod-continue {
+  position: relative;
+  width: 290px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--tint) 15%, var(--surface));
+}
+.pod-continue-link { display: flex; gap: 12px; align-items: center; min-width: 0; }
+/* The whole card opens the show; the play pill sits above that. */
+.pod-continue-link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.pod-continue .thumb { width: 64px; height: 64px; border-radius: 10px; flex-shrink: 0; }
+.pod-continue-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pod-continue-text .episode-show { font-size: 13px; font-weight: 700; color: var(--text-2); }
+.pod-continue-title { font-size: 15px; font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pod-continue.playing .pod-continue-title { color: var(--accent); }
+.pod-continue .episode-actions { position: relative; z-index: 1; margin-top: 0; pointer-events: none; }
+.pod-continue .episode-play { pointer-events: auto; }

@@ -363,6 +363,12 @@ export function CardLink({
 }
 
 /** A round 56pt button beside a page's Play button: Mark finished, Download, Play next. */
+/**
+ * How tall a page's main actions are: Play and the round buttons beside it, on book, album,
+ * playlist, movie and show pages alike (the web's 50).
+ */
+export const ACTION_HEIGHT = 50;
+
 export function RoundButton({
   label,
   active,
@@ -388,9 +394,9 @@ export function RoundButton({
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => ({
-        width: 56,
-        height: 56,
-        borderRadius: 28,
+        width: ACTION_HEIGHT,
+        height: ACTION_HEIGHT,
+        borderRadius: ACTION_HEIGHT / 2,
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: filled ? t.accent : pressed ? t.surface2 : t.chip,

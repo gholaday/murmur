@@ -1,14 +1,15 @@
-import { useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { useRef, useState } from "react";
+import { Pressable, ScrollView, type ScrollViewInstance, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { apiPaths, duration, type MovieDetail, pastStart, resolutionLabel, timeLeft, versionLabel, type VideoQuality, type WatchPoster } from "@murmur/shared/client";
 import { CheckIcon, MoreIcon } from "@/components/icons";
 import { PAD, Shelf, useShelfWidth } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { Empty, NestedFallback, SectionTitle, useBottomPad } from "@/components/page";
+import { Empty, NestedFallback, SectionTitle, useBottomPad, useTopInset } from "@/components/page";
 import { Card } from "@/components/settings";
 import { Sheet, SheetItem } from "@/components/sheet";
-import { FadeIn } from "@/components/skeleton";
+import { HeroBones } from "@/components/hero";
+import { FadeIn, Skeleton } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { IconButton, RoundButton, Text } from "@/components/ui";
 import { FileDetails, PickRow, PosterCard, QualityButton, startMovieDownload, SubtitleRow, VideoDownloadButton, WatchHero, WidePlayButton } from "@/components/watch";
@@ -21,7 +22,17 @@ export default function MovieScreen() {
   const query = useMovie(id);
   const [waited] = useState(!query.data);
   if (!query.data) {
-    return <NestedFallback>{query.isError ? <Empty title="Couldn't load this movie">{query.error.message}</Empty> : null}</NestedFallback>;
+    return (
+      <NestedFallback>
+        {query.isError ? (
+          <Empty title="Couldn't load this movie">{query.error.message}</Empty>
+        ) : (
+          <Skeleton>
+            <HeroBones poster />
+          </Skeleton>
+        )}
+      </NestedFallback>
+    );
   }
   return (
     <FadeIn when={waited} style={{ flex: 1 }}>
@@ -52,6 +63,10 @@ function MovieView({ movie }: { movie: MovieDetail }) {
   const bottomPad = useBottomPad();
   const [sheet, setSheet] = useState<null | "menu" | "version">(null);
   const [expanded, setExpanded] = useState(false);
+  const top = useTopInset();
+  const scroll = useRef<ScrollViewInstance>(null);
+  // Where the collection's shelf is, for its name in the header to scroll to.
+  const [collectionY, setCollectionY] = useState(0);
   // Opens on the version you picked last, if it's still there.
   const [versionId, setVersionId] = useState(() => {
     const saved = readVideoVersion(movie.id);
@@ -67,7 +82,7 @@ function MovieView({ movie }: { movie: MovieDetail }) {
   const backdropPath = movie.backdropHash ? apiPaths.movieArtUrl(movie.id, "backdrop", movie.backdropHash) : null;
   // The blurred colour behind the header: the backdrop, else the poster, else a frame from the film.
   const art = backdropPath ?? posterPath ?? (version.stillHash ? apiPaths.videoStillUrl(version.id, version.stillHash, "small") : null);
-  const pills = [movie.year, duration(version.durationSec), resolutionLabel(version.file.width, version.file.height)].filter((p): p is string => !!p);
+  const facts = [movie.year, duration(version.durationSec), resolutionLabel(version.file.width, version.file.height)].filter((p): p is string => !!p);
   const playSub = started ? timeLeft(version.durationSec, position) : duration(version.durationSec);
   const hasSubtitles = subtitleTracks(version.file).length > 0;
 
@@ -78,7 +93,7 @@ function MovieView({ movie }: { movie: MovieDetail }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: bottomPad }}>
+      <ScrollView ref={scroll} contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: bottomPad }}>
         <WatchHero
           kind="movie"
           id={movie.id}
@@ -86,7 +101,20 @@ function MovieView({ movie }: { movie: MovieDetail }) {
           posterHash={movie.posterHash}
           color={movie.color}
           art={art}
-          pills={pills}
+          facts={facts}
+          above={
+            movie.collection?.items.length ? (
+              <Pressable
+                accessibilityRole="link"
+                accessibilityHint="Scrolls to the collection"
+                onPress={() => scroll.current?.scrollTo({ y: collectionY - top, animated: true })}
+                hitSlop={6}
+                style={{ marginTop: 14 }}
+              >
+                <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.accent }}>{movie.collection.name}</Text>
+              </Pressable>
+            ) : undefined
+          }
           right={
             <IconButton label="More options" onPress={() => setSheet("menu")} style={{ marginRight: -10 }}>
               <MoreIcon color={t.text} />
@@ -134,7 +162,11 @@ function MovieView({ movie }: { movie: MovieDetail }) {
           </View>
         ) : null}
 
-        {movie.collection?.items.length ? <MovieShelf title={movie.collection.name} items={movie.collection.items} current={movie.id} /> : null}
+        {movie.collection?.items.length ? (
+          <View onLayout={(e) => setCollectionY(e.nativeEvent.layout.y)}>
+            <MovieShelf title={movie.collection.name} items={movie.collection.items} current={movie.id} />
+          </View>
+        ) : null}
         {movie.similar?.length ? <MovieShelf title="More like this" items={movie.similar} current={movie.id} /> : null}
 
         <FileDetails file={version.file} />

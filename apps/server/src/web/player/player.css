@@ -197,6 +197,12 @@
 .scrubber::-moz-range-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--text) var(--pct), color-mix(in srgb, var(--text) 18%, transparent) var(--pct)); }
 .scrubber::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 8px; background: var(--text); }
 .scrubber::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 8px; background: var(--text); }
+/* Seek and volume bars: the thumb only shows while you hover, press or tab to it; at rest the fill alone shows the place. */
+.hover-thumb::-webkit-slider-thumb { transform: scale(0); transition: transform 0.12s; }
+.hover-thumb::-moz-range-thumb { transform: scale(0); transition: transform 0.12s; }
+.hover-thumb:hover::-webkit-slider-thumb, .hover-thumb:active::-webkit-slider-thumb, .hover-thumb:focus-visible::-webkit-slider-thumb { transform: scale(1); }
+.hover-thumb:hover::-moz-range-thumb, .hover-thumb:active::-moz-range-thumb, .hover-thumb:focus-visible::-moz-range-thumb { transform: scale(1); }
+@media (prefers-reduced-motion: reduce) { .hover-thumb::-webkit-slider-thumb, .hover-thumb::-moz-range-thumb { transition: none; } }
 
 /* The seek bar is drawn underneath, for ad breaks and bookmarks to sit on, and the range input only adds the thumb. */
 .scrub-wrap { position: relative; }

@@ -8,13 +8,16 @@ import {
   apiPaths,
   type EpisodeWithShow,
   errorText,
+  FALLBACK_TINT,
   NEW_EPISODES_PAGE,
   newByShow,
   PODCAST_LIST_TITLES,
   PODCAST_SECTION_SIZE,
   PODCAST_SORT_LABEL,
+  PODCAST_TABS,
   type PodcastListId,
   type PodcastSort,
+  type PodcastTab,
   type OpmlImportResult,
   plural,
   type PodcastSearchResult,
@@ -26,9 +29,36 @@ import { Cover } from "../cover";
 import { Mixer } from "../mixer";
 import { useNowPlaying } from "../player/engine";
 import { FilterIcon, PlusIcon } from "../icons";
-import { EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle } from "../ui";
+import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle } from "../ui";
 import { ChoiceSheet, Sheet } from "../sheet";
-import { EpisodeRow } from "./episode-row";
+import { EpisodePlayPill, EpisodeRow, useEpisodePlay } from "./episode-row";
+
+/** An episode you're part way through, as a wide card on Home's sideways shelf. */
+function ContinueEpisodeCard({ episode: e }: { episode: EpisodeWithShow }) {
+  const play = useEpisodePlay(e);
+  return (
+    <div
+      className={`pod-continue${play.current ? " playing" : ""}`}
+      style={{ "--tint": e.podcastCoverColor ?? FALLBACK_TINT.show } as React.CSSProperties}
+    >
+      <Link href={`/podcasts/${e.podcastId}`} className="pod-continue-link" title={e.title}>
+        <Cover
+          className="thumb"
+          src={e.podcastCoverHash ? apiPaths.podcastCoverUrl(e.podcastId, e.podcastCoverHash, 200) : null}
+          color={e.podcastCoverColor}
+          title={e.podcastTitle}
+        />
+        <span className="pod-continue-text">
+          <span className="episode-show">{e.podcastTitle}</span>
+          <span className="pod-continue-title">{e.title}</span>
+        </span>
+      </Link>
+      <div className="episode-actions">
+        <EpisodePlayPill play={play} />
+      </div>
+    </div>
+  );
+}
 
 export function PodcastCard({ podcast: p }: { podcast: PodcastSummary }) {
   const { current, playing } = useNowPlaying((n) => n.type === "episode" && n.podcastId === p.id);
@@ -66,6 +96,8 @@ export function PodcastsView({
   const refresh = () => router.refresh();
   const listParam = params.get("list");
   const list = listParam && listParam in PODCAST_LIST_TITLES ? (listParam as PodcastListId) : null;
+  const tab: PodcastTab = params.get("tab") === "shows" ? "shows" : "home";
+  const switchTab = (next: PodcastTab) => window.history.replaceState(null, "", next === "home" ? pathname : `${pathname}?tab=${next}`);
 
   const shows = useMemo(() => sortShows(podcasts, sort), [podcasts, sort]);
   const groups = useMemo(() => newByShow(newEpisodes), [newEpisodes]);
@@ -114,22 +146,12 @@ export function PodcastsView({
 
   // A section's full list, opened from its heading.
   if (list) {
-    const count = list === "continue" ? continueEpisodes.length : list === "new" ? newEpisodes.length : podcasts.length;
+    const count = list === "continue" ? continueEpisodes.length : newEpisodes.length;
     return (
       <>
-        <NestedHead
-          title={PODCAST_LIST_TITLES[list]}
-          fallback="/podcasts"
-          actions={list === "podcasts" ? sortButton : null}
-        />
+        <NestedHead title={PODCAST_LIST_TITLES[list]} fallback="/podcasts" />
         {count === 0 ? (
           <EmptyState>Nothing here right now.</EmptyState>
-        ) : list === "podcasts" ? (
-          <div className="grid">
-            {shows.map((p) => (
-              <PodcastCard key={p.id} podcast={p} />
-            ))}
-          </div>
         ) : list === "continue" ? (
           <div>
             {continueEpisodes.map((e) => (
@@ -179,42 +201,55 @@ export function PodcastsView({
         </EmptyState>
       ) : (
         <>
-          <section className="section" style={{ marginTop: 0 }}>
-            <div className="section-head">
-              <SectionTitle title={PODCAST_LIST_TITLES.podcasts} count={podcasts.length} noun="podcast" onOpen={() => open("podcasts")} />
-            </div>
-            <ScrollRow>
-              {shows.map((p) => (
-                <PodcastCard key={p.id} podcast={p} />
-              ))}
-            </ScrollRow>
-          </section>
+          <Chips kind="tabs" label="Podcasts view">
+            {PODCAST_TABS.map((t) => (
+              <Chip key={t.id} selected={tab === t.id} onClick={() => switchTab(t.id)}>
+                {t.label}
+              </Chip>
+            ))}
+          </Chips>
 
-          {continueEpisodes.length ? (
-            <section className="section">
-              <div className="section-head">
-                <SectionTitle title={PODCAST_LIST_TITLES.continue} count={continueEpisodes.length} noun="episode" onOpen={() => open("continue")} />
-              </div>
-              <div>
-                {continueEpisodes.slice(0, PODCAST_SECTION_SIZE).map((e) => (
-                  <EpisodeRow key={e.id} episode={e} showThumb onChanged={refresh} />
+          <div key={tab} className="view-fade">
+            {tab === "shows" ? (
+              <div className="grid" style={{ marginTop: 16 }}>
+                {shows.map((p) => (
+                  <PodcastCard key={p.id} podcast={p} />
                 ))}
               </div>
-            </section>
-          ) : null}
+            ) : (
+              <>
+                {continueEpisodes.length ? (
+                  <section className="section">
+                    <div className="section-head">
+                      <SectionTitle title={PODCAST_LIST_TITLES.continue} count={continueEpisodes.length} noun="episode" onOpen={() => open("continue")} />
+                    </div>
+                    <ScrollRow className="row-scroll pod-continue-row">
+                      {continueEpisodes.map((e) => (
+                        <ContinueEpisodeCard key={e.id} episode={e} />
+                      ))}
+                    </ScrollRow>
+                  </section>
+                ) : null}
 
-          {groups.length ? (
-            <section className="section">
-              <div className="section-head">
-                <SectionTitle title={PODCAST_LIST_TITLES.new} count={newEpisodes.length} noun="episode" onOpen={() => open("new")} />
-              </div>
-              <div>
-                {groups.slice(0, PODCAST_SECTION_SIZE).map((g) => (
-                  <EpisodeRow key={g.episode.id} episode={g.episode} showThumb newCount={g.count} onChanged={refresh} />
-                ))}
-              </div>
-            </section>
-          ) : null}
+                {groups.length ? (
+                  <section className="section">
+                    <div className="section-head">
+                      <SectionTitle title={PODCAST_LIST_TITLES.new} count={newEpisodes.length} noun="new episode" accent onOpen={() => open("new")} />
+                    </div>
+                    <div>
+                      {groups.slice(0, PODCAST_SECTION_SIZE).map((g) => (
+                        <EpisodeRow key={g.episode.id} episode={g.episode} showThumb newCount={g.count} onChanged={refresh} />
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+
+                {!continueEpisodes.length && !groups.length ? (
+                  <EmptyState title="Nothing new">New episodes from your shows will show here.</EmptyState>
+                ) : null}
+              </>
+            )}
+          </div>
         </>
       )}
 

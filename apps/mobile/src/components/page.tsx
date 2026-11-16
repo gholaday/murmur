@@ -40,11 +40,14 @@ export function NestedScreen({
   right,
   refreshControl,
   after,
+  backdrop,
   children,
 }: {
   right?: React.ReactNode;
   refreshControl?: React.ComponentProps<typeof ScrollView>["refreshControl"];
   after?: React.ReactNode;
+  /** Behind the top of the page and the status bar, e.g. a HeroBackdrop. */
+  backdrop?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const t = useTheme();
@@ -53,6 +56,7 @@ export function NestedScreen({
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }} refreshControl={refreshControl}>
+        {backdrop}
         <BackRow right={right} />
         {children}
       </ScrollView>

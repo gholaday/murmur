@@ -2,25 +2,29 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import Animated from "react-native-reanimated";
 import {
   apiPaths,
   newByShow,
   PODCAST_LIST_TITLES,
   PODCAST_SECTION_SIZE,
+  PODCAST_TABS,
   type PodcastSearchResult,
   type PodcastSummary,
+  type PodcastTab,
   sortShows,
 } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { EpisodeRow } from "@/components/episode-row";
 import { FilterIcon, PlusIcon } from "@/components/icons";
-import { PAD, SectionHead, Shelf, useShelfWidth } from "@/components/library";
+import { GAP, Grid, PAD, SectionHead, Shelf, useGridWidth } from "@/components/library";
 import { Empty, PageTitle, useTopInset } from "@/components/page";
-import { openPodcastList, ShowCard, SortSheet, useSort } from "@/components/podcasts";
+import { ContinueCard, openPodcastList, ShowCard, SortSheet, useContinueWidth, useSort } from "@/components/podcasts";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { SmallButton } from "@/components/settings";
 import { Sheet } from "@/components/sheet";
-import { CoverGridBones, FadeIn, ListRowBone, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
+import { Bone, FadeIn, ListRowBone, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
+import { TextTabs, useTabFade } from "@/components/text-tabs";
 import { toast } from "@/components/toast";
 import { Button, Field, IconButton, Text } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -32,7 +36,11 @@ import { useTheme } from "@/theme";
 export default function Podcasts() {
   const t = useTheme();
   const top = useTopInset();
-  const cardWidth = useShelfWidth();
+  const gridWidth = useGridWidth();
+  const continueWidth = useContinueWidth();
+  // Kept while the tab stays mounted, like Music's.
+  const [tab, setTab] = useState<PodcastTab>("home");
+  const tabFade = useTabFade(tab);
   const podcasts = usePodcasts();
   const newEpisodes = useNewEpisodes();
   const continueEpisodes = useContinueEpisodes();
@@ -64,10 +72,14 @@ export default function Podcasts() {
     body = (
       <Skeleton>
         <SectionBone />
-        <CoverGridBones count={3} />
+        <View style={{ flexDirection: "row", columnGap: GAP }}>
+          {[0, 1].map((i) => (
+            <Bone key={i} width={continueWidth} height={132} radius={14} />
+          ))}
+        </View>
         <SectionBone />
-        {[0, 1, 2].map((i) => (
-          <ListRowBone key={i} thumb={48} />
+        {Array.from({ length: PODCAST_SECTION_SIZE }, (_, i) => (
+          <ListRowBone key={i} thumb={64} />
         ))}
       </Skeleton>
     );
@@ -80,34 +92,39 @@ export default function Podcasts() {
         <Button label="Add a podcast" onPress={() => setAdding(true)} />
       </View>
     );
+  } else if (tab === "shows") {
+    body = (
+      <Animated.View style={[{ marginTop: 18 }, tabFade]}>
+        <Grid>
+          {shows.map((p) => (
+            <ShowCard key={p.id} show={p} width={gridWidth} />
+          ))}
+        </Grid>
+      </Animated.View>
+    );
   } else {
     body = (
-      <>
-        <View style={{ marginTop: 24 }}>
-          <SectionHead title={PODCAST_LIST_TITLES.podcasts} count={shows.length} onOpen={() => openPodcastList("podcasts")} />
-          <Shelf>
-            {shows.map((p) => (
-              <ShowCard key={p.id} show={p} width={cardWidth} />
-            ))}
-          </Shelf>
-        </View>
+      <Animated.View style={tabFade}>
         {started.length ? (
           <View style={{ marginTop: 24 }}>
             <SectionHead title={PODCAST_LIST_TITLES.continue} count={started.length} onOpen={() => openPodcastList("continue")} />
-            {started.slice(0, PODCAST_SECTION_SIZE).map((e) => (
-              <EpisodeRow key={e.id} episode={e} showThumb />
-            ))}
+            <Shelf>
+              {started.map((e) => (
+                <ContinueCard key={e.id} episode={e} width={continueWidth} />
+              ))}
+            </Shelf>
           </View>
         ) : null}
         {groups.length ? (
           <View style={{ marginTop: 24 }}>
-            <SectionHead title={PODCAST_LIST_TITLES.new} count={fresh.length} onOpen={() => openPodcastList("new")} />
+            <SectionHead title={PODCAST_LIST_TITLES.new} count={fresh.length} tone="new" onOpen={() => openPodcastList("new")} />
             {groups.slice(0, PODCAST_SECTION_SIZE).map((g) => (
               <EpisodeRow key={g.episode.id} episode={g.episode} showThumb newCount={g.count} />
             ))}
           </View>
         ) : null}
-      </>
+        {started.length || groups.length ? null : <Empty title="Nothing new">New episodes from your shows will show here.</Empty>}
+      </Animated.View>
     );
   }
 
@@ -132,6 +149,7 @@ export default function Podcasts() {
             </>
           }
         />
+        {shows.length || podcasts.isPending ? <TextTabs options={PODCAST_TABS} value={tab} onPick={setTab} style={{ marginTop: -14 }} /> : null}
         {podcasts.isPending ? body : <FadeIn when={fade}>{body}</FadeIn>}
       </ScrollView>
 

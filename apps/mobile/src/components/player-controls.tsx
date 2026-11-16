@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Pressable, View } from "react-native";
-import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
+import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import Svg, { Circle } from "react-native-svg";
 import { CastButton as NativeCastButton } from "react-native-google-cast";
 import { pickCastDevice, useCast, useCastScan } from "@/player/cast";
@@ -26,6 +26,45 @@ export function CastButton({ color }: { color: string }) {
 }
 
 /** A progress bar's filled part, `fraction` of its parent. A transform, so each tick moves it without any layout. */
+const SEEK_THUMB = 16;
+
+/**
+ * A seek bar's thumb, over a Slider whose own thumb is see-through: hidden at rest, it scales in
+ * while a finger is on the bar and out on release. `fraction` is where the finger is; it holds
+ * its last place while it scales out. Inset like the slider's thumb travel, centred on a bar 16
+ * down a 32-tall slider.
+ */
+export function SeekThumb({ fraction, color }: { fraction: number | null; color: string }) {
+  const reduced = useReducedMotion();
+  const shown = fraction !== null;
+  const scale = useSharedValue(shown ? 1 : 0);
+  const at = useSharedValue(fraction ?? 0);
+  useEffect(() => {
+    if (fraction !== null) at.set(fraction);
+  }, [fraction, at]);
+  useEffect(() => {
+    scale.set(reduced ? (shown ? 1 : 0) : withTiming(shown ? 1 : 0, { duration: 120 }));
+  }, [shown, reduced, scale]);
+  const style = useAnimatedStyle(() => ({ left: `${at.value * 100}%`, transform: [{ scale: scale.value }] }));
+  return (
+    <View pointerEvents="none" style={{ position: "absolute", left: 5, right: 5, top: 16 - SEEK_THUMB / 2, height: SEEK_THUMB }}>
+      <Animated.View
+        style={[
+          {
+            position: "absolute",
+            marginLeft: -SEEK_THUMB / 2,
+            width: SEEK_THUMB,
+            height: SEEK_THUMB,
+            borderRadius: SEEK_THUMB / 2,
+            backgroundColor: color,
+          },
+          style,
+        ]}
+      />
+    </View>
+  );
+}
+
 export function BarFill({ fraction, color }: { fraction: number; color: string }) {
   return <View style={{ position: "absolute", inset: 0, backgroundColor: color, transform: [{ scaleX: fraction }], transformOrigin: "left" }} />;
 }

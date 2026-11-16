@@ -1,15 +1,14 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Animated, Pressable, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { apiPaths, duration, plural, type PodcastPreview, type PodcastPreviewEpisode, type PodcastSummary, shortDate } from "@murmur/shared/client";
-import { Cover } from "@/components/cover";
+import { apiPaths, duration, type PodcastPreview, type PodcastPreviewEpisode, type PodcastSummary, shortDate } from "@murmur/shared/client";
 import { HeroBackdrop } from "@/components/hero";
-import { PlusIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { BackRow, Empty, NestedFallback, useBottomPad, useTopInset } from "@/components/page";
-import { Bone, FadeIn, Skeleton } from "@/components/skeleton";
+import { ShowHero, ShowHeroBones, SubscribeButton } from "@/components/podcasts";
+import { FadeIn } from "@/components/skeleton";
 import { StickyHeading, useStickyHeading } from "@/components/sticky-heading";
 import { toast } from "@/components/toast";
 import { Text } from "@/components/ui";
@@ -51,26 +50,7 @@ export default function PreviewScreen() {
         {query.isError ? (
           <Empty title="Couldn't open this podcast">{query.error.message}</Empty>
         ) : (
-          <Skeleton style={{ marginTop: 4 }}>
-            <View style={{ flexDirection: "row", gap: 16, alignItems: "flex-end" }}>
-              <Bone width={128} height={128} radius={12} />
-              <View style={{ flex: 1, gap: 8 }}>
-                <Bone width="90%" height={22} />
-                <Bone width="60%" height={14} />
-              </View>
-            </View>
-            <Bone width={140} height={44} radius={22} style={{ marginTop: 18 }} />
-            <Bone height={14} style={{ marginTop: 18 }} />
-            <Bone width="70%" height={14} style={{ marginTop: 8 }} />
-            <View style={{ marginTop: 32, gap: 28 }}>
-              {[0, 1, 2, 3].map((i) => (
-                <View key={i} style={{ gap: 8 }}>
-                  <Bone width={110} height={12} />
-                  <Bone width="80%" height={16} />
-                </View>
-              ))}
-            </View>
-          </Skeleton>
+          <ShowHeroBones preview />
         )}
       </NestedFallback>
     );
@@ -97,54 +77,18 @@ export default function PreviewScreen() {
 
   const topBlock = (
     <View>
-          <HeroBackdrop path={artwork} color={null} height={top + 360} />
+          <HeroBackdrop path={artwork} color={null} height={top + 400} />
           <View {...sticky.topProps} style={[sticky.topProps.style, { paddingTop: top, paddingHorizontal: PAD }]}>
           <BackRow />
-          <View style={{ flexDirection: "row", gap: 16, alignItems: "flex-end", marginTop: 4 }}>
-            <Cover path={artwork} title={preview.title} size={128} radius={12} />
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text variant="title" style={{ fontSize: 22, lineHeight: 28 }} numberOfLines={3}>
-                {preview.title}
-              </Text>
-              {preview.author ? (
-                <Text variant="small" numberOfLines={1}>
-                  {preview.author}
-                </Text>
-              ) : null}
-              <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 14, rowGap: 2 }}>
-                <Text variant="small" style={{ color: t.muted }}>
-                  {plural(preview.episodeCount, "episode")}
-                </Text>
-                {preview.latestPublishedAt ? (
-                  <Text variant="small" style={{ color: t.muted }}>
-                    Latest {shortDate(preview.latestPublishedAt)}
-                  </Text>
-                ) : null}
-              </View>
-            </View>
-          </View>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ busy, disabled: busy }}
-            disabled={busy}
-            onPress={() => void subscribe()}
-            style={({ pressed }) => ({
-              alignSelf: "flex-start",
-              marginTop: 18,
-              height: 44,
-              paddingHorizontal: 20,
-              borderRadius: 22,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 8,
-              backgroundColor: t.accent,
-              opacity: busy ? 0.7 : pressed ? 0.85 : 1,
-            })}
-          >
-            {busy ? <ActivityIndicator size="small" color={t.onAccent} style={{ width: 18, height: 18 }} /> : <PlusIcon size={18} color={t.onAccent} />}
-            <Text style={{ fontFamily: fonts.bold, fontSize: 15, color: t.onAccent }}>{busy ? "Subscribing…" : "Subscribe"}</Text>
-          </Pressable>
+          <ShowHero
+            cover={artwork}
+            color={null}
+            title={preview.title}
+            author={preview.author}
+            episodeCount={preview.episodeCount}
+            latestPublishedAt={preview.latestPublishedAt}
+          />
+          <SubscribeButton busy={busy} onPress={() => void subscribe()} />
 
           {preview.description ? (
             <Pressable onPress={() => setAboutOpen((o) => !o)} style={{ marginTop: 18, gap: 4 }}>
@@ -178,7 +122,7 @@ export default function PreviewScreen() {
             item === "top" ? (
               topBlock
             ) : item === "heading" ? (
-              <StickyHeading title="Episodes" count={preview.episodeCount} cover={sticky.cover} />
+              <StickyHeading title="Episodes" count={preview.episodeCount} sticky={sticky.sticky} />
             ) : item === "empty" ? (
               <Empty>No episodes.</Empty>
             ) : (

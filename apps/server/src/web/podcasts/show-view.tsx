@@ -3,16 +3,40 @@
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { addTo, apiPaths, type BookmarkDto, type EpisodeDto, type EpisodeWithShow, errorText, FALLBACK_TINT, matchesEpisode, plural, type PodcastDetail, shortDate } from "@murmur/shared/client";
+import {
+  addTo,
+  apiPaths,
+  type BookmarkDto,
+  type EpisodeDto,
+  type EpisodeWithShow,
+  errorText,
+  FALLBACK_TINT,
+  matchesEpisode,
+  plural,
+  type PodcastDetail,
+  shortDate,
+  SHOW_TABS,
+  type ShowTab,
+  unplayedEpisodes,
+} from "@murmur/shared/client";
 import { api } from "../api";
 import { BookmarkRows } from "../bookmark-rows";
 import { usePodcastBookmarks } from "../bookmarks";
 import { Cover } from "../cover";
-import { BookmarkIcon, CheckIcon, FilterIcon, LockIcon, SearchIcon } from "../icons";
+import { CheckIcon, FilterIcon, LockIcon, SearchIcon } from "../icons";
 import { usePlayerControls } from "../player/engine";
-import { CountPill, Description, EmptyState, HeroBar, SearchBox, SectionTitle } from "../ui";
+import { Chip, Chips, Description, EmptyState, HeroBar, SearchBox } from "../ui";
 import { ConfirmSheet, Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
+
+/** A quiet check on the cover's top right corner says you're subscribed; it asks before unsubscribing. */
+function SubscribedCheck({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className="cover-corner" aria-label="Subscribed. Unsubscribe" onClick={onClick}>
+      <CheckIcon size={16} />
+    </button>
+  );
+}
 
 function byEpisode(bookmarks: BookmarkDto[]) {
   const groups = new Map<string, BookmarkDto[]>();
@@ -35,7 +59,8 @@ export function ShowView({
   const router = useRouter();
   const [oldestFirst, setOldestFirst] = useState(false);
   const [limit, setLimit] = useState(pageSize);
-  const [sheet, setSheet] = useState<null | "menu" | "unsubscribe" | "sort" | "bookmarks">(null);
+  const [sheet, setSheet] = useState<null | "menu" | "unsubscribe" | "sort">(null);
+  const [tabPicked, setTab] = useState<ShowTab>("episodes");
   const player = usePlayerControls();
   const bookmarks = usePodcastBookmarks(podcast.id, firstBookmarks);
   // Grouped by episode, newest bookmark's episode first. Rows are in order within each.
@@ -81,11 +106,20 @@ export function ShowView({
     [withShow, oldestFirst, complete],
   );
 
+  // Bookmarks is only offered while there are some; deleting the last one goes back to Episodes.
+  const tab: ShowTab = tabPicked === "bookmarks" && !bookmarks.length ? "episodes" : tabPicked;
+  const tabs = SHOW_TABS.filter((t) => t.id !== "bookmarks" || bookmarks.length);
+  // Unplayed needs every episode, so it fetches them as it opens, like search.
+  const pickTab = (next: ShowTab) => {
+    if (next === "unplayed" && !complete) void loadAll();
+    setTab(next);
+  };
+
   const q = query.trim().toLowerCase();
-  const visible = useMemo(
-    () => (q ? ordered.filter((e) => matchesEpisode(e, q)) : ordered),
-    [ordered, q],
-  );
+  const visible = useMemo(() => {
+    const list = tab === "unplayed" ? unplayedEpisodes(ordered) : ordered;
+    return q ? list.filter((e) => matchesEpisode(e, q)) : list;
+  }, [ordered, q, tab]);
 
   const run = async (fn: () => Promise<unknown>, done?: string) => {
     setBusy(true);
@@ -104,45 +138,34 @@ export function ShowView({
     <>
       <div className="hero" style={{ "--tint": podcast.coverColor ?? FALLBACK_TINT.show } as React.CSSProperties}>
         <HeroBar fallback="/podcasts" onMore={() => setSheet("menu")} />
-        <div className="show-hero">
-          <Cover
-            src={podcast.coverHash ? apiPaths.podcastCoverUrl(podcast.id, podcast.coverHash, 600) : null}
-            color={podcast.coverColor}
-            title={podcast.title}
-            large
-          />
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingBottom: 4, minWidth: 0 }}>
-            <h1 className="show-title">{podcast.title}</h1>
-            {podcast.author ? <div className="show-by">{podcast.author}</div> : null}
-            <div className="show-by muted" style={{ display: "flex", flexWrap: "wrap", gap: "2px 14px" }}>
+        <div className="book-hero">
+          <div className="cover-wrap">
+            <Cover
+              src={podcast.coverHash ? apiPaths.podcastCoverUrl(podcast.id, podcast.coverHash, 600) : null}
+              color={podcast.coverColor}
+              title={podcast.title}
+              large
+            />
+            <SubscribedCheck onClick={() => setSheet("unsubscribe")} />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+            <h1 className="book-title">{podcast.title}</h1>
+            {podcast.author ? <div className="book-narrator">{podcast.author}</div> : null}
+            <div className="book-meta">
               <span>{plural(podcast.episodeCount, "episode")}</span>
               {podcast.latestPublishedAt ? <span>Latest {shortDate(podcast.latestPublishedAt)}</span> : null}
-            </div>
-            {/* Told by the feed itself (a key in its URL, or itunes:block); never sent for ad detection. */}
-            {podcast.privateFeed ? (
-              <div className="pills">
-                <span className="pill" title="A personal feed, so it isn't sent for ad detection">
+              {/* Told by the feed itself (a key in its URL, or itunes:block); never sent for ad detection. */}
+              {podcast.privateFeed ? (
+                <span className="book-meta-icon" title="A personal feed, so it isn't sent for ad detection">
                   <LockIcon size={12} />
                   Private
                 </span>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
         </div>
-        <div className="show-actions" style={{ "--tint": podcast.coverColor ?? FALLBACK_TINT.show } as React.CSSProperties}>
-          <button type="button" className="btn btn-primary" onClick={() => setSheet("unsubscribe")}>
-            <CheckIcon size={16} />
-            Subscribed
-          </button>
-          {bookmarks.length ? (
-            <button type="button" className="btn btn-tint" onClick={() => setSheet("bookmarks")}>
-              <BookmarkIcon size={16} />
-              Bookmarks
-              <CountPill count={bookmarks.length} />
-            </button>
-          ) : null}
-        </div>
       </div>
+
 
       {podcast.lastError ? (
         <p className="error small" role="alert">
@@ -153,37 +176,64 @@ export function ShowView({
       {podcast.description ? <Description text={podcast.description} longerThan={140} lines={2} /> : null}
 
       <div className="episodes-head">
-        <div className="section-head">
-          <SectionTitle title="Episodes" count={podcast.episodeCount} noun="episode" />
-          <div style={{ display: "flex", gap: 4 }}>
-            <button
-              type="button"
-              className="icon-btn"
-              aria-label="Search episodes"
-              aria-pressed={searching}
-              onClick={() => {
-                // Searching covers every episode, so fetch them as the box opens.
-                if (!searching && !complete) void loadAll();
-                setSearching((s) => !s);
-                setQuery("");
-              }}
-            >
-              <SearchIcon />
-            </button>
-            <button type="button" className="icon-btn" aria-label="Sort episodes" onClick={() => setSheet("sort")}>
-              <FilterIcon />
-            </button>
-          </div>
+        <div className="show-tabs">
+          <Chips kind="tabs" label="Episodes view">
+            {tabs.map((t) => (
+              <Chip key={t.id} selected={tab === t.id} onClick={() => pickTab(t.id)}>
+                {t.label}
+              </Chip>
+            ))}
+          </Chips>
+          {tab === "bookmarks" ? null : (
+            <div className="show-tabs-actions">
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Search episodes"
+                aria-pressed={searching}
+                onClick={() => {
+                  // Searching covers every episode, so fetch them as the box opens.
+                  if (!searching && !complete) void loadAll();
+                  setSearching((s) => !s);
+                  setQuery("");
+                }}
+              >
+                <SearchIcon />
+              </button>
+              <button type="button" className="icon-btn" aria-label="Sort episodes" onClick={() => setSheet("sort")}>
+                <FilterIcon />
+              </button>
+            </div>
+          )}
         </div>
-        {searching ? (
+        {searching && tab !== "bookmarks" ? (
           <SearchBox value={query} onChange={setQuery} placeholder="Search episodes" label="Search episodes" />
         ) : null}
       </div>
 
-      {q && !complete ? (
-        <EmptyState>Searching…</EmptyState>
+      <div key={tab} className="view-fade">
+      {tab === "bookmarks" ? (
+        <div className="pod-bookmarks">
+          {bookmarkGroups.map((group) => (
+            <section key={group[0]!.itemId} className="bookmark-group">
+              <h3 className="list-row-title">{group[0]!.title}</h3>
+              <BookmarkRows
+                bookmarks={group}
+                onJump={(b) => void player.jumpTo({ itemType: "episode", itemId: b.itemId }, b.positionSec)}
+              />
+            </section>
+          ))}
+        </div>
+      ) : (q || tab === "unplayed") && !complete ? (
+        q ? <EmptyState>Searching…</EmptyState> : null
       ) : visible.length === 0 ? (
-        <EmptyState>{q ? "No episodes match." : "No episodes."}</EmptyState>
+        q ? (
+          <EmptyState>No episodes match.</EmptyState>
+        ) : tab === "unplayed" ? (
+          <EmptyState title="No unplayed episodes">You're all caught up.</EmptyState>
+        ) : (
+          <EmptyState>No episodes.</EmptyState>
+        )
       ) : (
         <div>
           {visible.slice(0, limit).map((e) => (
@@ -205,6 +255,7 @@ export function ShowView({
           ) : null}
         </div>
       )}
+      </div>
 
       <Sheet open={sheet === "sort"} onClose={() => setSheet(null)} title="Sort episodes">
         {[false, true].map((oldest) => (
@@ -248,21 +299,6 @@ export function ShowView({
         <SheetItem danger onClick={() => setSheet("unsubscribe")}>
           Unsubscribe
         </SheetItem>
-      </Sheet>
-
-      <Sheet open={sheet === "bookmarks"} onClose={() => setSheet(null)} title="Bookmarks" count={bookmarks.length}>
-        {bookmarkGroups.map((group) => (
-          <section key={group[0]!.itemId} className="bookmark-group">
-            <h3 className="list-row-title">{group[0]!.title}</h3>
-            <BookmarkRows
-              bookmarks={group}
-              onJump={(b) => {
-                setSheet(null);
-                void player.jumpTo({ itemType: "episode", itemId: b.itemId }, b.positionSec);
-              }}
-            />
-          </section>
-        ))}
       </Sheet>
 
       <ConfirmSheet

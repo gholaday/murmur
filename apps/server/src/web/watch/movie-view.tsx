@@ -53,9 +53,9 @@ export function FileDetails({ file }: { file: VideoFileInfo }) {
 }
 
 /** A row of films on a movie's page: its collection, or ones like it. This film's card is marked. */
-function MovieShelf({ title, items, current }: { title: string; items: WatchPoster[]; current: string }) {
+function MovieShelf({ id, title, items, current }: { id?: string; title: string; items: WatchPoster[]; current: string }) {
   return (
-    <section className="section">
+    <section className="section" id={id}>
       <SectionTitle title={title} />
       <ScrollRow>
         {items.map((p) => (
@@ -92,7 +92,7 @@ export function MovieView({ movie }: { movie: MovieDetail }) {
   // The blurred colour behind the header: the backdrop, else the poster, else a frame from the film.
   const heroArt = backdropSrc ?? posterSrc ?? (version.stillHash ? apiPaths.videoStillUrl(version.id, version.stillHash, "small") : null);
   const res = resolutionLabel(version.file.width, version.file.height);
-  const pills = [movie.year, duration(version.durationSec), res].filter(Boolean) as string[];
+  const facts = [movie.year, duration(version.durationSec), res].filter(Boolean) as string[];
   const playSub = started ? timeLeft(version.durationSec, position) : duration(version.durationSec);
 
   const mark = async (done: boolean) => {
@@ -117,15 +117,19 @@ export function MovieView({ movie }: { movie: MovieDetail }) {
         }
       >
         <HeroBar fallback="/watch" onMore={() => setMenu(true)} />
-        <div className="show-hero">
+        {/* Laid out like a book's page: the collection where a book has its series. */}
+        <div className="book-hero">
           <Poster kind="movie" id={movie.id} hash={movie.posterHash} color={movie.color} title={movie.title} sub={movie.year} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>
-            <h1 className="show-title">{movie.title}</h1>
-            <div className="pills">
-              {pills.map((p) => (
-                <span key={p} className="pill">
-                  {p}
-                </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+            {movie.collection ? (
+              <div className="book-series">
+                <a href="#collection">{movie.collection.name}</a>
+              </div>
+            ) : null}
+            <h1 className="book-title">{movie.title}</h1>
+            <div className="book-meta">
+              {facts.map((f) => (
+                <span key={f}>{f}</span>
               ))}
             </div>
           </div>
@@ -172,7 +176,7 @@ export function MovieView({ movie }: { movie: MovieDetail }) {
         </div>
       ) : null}
 
-      {movie.collection ? <MovieShelf title={movie.collection.name} items={movie.collection.items} current={movie.id} /> : null}
+      {movie.collection ? <MovieShelf id="collection" title={movie.collection.name} items={movie.collection.items} current={movie.id} /> : null}
       {movie.similar?.length ? <MovieShelf title="More like this" items={movie.similar} current={movie.id} /> : null}
 
       <FileDetails file={version.file} />

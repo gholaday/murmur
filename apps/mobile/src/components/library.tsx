@@ -2,7 +2,7 @@ import { Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
 import { type BookSummary, SHELF_TITLES, shelfBooks, type ShelfId, shelfTitle } from "@murmur/shared/client";
 import { useTheme } from "@/theme";
-import { CountPill, Text } from "./ui";
+import { NumberBadge, Text } from "./ui";
 
 export const PAD = 20;
 export const GAP = 14;
@@ -121,12 +121,15 @@ export function SectionHead({
   count,
   sub,
   side,
+  tone,
   onOpen,
 }: {
   title: string;
   count: number;
   sub?: string | null;
   side?: string | null;
+  /** "new" for a count of new things, in the accent. */
+  tone?: "count" | "new";
   onOpen: () => void;
 }) {
   const t = useTheme();
@@ -137,7 +140,7 @@ export function SectionHead({
           <Text variant="heading" numberOfLines={1} style={{ flexShrink: 1 }}>
             {title}
           </Text>
-          <CountPill count={count} />
+          <NumberBadge value={count} tone={tone} />
         </View>
         {sub ? <Text variant="small">{sub}</Text> : null}
       </Pressable>

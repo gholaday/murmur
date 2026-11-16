@@ -52,7 +52,7 @@ import {
   SkipForwardIcon,
 } from "@/components/icons";
 import { Empty, useTopInset } from "@/components/page";
-import { BarFill, CastButton, SkipButton, Tile } from "@/components/player-controls";
+import { BarFill, CastButton, SeekThumb, SkipButton, Tile } from "@/components/player-controls";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
 import { CHAPTER_ROW, ChapterList } from "@/components/chapters";
@@ -325,7 +325,8 @@ function PlayerScreen({ item }: { item: Playable }) {
               maximumValue={spanLen}
               minimumTrackTintColor="transparent"
               maximumTrackTintColor="transparent"
-              thumbTintColor={t.text}
+              // Its own thumb stays hidden; SeekThumb shows only while pressed.
+              thumbTintColor="transparent"
               onSlidingStart={(v) => {
                 tapHaptic();
                 scrubFrom.current = v;
@@ -351,6 +352,7 @@ function PlayerScreen({ item }: { item: Playable }) {
                 setScrub(null);
               }}
             />
+            <SeekThumb fraction={scrub === null ? null : frac(scrub)} color={t.text} />
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <BarTime scrub={scrub} text={(at) => clock(within(at))} style={{ fontVariant: ["tabular-nums"], color: soft }} />

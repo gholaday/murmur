@@ -9,6 +9,7 @@ import {
   apiPaths,
   duration,
   errorText,
+  FALLBACK_TINT,
   type PlaylistDetail,
   type PlaylistSummary,
   playlistCoverTiles,
@@ -17,12 +18,12 @@ import {
 import { api } from "../api";
 import { Cover } from "../cover";
 import { Mixer } from "../mixer";
-import { MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
+import { PauseIcon, PlayIcon, PlusIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
 import { type MusicSource, usePlayerControls, usePlayerSelect } from "../player/engine";
 import { ConfirmSheet, Sheet, SheetItem } from "../sheet";
 import { reorder, useSortable } from "../sortable";
-import { BackRow, EmptyState } from "../ui";
+import { EmptyState, HeroBar } from "../ui";
 import { SongRow } from "./song-row";
 
 /** The playlist's album covers sharing one square (playlistCoverTiles), or a tile with the name when it has none. */
@@ -174,6 +175,9 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
     toast("Removed from the playlist", { action: { label: "Undo", onClick: () => setOrder(before) } });
   };
 
+  const firstCover = playlist.covers[0];
+  const heroArt = firstCover ? albumCover(firstCover.albumId, firstCover.coverHash, 600) : null;
+
   const del = async () => {
     setBusy(true);
     try {
@@ -190,19 +194,26 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
 
   return (
     <>
-      <BackRow fallback="/music">
-        <button type="button" className="icon-btn" aria-label="Playlist options" onClick={() => setMenu(true)}>
-          <MoreIcon />
-        </button>
-      </BackRow>
-      <div className="show-hero">
-        <PlaylistCover playlist={playlist} large />
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: 4, minWidth: 0 }}>
-          <div className="eyebrow">Playlist</div>
-          <h1 className="show-title">{playlist.name}</h1>
-          <div className="pills">
-            <span className="pill">{plural(playlist.trackCount, "song")}</span>
-            {playlist.durationSec ? <span className="pill">{duration(playlist.durationSec)}</span> : null}
+      {/* Laid out like a book's page; the first album's cover colours the backdrop. */}
+      <div
+        className="hero"
+        style={
+          {
+            "--tint": FALLBACK_TINT.page,
+            "--art": heroArt ? `url("${heroArt}")` : "none",
+          } as React.CSSProperties
+        }
+      >
+        <HeroBar fallback="/music" onMore={() => setMenu(true)} />
+        <div className="book-hero">
+          <PlaylistCover playlist={playlist} large />
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+            <div className="book-narrator">Playlist</div>
+            <h1 className="book-title">{playlist.name}</h1>
+            <div className="book-meta">
+              <span>{plural(playlist.trackCount, "song")}</span>
+              {playlist.durationSec ? <span>{duration(playlist.durationSec)}</span> : null}
+            </div>
           </div>
         </div>
       </div>

@@ -48,7 +48,7 @@ import {
 } from "@/components/icons";
 import { Pills } from "@/components/music";
 import { Empty, NestedFallback, SectionTitle } from "@/components/page";
-import { BufferingRing, CastButton, SkipButton, Tile } from "@/components/player-controls";
+import { BufferingRing, CastButton, SeekThumb, SkipButton, Tile } from "@/components/player-controls";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
 import { Button, Caption, IconButton, Text } from "@/components/ui";
@@ -496,7 +496,8 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
         value={Math.min(shownAt, total || 0)}
         minimumTrackTintColor={light}
         maximumTrackTintColor={trackColor}
-        thumbTintColor={light}
+        // Its own thumb stays hidden; SeekThumb shows only while pressed.
+        thumbTintColor="transparent"
         onSlidingStart={(to) => {
           tapHaptic();
           setScrub(to);
@@ -511,6 +512,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
           poke();
         }}
       />
+      <SeekThumb fraction={scrub === null ? null : Math.min(1, scrub / (total || 1))} color={light} />
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
         <Text variant="small" style={{ fontVariant: ["tabular-nums"], color: soft }}>
           {clock(shownAt)}

@@ -12,6 +12,54 @@ import { AdsCheckedIcon, BookmarkIcon, PauseIcon, PlayedIcon, PlayIcon, QueueAdd
 import { episodeToPlayable, usePlayerControls, usePlayerSelect, usePosition } from "../player/engine";
 import { setFinished } from "../progress";
 
+/** An episode's play state, for its play pill: played, where it's up to, and what a tap does. */
+export function useEpisodePlay(episode: EpisodeWithShow) {
+  const player = usePlayerControls();
+  const current = usePlayerSelect((s) => s.isCurrent("episode", episode.id));
+  const playing = usePlayerSelect((s) => current && s.playing);
+  const loading = usePlayerSelect((s) => current && s.loading);
+  const liveDur = usePlayerSelect((s) => (current ? s.item?.durationSec : null));
+  const live = usePosition(current);
+
+  const played = !!episode.progress?.finished && !current;
+  const dur = liveDur || episode.durationSec || 0;
+  const position = current ? live : episode.progress && !episode.progress.finished ? episode.progress.positionSec : 0;
+  const time = played ? "Played" : pastStart(position) && dur ? timeLeft(dur, position) : duration(dur);
+
+  // Starting an episode opens the full player; pausing and resuming leave it as it is.
+  const onPlay = () => {
+    if (current) return player.toggle();
+    player.play(episodeToPlayable(episode), played ? 0 : undefined);
+    player.setExpanded(true);
+  };
+  return { current, playing, loading, played, dur, position, time, onPlay };
+}
+
+/** The accent play pill with the time, then the progress bar once it's started. */
+export function EpisodePlayPill({ play }: { play: ReturnType<typeof useEpisodePlay> }) {
+  const { playing, loading, played, dur, position, time, onPlay } = play;
+  const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
+  return (
+    <>
+      <button
+        type="button"
+        className="episode-play"
+        onClick={onPlay}
+        aria-label={playing ? "Pause" : played ? "Play again" : "Play"}
+        data-loading={loading || undefined}
+      >
+        {playing ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
+        <span>{time}</span>
+      </button>
+      {pastStart(position) && !played ? (
+        <span className="episode-bar" aria-hidden="true">
+          <span style={{ width: `${pct}%` }} />
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 export function EpisodeRow({
   episode,
   showThumb = false,
@@ -29,12 +77,9 @@ export function EpisodeRow({
   onChanged?: () => void;
 }) {
   const player = usePlayerControls();
-  const current = usePlayerSelect((s) => s.isCurrent("episode", episode.id));
-  const playing = usePlayerSelect((s) => current && s.playing);
-  const loading = usePlayerSelect((s) => current && s.loading);
-  const liveDur = usePlayerSelect((s) => (current ? s.item?.durationSec : null));
+  const play = useEpisodePlay(episode);
+  const { current, played, dur } = play;
   const queued = usePlayerSelect((s) => s.isWaiting({ itemType: "episode", itemId: episode.id }));
-  const live = usePosition(current);
   const bookmarks = useBookmarks("episode", episode.id, firstBookmarks);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -53,14 +98,7 @@ export function EpisodeRow({
   };
   const notes = fullNotes ?? episode.description;
 
-  const played = !!episode.progress?.finished && !current;
-  const dur = liveDur || episode.durationSec || 0;
-  const position = current ? live : episode.progress && !episode.progress.finished ? episode.progress.positionSec : 0;
-  const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
-  const pausing = playing;
   const showHref = `/podcasts/${episode.podcastId}`;
-
-  const time = played ? "Played" : pastStart(position) && dur ? timeLeft(dur, position) : duration(dur);
 
   const run = async (fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
@@ -73,13 +111,6 @@ export function EpisodeRow({
     } finally {
       setBusy(false);
     }
-  };
-
-  // Starting an episode opens the full player; pausing and resuming leave it as it is.
-  const onPlay = () => {
-    if (current) return player.toggle();
-    player.play(episodeToPlayable(episode), played ? 0 : undefined);
-    player.setExpanded(true);
   };
 
   const toggleQueue = () =>
@@ -145,21 +176,7 @@ export function EpisodeRow({
           ) : null}
         </div>
         <div className="episode-actions">
-          <button
-            type="button"
-            className="episode-play"
-            onClick={onPlay}
-            aria-label={pausing ? "Pause" : played ? "Play again" : "Play"}
-            data-loading={loading || undefined}
-          >
-            {pausing ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
-            <span>{time}</span>
-          </button>
-          {pastStart(position) && !played ? (
-            <span className="episode-bar" aria-hidden="true">
-              <span style={{ width: `${pct}%` }} />
-            </span>
-          ) : null}
+          <EpisodePlayPill play={play} />
           <button
             type="button"
             className="episode-icon"

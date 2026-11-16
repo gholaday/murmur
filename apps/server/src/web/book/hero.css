@@ -89,15 +89,21 @@
 .btn-plain-danger { background: none; color: var(--danger); }
 .episode-bookmarks { display: flex; flex-direction: column; padding-top: 8px; }
 
-.show-hero { display: flex; gap: 16px; align-items: flex-end; padding: 4px 8px 0; }
-.show-hero .cover { width: 120px; flex-shrink: 0; border-radius: 12px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45); }
-.show-title { font-size: 22px; font-weight: 800; }
-.show-by { font-size: 13px; color: var(--text-2); }
-.show-skel-cover { width: 120px; aspect-ratio: 1 / 1; flex-shrink: 0; border-radius: 12px; }
-@media (min-width: 900px) { .show-hero .cover, .show-skel-cover { width: 180px; } .show-title { font-size: 30px; } }
-.show-actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 16px 8px 0; }
-.show-actions .btn { height: 36px; font-size: 13px; }
-.show-actions .btn-tint { background: color-mix(in srgb, var(--tint) 40%, var(--surface-2)); color: var(--text); }
+/* A podcast's header is the book's (.book-hero). Once subscribed, a quiet check sits on the cover's top right corner. */
+.cover-wrap { position: relative; flex-shrink: 0; }
+.book-hero .cover-wrap .cover { display: block; }
+.cover-corner {
+  position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center; color: #fff; background: rgba(11, 11, 13, 0.55);
+  transition: background 0.15s;
+}
+.cover-corner:hover { background: rgba(11, 11, 13, 0.8); }
+.book-meta-icon { display: inline-flex; align-items: center; gap: 4px; }
+/* The show's tabs, with search and sort at the right of the same row. */
+.show-tabs { display: flex; align-items: center; gap: 8px; box-shadow: inset 0 -1px var(--line); }
+.show-tabs .chips { flex: 1; min-width: 0; gap: 20px; box-shadow: none; }
+.show-tabs-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.pod-bookmarks { padding-top: 8px; }
 
 .subtabs { display: flex; gap: 24px; border-bottom: 1px solid var(--line); margin-top: 8px; align-items: center; }
 /* The same text tabs as view-switching chip rows, inside sheets and dialogs. */

@@ -178,7 +178,7 @@ function Scrubber({ store, total, onScrub, onRelease }: { store: Clock; total: n
   return (
     <input
       type="range"
-      className="vp-scrub"
+      className="vp-scrub hover-thumb"
       aria-label="Position"
       min={0}
       max={total || 1}
