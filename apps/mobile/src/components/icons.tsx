@@ -36,6 +36,15 @@ export const LibraryIcon = (p: IconProps) => (
     <Path d="M3 5.5A1.5 1.5 0 0 1 4.5 4H9a3 3 0 0 1 3 3 3 3 0 0 1 3-3h4.5A1.5 1.5 0 0 1 21 5.5v11a1.5 1.5 0 0 1-1.5 1.5H15a3 3 0 0 0-3 3 3 3 0 0 0-3-3H4.5A1.5 1.5 0 0 1 3 16.5z" />
   </Icon>
 );
+/** A like; `filled` once liked. */
+export const HeartIcon = ({ filled, ...p }: IconProps & { filled?: boolean }) => (
+  <Icon {...p}>
+    <Path
+      d="M12 20s-7.5-4.6-9.3-9.2C1.5 7.6 3.6 4.5 6.9 4.5c2 0 3.6 1.1 5.1 3 1.5-1.9 3.1-3 5.1-3 3.3 0 5.4 3.1 4.2 6.3C19.5 15.4 12 20 12 20z"
+      fill={filled ? p.color : "none"}
+    />
+  </Icon>
+);
 export const AdsCheckedIcon = (p: IconProps) => (
   <Icon {...p}>
     <Path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z" />
@@ -53,12 +62,6 @@ export const MusicIcon = (p: IconProps) => (
     <Path d="M9 18V5l12-2v13" />
     <Circle cx="6" cy="18" r="3" />
     <Circle cx="18" cy="16" r="3" />
-  </Icon>
-);
-export const WatchIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <Rect x="3" y="4" width="18" height="16" rx="3" />
-    <Path d="m10 9 5 3-5 3z" />
   </Icon>
 );
 export const AudioTrackIcon = (p: IconProps) => (
@@ -86,13 +89,6 @@ export const FullscreenIcon = ({ exit, ...p }: IconProps & { exit?: boolean }) =
     ) : (
       <Path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
     )}
-  </Icon>
-);
-export const BrowseIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <Rect x="3" y="4" width="18" height="6" rx="2" />
-    <Rect x="3" y="14" width="18" height="6" rx="2" />
-    <Path d="M7 7h.01M7 17h.01" />
   </Icon>
 );
 export const ShuffleIcon = (p: IconProps) => (

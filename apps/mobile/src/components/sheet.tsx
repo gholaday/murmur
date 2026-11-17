@@ -4,8 +4,10 @@ import { GestureDetector, GestureHandlerRootView, ScrollView, usePanGesture } fr
 import Animated, { Easing, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
+import type { HiddenChange } from "@murmur/shared/client";
+import { hide, useCanHideAndLike } from "@/lib/hidden";
 import { fonts, useTheme } from "@/theme";
-import { CheckIcon, ChevronIcon } from "./icons";
+import { CheckIcon, ChevronIcon, EyeOffIcon } from "./icons";
 import { type SortableScroll, SortableScrollProvider } from "./sortable-list";
 import { Toaster, useToastLayer } from "./toast";
 import { Button, InSheet, Text } from "./ui";
@@ -338,6 +340,35 @@ export function SheetDivider() {
   return <View style={{ height: 1, backgroundColor: t.line, marginVertical: 6, marginHorizontal: 12 }} />;
 }
 
+/**
+ * A menu's last item, after a divider: hides the book, album, artist, movie or show from your
+ * lists. From the item's own page, `onHidden` takes you back once it's done.
+ */
+export function HideItem({
+  kind,
+  id,
+  title,
+  onClose,
+  onHidden,
+  divider = true,
+}: HiddenChange & { title: string; onClose: () => void; onHidden?: () => void; divider?: boolean }) {
+  const t = useTheme();
+  if (!useCanHideAndLike()) return null;
+  return (
+    <>
+      {divider ? <SheetDivider /> : null}
+      <SheetItem
+        label="Hide"
+        icon={<EyeOffIcon size={20} color={t.text} />}
+        onPress={() => {
+          onClose();
+          hide({ kind, id }, title, onHidden);
+        }}
+      />
+    </>
+  );
+}
+
 /** A SheetItem's height, for `keepInView`. */
 export const SHEET_ROW = 52;
 
@@ -350,9 +381,12 @@ export function SheetItem({
   hint,
   value,
   chevron,
+  icon,
 }: {
   label: string;
   onPress: () => void;
+  /** Drawn before the label, e.g. Hide's eye. */
+  icon?: React.ReactNode;
   active?: boolean;
   danger?: boolean;
   disabled?: boolean;
@@ -383,11 +417,14 @@ export function SheetItem({
         opacity: disabled ? 0.4 : 1,
       })}
     >
-      <View style={{ flexShrink: 1, gap: 2 }}>
-        <Text style={{ fontFamily: active ? fonts.bold : fonts.medium, fontSize: 16, color: danger ? t.danger : active ? t.accent : t.text }}>
-          {label}
-        </Text>
-        {hint ? <Text variant="small">{hint}</Text> : null}
+      <View style={{ flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 12 }}>
+        {icon}
+        <View style={{ flexShrink: 1, gap: 2 }}>
+          <Text style={{ fontFamily: active ? fonts.bold : fonts.medium, fontSize: 16, color: danger ? t.danger : active ? t.accent : t.text }}>
+            {label}
+          </Text>
+          {hint ? <Text variant="small">{hint}</Text> : null}
+        </View>
       </View>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 0 }}>
         {value ? <Text variant="small">{value}</Text> : null}

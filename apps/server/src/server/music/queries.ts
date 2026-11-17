@@ -5,8 +5,8 @@ import type {
   AlbumSummary,
   ArtistDetail,
   ArtistSummary,
-  MusicMineChange,
-  MusicScope,
+  LikedMusicDto,
+  MusicLikeChange,
   MusicSummaryDto,
   TrackDto,
 } from "@murmur/shared";
@@ -14,11 +14,9 @@ import { NEW_ALBUM_DAYS } from "@murmur/shared";
 import type { AppContext } from "../context";
 import { coverColors } from "../library/covers";
 
-// Read side of music: everything the Music tab, Browse, album and artist pages show. Songs whose
-// file has gone missing are left out, and so are albums left with none.
-//
-// "Your music" is the songs a person added (user_tracks). Their albums and artists are worked
-// out from those songs, so there's nothing else to keep in step.
+// Read side of music: everything the Music section, album and artist pages show. Songs whose
+// file has gone missing are left out, and so are albums left with none. Everyone sees all the
+// music; likes (music_likes) mark songs and albums, and hidden ones are filtered by the caller.
 
 interface AlbumRow {
   id: string;
@@ -31,7 +29,7 @@ interface AlbumRow {
   added_at: number;
   track_count: number;
   duration: number;
-  in_music: number;
+  liked: number;
   matched: number;
 }
 
@@ -47,11 +45,12 @@ interface TrackRow {
   duration_sec: number;
   mime_type: string;
   cover_hash: string | null;
-  in_music: number;
+  liked: number;
 }
 
-/** A song is in @user's music. */
-const IN_MUSIC = (track: string) => `EXISTS (SELECT 1 FROM user_tracks ut WHERE ut.user_id = @user AND ut.track_id = ${track})`;
+/** @user liked this song or album. */
+const LIKED = (kind: "track" | "album", id: string) =>
+  `EXISTS (SELECT 1 FROM music_likes ml WHERE ml.user_id = @user AND ml.kind = '${kind}' AND ml.item_id = ${id})`;
 
 /** Albums as shown: what Match chose wins over the tags. Sorting keeps the tags' title key. */
 const ALBUMS = `(
@@ -62,14 +61,10 @@ const ALBUMS = `(
 
 const ALBUM_SELECT = `
   SELECT a.id, a.title, a.artist_id, ar.name AS artist, a.year, a.genre, a.cover_hash, a.added_at, a.matched,
-         COUNT(t.id) AS track_count, SUM(t.duration_sec) AS duration, SUM(${IN_MUSIC("t.id")}) AS in_music
+         COUNT(t.id) AS track_count, SUM(t.duration_sec) AS duration, ${LIKED("album", "a.id")} AS liked
   FROM ${ALBUMS} a
   JOIN artists ar ON ar.id = a.artist_id
   JOIN tracks t ON t.album_id = a.id AND t.missing_since IS NULL`;
-
-/** Albums with any of @user's songs. */
-const MINE_ALBUMS = `a.id IN (SELECT t2.album_id FROM user_tracks ut JOIN tracks t2 ON t2.id = ut.track_id
-                              WHERE ut.user_id = @user AND t2.missing_since IS NULL)`;
 
 const ALBUM_ORDER: Record<AlbumSort, string> = {
   added: "a.added_at DESC, a.title_key",
@@ -86,7 +81,7 @@ const TRACKS = `(
 
 const TRACK_SELECT = `
   SELECT t.id, t.title, t.album_id, al.title AS album, t.artist_id, ar.name AS artist,
-         t.disc_no, t.track_no, t.duration_sec, t.mime_type, al.cover_hash, ${IN_MUSIC("t.id")} AS in_music
+         t.disc_no, t.track_no, t.duration_sec, t.mime_type, al.cover_hash, ${LIKED("track", "t.id")} AS liked
   FROM ${TRACKS} t
   JOIN ${ALBUMS} al ON al.id = t.album_id
   JOIN artists ar ON ar.id = t.artist_id
@@ -111,8 +106,9 @@ async function toAlbums(rows: AlbumRow[]): Promise<AlbumSummary[]> {
     trackCount: r.track_count,
     durationSec: r.duration ?? 0,
     addedAt: r.added_at,
-    songsInMusic: r.in_music ?? 0,
+    songsInMusic: r.track_count,
     matched: r.matched === 1,
+    liked: r.liked === 1,
   }));
 }
 
@@ -128,10 +124,11 @@ const toTrack = (r: TrackRow): TrackDto => ({
   durationSec: r.duration_sec,
   mimeType: r.mime_type,
   coverHash: r.cover_hash,
-  inMusic: r.in_music === 1,
+  inMusic: true,
+  liked: r.liked === 1,
 });
 
-export function musicSummary(ctx: AppContext, userId: number): MusicSummaryDto {
+export function musicSummary(ctx: AppContext): MusicSummaryDto {
   const all = ctx.sqlite
     .prepare(
       `SELECT COUNT(*) AS tracks, COUNT(DISTINCT t.album_id) AS albums, COUNT(DISTINCT al.artist_id) AS artists,
@@ -139,13 +136,8 @@ export function musicSummary(ctx: AppContext, userId: number): MusicSummaryDto {
        FROM tracks t JOIN albums al ON al.id = t.album_id WHERE t.missing_since IS NULL`,
     )
     .get({ since: Date.now() - NEW_ALBUM_DAYS * 86_400_000 }) as { tracks: number; albums: number; artists: number; newAlbums: number };
-  const mine = ctx.sqlite
-    .prepare(
-      `SELECT COUNT(*) AS tracks, COUNT(DISTINCT t.album_id) AS albums
-       FROM user_tracks ut JOIN tracks t ON t.id = ut.track_id WHERE ut.user_id = @user AND t.missing_since IS NULL`,
-    )
-    .get({ user: userId }) as { tracks: number; albums: number };
-  return { enabled: ctx.music.folders().length > 0, ...all, mine };
+  // `mine` is for older apps, which show "Pick the music you want" when it's empty.
+  return { enabled: ctx.music.folders().length > 0, ...all, mine: { albums: all.albums, tracks: all.tracks } };
 }
 
 /** You > Library's album counts for admins: every album with songs here, and those not matched. */
@@ -158,10 +150,9 @@ export function albumCounts(ctx: AppContext): { albums: number; unmatched: numbe
     .get() as { albums: number; unmatched: number };
 }
 
-/** `userId` null (Match all) leaves out whose songs are in their music; "mine" needs someone. */
-export function listAlbums(ctx: AppContext, userId: number | null, scope: MusicScope, sort: AlbumSort): Promise<AlbumSummary[]> {
-  const where = scope === "mine" ? `WHERE ${MINE_ALBUMS}` : "";
-  return toAlbums(ctx.sqlite.prepare(`${ALBUM_SELECT} ${where} GROUP BY a.id ORDER BY ${ALBUM_ORDER[sort]}`).all({ user: userId }) as AlbumRow[]);
+/** Every album. `userId` null (Match all) leaves out likes. */
+export function listAlbums(ctx: AppContext, userId: number | null, sort: AlbumSort): Promise<AlbumSummary[]> {
+  return toAlbums(ctx.sqlite.prepare(`${ALBUM_SELECT} GROUP BY a.id ORDER BY ${ALBUM_ORDER[sort]}`).all({ user: userId }) as AlbumRow[]);
 }
 
 /** These albums, by id, in no particular order; ones gone from the server are left out. */
@@ -183,7 +174,7 @@ export function listNewAlbums(ctx: AppContext, userId: number, since: number): P
   );
 }
 
-/** An album with its songs. `userId` null (Match) leaves out whose songs are in their music. */
+/** An album with its songs. `userId` null (Match) leaves out likes. */
 export async function getAlbum(ctx: AppContext, userId: number | null, id: string): Promise<AlbumDetail | null> {
   const [album] = await toAlbums(ctx.sqlite.prepare(`${ALBUM_SELECT} WHERE a.id = @id GROUP BY a.id`).all({ user: userId, id }) as AlbumRow[]);
   if (!album) return null;
@@ -219,27 +210,21 @@ interface ArtistRow {
   cover_hash: string | null;
 }
 
-/**
- * An artist with their album and song counts. With `mine`, only what's in @user's music counts:
- * albums of theirs you have songs from, and those songs.
- */
-function artistSelect(mine: boolean): string {
-  const minePart = mine ? `AND ${IN_MUSIC("t.id")}` : "";
-  return `
+/** An artist with their album and song counts. */
+const ARTIST_SELECT = `
   SELECT ar.id, ar.name,
     (SELECT COUNT(DISTINCT t.album_id) FROM tracks t JOIN albums a ON a.id = t.album_id
-     WHERE a.artist_id = ar.id AND t.missing_since IS NULL ${minePart}) AS album_count,
+     WHERE a.artist_id = ar.id AND t.missing_since IS NULL) AS album_count,
     -- Their own songs, plus others' songs on their albums; two halves so each uses an index.
-    (SELECT COUNT(*) FROM tracks t WHERE t.artist_id = ar.id AND t.missing_since IS NULL ${minePart})
+    (SELECT COUNT(*) FROM tracks t WHERE t.artist_id = ar.id AND t.missing_since IS NULL)
     + (SELECT COUNT(*) FROM tracks t JOIN albums a ON a.id = t.album_id
-       WHERE a.artist_id = ar.id AND t.artist_id != ar.id AND t.missing_since IS NULL ${minePart}) AS track_count,
+       WHERE a.artist_id = ar.id AND t.artist_id != ar.id AND t.missing_since IS NULL) AS track_count,
     p.photo_hash, c.id AS cover_album_id, c.cover_hash
   FROM artists ar
   LEFT JOIN artist_photos p ON p.name_key = ar.name_key
   LEFT JOIN ${ALBUMS} c ON c.id = (
     SELECT a.id FROM ${ALBUMS} a WHERE a.artist_id = ar.id AND a.cover_hash IS NOT NULL
     ORDER BY a.year IS NULL, a.year DESC LIMIT 1)`;
-}
 
 const toArtist = (r: ArtistRow): ArtistSummary => ({
   id: r.id,
@@ -255,7 +240,7 @@ const toArtist = (r: ArtistRow): ArtistSummary => ({
 export function artistsByIds(ctx: AppContext, userId: number, ids: string[]): ArtistSummary[] {
   if (!ids.length) return [];
   const rows = ctx.sqlite
-    .prepare(`${artistSelect(false)} WHERE ar.id IN (SELECT value FROM json_each(@ids))`)
+    .prepare(`${ARTIST_SELECT} WHERE ar.id IN (SELECT value FROM json_each(@ids))`)
     .all({ user: userId, ids: JSON.stringify(ids) }) as ArtistRow[];
   const byId = new Map(rows.filter((r) => r.album_count > 0).map((r) => [r.id, toArtist(r)]));
   return ids.flatMap((id) => byId.get(id) ?? []);
@@ -274,14 +259,14 @@ export function albumGenres(ctx: AppContext): Array<{ id: string; artistId: stri
 }
 
 /** Album artists, A to Z. Artists only featured on others' songs are reached from those songs. */
-export function listArtists(ctx: AppContext, userId: number, scope: MusicScope): ArtistSummary[] {
-  const rows = ctx.sqlite.prepare(`${artistSelect(scope === "mine")} ORDER BY ar.sort_name`).all({ user: userId }) as ArtistRow[];
+export function listArtists(ctx: AppContext): ArtistSummary[] {
+  const rows = ctx.sqlite.prepare(`${ARTIST_SELECT} ORDER BY ar.sort_name`).all() as ArtistRow[];
   return rows.filter((r) => r.album_count > 0).map(toArtist);
 }
 
-/** Everything of theirs on the server, each album and song marked with how much is in your music. */
+/** Everything of theirs on the server, each album and song marked with whether you liked it. */
 export async function getArtist(ctx: AppContext, userId: number, id: string): Promise<ArtistDetail | null> {
-  const row = ctx.sqlite.prepare(`${artistSelect(false)} WHERE ar.id = @id`).get({ user: userId, id }) as ArtistRow | undefined;
+  const row = ctx.sqlite.prepare(`${ARTIST_SELECT} WHERE ar.id = @id`).get({ id }) as ArtistRow | undefined;
   if (!row || row.track_count === 0) return null;
   const albums = await toAlbums(
     ctx.sqlite
@@ -295,12 +280,11 @@ export async function getArtist(ctx: AppContext, userId: number, id: string): Pr
 }
 
 /** Songs A to Z, or those whose title, artist or album contains `q`. */
-export function listTracks(ctx: AppContext, userId: number, scope: MusicScope, q: string | null): TrackDto[] {
+export function listTracks(ctx: AppContext, userId: number, q: string | null): TrackDto[] {
   const like = q ? `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
-  const mine = scope === "mine" ? `AND ${IN_MUSIC("t.id")}` : "";
   const match = like ? "AND (t.title LIKE @like ESCAPE '\\' OR ar.name LIKE @like ESCAPE '\\' OR al.title LIKE @like ESCAPE '\\')" : "";
   const rows = ctx.sqlite
-    .prepare(`${TRACK_SELECT} ${mine} ${match} ORDER BY t.title COLLATE NOCASE LIMIT ${MAX_TRACKS}`)
+    .prepare(`${TRACK_SELECT} ${match} ORDER BY t.title COLLATE NOCASE LIMIT ${MAX_TRACKS}`)
     .all(like ? { user: userId, like } : { user: userId }) as TrackRow[];
   return rows.map(toTrack);
 }
@@ -316,26 +300,37 @@ export function recentTracks(ctx: AppContext, userId: number): TrackDto[] {
   return rows.map(toTrack);
 }
 
-/** The song ids a change names: its songs, plus every song on its albums. */
-function changeTrackIds(ctx: AppContext, change: MusicMineChange): string[] {
-  const ids = new Set(change.trackIds ?? []);
-  const byAlbum = ctx.sqlite.prepare("SELECT id FROM tracks WHERE album_id = ? AND missing_since IS NULL");
-  for (const albumId of change.albumIds ?? []) for (const r of byAlbum.all(albumId) as Array<{ id: string }>) ids.add(r.id);
-  return [...ids];
-}
+/** The likes a change names, as [kind, id]. */
+const likeKeys = (change: MusicLikeChange): Array<["track" | "album", string]> => [
+  ...(change.trackIds ?? []).map((id): ["track", string] => ["track", id]),
+  ...(change.albumIds ?? []).map((id): ["album", string] => ["album", id]),
+];
 
-/** Adds songs to a person's music; ones already there or not on the server are skipped. */
-export function addToMine(ctx: AppContext, userId: number, change: MusicMineChange): number {
-  const insert = ctx.sqlite.prepare(
-    "INSERT OR IGNORE INTO user_tracks (user_id, track_id, added_at) SELECT ?, id, ? FROM tracks WHERE id = ? AND missing_since IS NULL",
-  );
+/** Likes songs and albums; ones already liked keep their time. Liking an album doesn't like its songs. */
+export function like(ctx: AppContext, userId: number, change: MusicLikeChange): void {
+  const insert = ctx.sqlite.prepare("INSERT INTO music_likes (user_id, kind, item_id, liked_at) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING");
   const now = Date.now();
-  return ctx.sqlite.transaction((ids: string[]) => ids.reduce((n, id) => n + insert.run(userId, now, id).changes, 0))(changeTrackIds(ctx, change));
+  ctx.sqlite.transaction(() => {
+    for (const [kind, id] of likeKeys(change)) insert.run(userId, kind, id, now);
+  })();
 }
 
-export function removeFromMine(ctx: AppContext, userId: number, change: MusicMineChange): number {
-  const del = ctx.sqlite.prepare("DELETE FROM user_tracks WHERE user_id = ? AND track_id = ?");
-  return ctx.sqlite.transaction((ids: string[]) => ids.reduce((n, id) => n + del.run(userId, id).changes, 0))(changeTrackIds(ctx, change));
+export function unlike(ctx: AppContext, userId: number, change: MusicLikeChange): void {
+  const del = ctx.sqlite.prepare("DELETE FROM music_likes WHERE user_id = ? AND kind = ? AND item_id = ?");
+  ctx.sqlite.transaction(() => {
+    for (const [kind, id] of likeKeys(change)) del.run(userId, kind, id);
+  })();
+}
+
+/** The Liked tab: liked albums, then liked songs, each newest like first; gone ones are left out. */
+export async function likedMusic(ctx: AppContext, userId: number): Promise<LikedMusicDto> {
+  const ids = (kind: "track" | "album") =>
+    (ctx.sqlite.prepare("SELECT item_id FROM music_likes WHERE user_id = ? AND kind = ? ORDER BY liked_at DESC").all(userId, kind) as Array<{ item_id: string }>).map(
+      (r) => r.item_id,
+    );
+  const albumIds = ids("album");
+  const byId = new Map((await albumsByIds(ctx, userId, albumIds)).map((a) => [a.id, a]));
+  return { albums: albumIds.flatMap((id) => byId.get(id) ?? []), tracks: tracksByIds(ctx, userId, ids("track")) };
 }
 
 /** Where a song's file is, for streaming. */
@@ -378,7 +373,7 @@ export function addTrackPlay(
     )
     .run(userId, trackId, now);
   // Jump back in: the album or playlist it came from. From an artist, that's the song's album;
-  // Your songs and search say nothing about what you'd go back to.
+  // Songs from a list (Liked, On repeat, search) say nothing about what you'd go back to.
   let recent: { kind: "album" | "playlist"; refId: string } | null = null;
   if ((source?.kind === "album" || source?.kind === "playlist") && source.refId) recent = { kind: source.kind, refId: source.refId };
   else if (source?.kind === "artist") {

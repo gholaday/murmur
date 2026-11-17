@@ -1,26 +1,26 @@
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { albumInMusic, artistImage, artistSub, plural, type TrackDto } from "@murmur/shared/client";
+import { artistImage, artistSub, plural, type TrackDto } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
-import { MoreIcon, PlusIcon, ProfileIcon } from "@/components/icons";
+import { MoreIcon, ProfileIcon } from "@/components/icons";
 import { Grid, useGridWidth } from "@/components/library";
 import { ArtistPhotoSheet } from "@/components/match";
 import { AlbumCard, SongRow, SongSheet } from "@/components/music";
-import { Empty, NestedScreen, PageTitle, SectionTitle } from "@/components/page";
+import { Empty, NestedScreen, PageTitle, SectionTitle, useBackIfFocused } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
-import { Sheet, SheetItem } from "@/components/sheet";
+import { HideItem, Sheet, SheetItem } from "@/components/sheet";
 import { Bone, CoverGridBones, FadeIn, Skeleton, useJustLoaded } from "@/components/skeleton";
-import { IconButton, Text } from "@/components/ui";
-import { setInMusic, useArtist } from "@/lib/data";
-import { selectHaptic } from "@/lib/haptics";
+import { IconButton } from "@/components/ui";
+import { useArtist } from "@/lib/data";
+import { useCanHideAndLike } from "@/lib/hidden";
 import { useIsAdmin } from "@/lib/session";
 import { playMusic } from "@/player/engine";
-import { fonts, useTheme } from "@/theme";
+import { useTheme } from "@/theme";
 
 const PHOTO = 96;
 
-/** All of an artist's albums, newest first, then songs of theirs on other albums; each can be added. */
+/** All of an artist's albums, newest first, then songs of theirs on other albums. */
 export default function ArtistScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const t = useTheme();
@@ -29,14 +29,13 @@ export default function ArtistScreen() {
   const refresh = usePullRefresh(artist.refetch);
   const fade = useJustLoaded(!artist.isPending);
   const a = artist.data;
-  // Albums not fully in your music yet; the button adds them all.
-  const missing = a?.albums.filter((al) => albumInMusic(al) !== "all") ?? [];
-  const added = (a?.albums.length ?? 0) - missing.length;
   const photo = a ? artistImage(a, 600) : null;
   const [song, setSong] = useState<TrackDto | null>(null);
   const [menu, setMenu] = useState(false);
   const [changing, setChanging] = useState(false);
   const admin = useIsAdmin();
+  const canHide = useCanHideAndLike();
+  const backIfHere = useBackIfFocused();
 
   let body: React.ReactNode;
   if (a) {
@@ -52,40 +51,14 @@ export default function ArtistScreen() {
             </View>
           )}
           <View style={{ flex: 1 }}>
-            <PageTitle title={a.name} sub={added ? `${artistSub(a)}, ${added} in your music` : artistSub(a)} />
+            <PageTitle title={a.name} sub={artistSub(a)} />
           </View>
         </View>
-        {missing.length ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              selectHaptic();
-              void setInMusic({ albums: missing }, true);
-            }}
-            style={({ pressed }) => ({
-              marginTop: 12,
-              height: 44,
-              borderRadius: 22,
-              borderWidth: 1,
-              borderColor: t.line,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              opacity: pressed ? 0.6 : 1,
-            })}
-          >
-            <PlusIcon size={18} color={t.text} />
-            <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: t.text }}>
-              {added ? `Add the other ${plural(missing.length, "album")}` : missing.length === 1 ? "Add the album" : `Add all ${missing.length} albums`}
-            </Text>
-          </Pressable>
-        ) : null}
         {a.albums.length ? (
           <View style={{ marginTop: 16 }}>
             <Grid>
               {a.albums.map((al) => (
-                <AlbumCard key={al.id} album={al} width={width} sub={al.year ?? plural(al.trackCount, "song")} badge />
+                <AlbumCard key={al.id} album={al} width={width} sub={al.year ?? plural(al.trackCount, "song")} />
               ))}
             </Grid>
           </View>
@@ -97,7 +70,6 @@ export default function ArtistScreen() {
               <SongRow
                 key={tr.id}
                 track={tr}
-                toggle
                 onPlay={() => playMusic({ kind: "artist", refId: a.id, title: a.name, tracks: a.appearsOn }, a.appearsOn.indexOf(tr))}
                 onMore={() => setSong(tr)}
               />
@@ -127,7 +99,8 @@ export default function ArtistScreen() {
     <NestedScreen
       refreshControl={refresh}
       right={
-        admin && a ? (
+        // The menu holds Change photo (admins) and Hide (servers that can).
+        a && (admin || canHide) ? (
           <IconButton label="Artist options" onPress={() => setMenu(true)}>
             <MoreIcon size={22} color={t.text} />
           </IconButton>
@@ -136,9 +109,9 @@ export default function ArtistScreen() {
       after={
         <>
           <SongSheet track={song} onClose={() => setSong(null)} />
-          {admin && a ? (
-            <>
-              <Sheet open={menu} onClose={() => setMenu(false)} title={a.name}>
+          {a ? (
+            <Sheet open={menu} onClose={() => setMenu(false)} title={a.name}>
+              {admin ? (
                 <SheetItem
                   label="Change photo…"
                   onPress={() => {
@@ -146,10 +119,11 @@ export default function ArtistScreen() {
                     setChanging(true);
                   }}
                 />
-              </Sheet>
-              <ArtistPhotoSheet artist={changing ? a : null} onClose={() => setChanging(false)} />
-            </>
+              ) : null}
+              <HideItem kind="artist" id={a.id} title={a.name} onClose={() => setMenu(false)} onHidden={backIfHere} divider={admin} />
+            </Sheet>
           ) : null}
+          {admin && a ? <ArtistPhotoSheet artist={changing ? a : null} onClose={() => setChanging(false)} /> : null}
         </>
       }
     >

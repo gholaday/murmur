@@ -17,6 +17,7 @@ import { useAdmin } from "../admin";
 import { FilterIcon } from "../icons";
 import { ChoiceSheet } from "../sheet";
 import { Chip, Chips, EmptyState, ScrollRow, SectionTitle, useSavedChoice } from "../ui";
+import { LibraryTitle } from "../library/library-title";
 import { PosterCard, StillCard } from "./cards";
 
 type WatchTab = "home" | "movies" | "shows" | "watched";
@@ -113,7 +114,7 @@ export function WatchView({
     return (
       <>
         <div className="page-head">
-          <h1 className="page-title">Watch</h1>
+          <LibraryTitle current="watch" />
         </div>
         <EmptyState title="Nothing to watch yet">
           {isAdmin ? "Mount your movies at /movies and shows at /shows, and they show up here." : "Movies and shows show up here once they're added."}
@@ -125,7 +126,7 @@ export function WatchView({
   return (
     <>
       <div className="page-head">
-        <h1 className="page-title">Watch</h1>
+        <LibraryTitle current="watch" />
         <div className="head-actions">
           {tab !== "home" ? (
             <button type="button" className="icon-btn" aria-label={`Sort, ${WATCH_SORTS.find((s) => s.id === sort)?.label}`} onClick={() => setSortOpen(true)}>

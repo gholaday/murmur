@@ -5,7 +5,7 @@ import { apiPaths, duration, type MovieDetail, pastStart, resolutionLabel, timeL
 import { CheckIcon, MoreIcon } from "@/components/icons";
 import { PAD, Shelf, useShelfWidth } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { Empty, NestedFallback, SectionTitle, useBottomPad, useTopInset } from "@/components/page";
+import { Empty, NestedFallback, SectionTitle, useBackIfFocused, useBottomPad, useTopInset } from "@/components/page";
 import { Card } from "@/components/settings";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { HeroBones } from "@/components/hero";
@@ -63,6 +63,7 @@ function MovieView({ movie }: { movie: MovieDetail }) {
   const bottomPad = useBottomPad();
   const [sheet, setSheet] = useState<null | "menu" | "version">(null);
   const [expanded, setExpanded] = useState(false);
+  const backIfHere = useBackIfFocused();
   const top = useTopInset();
   const scroll = useRef<ScrollViewInstance>(null);
   // Where the collection's shelf is, for its name in the header to scroll to.
@@ -188,7 +189,7 @@ function MovieView({ movie }: { movie: MovieDetail }) {
           />
         ))}
       </Sheet>
-      <WatchActions kind="movie" id={movie.id} title={movie.title} open={sheet === "menu"} onClose={() => setSheet(null)} />
+      <WatchActions kind="movie" id={movie.id} title={movie.title} open={sheet === "menu"} onClose={() => setSheet(null)} onHidden={backIfHere} />
     </View>
   );
 }

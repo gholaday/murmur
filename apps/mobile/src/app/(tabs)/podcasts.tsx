@@ -117,7 +117,7 @@ export default function Podcasts() {
         ) : null}
         {groups.length ? (
           <View style={{ marginTop: 24 }}>
-            <SectionHead title={PODCAST_LIST_TITLES.new} count={fresh.length} tone="new" onOpen={() => openPodcastList("new")} />
+            <SectionHead title={PODCAST_LIST_TITLES.new} count={fresh.length} onOpen={() => openPodcastList("new")} />
             {groups.slice(0, PODCAST_SECTION_SIZE).map((g) => (
               <EpisodeRow key={g.episode.id} episode={g.episode} showThumb newCount={g.count} />
             ))}
@@ -149,7 +149,7 @@ export default function Podcasts() {
             </>
           }
         />
-        {shows.length || podcasts.isPending ? <TextTabs options={PODCAST_TABS} value={tab} onPick={setTab} style={{ marginTop: -14 }} /> : null}
+        {shows.length || podcasts.isPending ? <TextTabs options={PODCAST_TABS} value={tab} onPick={setTab} /> : null}
         {podcasts.isPending ? body : <FadeIn when={fade}>{body}</FadeIn>}
       </ScrollView>
 

@@ -50,8 +50,8 @@ Copy [`docker-compose.yml`](../docker-compose.yml) to your server and change the
 | Folder | What it's for |
 | --- | --- |
 | `/path/to/audiobooks` | Your library, mounted read-only |
-| `/path/to/music` | Optional: your music, mounted read-only. Uncomment it to turn on the Music tab |
-| `/path/to/movies`, `/path/to/shows` | Optional: your movies and shows, mounted read-only. Uncomment them to turn on the Watch tab |
+| `/path/to/music` | Optional: your music, mounted read-only. Uncomment it to turn on Music in Library |
+| `/path/to/movies`, `/path/to/shows` | Optional: your movies and shows, mounted read-only. Uncomment them to turn on Watch in Library |
 | `/path/to/murmur/data` | Database, covers and nightly backups. Back this up |
 | `/path/to/murmur/cache` | Podcast episodes kept on the server. Safe to lose |
 
@@ -136,7 +136,7 @@ Each device then chooses Off, Show or Auto-skip in the player's ⋯ menu or in S
 
 ## 7. Optional: movies and shows
 
-The `murmur-video` add-on reads your video files and streams them; Murmur keeps the library and the players. Without it, the Watch tab stays empty and everything else works the same.
+The `murmur-video` add-on reads your video files and streams them; Murmur keeps the library and the players. Without it, Watch stays empty and everything else works the same.
 
 1. Set `ADDON_SECRET` in `murmur.env`, as in step 6: at least 32 characters, and one secret serves both add-ons.
 2. Uncomment the movie and show folders on Murmur, and the `murmur-video` service in `docker-compose.yml`. It reads the same `murmur.env`, and it needs the movie and show folders at the **same** paths as Murmur's.

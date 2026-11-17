@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FlatList, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { albumCover, type PlaylistDetail, songMatches, songSub, type TrackDto } from "@murmur/shared/client";
+import { albumCover, type PlaylistDetail, songSub, type TrackDto } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
 import { AddCircleIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
@@ -11,24 +11,23 @@ import { ListRowBone, Skeleton } from "@/components/skeleton";
 import { toast } from "@/components/toast";
 import { TextTabs } from "@/components/text-tabs";
 import { IconButton, SearchBox, Text } from "@/components/ui";
-import { addToPlaylist, keys, updatePlaylist, usePlaylist, useRecentTracks, useTrackSearch } from "@/lib/data";
+import { addToPlaylist, keys, updatePlaylist, useLikedMusic, usePlaylist, useRecentTracks, useTrackSearch } from "@/lib/data";
+import { useCanHideAndLike } from "@/lib/hidden";
 import { queryClient } from "@/lib/query";
 import { useDebounced } from "@/lib/search";
 import { useTheme } from "@/theme";
 
 const VIEWS = [
-  { id: "mine", label: "Your songs" },
   { id: "recent", label: "Recently played" },
-  { id: "all", label: "Browse" },
+  { id: "liked", label: "Liked" },
 ] as const;
 type View_ = (typeof VIEWS)[number]["id"];
 
 const SONG_ROW = 64;
 
 /**
- * Add songs to a playlist: search your songs, what you've played lately, or everything on the
- * server, and add or take out each with one tap. Browse songs go in the playlist only, not
- * into your music.
+ * Add songs to a playlist: what you've played lately or what you liked, or type to search all
+ * the music on the server; add or take out each with one tap.
  */
 export default function AddSongsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -36,15 +35,18 @@ export default function AddSongsScreen() {
   const top = useTopInset();
   const bottom = useBottomPad();
   const playlist = usePlaylist(id);
-  const [view, setView] = useState<View_>("mine");
+  const [view, setView] = useState<View_>("recent");
+  const canLike = useCanHideAndLike();
   const [query, setQuery] = useState("");
   const [headerHeight, setHeaderHeight] = useState(0);
   const q = useDebounced(query.trim(), 250);
-  const mine = useTrackSearch("mine", q, view === "mine");
-  const all = useTrackSearch("all", q, view === "all");
-  const recent = useRecentTracks(view === "recent");
-  const current = view === "mine" ? mine : view === "all" ? all : recent;
-  const list = view === "recent" ? (recent.data ?? []).filter((s) => songMatches(s, q)) : (current.data ?? []);
+  // Typing searches all music; the chips are for browsing without a search.
+  const searching = q.length > 0;
+  const all = useTrackSearch(q, searching);
+  const recent = useRecentTracks(!searching && view === "recent");
+  const liked = useLikedMusic(!searching && view === "liked");
+  const current = searching ? all : view === "recent" ? recent : liked;
+  const list = searching ? (all.data ?? []) : view === "recent" ? (recent.data ?? []) : (liked.data?.tracks ?? []);
   const name = playlist.data?.name ?? "";
   const inPlaylist = new Set(playlist.data?.tracks.map((s) => s.id));
 
@@ -89,7 +91,8 @@ export default function AddSongsScreen() {
         </Text>
       </View>
       <SearchBox value={query} onChange={setQuery} placeholder="Search songs, albums or artists" />
-      <TextTabs options={VIEWS} value={view} onPick={setView} />
+      {/* A server from before likes has only Recently played, so no chips. */}
+      {query.trim() || !canLike ? null : <TextTabs options={VIEWS} value={view} onPick={setView} />}
     </View>
   );
 
@@ -100,7 +103,9 @@ export default function AddSongsScreen() {
       ))}
     </Skeleton>
   ) : (
-    <Empty>{q ? `No songs match "${q}".` : view === "recent" ? "Songs you play show up here." : "No songs yet."}</Empty>
+    <Empty>
+      {searching ? `No songs match "${q}".` : view === "recent" ? "Songs you play show up here." : "Tap the heart on any song or album to find it here."}
+    </Empty>
   );
 
   return (

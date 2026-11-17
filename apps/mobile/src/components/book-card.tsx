@@ -14,7 +14,7 @@ import { BookEditSheet, type BookEditTab } from "./book-edit";
 import { Cover } from "./cover";
 import { CheckIcon, DownloadIcon } from "./icons";
 import { Mixer, useNowPlaying } from "./mixer";
-import { Sheet, SheetDivider, SheetItem, useCardMenu, useMenuIdle } from "./sheet";
+import { HideItem, Sheet, SheetDivider, SheetItem, useCardMenu, useMenuIdle } from "./sheet";
 import { toast } from "./toast";
 import { Bar, Text } from "./ui";
 
@@ -99,7 +99,20 @@ export function useBookActions(book: BookSummary) {
  * A book's menu, the same from a card's long press and the book page's ⋯ (like the web's): play,
  * Play next and finished, then for admins Edit, Match and Mark as matched.
  */
-export function BookActions({ book, open, onClose, onIdle }: { book: BookSummary; open: boolean; onClose: () => void; onIdle?: () => void }) {
+export function BookActions({
+  book,
+  open,
+  onClose,
+  onIdle,
+  onHidden,
+}: {
+  book: BookSummary;
+  open: boolean;
+  onClose: () => void;
+  onIdle?: () => void;
+  /** On the book's own page: goes back once it's hidden. */
+  onHidden?: () => void;
+}) {
   const playing = usePlayerSelect((s) => s.playing);
   const admin = useIsAdmin();
   const [editing, setEditing] = useState<BookEditTab | null>(null);
@@ -150,6 +163,7 @@ export function BookActions({ book, open, onClose, onIdle }: { book: BookSummary
             ) : null}
           </>
         ) : null}
+        <HideItem kind="book" id={book.id} title={book.title} onClose={onClose} onHidden={onHidden} />
       </Sheet>
       {admin ? <BookEditSheet bookId={book.id} title={book.title} tab={editing} onClose={() => setEditing(null)} /> : null}
     </>

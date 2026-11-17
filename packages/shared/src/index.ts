@@ -202,6 +202,18 @@ export const musicMineSchema = z
     albumIds: z.array(z.string().min(1).max(64)).max(1000).optional(),
   })
   .refine((v) => v.trackIds?.length || v.albumIds?.length, "Pick at least one song or album.");
+/** Like or unlike songs and albums: the body of PUT and DELETE apiPaths.musicLikes. */
+export const musicLikeSchema = z
+  .object({
+    trackIds: z.array(z.string().min(1).max(64)).max(1000).optional(),
+    albumIds: z.array(z.string().min(1).max(64)).max(1000).optional(),
+  })
+  .refine((v) => v.trackIds?.length || v.albumIds?.length, "Pick at least one song or album.");
+/** Hide or unhide one thing: the body of PUT and DELETE apiPaths.hidden. */
+export const hiddenSchema = z.object({
+  kind: z.enum(["book", "album", "artist", "movie", "show"]),
+  id: z.string().min(1).max(64),
+});
 export const albumMatchApplySchema = z.object({
   provider: z.enum(["musicbrainz", "deezer", "itunes"]),
   providerId: z.string().min(1).max(64),
@@ -820,6 +832,7 @@ export * from "./bookmarks";
 export * from "./cast";
 export * from "./changes";
 export * from "./format";
+export * from "./hidden";
 export * from "./languages";
 export * from "./library";
 export * from "./music";

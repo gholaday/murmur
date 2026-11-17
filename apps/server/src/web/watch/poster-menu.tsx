@@ -7,6 +7,7 @@ import { apiPaths, type MovieDetail, type ShowDetail } from "@murmur/shared/clie
 import { useAdmin } from "../admin";
 import { api } from "../api";
 import { CardMenu, MenuItem, MenuSep } from "../card-menu";
+import { HideMenuItem } from "../hidden";
 import { setFinished, setManyFinished } from "../progress";
 import { WatchEditDialog, type WatchEditTab } from "./edit-sheet";
 
@@ -16,7 +17,7 @@ type PlayHref = (kind: "movie" | "episode", id: string) => string;
 
 /**
  * A movie's or show's menu, the same on its card and its page: Play or Resume and Mark as watched,
- * then for admins Edit and Match. `load` gives the details when an item needs them.
+ * then for admins Edit and Match, then Hide. `load` gives the details when an item needs them.
  */
 export function WatchMenuItems({
   kind,
@@ -27,9 +28,14 @@ export function WatchMenuItems({
   load,
   edit,
   choose,
+  title,
+  after,
 }: {
   kind: "movie" | "show";
   id: string;
+  title: string;
+  /** Runs once it's hidden: its own page goes back. */
+  after?: () => void;
   watched: boolean;
   /** A movie partway through. */
   resume: boolean;
@@ -75,6 +81,7 @@ export function WatchMenuItems({
           {tmdb ? <MenuItem onClick={choose(() => edit("match"))}>Match…</MenuItem> : null}
         </>
       ) : null}
+      <HideMenuItem change={{ kind, id }} title={title} choose={choose} after={after} />
     </>
   );
 }
@@ -107,6 +114,7 @@ export function PosterCardMenu({
           <WatchMenuItems
             kind={kind}
             id={id}
+            title={title}
             watched={watched}
             resume={resume}
             playHref={playHref}

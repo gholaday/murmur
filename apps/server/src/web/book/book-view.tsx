@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useLeave } from "../hidden";
 import { useCallback, useState } from "react";
 import { apiPaths, type BookDetail, type BookmarkDto, chapterAt, duration, FALLBACK_TINT, pastStart, plural, timeLeft } from "@murmur/shared/client";
 import { useAdmin } from "../admin";
@@ -18,6 +19,7 @@ import { EditBookDialog, type EditTab } from "./edit-dialog";
 
 export function BookView({ book, bookmarks: firstBookmarks }: { book: BookDetail; bookmarks: BookmarkDto[] }) {
   const router = useRouter();
+  const leave = useLeave();
   const player = usePlayerControls();
   const { isAdmin } = useAdmin();
   const bookmarks = useBookmarks("book", book.id, firstBookmarks);
@@ -164,7 +166,7 @@ export function BookView({ book, bookmarks: firstBookmarks }: { book: BookDetail
         open={menu}
         onClose={() => setMenu(false)}
         title={book.title}
-        items={(choose) => <BookMenuItems book={book} edit={(_, tab) => setEditing(tab)} choose={choose} />}
+        items={(choose) => <BookMenuItems book={book} edit={(_, tab) => setEditing(tab)} choose={choose} after={leave("/")} />}
       />
 
       {isAdmin && editing ? (

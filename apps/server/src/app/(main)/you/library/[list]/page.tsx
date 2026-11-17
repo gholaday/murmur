@@ -16,7 +16,7 @@ export default async function LibraryListPage({ params }: { params: Promise<{ li
     <LibraryListView
       list={list as LibraryList}
       books={list === "albums" ? [] : await listBooks(ctx, user.id)}
-      albums={list === "albums" ? await listAlbums(ctx, user.id, "all", "artist") : []}
+      albums={list === "albums" ? await listAlbums(ctx, user.id, "artist") : []}
     />
   );
 }

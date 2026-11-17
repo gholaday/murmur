@@ -3,7 +3,7 @@ import { FlatList, View } from "react-native";
 import { type MovieSummary, percentDone, type ShowSummary, sortWatch, type WatchCard, type WatchPoster, WATCH_SORTS } from "@murmur/shared/client";
 import { FilterIcon } from "@/components/icons";
 import { GAP, gridRows, PAD, Shelf, useGridWidth, useShelfWidth } from "@/components/library";
-import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
+import { Empty, LibraryTitle, SectionTitle, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, Skeleton } from "@/components/skeleton";
 import Animated from "react-native-reanimated";
@@ -11,6 +11,7 @@ import { TextTabs, useTabFade } from "@/components/text-tabs";
 import { IconButton } from "@/components/ui";
 import { type PosterItem, PosterCard, StillCard, useWatchSort, WatchSortSheet } from "@/components/watch";
 import { useDownloads } from "@/lib/downloads";
+import { useSectionJumps } from "@/lib/library";
 import { useOnline } from "@/lib/query";
 import { useIsAdmin } from "@/lib/session";
 import { openMovie, openTvShow, useMovies, useShows, useWatchHome } from "@/lib/watch";
@@ -58,14 +59,16 @@ const open = (i: PosterItem) => (i.kind === "movie" ? openMovie(i.id) : openTvSh
 const RowGap = () => <View style={{ height: 18 }} />;
 
 /** Movies and shows: Continue watching, Next episodes and what's new, then every movie, show and what you've watched. */
-export default function Watch() {
+export function WatchSection() {
   const t = useTheme();
   const top = useTopInset();
   const width = useGridWidth();
   const shelfWidth = useShelfWidth();
   const admin = useIsAdmin();
   const [tab, setTab] = useState<Tab>("home");
-  const tabFade = useTabFade(tab);
+  // A new tab, or a tap on Watch in the title row, fades the content in.
+  const jumps = useSectionJumps("watch");
+  const tabFade = useTabFade(`${tab}:${jumps}`, jumps > 0);
   const [sortOpen, setSortOpen] = useState(false);
   const sort = useWatchSort();
   const home = useWatchHome();
@@ -116,8 +119,8 @@ export default function Watch() {
 
   const header = (
     <View style={{ paddingTop: top, marginBottom: 18, gap: 14 }}>
-      <PageTitle
-        title="Watch"
+      <LibraryTitle
+        current="watch"
         right={
           // Home's shelves are in the server's order; the other views have a sort.
           !noFolder && tab !== "home" ? (
@@ -177,7 +180,7 @@ export default function Watch() {
               ))}
             </View>
           ) : (
-            <View style={{ marginTop: index === 0 ? -12 : 0 }}>
+            <View style={{ marginTop: index === 0 ? -18 : 0 }}>
               <SectionTitle title={row.title} />
               <Shelf>
                 {row.kind === "stills"

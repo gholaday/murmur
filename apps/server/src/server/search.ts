@@ -14,6 +14,7 @@ import {
 import { booksByIds } from "./books";
 import type { AppContext } from "./context";
 import { env } from "./env";
+import { HIDDEN_SQL } from "./hidden";
 import { createLogger, errorMessage } from "./log";
 import { albumsByIds, artistsByIds, tracksByIds } from "./music/queries";
 import { episodesByIds, listPodcasts, shortNotes } from "./podcasts/queries";
@@ -40,7 +41,8 @@ const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
  * start with them, or have a word that does.
  */
 function findIds(ctx: AppContext, userId: number, kind: IndexKind, q: string, limit: number): string[] {
-  const visible = VISIBLE[kind] ? `AND ${VISIBLE[kind]}` : "";
+  const hidden = kind in HIDDEN_SQL ? HIDDEN_SQL[kind as keyof typeof HIDDEN_SQL] : null;
+  const visible = `${VISIBLE[kind] ? `AND ${VISIBLE[kind]}` : ""} ${hidden ? `AND NOT ${hidden("r.ref")}` : ""}`;
   const params = { kind, user: userId, grace: Date.now() - env.missingGraceMs, limit: limit * 2 };
   const fts = ftsQuery(q);
   const rows = (
@@ -69,8 +71,8 @@ function inOrder<T extends { id: string }>(ids: string[], items: T[], limit: num
   return ids.flatMap((id) => byId.get(id) ?? []).slice(0, limit);
 }
 
-/** Authors and series whose name matches, with how many books each is on. */
-function bookNames(ctx: AppContext, q: string, limit: number): { authors: SearchName[]; series: SearchName[] } {
+/** Authors and series whose name matches, with how many of the books you didn't hide each is on. */
+function bookNames(ctx: AppContext, userId: number, q: string, limit: number): { authors: SearchName[]; series: SearchName[] } {
   const key = searchKey(q);
   if (!key) return { authors: [], series: [] };
   const rows = ctx.sqlite
@@ -78,9 +80,9 @@ function bookNames(ctx: AppContext, q: string, limit: number): { authors: Search
       `SELECT NULLIF(COALESCE(o.author, b.author), '') AS author,
               CASE WHEN o.series IS NOT NULL THEN NULLIF(o.series, '') ELSE b.series END AS series
        FROM books b LEFT JOIN book_overrides o ON o.book_id = b.id
-       WHERE b.missing_since IS NULL OR b.missing_since > ?`,
+       WHERE (b.missing_since IS NULL OR b.missing_since > @grace) AND NOT ${HIDDEN_SQL.book("b.id")}`,
     )
-    .all(Date.now() - env.missingGraceMs) as Array<{ author: string | null; series: string | null }>;
+    .all({ grace: Date.now() - env.missingGraceMs, user: userId }) as Array<{ author: string | null; series: string | null }>;
   const count = (values: Array<string | null>): SearchName[] => {
     const counts = new Map<string, number>();
     for (const v of values) if (v && searchKey(v).includes(key)) counts.set(v, (counts.get(v) ?? 0) + 1);
@@ -128,7 +130,7 @@ export async function search(ctx: AppContext, userId: number, q: string, kind: S
       part("books", async () => {
         const bookIds = ids("book");
         out.books = inOrder(bookIds, await booksByIds(ctx, bookIds, userId), limit);
-        Object.assign(out, bookNames(ctx, q, kind === "all" ? 4 : limit));
+        Object.assign(out, bookNames(ctx, userId, q, kind === "all" ? 4 : limit));
       }),
     want("podcasts", tabs.podcasts) &&
       part("podcasts", async () => {

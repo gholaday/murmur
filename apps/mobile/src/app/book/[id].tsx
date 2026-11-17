@@ -8,7 +8,7 @@ import { BottomMiniPlayer } from "@/components/mini-player";
 import { HeroBackdrop, ItemHero, MetaLine } from "@/components/hero";
 import { CheckIcon, DownloadIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "@/components/icons";
 import { openGroup, PAD } from "@/components/library";
-import { BackRow, Empty, NestedFallback, useBottomPad, SectionTitle, useTopInset } from "@/components/page";
+import { BackRow, Empty, NestedFallback, useBackIfFocused, useBottomPad, SectionTitle, useTopInset } from "@/components/page";
 import { BookActions, useBookActions } from "@/components/book-card";
 import { RemoveDownloadSheet } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
@@ -60,6 +60,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
   const [menu, setMenu] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const backIfHere = useBackIfFocused();
   // Stable, so the chapter list only redraws when the chapter changes.
   const playChapter = useCallback((c: ChapterDto) => play(bookToPlayable(book), c.startSec), [book]);
 
@@ -237,7 +238,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
       </ScrollView>
 
       <BottomMiniPlayer />
-      <BookActions book={book} open={menu} onClose={() => setMenu(false)} />
+      <BookActions book={book} open={menu} onClose={() => setMenu(false)} onHidden={backIfHere} />
       <RemoveDownloadSheet
         open={confirmRemove}
         title={book.title}

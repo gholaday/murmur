@@ -9,6 +9,8 @@ import {
   apiPaths,
   artistImage,
   type ArtistSummary,
+  LIKED_SONGS,
+  type LikedMusicDto,
   type MusicSummaryDto,
   type PlaylistDetail,
   type PlaylistSummary,
@@ -25,9 +27,9 @@ import { type MusicSource, playMusic } from "./engine";
 
 // Android Auto's browse tree, answered from here (the patched expo-audio asks; see MurmurLibrary
 // in patches/expo-audio@58.0.9.patch). "Now playing" is the native side's; Music, with Playlists,
-// Albums, Artists and Songs, is the app's own music, shown while the Music tab is. Lists come
-// from the saved copies the Music tab uses, so they open offline too, and a picked song plays its
-// album, artist, songs or playlist the way the app does: on to the next song, then Up Next.
+// Albums, Artists and Liked songs, shows while Library's Music does. Lists come from the saved
+// copies the Music section uses, so they open offline too, and a picked song plays its album,
+// playlist or liked songs the way the app does: on to the next song, then Up Next.
 
 type Row = { id: string; title: string; subtitle?: string; artwork?: string; browsable?: boolean; playable?: boolean; grid?: boolean };
 
@@ -45,7 +47,7 @@ const NOW = "murmur-now";
 const MUSIC = "music";
 const ALBUMS = "music:albums";
 const ARTISTS = "music:artists";
-const SONGS = "music:songs";
+const LIKED = "music:liked";
 const PLAYLISTS = "music:playlists";
 
 /** Covers still loading after this are left off the answer and added by a refresh. */
@@ -72,9 +74,9 @@ const showsMusic = (prefs: UserPrefs | undefined, summary: MusicSummaryDto | und
 const musicOn = async () =>
   showsMusic(...(await Promise.all([load<UserPrefs>(keys.prefs, apiPaths.prefs), load<MusicSummaryDto>(keys.music, apiPaths.music)])));
 
-const myAlbums = async () => sortAlbums((await load<AlbumSummary[]>(keys.albums("mine"), apiPaths.albums("mine", "added"))) ?? [], getAlbumSort());
-const myArtists = async () => (await load<ArtistSummary[]>(keys.artists("mine"), apiPaths.artists("mine"))) ?? [];
-const mySongs = async () => (await load<TrackDto[]>(keys.tracks("mine"), apiPaths.tracks("mine"))) ?? [];
+const allAlbums = async () => sortAlbums((await load<AlbumSummary[]>(keys.albums, apiPaths.albums("added"))) ?? [], getAlbumSort());
+const allArtists = async () => (await load<ArtistSummary[]>(keys.artists, apiPaths.artists)) ?? [];
+const likedSongs = async () => (await load<LikedMusicDto>(keys.musicLiked, apiPaths.musicLiked))?.tracks ?? [];
 const myPlaylists = async () => (await load<PlaylistSummary[]>(keys.playlists, apiPaths.playlists)) ?? [];
 
 // ---------- Covers ----------
@@ -133,14 +135,13 @@ const albumRows = (albums: AlbumSummary[]) =>
 
 async function children(parentId: string): Promise<Row[]> {
   if (parentId === ROOT) return [folder(NOW, "Now playing"), ...((await musicOn()) ? [folder(MUSIC, "Music")] : [])];
-  // In the Music tab's chip order.
-  if (parentId === MUSIC) return [folder(PLAYLISTS, "Playlists", true), folder(ALBUMS, "Albums", true), folder(ARTISTS, "Artists"), folder(SONGS, "Songs")];
-  if (parentId === ALBUMS) return withCovers(parentId, albumRows(await myAlbums()));
+  if (parentId === MUSIC) return [folder(PLAYLISTS, "Playlists", true), folder(ALBUMS, "Albums", true), folder(ARTISTS, "Artists"), folder(LIKED, "Liked songs")];
+  if (parentId === ALBUMS) return withCovers(parentId, albumRows(await allAlbums()));
   if (parentId === ARTISTS) {
-    const rows = (await myArtists()).map((a) => ({ id: `artist:${a.id}`, title: a.name, subtitle: plural(a.albumCount, "album"), browsable: true, cover: artistImage(a) }));
+    const rows = (await allArtists()).map((a) => ({ id: `artist:${a.id}`, title: a.name, subtitle: plural(a.albumCount, "album"), browsable: true, cover: artistImage(a) }));
     return withCovers(parentId, rows);
   }
-  if (parentId === SONGS) return withCovers(parentId, songRows("songs", "", await mySongs()));
+  if (parentId === LIKED) return withCovers(parentId, songRows(LIKED_SONGS.kind, LIKED_SONGS.refId, await likedSongs()));
   if (parentId === PLAYLISTS) {
     const rows = (await myPlaylists()).map((p) => {
       const first = p.covers[0];
@@ -154,8 +155,8 @@ async function children(parentId: string): Promise<Row[]> {
     return a ? withCovers(parentId, songRows("album", id, a.tracks)) : [];
   }
   if (kind === "artist") {
-    // Their albums in your music, as on the Music tab's Artists.
-    return withCovers(parentId, albumRows(albumsByArtist(await myAlbums()).get(id) ?? []));
+    // Their albums, as on Music's Artists.
+    return withCovers(parentId, albumRows(albumsByArtist(await allAlbums()).get(id) ?? []));
   }
   if (kind === "playlist") {
     const p = await load<PlaylistDetail>(keys.playlist(id), apiPaths.playlist(id));
@@ -169,7 +170,7 @@ function splitId(id: string): [string, string] {
   return at < 0 ? [id, ""] : [id.slice(0, at), id.slice(at + 1)];
 }
 
-/** Where a picked song plays from: its album, the artist, your songs or the playlist. */
+/** Where a picked song plays from: its album, the playlist or your liked songs. */
 async function sourceFor(kind: string, ref: string): Promise<MusicSource | null> {
   if (kind === "album") {
     const a = await load<AlbumDetail>(keys.album(ref), apiPaths.album(ref));
@@ -179,7 +180,7 @@ async function sourceFor(kind: string, ref: string): Promise<MusicSource | null>
     const p = await load<PlaylistDetail>(keys.playlist(ref), apiPaths.playlist(ref));
     return p ? { kind, refId: p.id, title: p.name, tracks: p.tracks } : null;
   }
-  if (kind === "songs") return { kind, refId: null, title: "Your songs", tracks: await mySongs() };
+  if (kind === LIKED_SONGS.kind && ref === LIKED_SONGS.refId) return { ...LIKED_SONGS, tracks: await likedSongs() };
   return null;
 }
 

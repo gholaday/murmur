@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { albumCover, type AlbumDetail, albumDiscs, albumFacts, albumInMusic, plural, songNumber, type TrackDto } from "@murmur/shared/client";
+import { albumCover, type AlbumDetail, albumDiscs, albumFacts, songNumber, type TrackDto } from "@murmur/shared/client";
 import { Facts, HeroBackdrop, HeroBones, ItemHero } from "@/components/hero";
-import { CheckIcon, DownloadIcon, MoreIcon, PlusIcon } from "@/components/icons";
+import { CheckIcon, DownloadIcon, HeartIcon, MoreIcon } from "@/components/icons";
 import { ActionButton, AlbumActions, openArtist, PlayButton, ShuffleButton, SongSheet, TrackRow } from "@/components/music";
-import { Empty, NestedScreen, SectionTitle, useTopInset } from "@/components/page";
+import { Empty, NestedScreen, SectionTitle, useBackIfFocused, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { RemoveDownloadSheet } from "@/components/sheet";
 import { Bone, FadeIn, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { ACTION_HEIGHT, IconButton, Text } from "@/components/ui";
-import { setInMusic, useAlbum } from "@/lib/data";
+import { setLiked, useAlbum } from "@/lib/data";
 import { downloadAlbum, removeDownload, useDownload } from "@/lib/downloads";
 import { selectHaptic } from "@/lib/haptics";
 import { playMusic } from "@/player/engine";
@@ -28,9 +28,9 @@ export default function AlbumScreen() {
   const refresh = usePullRefresh(album.refetch);
   const fade = useJustLoaded(!album.isPending);
   const a = album.data;
-  const state = a ? albumInMusic(a) : "none";
   const [more, setMore] = useState(false);
   const [song, setSong] = useState<TrackDto | null>(null);
+  const backIfHere = useBackIfFocused();
 
   let body: React.ReactNode;
   if (a) {
@@ -45,33 +45,24 @@ export default function AlbumScreen() {
           <Facts items={albumFacts(a)} />
         </ItemHero>
 
-        {state === "all" ? (
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 6 }}>
-            <PlayButton from={{ kind: "album", refId: a.id }} opensPlayer onPress={() => playAlbum(a, -1)} />
-            <ShuffleButton from={{ kind: "album", refId: a.id }} onPlay={() => playAlbum(a, -1, true)} />
-            <AlbumDownloadButton album={a} />
-          </View>
-        ) : (
-          <View style={{ gap: 10, marginTop: 6 }}>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <ActionButton
-                label={state === "some" ? `Add the other ${plural(a.trackCount - a.songsInMusic, "song")}` : "Add to your music"}
-                primary
-                icon={<PlusIcon size={20} color={t.onAccent} />}
-                onPress={() => {
-                  selectHaptic();
-                  void setInMusic({ albums: [a] }, true);
-                }}
-              />
-              <PlayButton from={{ kind: "album", refId: a.id }} round opensPlayer onPress={() => playAlbum(a, -1)} />
-            </View>
-            {state === "some" ? (
-              <Text variant="small" style={{ textAlign: "center" }}>
-                {`${a.songsInMusic} of ${plural(a.trackCount, "song")} in your music`}
-              </Text>
-            ) : null}
-          </View>
-        )}
+        <View style={{ flexDirection: "row", gap: 10, marginTop: 6 }}>
+          <PlayButton from={{ kind: "album", refId: a.id }} opensPlayer onPress={() => playAlbum(a, -1)} />
+          <ShuffleButton from={{ kind: "album", refId: a.id }} onPlay={() => playAlbum(a, -1, true)} />
+          {/* A server from before likes sends none, and there's no heart. */}
+          {a.liked === undefined ? null : (
+            <ActionButton
+              label={a.liked ? `Unlike ${a.title}` : `Like ${a.title}`}
+              round
+              selected={a.liked}
+              icon={<HeartIcon size={22} filled={a.liked} color={a.liked ? t.accent : t.text} />}
+              onPress={() => {
+                selectHaptic();
+                void setLiked({ albums: [a] }, !a.liked);
+              }}
+            />
+          )}
+          <AlbumDownloadButton album={a} />
+        </View>
 
         {/* One group without a heading for a single disc; "Disc N" above each otherwise. */}
         {albumDiscs(a.tracks).map((d) => (
@@ -118,7 +109,7 @@ export default function AlbumScreen() {
       }
       after={
         <>
-          {a ? <AlbumActions album={a} open={more} onClose={() => setMore(false)} /> : null}
+          {a ? <AlbumActions album={a} open={more} onClose={() => setMore(false)} onHidden={backIfHere} /> : null}
           <SongSheet track={song} onClose={() => setSong(null)} hideAlbum />
         </>
       }

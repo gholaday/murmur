@@ -6,6 +6,8 @@ import {
   type AlbumSummary,
   type BookSummary,
   byNameTier,
+  type HiddenDto,
+  type HiddenKind,
   matchesBook,
   type MovieSummary,
   parseRecent,
@@ -27,10 +29,10 @@ import { getJson } from "./storage";
 import { createSavedStore, createStore } from "./store";
 import { watchKeys } from "./watch";
 
-// Search everywhere: the field lives in the dock, the results on the Search screen, so what's
-// typed and which tab is picked sit here where both can reach them.
+// Search everywhere: what's typed and which tab is picked sit here, so they're kept while you
+// open a result and come back.
 
-/** What's typed in the dock's search field. */
+/** What's typed in Search's box. */
 export const searchText = createStore("");
 /** The Search screen's tab. */
 export const searchKind = createStore<SearchKind>("all");
@@ -100,30 +102,40 @@ function offlineSearch(q: string, kind: SearchKind, downloads: Record<string, Do
   const done = Object.values(downloads).filter((d) => d.status === "done");
   const saved = (type: Download["type"]) => new Set(done.flatMap((d) => (d.type === type ? [d.id] : [])));
   const top = <T>(items: T[], name: (item: T) => string) => byNameTier(items, name, q).slice(0, limit);
+  // What you hid stays out, as online: downloads keep their own copies, so they're checked here.
+  const hiddenList = queryClient.getQueryData<HiddenDto | null>(keys.hidden);
+  const hidden = new Set(hiddenList ? [...hiddenList.books, ...hiddenList.music, ...hiddenList.watch].map((h) => `${h.kind}:${h.id}`) : []);
+  const shown = (kind: HiddenKind, id: string) => !hidden.has(`${kind}:${id}`);
+  const albumShown = (a: { id: string; artistId: string }) => shown("album", a.id) && shown("artist", a.artistId);
+  // A song's album (and that album's artist) may be hidden; a downloaded album knows its artist.
+  const albumArtist = new Map(done.flatMap((d) => (d.type === "album" ? [[d.album.id, d.album.artistId] as const] : [])));
+  const songShown = (s: TrackDto) => shown("album", s.albumId) && shown("artist", s.artistId) && shown("artist", albumArtist.get(s.albumId) ?? "");
 
   const books = want("books")
-    ? (queryClient.getQueryData<BookSummary[]>(keys.books) ?? []).filter((b) => saved("book").has(b.id) && matchesBook(b, k))
+    ? (queryClient.getQueryData<BookSummary[]>(keys.books) ?? []).filter((b) => saved("book").has(b.id) && shown("book", b.id) && matchesBook(b, k))
     : [];
   // Like the server, an episode by its own name or its show's, not its notes.
   const episodes = want("podcasts") ? done.flatMap((d) => (d.type === "podcast" && has(k, d.episode.title, d.episode.podcastTitle) ? [d.episode] : [])) : [];
   const albumIds = saved("album");
   const albums = want("music")
-    ? done.flatMap((d): AlbumSummary[] => (d.type === "album" && albumMatches(d.album, k) ? [d.album] : []))
+    ? done.flatMap((d): AlbumSummary[] => (d.type === "album" && albumShown(d.album) && albumMatches(d.album, k) ? [d.album] : []))
     : [];
   const songs = want("music")
-    ? done.flatMap((d): TrackDto[] =>
-        d.type === "track" && !albumIds.has(d.track.albumId) && songMatches(d.track, k) ? [d.track] : d.type === "album" ? d.album.tracks.filter((s) => songMatches(s, k)) : [],
-      )
+    ? done
+        .flatMap((d): TrackDto[] =>
+          d.type === "track" && !albumIds.has(d.track.albumId) && songMatches(d.track, k) ? [d.track] : d.type === "album" ? d.album.tracks.filter((s) => songMatches(s, k)) : [],
+        )
+        .filter(songShown)
     : [];
   const movieIds = saved("movie");
   const showIds = new Set(done.flatMap((d) => (d.type === "show" ? [d.show.id] : [])));
   const watch: WatchPoster[] = want("watch")
     ? [
         ...(queryClient.getQueryData<MovieSummary[]>(watchKeys.movies) ?? [])
-          .filter((m) => movieIds.has(m.id) && has(k, m.title))
+          .filter((m) => movieIds.has(m.id) && shown("movie", m.id) && has(k, m.title))
           .map((m): WatchPoster => ({ kind: "movie", id: m.id, title: m.title, year: m.year, posterHash: m.posterHash, color: m.color, watched: !!m.progress?.finished, addedAt: m.addedAt })),
         ...(queryClient.getQueryData<ShowSummary[]>(watchKeys.shows) ?? [])
-          .filter((s) => showIds.has(s.id) && has(k, s.title))
+          .filter((s) => showIds.has(s.id) && shown("show", s.id) && has(k, s.title))
           .map((s): WatchPoster => ({ kind: "show", id: s.id, title: s.title, year: s.year, posterHash: s.posterHash, color: s.color, watched: s.episodes > 0 && s.watched === s.episodes, addedAt: s.addedAt })),
       ]
     : [];

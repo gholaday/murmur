@@ -2,25 +2,33 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { albumCover, apiPaths, errorText, type PlaylistDetail, songSub, type TrackDto } from "@murmur/shared/client";
+import { albumCover, apiPaths, errorText, type LikedMusicDto, type PlaylistDetail, songSub, type TrackDto } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { AddCircleIcon } from "../icons";
 import { BackRow, Chip, Chips, EmptyState, SearchBox } from "../ui";
 
-type Source = "mine" | "recent" | "all";
+type Source = "recent" | "liked";
 const SOURCES: { id: Source; label: string }[] = [
-  { id: "mine", label: "Your songs" },
   { id: "recent", label: "Recently played" },
-  { id: "all", label: "Browse" },
+  { id: "liked", label: "Liked" },
 ];
 
-/** Find songs and add each to the playlist with one tap; tapping its check takes it back out. */
+const load = async (source: Source, q: string): Promise<TrackDto[]> => {
+  if (q) return api<TrackDto[]>(apiPaths.tracks(q));
+  if (source === "recent") return api<TrackDto[]>(apiPaths.trackPlays);
+  return (await api<LikedMusicDto>(apiPaths.musicLiked)).tracks;
+};
+
+/**
+ * Find songs and add each to the playlist with one tap; tapping its check takes it back out.
+ * Typing searches all the music; with nothing typed, Recently played or Liked.
+ */
 export function AddSongsView({ playlist: initial }: { playlist: PlaylistDetail }) {
   const [playlist, setPlaylist] = useState(initial);
   // The latest songs for an Undo that runs after more were added or removed.
   const latest = useRef(initial);
-  const [source, setSource] = useState<Source>("mine");
+  const [source, setSource] = useState<Source>("recent");
   const [query, setQuery] = useState("");
   const [songs, setSongs] = useState<TrackDto[] | null>(null);
   const q = query.trim();
@@ -31,8 +39,7 @@ export function AddSongsView({ playlist: initial }: { playlist: PlaylistDetail }
     // Typing waits a moment before searching; switching lists loads at once.
     const timer = setTimeout(
       () => {
-        const path = source === "recent" ? apiPaths.trackPlays : apiPaths.tracks(source, q || undefined);
-        api<TrackDto[]>(path).then(
+        load(source, q).then(
           (list) => live && setSongs(list),
           (err: unknown) => {
             if (!live) return;
@@ -49,12 +56,7 @@ export function AddSongsView({ playlist: initial }: { playlist: PlaylistDetail }
     };
   }, [source, q]);
 
-  // Recently played has no server search, so it's filtered here.
-  const lower = q.toLowerCase();
-  const shown =
-    source === "recent" && q
-      ? (songs ?? []).filter((t) => [t.title, t.artist, t.album].some((s) => s.toLowerCase().includes(lower)))
-      : (songs ?? []);
+  const shown = songs ?? [];
 
   const setIn = async (track: TrackDto, on: boolean, undoable = true) => {
     try {
@@ -85,18 +87,20 @@ export function AddSongsView({ playlist: initial }: { playlist: PlaylistDetail }
         </h1>
       </div>
       <SearchBox value={query} onChange={setQuery} placeholder="Search songs, albums or artists" label="Search songs" />
-      <Chips kind="tabs" label="Songs to add">
-        {SOURCES.map((s) => (
-          <Chip key={s.id} selected={source === s.id} onClick={() => setSource(s.id)}>
-            {s.label}
-          </Chip>
-        ))}
-      </Chips>
+      {q ? null : (
+        <Chips kind="tabs" label="Songs to add">
+          {SOURCES.map((s) => (
+            <Chip key={s.id} selected={source === s.id} onClick={() => setSource(s.id)}>
+              {s.label}
+            </Chip>
+          ))}
+        </Chips>
+      )}
 
       <section className="section">
         {songs === null ? null : shown.length === 0 ? (
           <EmptyState>
-            {q ? `No songs match "${q}".` : source === "recent" ? "Songs you play show up here." : "No songs yet."}
+            {q ? `No songs match "${q}".` : source === "recent" ? "Songs you play show up here." : "Songs you like show up here."}
           </EmptyState>
         ) : (
           <div className="list">

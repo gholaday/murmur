@@ -59,7 +59,8 @@ _Admin only, web._
 
 Every card has an options menu, the same way for books, albums, movies and shows: a long press in the app, the ⋯ or a right-click on the web. The ⋯ on the item's own page opens the same items, for everyone, with admin items last:
 - **Book:** Play, Add to Play next (books not yet started), Mark as finished; for admins Edit…, Match…, Mark as matched. Rescanning is You > Library's Rescan, or one book from Edit's Files tab.
-- **Album:** Play, Add to queue, Add to playlist…, Go to the artist, Add to or Remove from your music; for admins Match….
+- **Album:** Play, Add to queue, Add to playlist…, Go to the artist; for admins Match…. An artist's page has a ⋯ with Change photo… for admins.
+- **Every menu** ends with Hide after a divider (podcasts excepted), with Undo; see [Hiding](features.md#hiding).
 - **Movie or show:** Play or Resume, Mark as watched; for admins Edit… and Match… (with TMDB). The edit dialog has five tabs:
 
 | Tab | What it does |

@@ -1,5 +1,6 @@
 import { requireUser } from "@/server/auth";
 import { getContext } from "@/server/context";
+import { hiddenFor, visibleArtist } from "@/server/hidden";
 import { HttpError, jsonWithEtag, route } from "@/server/http";
 import { getArtist } from "@/server/music/queries";
 
@@ -10,5 +11,5 @@ export const GET = route<Ctx>(async (req, { params }) => {
   const user = requireUser(ctx, req);
   const artist = await getArtist(ctx, user.id, (await params).id);
   if (!artist) throw new HttpError(404, "Artist not found.");
-  return jsonWithEtag(req, artist);
+  return jsonWithEtag(req, visibleArtist(artist, hiddenFor(ctx, user.id)));
 });

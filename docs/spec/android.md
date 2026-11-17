@@ -6,21 +6,23 @@ The layout follows the familiar podcast-app pattern: bottom tabs, a persistent m
 
 | Tab or screen | Contents |
 | --- | --- |
-| Search | The pill in the bottom bar: books, authors and series, podcasts and episodes, music, and Watch in one search, with a tab per kind and recent searches; offline it searches what's downloaded |
-| Books | Home shelves, then books by title, author or series, and finished; sort and filters |
+| Search | The first tab: a box that stays at the top, then a tab per kind once you type, and recent searches; books, authors and series, podcasts and episodes, music, and Watch in one search; offline it searches what's downloaded |
+| Library | Books, Music and Watch as sections, switched by tapping their names in the title row or swiping sideways |
+| Books (Library) | Home shelves, then books by title, author or series, and finished; sort and filters |
 | Podcasts | Subscribed shows with unplayed counts and new episodes; find a show by name or add one by RSS URL |
-| Music | Your albums, artists, songs and playlists, with Browse for the rest |
-| You | Downloaded at the top in the app (what's saved on the phone, with its size), then the listening stats card and settings: account, appearance, playback, server, tabs, and admin settings |
+| Music (Library) | Home, Liked, Playlists, Albums and Artists, with hearts on albums, songs and the player |
+| Watch (Library) | Home, Movies, Shows and Watched |
+| You | Downloaded at the top in the app (what's saved on the phone, with its size), then the listening stats card and settings: account, appearance, playback, server, tabs, Hidden, and admin settings |
 | Book, show, album, artist or playlist page | Header with cover and colour band, description, chapters, episodes or songs, download and play buttons |
 | Full-screen player | Large cover, chapter or song name, scrubber, speed, sleep timer, skip buttons, chapter list, and a Queue tile with what's still to come that opens the running list (what played, what's playing and what's next; drag to reorder, remove, Clear) |
 
-Books, Podcasts, Music and Watch are turned on and off under You > Tabs, and that alone decides whether they show; Music and Watch start off. You is always there, and with Books off the app opens on the first tab left. A shown tab with no folder set up has an empty state that, for admins, names the folder to mount.
+The bar is Search, Library, Podcasts and You. Books, Music, Watch and Podcasts are turned on and off under You > Tabs, and that alone decides whether they show; Music and Watch start off. A section that's off leaves Library, and with all three off Library goes. You is always there, and the app opens on Library's first section, else Podcasts, else You. The keyboard covers the bar; Search has no special Back handling. A shown tab with no folder set up has an empty state that, for admins, names the folder to mount.
 
 **Look and feel:** dark theme by default with a light option; periwinkle accent (#8E9BFF on dark, #4F5BD5 on light); the player background takes its colour from the cover; large touch targets.
 
 **Playback:** `expo-audio` runs as a media session service so audio keeps playing with the screen off, with lock-screen and notification controls. One player is shared by the whole app; a multi-file book plays file by file on one continuous timeline. Streams use the server's range-request endpoint with the app's token, and downloaded files play from local storage. Limits of `expo-audio` on Android: speed goes up to 2×, and the lock-screen and headset skip buttons always move 10 seconds (the in-app skip buttons use the lengths set in Settings).
 
-**Android Auto:** a pnpm patch to `expo-audio` turns the playback service into a media library service, and the `with-android-auto` config plugin adds the manifest entries. Auto shows Now playing and, while the Music tab shows, Music with Playlists, Albums, Artists and Songs. The app answers those lists from its saved copies, so they work offline. A picked song plays its album, artist or playlist like the app, with previous and next. Cover art reaches Auto as `content://` links from a read-only provider, because it can't open the app's own files or authenticated links. One media session lasts across songs and books, so Auto stays connected.
+**Android Auto:** a pnpm patch to `expo-audio` turns the playback service into a media library service, and the `with-android-auto` config plugin adds the manifest entries. Auto shows Now playing and, while Music shows in Library, Music with Playlists, Albums, Artists and Liked songs, leaving out what you hid. The app answers those lists from its saved copies, so they work offline. A picked song plays its album, artist or playlist like the app, with previous and next. Cover art reaches Auto as `content://` links from a read-only provider, because it can't open the app's own files or authenticated links. One media session lasts across songs and books, so Auto stays connected.
 
 **Subtitles:** the app draws the line itself over the picture, from the place in the video, so `expo-video` needs no patch. The pick is made in the player or on the movie or show page, and is remembered per movie and per show on the phone. See [Subtitles](watch.md#subtitles).
 

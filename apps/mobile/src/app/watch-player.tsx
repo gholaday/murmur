@@ -70,6 +70,7 @@ import {
   useShow,
   type WatchTarget,
 } from "@/lib/watch";
+import { librarySection } from "@/lib/library";
 import { useCast } from "@/player/cast";
 import { usePlayerSelect } from "@/player/engine";
 import {
@@ -313,7 +314,12 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
   };
 
   /** Leaves the player; the video carries on in the mini player. */
-  const back = useCallback(() => (router.canGoBack() ? router.back() : router.replace("/watch")), []);
+  const back = useCallback(() => {
+    if (router.canGoBack()) return router.back();
+    // Opened on its own: Library's Watch section.
+    librarySection.set("watch");
+    router.replace("/");
+  }, []);
   const stopWatching = () => {
     setSheet(null);
     closeVideo();

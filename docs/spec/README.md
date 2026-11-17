@@ -26,7 +26,7 @@ It trades breadth for reliability: fewer features than larger media servers, eac
 | 🧱 | [Architecture](architecture.md) | The tech stack, how the pieces fit together, the data model and API, and performance and reliability |
 | 📚 | [Library scanning](library.md) | How book folders are found, read and kept up to date |
 | 🏷️ | [Metadata](metadata.md) | Where book and podcast details come from: tags, Match on Audible and Google Books, editing by hand, and episode chapters |
-| 🎵 | [Music](music.md) | Scanning, your music and Browse, playback, playlists, the queue, album matching and artist photos |
+| 🎵 | [Music](music.md) | Scanning, likes and the Liked tab, playback, playlists, the queue, album matching and artist photos |
 | 🎬 | [Watch](watch.md) | Movies and shows: folders, TMDB, playback, conversion and downloads |
 | 📺 | [Casting](casting.md) | Playing on a Chromecast from the web and the app |
 | 📱 | [Android app](android.md) | Screens, playback, Android Auto and offline |

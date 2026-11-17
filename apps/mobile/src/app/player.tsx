@@ -30,6 +30,7 @@ import { BookmarkNoteSheet, BookmarkRows } from "@/components/bookmarks";
 import { Cover } from "@/components/cover";
 import { HeroBackdrop } from "@/components/hero";
 import { MarqueeText } from "@/components/marquee";
+import { LikeButton } from "@/components/music";
 import {
   BookmarkIcon,
   CheckIcon,
@@ -60,7 +61,7 @@ import { TextTabs } from "@/components/text-tabs";
 import { Caption, Chips, CountPill, IconButton, Text } from "@/components/ui";
 import { UpNextSheet } from "@/components/up-next";
 import { newBookmark, useBookmarks } from "@/lib/bookmarks";
-import { useAlbumColor } from "@/lib/data";
+import { setTrackLiked, useAlbumColor, useTrackLiked } from "@/lib/data";
 import { dragEndHaptic, selectHaptic, tapHaptic } from "@/lib/haptics";
 import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdDetection, useAdPrefs, type AdMode } from "@/player/ad-prefs";
 import { useCast } from "@/player/cast";
@@ -136,6 +137,7 @@ function PlayerScreen({ item }: { item: Playable }) {
   const scrubFrom = useRef(0);
   // A song plays at 1x with no chapters: previous and next step through the songs.
   const song = item.type === "track";
+  const songLiked = useTrackLiked(song ? item.id : undefined);
   const albumColor = useAlbumColor(item.album?.id);
   const ci = useBarPlace(scrub, (at) => chapterAt(item.chapters, at));
   const nearBookmark = useBarPlace(scrub, (at) => (song ? null : bookmarkNear(bookmarks, at)));
@@ -276,7 +278,17 @@ function PlayerScreen({ item }: { item: Playable }) {
               <View ref={titleRef} style={{ flex: 1, minWidth: 0 }} onLayout={() => titleRef.current?.measureInWindow((_x, y) => setTitleY(y))}>
                 <MarqueeText text={item.title} variant="title" style={{ fontSize: 22 }} />
               </View>
-              {song ? null : (
+              {song ? (
+                // No heart on a server from before likes.
+                songLiked === undefined ? null : (
+                  <LikeButton
+                    liked={songLiked}
+                    label={item.title}
+                    onPress={() => void setTrackLiked(item.id, !songLiked)}
+                    style={{ marginTop: -5, marginBottom: -11, marginRight: -10 }}
+                  />
+                )
+              ) : (
                 <IconButton
                   label={nearBookmark ? "Edit bookmark" : "Bookmark this spot"}
                   accessibilityState={{ selected: !!nearBookmark }}

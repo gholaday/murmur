@@ -1,23 +1,25 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, type GestureResponderEvent, Pressable, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Animated, type GestureResponderEvent, Keyboard, Pressable, TextInput, View } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { hasKind, type SearchKind, type SearchResultsDto, type TrackDto } from "@murmur/shared/client";
 import { BookCard } from "@/components/book-card";
 import { EpisodeRow } from "@/components/episode-row";
-import { ChevronIcon, CloseIcon } from "@/components/icons";
+import { ChevronIcon, CloseIcon, SearchIcon } from "@/components/icons";
 import { GAP, gridRows, openGroup, PAD, Shelf, useGridWidth, useShelfWidth } from "@/components/library";
 import { AlbumCard, ArtistCard, SongRow, SongSheet } from "@/components/music";
 import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { ShowCard } from "@/components/podcasts";
 import { useKeyboardHeight } from "@/components/sheet";
 import { FadeIn, ListRowBone, Skeleton } from "@/components/skeleton";
+import { StickyHeading, useStickyHeading } from "@/components/sticky-heading";
 import { TextTabs, useTabFade } from "@/components/text-tabs";
-import { CountPill, IconButton, Text } from "@/components/ui";
+import { CountPill, IconButton, Text, type TextInputRef } from "@/components/ui";
 import { PosterCard, StillCard } from "@/components/watch";
 import { useTabPrefs } from "@/lib/data";
 import { forgetSearch, rememberSearch, searchKind, searchText, useDebounced, useRecentSearches, useSearch } from "@/lib/search";
 import { openMovie, openTvShow } from "@/lib/watch";
 import { playMusic } from "@/player/engine";
-import { useTheme } from "@/theme";
+import { fonts, useTheme } from "@/theme";
 
 /** Episode and song rows on All; cards show the server's full group in a shelf. */
 const ALL_ROWS = 4;
@@ -40,31 +42,37 @@ type Row =
   | { type: "episode"; key: string; episode: SearchResultsDto["episodes"][number] }
   | { type: "song"; key: string; track: TrackDto };
 
+/** The list's items: the box (which sticks), the tabs, then the results or what shows instead. */
+type Item = "box" | "tabs" | "empty" | Row;
+
 /**
- * Search everywhere. The field is the dock's pill; this is the results under it: tabs for each
- * kind that's shown, then groups of hits, each opening its own tab with See all. With the field
- * empty it lists recent searches. Offline it searches what's downloaded.
+ * Search everywhere: the box at the top, which sticks while the results scroll, then a tab for
+ * each kind that's shown, then groups of hits, each opening its own tab with See all. With the
+ * box empty it lists recent searches. Offline it searches what's downloaded.
  */
 export default function Search() {
   const t = useTheme();
   const top = useTopInset();
   const keyboard = useKeyboardHeight();
+  const sticky = useStickyHeading();
   const prefs = useTabPrefs();
   const text = searchText.useValue();
   const picked = searchKind.useValue();
   const q = useDebounced(text.trim());
   const allowed = (["books", "podcasts", "music", "watch"] as const).filter((k) => prefs[k]);
-  const kind: SearchKind = picked !== "all" && allowed.includes(picked) ? picked : "all";
-  const results = useSearch(q, kind);
-  // Only the kinds that found something get a tab, and All only beside one of them. The tabs
-  // follow All's answer, so they hold still while the next one loads.
-  const everything = results.everything;
-  const found = everything ? allowed.filter((k) => hasKind(everything, k)) : [];
-  const shown: SearchKind[] = found.length ? ["all", ...found] : [];
-  // A new search that leaves the picked kind with nothing goes back to All.
+  const results = useSearch(q, picked !== "all" && allowed.includes(picked) ? picked : "all");
+  // The tabs come from All's answer, and the last one stays while the next loads, so they don't blink at each key.
+  const [tabsFrom, setTabsFrom] = useState<SearchResultsDto | undefined>(results.everything);
+  const latest = q ? results.everything : undefined;
+  if (latest !== tabsFrom && (latest || !q)) setTabsFrom(latest);
+  // A tab for each kind with matches; with fewer than two, All says the same and there are none.
+  const matched = allowed.filter((k) => !!tabsFrom && hasKind(tabsFrom, k));
+  const shown: SearchKind[] = matched.length > 1 ? ["all", ...matched] : [];
+  const kind: SearchKind = shown.includes(picked) ? picked : "all";
+  // A fresh answer with nothing of the picked kind goes back to All.
   useEffect(() => {
-    if (everything && kind !== "all" && !hasKind(everything, kind)) searchKind.set("all");
-  }, [everything, kind]);
+    if (latest && picked !== kind) searchKind.set("all");
+  }, [latest, picked, kind]);
   const tabFade = useTabFade(kind);
   const recent = useRecentSearches();
   const [song, setSong] = useState<TrackDto | null>(null);
@@ -76,20 +84,6 @@ export default function Search() {
     const { pageX, pageY } = e.nativeEvent;
     if (Math.abs(pageX - touch.current.x) < 10 && Math.abs(pageY - touch.current.y) < 10) rememberSearch(q);
   };
-
-  const header = (
-    <View style={{ paddingTop: top, marginBottom: 8 }}>
-      <PageTitle title="Search" />
-      {shown.length ? (
-        <TextTabs label="Search in" options={shown.map((k) => ({ id: k, label: KIND_LABELS[k] }))} value={kind} onPick={searchKind.set} />
-      ) : null}
-      {results.offline ? (
-        <Text variant="small" style={{ marginTop: 14 }}>
-          Showing downloaded only
-        </Text>
-      ) : null}
-    </View>
-  );
 
   const empty = !q ? (
     <RecentSearches recent={recent} />
@@ -107,27 +101,132 @@ export default function Search() {
     <Empty>{`Nothing matches "${q}".`}</Empty>
   );
 
+  const items: Item[] = ["box", "tabs", ...(q && rows.length ? rows : ["empty" as const])];
+
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <FlatList
-        data={q ? rows : []}
-        keyExtractor={(r) => r.key}
-        contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24 + keyboard }}
+      <Animated.FlatList
+        data={items}
+        keyExtractor={(item) => (typeof item === "string" ? item : item.key)}
+        contentContainerStyle={{ paddingBottom: 24 + keyboard }}
+        {...sticky.scrollProps}
+        // The title (the list's header) is child 0; the box is child 1.
+        stickyHeaderIndices={[1]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        ListHeaderComponent={header}
-        ListEmptyComponent={<FadeIn when={false} style={tabFade}>{empty}</FadeIn>}
+        ListHeaderComponent={
+          <View {...sticky.topProps} style={{ paddingTop: top, paddingHorizontal: PAD, paddingBottom: 8 }}>
+            <PageTitle title="Search" />
+          </View>
+        }
         windowSize={7}
         maxToRenderPerBatch={8}
-        renderItem={({ item }) => (
-          <FadeIn when style={tabFade}>
-            <View onTouchStart={(e) => (touch.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY })} onTouchEnd={tapped}>
-              <ResultRow row={item} q={q} songs={results.data?.songs ?? []} onSongMore={setSong} />
+        renderItem={({ item }) =>
+          item === "box" ? (
+            <StickyHeading sticky={sticky.sticky}>
+              <SearchField />
+            </StickyHeading>
+          ) : item === "tabs" ? (
+            <View style={{ paddingHorizontal: PAD, marginTop: 8 }}>
+              {shown.length ? (
+                <TextTabs label="Search in" options={shown.map((k) => ({ id: k, label: KIND_LABELS[k] }))} value={kind} onPick={searchKind.set} gap={20} />
+              ) : null}
+              {results.offline ? (
+                <Text variant="small" style={{ marginTop: 14 }}>
+                  Showing downloaded only
+                </Text>
+              ) : null}
             </View>
-          </FadeIn>
-        )}
+          ) : item === "empty" ? (
+            <FadeIn when={false} style={[tabFade, { paddingHorizontal: PAD }]}>
+              {empty}
+            </FadeIn>
+          ) : (
+            <FadeIn when style={[tabFade, { paddingHorizontal: PAD }]}>
+              <View onTouchStart={(e) => (touch.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY })} onTouchEnd={tapped}>
+                <ResultRow row={item} q={q} songs={results.data?.songs ?? []} onSongMore={setSong} />
+              </View>
+            </FadeIn>
+          )
+        }
       />
       <SongSheet track={song} onClose={() => setSong(null)} />
+    </View>
+  );
+}
+
+/** The search box: a pill with an accent outline while typing, and an X once there's text. It takes focus when Search opens empty. */
+function SearchField() {
+  const t = useTheme();
+  const text = searchText.useValue();
+  const [focused, setFocused] = useState(false);
+  const input = useRef<TextInputRef>(null);
+  useFocusEffect(
+    useCallback(() => {
+      if (!searchText.get()) input.current?.focus();
+    }, []),
+  );
+  // Android keeps the box focused when back closes the keyboard; it should look done with.
+  useEffect(() => {
+    const sub = Keyboard.addListener("keyboardDidHide", () => input.current?.blur());
+    return () => sub.remove();
+  }, []);
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        height: 48,
+        paddingLeft: 14.5,
+        paddingRight: text ? 6 : 14.5,
+        borderRadius: 24,
+        borderWidth: 1.5,
+        borderColor: focused ? t.accent : t.track,
+        backgroundColor: focused ? t.surface2 : t.surface,
+      }}
+    >
+      <SearchIcon size={20} color={t.muted} />
+      <TextInput
+        ref={input}
+        value={text}
+        onChangeText={searchText.set}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onSubmitEditing={() => rememberSearch(searchText.get())}
+        placeholder="Search"
+        placeholderTextColor={t.faint}
+        selectionColor={t.accent}
+        returnKeyType="search"
+        accessibilityLabel="Search"
+        // Android's font padding sits the text low; without it, centred, it lines up with the magnifier.
+        style={{
+          flex: 1,
+          minWidth: 0,
+          height: 44,
+          color: t.text,
+          fontFamily: fonts.semibold,
+          fontSize: 15,
+          lineHeight: 20,
+          paddingVertical: 0,
+          includeFontPadding: false,
+          textAlignVertical: "center",
+        }}
+      />
+      {text ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Clear search"
+          hitSlop={4}
+          onPress={() => {
+            searchText.set("");
+            input.current?.focus();
+          }}
+          style={({ pressed }) => ({ width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.6 : 1 })}
+        >
+          <CloseIcon size={18} color={t.muted} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -232,7 +331,6 @@ function ResultRow({ row, q, songs, onSongMore }: { row: Row; q: string; songs: 
       return (
         <SongRow
           track={row.track}
-          toggle={!row.track.inMusic}
           onPlay={(track) => playMusic({ kind: "songs", refId: null, title: `"${q}"`, tracks: songs }, songs.indexOf(track))}
           onMore={onSongMore}
         />

@@ -63,6 +63,8 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | `bookmarks` | Per user: a saved time and note in a book or episode, with an id made by the client. Kept when the item goes, left out of reads until it returns |
 | `up_next` | Per user: the queue as one running list of episodes and songs, with the one playing |
 | `play_next` | Per user: the ordered Play next books |
+| `music_likes` | Per user: liked songs and albums, by id with no foreign key, so likes outlive a rescan |
+| `hidden_items` | Per user: hidden books, albums, artists (by name key), movies and shows, with no foreign key |
 | `episode_files`, `episode_ads`, `ad_scans` | The episode cache and ad times (see [Podcasts and ad detection](podcasts.md)) |
 | `search_index`, `search_rows` | Search everywhere: a contentless FTS5 trigram index over what the `search_source` view says each thing is found by: its name, and its people or show (descriptions, notes and chapter titles are left out, as they matched too much). Triggers on every table the view reads queue the changed thing on `search_dirty`, whose own trigger rewrites its rows, so no write path can miss it |
 
@@ -75,11 +77,12 @@ Podcast episodes are served from the server's episode cache, falling back to rel
 | Book editing (admin) | `GET /books/:id/edit`, `PUT /books/:id/details`, `PUT /books/:id/chapters`, `POST/DELETE /books/:id/cover`, `POST /books/:id/rescan`, `GET/POST/DELETE /books/:id/match` |
 | Streaming | `GET /stream/book/:id/:fileIndex`, `GET /stream/episode/:id` (range requests) |
 | Podcasts | `GET/POST /podcasts`, `GET /podcasts/search?q=` (directory search, marks podcasts you follow), `GET /podcasts/preview?feedUrl=` (reads a feed without subscribing), `DELETE /podcasts/:id`, `GET /podcasts/:id/episodes`, `POST /podcasts/:id/refresh`, OPML import and export |
-| Search | `GET /search?q=&kind=` (`all`, `books`, `podcasts`, `music` or `watch`): books, authors and series, podcasts you follow and their episodes, artists, albums and songs, and movies, shows and TV episodes, each group best match first and built like its list. Matches any part of a word, ignoring case and accents; names count most, then people. Searches under 3 characters match the start of a name or of a word in it. Hidden tabs are left out |
+| Search | `GET /search?q=&kind=` (`all`, `books`, `podcasts`, `music` or `watch`): books, authors and series, podcasts you follow and their episodes, artists, albums and songs, and movies, shows and TV episodes, each group best match first and built like its list. Matches any part of a word, ignoring case and accents; names count most, then people. Searches under 3 characters match the start of a name or of a word in it. Hidden tabs, and things you hid, are left out |
 | Progress | `GET /progress?since=`, `PUT /progress` (batched, newest update wins) |
 | Bookmarks | `GET /bookmarks` (the whole list; clients replace theirs), `PUT /bookmarks` (batched, newest update wins), `DELETE /bookmarks/:id` |
 | Queue | `GET /up-next`, `PUT /up-next` (the whole list), `PATCH /up-next` (where it's at), `POST /up-next` (add one item, or several in order) |
 | Play next | `POST/DELETE /books/:id/play-next`, `PUT /play-next` (order) |
+| Hiding and likes | `GET/PUT/DELETE /hidden` (`{ kind, id }`), `PUT/DELETE /music/likes` (`{ trackIds, albumIds }`), `GET /music/liked`. `PUT/DELETE /music/mine` and the lists' `scope=` do nothing until 2.0 |
 | Admin | `GET/POST/DELETE /users`, `GET /library/admin` (You > Library's counts and scans), `GET /library/folders` |
 | Video editing (admin) | `PATCH /watch/{movies,shows}/:id` (title, year, description), `POST /watch/{movies,shows}/:id/{poster,backdrop}` (upload, `{ url }` or `{ tmdbPath }`), `DELETE` the same to remove a chosen one, `GET .../{poster,backdrop}/options` (TMDB's pictures) |
 | Episode cache, chapters and ads | `GET /episodes/:id/chapters`, `GET /episodes/:id/ads`; admin: `GET/PUT /server/cache`, `POST /server/ads/retry` |

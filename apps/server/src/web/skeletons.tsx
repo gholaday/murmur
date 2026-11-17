@@ -149,23 +149,6 @@ export function MusicSkeleton() {
   );
 }
 
-/** Song rows: thumb, title, then the artist line. */
-export function SongRowsSkeleton({ count = 8 }: { count?: number }) {
-  return (
-    <div className="list skeleton" aria-busy="true" aria-label="Loading songs">
-      {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="list-row">
-          <div className="skel thumb" />
-          <div className="list-row-main" style={{ gap: 8 }}>
-            <Line width={i % 2 ? "55%" : "70%"} />
-            <Line width="35%" height={10} />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /**
  * A detail page while it loads: back row, then the cover beside its title (album, playlist, podcast)
  * or above it (book), or a round photo (artist), the Play button, and rows.

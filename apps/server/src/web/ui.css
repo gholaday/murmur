@@ -32,7 +32,7 @@
   white-space: nowrap;
 }
 .count-pill { background: var(--chip); color: var(--muted); margin-left: 8px; vertical-align: 3px; }
-.badge-count, .episode-more, .count-pill.accent { background: var(--accent); color: var(--on-accent); }
+.badge-count, .episode-more { background: var(--accent); color: var(--on-accent); }
 .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.6px; text-transform: uppercase; }
 
 /* ---------- Loading ---------- */
@@ -40,6 +40,8 @@
 /* Each page's content fades in as it arrives, after its placeholder. */
 .page > * { animation: fade-in 220ms ease-out both; }
 .page > .skeleton { animation: none; }
+/* Library's sections share their title row and tabs in the same place, so switching section keeps them still; only what's below fades. */
+.page:has(> .page-head .library-title) > :is(.page-head, .chips) { animation: none; }
 @keyframes fade-in { from { opacity: 0; } }
 .skeleton { pointer-events: none; }
 .skeleton .cover { box-shadow: none; }
@@ -93,3 +95,11 @@ img.cover.pending { opacity: 0; }
 .cover-fallback-large { padding: 20px; }
 .cover-fallback-large .cover-fallback-title { font-size: 26px; }
 .cover-fallback-large .cover-fallback-sub { font-size: 14px; }
+
+/* Library's title row: Books, Music and Watch at title size; scrolls sideways if it doesn't fit. */
+.library-title { display: flex; align-items: baseline; gap: 14px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.library-title::-webkit-scrollbar { display: none; }
+@media (max-width: 420px) { .library-title { gap: 12px; } .library-title .page-title { font-size: 28px; } }
+.library-title .page-title { flex-shrink: 0; white-space: nowrap; }
+.library-title a.page-title { color: var(--faint); transition: color 0.15s; }
+.library-title a.page-title:hover { color: var(--muted); }

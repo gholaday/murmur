@@ -11,26 +11,28 @@ Music is optional. It comes from one or more music folders, set up like the book
 - Older ID3 tags split "AC/DC" on the slash. The parts are joined back when the joined name is the album artist.
 - The grouping rules are in `music/parse.ts`, with unit tests.
 
-## Your music
+## The Music section
 
-- Music is per person: a list of songs (`user_tracks`), and everyone starts with none. Adding an album adds its songs. Album and artist state is worked out from the songs, so nothing else is stored.
-- The Music tab shows Home, then your music as Playlists, Albums, Artists and Songs, opening on Home. Browse, above the chips, has every album, filtered to All, Not added, or New (found in the last 14 days). The UI never mentions the server.
+- Music is a section of Library, beside Books and Watch. Everyone sees all the music on the server; there's nothing to add first. The UI never mentions the server.
+- Its tabs are Home, Liked, Playlists, Albums and Artists, opening on Home.
+- **Likes:** a heart on the album page (beside Play, for the whole album), on every song row and in the full player next to the song's title. Likes are per person (`music_likes`: kind, song or album id, time), with no foreign key on the item so they outlive a rescan, like `track_plays`. Liking an album doesn't like its songs. `PUT` and `DELETE /api/music/likes` take `{ trackIds, albumIds }`; songs and albums carry an optional `liked`. Likes are only for music.
+- **Liked** (`GET /api/music/liked`) shows liked albums, then liked songs with Play and Shuffle, newest like first. With none: "No likes yet", and that the heart on any song or album puts it there.
+- **Hiding:** Hide in an album's or artist's ⋯ menu takes it out of the lists, Home's shelves, search and Android Auto, with Undo; hiding an artist hides their albums and the songs on them. It comes back from You > Hidden. See [Features](features.md#hiding).
 - Home (`GET /music/home`, `musicHome`) has five shelves, each built on its own so one that fails just doesn't show:
   - Jump back in: albums and playlists you played from, newest first.
   - On repeat: the songs you listened to longest over 30 days, from `listening_days`, so every device counts. It shows the top five; picking one queues up to 25. Its songs may come from albums in Jump back in: one shelf is songs, the other albums.
   - More like *album*, about the last album you played (the first album in Jump back in): that artist's other albums, then albums of the same genre by artists not in the next shelf. Albums in Jump back in are left out.
   - More like *artist*: other artists ranked by the genres of their albums, rarer genres counting for more (`rankSimilar`), as round artist cards.
-  - New albums: found in the last 14 days, with the add button.
-  The two More like shelves cover the whole server, not just your music, so album cards carry the add button. With none of them, Home says to play something.
+  - New albums: found in the last 14 days, with a grey count.
+  With none of them, Home says to play something.
 - Playlists: the New playlist tile comes first in the grid, the size of a playlist cover, and opens the name sheet.
-- Jump back in reads `recent_sources` (person, album or playlist, last played). A counted play sends its queue source with it (optional, so older apps still count plays); from an artist it records the song's album, and Your songs records nothing. Song plays from before any source was recorded fill in by album. Rows for deleted albums and playlists drop out when read.
-- Lists take `scope=mine` or `scope=all`; the server defaults to `all`.
-- There's no following of artists, so songs the server gets later aren't added for you.
+- Jump back in reads `recent_sources` (person, album or playlist, last played). A counted play sends its queue source with it (optional, so older apps still count plays); from an artist it records the song's album, and a list of songs (Liked, On repeat, search) records nothing. Song plays from before any source was recorded fill in by album. Rows for deleted albums and playlists drop out when read.
+- **Before 1.5** each person added the music they wanted (`user_tracks`), with Browse for the rest. That table was dropped without carrying anything over. Until 2.0 the lists still accept an old `scope=`, and ignore it; `PUT` and `DELETE /api/music/mine` do nothing and answer with the counts; `mine` in the music summary is the same as the totals; `songsInMusic` is the song count and `inMusic` is always true.
 
 ## Playback
 
 - A song always plays from the start at 1×, keeps no position on the server and is never marked finished. The device you're on remembers where the loaded song was (saved with what was playing, on pause and every 10 seconds), so after a reload, a restart or an app update it comes back paused at that spot; other devices don't see it. It counts as played after 30 seconds or half its length, whichever is shorter (`track_plays`, kept per person with no foreign key, like progress). The app keeps each counted play in a small outbox of its own and sends it when it can, so plays made offline still reach Jump back in and Stats: each carries an id, so a retry counts once (`track_play_ids`, kept for 30 days), and the time it was played, which the server caps at its own clock and never lets move a song's last play backwards.
-- Playing an album, an artist's songs, your songs or a playlist fills the queue with its songs (see Queue below) and remembers where they came from and their own order, for Shuffle.
+- Playing an album, an artist's songs, Liked songs or a playlist fills the queue with its songs (see Queue below) and remembers where they came from and their own order, for Shuffle.
 - While that music is playing, its Play button turns into Pause and Resume, like a book's.
 - Starting something new from a book's, album's or playlist's Play, an episode's play button or Downloads opens the full player. Pausing and resuming stay on the page, and tapping a song row doesn't open it.
 - Shuffle and Repeat work like Spotify's and are kept in your settings (`shuffle`, `repeat` in `users.prefs`), so they stay on between sessions and devices. The player for songs shows Repeat left of Previous and Shuffle right of Next, in the accent colour when on. The round Shuffle beside Play lights up while Shuffle is on; it turns Shuffle on and plays, or just toggles it when on or when that music is already playing.
@@ -45,7 +47,7 @@ Music is optional. It comes from one or more music folders, set up like the book
 ## Playlists
 
 - Playlists are each person's own (`playlists`, `playlist_tracks`). A playlist plays as its own context, and its songs can be reordered by dragging, removed, renamed or deleted. `.m3u` files in the music folders are not read.
-- A playlist's + button (and Add songs on an empty one) opens Add songs: search your songs, what you played recently (`GET /music/plays`) or Browse, and tap + to add a song to the end or its check to take it out, with Undo. Songs from Browse join the playlist without being added to your music.
+- A playlist's + button (and Add songs on an empty one) opens Add songs: typing searches all the music; with nothing typed it shows Recently played (`GET /music/plays`) or Liked. Tap + to add a song to the end or its check to take it out, with Undo.
 - Every song has a menu: Add to queue (Remove from queue while it's waiting there), Add to playlist, Go to album. An album's menu and a playlist's also have Add to queue, which adds all their songs in order.
 
 ## Queue
@@ -54,7 +56,7 @@ One running list of songs and episodes, like YouTube Music's (`up_next`, one row
 
 - What played stays above the item playing and what's next follows it. The sheet opens on the item playing.
 - Tapping a row plays it; tapping the one playing pauses and resumes. Any row, played or not, can be dragged to a new place or taken out. Taking out the one playing starts the one after it.
-- Starting an album, artist, your songs or a playlist replaces the list with its songs. Starting an episode from its show, or a book, does the same with nothing but that episode. Either way, episodes you added that haven't played yet stay, after the new songs.
+- Starting an album, artist, Liked songs or a playlist replaces the list with its songs. Starting an episode from its show, or a book, does the same with nothing but that episode. Either way, episodes you added that haven't played yet stay, after the new songs.
 - Add to queue on a song puts it right after the item playing and anything you added just before; an episode goes at the end. Something already waiting moves instead of doubling up.
 - When an item ends, the next one plays. Books are never in the list: one playing sits above it, and when it ends, playback stops.
 - Clear empties what's still to come, with Undo.

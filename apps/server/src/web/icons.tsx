@@ -25,6 +25,15 @@ export const LibraryIcon = (p: IconProps) => (
     <path d="M3 5.5A1.5 1.5 0 0 1 4.5 4H9a3 3 0 0 1 3 3 3 3 0 0 1 3-3h4.5A1.5 1.5 0 0 1 21 5.5v11a1.5 1.5 0 0 1-1.5 1.5H15a3 3 0 0 0-3 3 3 3 0 0 0-3-3H4.5A1.5 1.5 0 0 1 3 16.5z" />
   </Icon>
 );
+/** A like; `filled` once liked. */
+export const HeartIcon = ({ filled, ...p }: IconProps & { filled?: boolean }) => (
+  <Icon {...p}>
+    <path
+      d="M12 20s-7.5-4.6-9.3-9.2C1.5 7.6 3.6 4.5 6.9 4.5c2 0 3.6 1.1 5.1 3 1.5-1.9 3.1-3 5.1-3 3.3 0 5.4 3.1 4.2 6.3C19.5 15.4 12 20 12 20z"
+      fill={filled ? "currentColor" : "none"}
+    />
+  </Icon>
+);
 export const EyeIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
@@ -54,12 +63,6 @@ export const MusicIcon = (p: IconProps) => (
     <path d="M9 18V5l12-2v13" />
     <circle cx="6" cy="18" r="3" />
     <circle cx="18" cy="16" r="3" />
-  </Icon>
-);
-export const WatchIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <rect x="3" y="4" width="18" height="16" rx="3" />
-    <path d="m10 9 5 3-5 3z" />
   </Icon>
 );
 export const PipIcon = (p: IconProps) => (
@@ -147,11 +150,6 @@ export const ProfileIcon = (p: IconProps) => (
   <Icon {...p}>
     <circle cx="12" cy="8" r="4" />
     <path d="M4 21a8 8 0 0 1 16 0" />
-  </Icon>
-);
-export const FolderIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
   </Icon>
 );
 export const SearchIcon = (p: IconProps) => (

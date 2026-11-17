@@ -5,7 +5,7 @@ import { apiPaths, episodeLabel, percentDone, plural, seasonName, type ShowDetai
 import { CheckIcon, MoreIcon, PlayedIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { Empty, NestedFallback, SectionTitle, useBottomPad } from "@/components/page";
+import { Empty, NestedFallback, SectionTitle, useBackIfFocused, useBottomPad } from "@/components/page";
 import { Card } from "@/components/settings";
 import { SheetItem } from "@/components/sheet";
 import { HeroBones } from "@/components/hero";
@@ -60,6 +60,7 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
   const bottomPad = useBottomPad();
   const [sheet, setSheet] = useState<null | "menu">(null);
   const [expanded, setExpanded] = useState(false);
+  const backIfHere = useBackIfFocused();
   /** A converted-video quality picked for this viewing; null means your setting. */
   const [quality, setQuality] = useState<VideoQuality | null>(null);
   const online = useOnline();
@@ -181,6 +182,7 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
         title={show.title}
         open={sheet === "menu"}
         onClose={() => setSheet(null)}
+        onHidden={backIfHere}
         extra={<SheetItem label="Download season" onPress={downloadSeason} />}
       />
     </View>

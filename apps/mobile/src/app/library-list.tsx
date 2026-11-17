@@ -59,7 +59,7 @@ function AttentionList() {
 function UnmatchedList({ kind }: { kind: "books" | "albums" }) {
   const width = useGridWidth();
   const books = useBooks();
-  const albums = useAlbums("all", kind === "albums");
+  const albums = useAlbums(kind === "albums");
   const m = useMatchAll(kind);
   // The book stays set while its Edit slides away; `matching` opens and closes it.
   const [book, setBook] = useState<BookSummary | null>(null);

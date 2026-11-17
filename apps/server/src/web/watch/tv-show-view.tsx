@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useLeave } from "../hidden";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -67,6 +68,7 @@ function EpisodeRow({ e, onMark }: { e: VideoEpisode; onMark: (e: VideoEpisode, 
 /** A show: poster, Resume on the next episode, a chip per season and its episodes. */
 export function TvShowView({ show }: { show: ShowDetail }) {
   const router = useRouter();
+  const leave = useLeave();
   const { tmdb } = useAdmin();
   const params = useSearchParams();
   const [menu, setMenu] = useState(false);
@@ -195,6 +197,8 @@ export function TvShowView({ show }: { show: ShowDetail }) {
           <WatchMenuItems
             kind="show"
             id={show.id}
+            title={show.title}
+            after={leave("/watch?tab=shows")}
             watched={watchedAll}
             resume={!watchedAll && all.some((e) => e.progress)}
             playHref={playHref}

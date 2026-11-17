@@ -39,6 +39,7 @@ import { ConfirmSheet, Sheet } from "../sheet";
 import { applyTheme, currentTheme } from "../theme";
 import { useQualityPref } from "../watch/quality-pref";
 import { BackRow, Chip, Chips, Setting, SettingLink, SettingsCard, SettingSub, SwitchRow } from "../ui";
+import { HiddenList } from "./hidden-list";
 import { SECTIONS, type SettingsSection } from "./sections";
 import { StatsCard } from "./stats";
 
@@ -133,6 +134,8 @@ export function ProfileView({
             </>
           ) : section === "users" ? (
             <UsersCard me={user} users={users} onChanged={refresh} />
+          ) : section === "hidden" ? (
+            <HiddenList />
           ) : (
             <TabsCard tabs={tabs} books={books} music={music} watch={watch} onSaved={refresh} />
           )}
@@ -267,32 +270,31 @@ function TabsCard({
   return (
     <SettingsCard>
       <SwitchRow
-        title="Books"
+        title="Books in Library"
         sub={books ? `${plural(books, "book")} on your server` : undefined}
-        label="Books tab"
+        label="Books in Library"
         checked={shown.books !== false}
         onChange={(on) => toggle("books", on)}
       />
-      <SwitchRow title="Podcasts" label="Podcasts tab" checked={shown.podcasts} onChange={(on) => toggle("podcasts", on)} />
       <SwitchRow
-        title="Music"
+        title="Music in Library"
         sub={music.enabled ? `${plural(music.albums, "album")} on your server` : undefined}
-        label="Music tab"
+        label="Music in Library"
         checked={!!shown.music}
         onChange={(on) => toggle("music", on)}
       />
       <SwitchRow
-        title="Watch"
+        title="Watch in Library"
         sub={
           watch.enabled
             ? [watch.movies ? plural(watch.movies, "movie") : null, watch.shows ? plural(watch.shows, "show") : null].filter(Boolean).join(" and ") || "Nothing found yet"
             : undefined
         }
-        label="Watch tab"
+        label="Watch in Library"
         checked={!!shown.watch}
         onChange={(on) => toggle("watch", on)}
       />
-
+      <SwitchRow title="Podcasts" label="Podcasts tab" checked={shown.podcasts} onChange={(on) => toggle("podcasts", on)} />
     </SettingsCard>
   );
 }

@@ -1,4 +1,4 @@
-import type { MusicScope, SearchKind } from "@murmur/shared/client";
+import type { SearchKind } from "@murmur/shared/client";
 
 // Every React Query key in the app, in one place. Each kind's first part is written once (`root`);
 // matching on it reaches every query of that kind, which is how the saved cache (query.ts) and
@@ -31,10 +31,12 @@ const root = {
   artists: ["artists"],
   artist: ["artist"],
   tracks: ["tracks"],
+  track: ["track"],
   playlists: ["playlists"],
   playlist: ["playlist"],
   trackPlays: ["trackPlays"],
   watch: ["watch"],
+  hidden: ["hidden"],
 } as const;
 
 const watchMovie = [...root.watch, "movie"] as const;
@@ -70,13 +72,19 @@ export const keys = {
   prefs: root.prefs,
   music: root.music,
   musicHome: [...root.music, "home"] as const,
-  albums: (scope: MusicScope) => [...root.albums, scope] as const,
+  /** What you liked: albums and songs. */
+  musicLiked: [...root.music, "liked"] as const,
+  albums: root.albums,
   album: (id: string) => [...root.album, id] as const,
-  artists: (scope: MusicScope) => [...root.artists, scope] as const,
+  artists: root.artists,
   artist: (id: string) => [...root.artist, id] as const,
-  tracks: (scope: MusicScope) => [...root.tracks, scope] as const,
+  /** Songs matching a search, for picking. */
+  tracks: (q: string) => [...root.tracks, q] as const,
+  /** One song, as the player's heart reads it. */
+  track: (id: string) => [...root.track, id] as const,
   playlists: root.playlists,
   trackPlays: root.trackPlays,
+  hidden: root.hidden,
   playlist: (id: string) => [...root.playlist, id] as const,
   watch: {
     all: root.watch,

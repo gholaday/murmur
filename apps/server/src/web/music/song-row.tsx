@@ -6,25 +6,23 @@ import { Cover } from "../cover";
 import { Mixer } from "../mixer";
 import { useNowPlaying } from "../player/engine";
 import { DragHandle, type useSortable } from "../sortable";
-import { MineToggle } from "./mine";
+import { LikeButton } from "./likes";
 import { SongMenuButton } from "./song-menu";
 
 /**
  * A song with its album's cover, title, "Artist, Album" and length. With `onPlay` the row plays it,
- * otherwise it opens the album; `toggle` adds the + / check. In a list that's dragged into order,
+ * otherwise it opens the album. Every row has its heart. In a list that's dragged into order,
  * `sortable` gives the row its place and a drag handle.
  */
 export function SongRow({
   track,
   sub,
-  toggle,
   onPlay,
   menuExtra,
   sortable,
 }: {
   track: TrackDto;
   sub?: string;
-  toggle?: boolean;
   onPlay?: () => void;
   /** More items for the song's ⋯ menu, such as removing it from a playlist. */
   menuExtra?: (close: () => void) => React.ReactNode;
@@ -60,7 +58,7 @@ export function SongRow({
         </Link>
       )}
       <span className="muted small">{songLength(track)}</span>
-      {toggle ? <MineToggle title={track.title} added={track.inMusic} change={{ trackIds: [track.id] }} /> : null}
+      <LikeButton title={track.title} liked={!!track.liked} change={{ trackIds: [track.id] }} />
       <SongMenuButton track={track} extra={menuExtra} />
       {sortable ? <DragHandle label={track.title} {...sortable.list.handleProps(sortable.index)} /> : null}
     </div>

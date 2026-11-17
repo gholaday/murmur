@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useLeave } from "../hidden";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -71,6 +72,7 @@ function MovieShelf({ id, title, items, current }: { id?: string; title: string;
 /** A movie: poster, Play or Resume, Mark watched, the description, its versions, its shelves and the file. */
 export function MovieView({ movie }: { movie: MovieDetail }) {
   const router = useRouter();
+  const leave = useLeave();
   const { tmdb } = useAdmin();
   const [picking, setPicking] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -206,6 +208,8 @@ export function MovieView({ movie }: { movie: MovieDetail }) {
           <WatchMenuItems
             kind="movie"
             id={movie.id}
+            title={movie.title}
+            after={leave("/watch?tab=movies")}
             watched={finished}
             resume={started}
             playHref={playHref}

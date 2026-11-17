@@ -2,9 +2,23 @@
 
 ## Search
 
-- One search for books, authors and series, the podcasts you follow and their episodes, music, and movies, shows and TV episodes, from the Search pill in the bottom bar (the sidebar on wide screens)
-- Matches any part of a word, ignoring case and accents, in names and people (not descriptions, notes or chapter titles); names count most
-- Tabs narrow it to one kind; recent searches show while the box is empty; offline, the app searches what's downloaded
+- One search for books, authors and series, the podcasts you follow and their episodes, music, and movies, shows and TV episodes. Search is the first tab in the bottom bar (the sidebar on wide screens), an ordinary tab like the others
+- The Search page has its title, then a pill-shaped box that stays at the top while the results scroll. It takes focus when Search opens with nothing typed, has an accent outline while focused and an X to clear it. The keyboard covers the bottom bar rather than lifting it
+- Matches any part of a word, ignoring case and accents, in names and people (not descriptions, notes or chapter titles); names count most. Hidden things aren't found
+- Once you type, All, Books, Podcasts, Music and Watch tabs narrow it to one kind, showing only the kinds that have matches (and none when only one kind does); recent searches show while the box is empty; offline, the app searches what's downloaded
+
+## Library
+
+- The bottom bar is Search, Library, Podcasts and You. Library holds Books, Music and Watch as sections; its title row is their names side by side at title size, the current one bright and the others dimmed, always in the same order. Tap one to switch, or swipe sideways in the app. Each section keeps its own tabs and its own buttons at the top right
+- Library opens the section you were last in (kept on the device). On the web the sections keep their addresses (`/`, `/music`, `/watch`) and Library is highlighted on all of them
+- A section switched off under Tabs drops out of the title row; with one left it reads as a plain title, and with none the Library tab goes
+
+## Hiding
+
+- Hide, at the end of the ⋯ menu of a book, album, artist, movie or show, takes it out of your lists, home shelves (Continue listening and Continue watching too), search and Android Auto, with Undo. Hiding an artist hides their albums. Podcasts aren't hidden this way: you unfollow them
+- Hidden things stay in Downloads and in your stats, and their pages still open from a link
+- You > Hidden lists them under Books, Music and Watch, each with a grey count and an Unhide button per row; empty sections don't show, and with nothing hidden it says "Nothing hidden"
+- Per person (`hidden_items`: kind, id, time), with no foreign key so it outlives a rescan. Books, albums, movies and shows keep their ids while their files are there; artists are kept by name key, like `artist_photos`, since a rescan can recreate the artist. `GET /api/hidden` lists them by section, `PUT` hides and `DELETE` unhides (`{ kind, id }`)
 
 ## Audiobooks
 
@@ -34,10 +48,10 @@
 
 Optional. More in [Music](music.md).
 
-- Music folders mounted at `/music` (and `/music-<name>`); with none, the Music tab (if you've turned it on) shows an empty state
-- Albums, artists and songs from the tags, with covers from the folder or the files
-- Your music: each person adds the albums or songs they want, and Browse has the rest
-- Play or shuffle an album, an artist's songs, your songs or a playlist, with the next song loaded early so albums play without a gap
+- Music folders mounted at `/music` (and `/music-<name>`); with none, Library's Music section (if you've turned it on) shows an empty state
+- Albums, artists and songs from the tags, with covers from the folder or the files. Everyone sees all of it
+- Home, Liked, Playlists, Albums and Artists tabs. A heart on albums, songs and the player likes them, and Liked lists them
+- Play or shuffle an album, an artist's songs, Liked songs or a playlist, with the next song loaded early so albums play without a gap
 - Playlists of your own, and single songs in the queue
 - Download albums or songs to the phone
 - Album Match and artist photos for admins
@@ -46,7 +60,7 @@ Optional. More in [Music](music.md).
 
 Optional. More in [Watch](watch.md).
 
-- Movie and show folders mounted at `/movies` and `/shows` (and `/movies-<name>`, `/shows-<name>`); with none, the Watch tab (if you've turned it on) shows an empty state. A Video row there says whether the video add-on works and what converts video (`watch.status` in `/api/health`, worded by the server for the web and the app)
+- Movie and show folders mounted at `/movies` and `/shows` (and `/movies-<name>`, `/shows-<name>`); with none, Library's Watch section (if you've turned it on) shows an empty state. A Video row there says whether the video add-on works and what converts video (`watch.status` in `/api/health`, worded by the server for the web and the app)
 - TMDB's logo and notice under You > Server while Watch is on, as TMDB's terms ask
 - Posters, descriptions and episode names from TMDB when a key is set, matched on their own like Plex, with Match to fix a wrong one
 - Edit for admins: title, year, description, and the poster and background (an image, a link, or one of TMDB's). What you save is kept over TMDB, like an .nfo; Remove takes a chosen picture off again, bringing back the files' or TMDB's
@@ -62,7 +76,7 @@ Optional. More in [Watch](watch.md).
 - Year is a ring with a spoke for every day, by date: longer for more time, coloured by that week's main kind, so one close day doesn't flip colour. Days with nothing played are faint stubs. Picking a kind below it shows only that kind. Your first weeks say how far in you are
 - All time shows the total and one year's ring, with a row of years to pick from, which also changes what played most. In your first calendar year there's nothing to pick, so it uses sentences like Month
 - Kinds whose tab is hidden are left out of the stats altogether: the total, every sentence and the ring's colours
-- Books, Podcasts, Music and Watch can each be shown or hidden per person under Tabs (Music and Watch start hidden); a hidden one's tab and its parts of You go away, and with Books hidden the app opens on the first tab left
+- Books, Music, Watch and Podcasts can each be shown or hidden per person under Tabs, in that order ("Books in Library" and so on; Music and Watch start hidden); a hidden one leaves Library or the bar, its parts of You go away, and the app opens on Library's first section, else Podcasts, else You (`firstTab`)
 
 ## Player
 

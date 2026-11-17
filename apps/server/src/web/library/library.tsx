@@ -37,9 +37,13 @@ import { ChoiceSheet } from "../sheet";
 import { DragHandle, reorder, useSortable } from "../sortable";
 import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SectionTitle, useSavedChoice } from "../ui";
 import { BookCard } from "./book-card";
+import { LibraryTitle } from "./library-title";
 import { PlayNextList } from "./play-next-list";
 
 type Tab = "books" | "authors" | "series" | "finished";
+
+/** Customize (reordering and hiding Home's shelves) is hidden for now; the mode stays for when it's back. */
+const SHOW_CUSTOMIZE = false;
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: "books", label: "Home" },
@@ -199,7 +203,8 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
     );
   }
 
-  // Every book, opened from the All books heading, in the chosen sort.
+  // Every book, opened from the All books heading, in the chosen sort. Sort lives only here: the
+  // other tabs group books their own way, and the All books shelf on Home follows it.
   if (allBooks) {
     return (
       <>
@@ -309,9 +314,10 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
   return (
     <>
       <div className="page-head">
-        <h1 className="page-title">Books</h1>
+        <LibraryTitle current="books" />
         <div className="head-actions">
-          {tab === "books" ? (
+          {/* While Customize is hidden, its Done still shows once the empty state's Customize opens it. */}
+          {(SHOW_CUSTOMIZE || customizing) && tab === "books" ? (
             <button
               type="button"
               className={`icon-btn ${customizing ? "accent" : ""}`}
@@ -322,9 +328,6 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
               <CustomizeIcon />
             </button>
           ) : null}
-          <button type="button" className="icon-btn" aria-label="Sort" onClick={() => setSortOpen(true)}>
-            <FilterIcon />
-          </button>
         </div>
       </div>
 
@@ -404,8 +407,6 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
           ) : null}
           </div>
         </>
-
-      {sortSheet}
     </>
   );
 }

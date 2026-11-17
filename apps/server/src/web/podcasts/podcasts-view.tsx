@@ -234,7 +234,7 @@ export function PodcastsView({
                 {groups.length ? (
                   <section className="section">
                     <div className="section-head">
-                      <SectionTitle title={PODCAST_LIST_TITLES.new} count={newEpisodes.length} noun="new episode" accent onOpen={() => open("new")} />
+                      <SectionTitle title={PODCAST_LIST_TITLES.new} count={newEpisodes.length} noun="new episode" onOpen={() => open("new")} />
                     </div>
                     <div>
                       {groups.slice(0, PODCAST_SECTION_SIZE).map((g) => (

@@ -27,6 +27,7 @@
 /api/episodes/continue GET
 /api/episodes/new GET
 /api/health GET
+/api/hidden DELETE GET PUT
 /api/library/admin GET
 /api/library/folders GET
 /api/library/match DELETE GET POST
@@ -49,6 +50,8 @@
 /api/music/artists/[id]/photo/options GET
 /api/music/folders GET
 /api/music/home GET
+/api/music/liked GET
+/api/music/likes DELETE PUT
 /api/music/match DELETE GET POST
 /api/music/match/apply POST
 /api/music/match/undo POST

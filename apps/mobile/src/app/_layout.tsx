@@ -68,7 +68,6 @@ function App({ signedIn }: { signedIn: boolean }) {
             options={{ presentation: "transparentModal", animation: "slide_from_bottom", contentStyle: { backgroundColor: "transparent" } }}
           />
           <Stack.Screen name="add-songs" />
-          <Stack.Screen name="browse" />
           <Stack.Screen name="group" />
           <Stack.Screen name="shelf" />
           <Stack.Screen name="podcast-list" />
@@ -82,6 +81,7 @@ function App({ signedIn }: { signedIn: boolean }) {
           <Stack.Screen name="episode-cache" />
           <Stack.Screen name="users" />
           <Stack.Screen name="tab-settings" />
+          <Stack.Screen name="hidden" />
           <Stack.Screen name="downloads" />
           <Stack.Screen name="stats" />
           {/* See-through, so the screen below shows as the player is pulled down to minimise it. */}

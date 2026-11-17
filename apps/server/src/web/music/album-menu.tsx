@@ -3,37 +3,38 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
-import { type AlbumDetail, albumInMusic, type AlbumSummary, apiPaths } from "@murmur/shared/client";
+import { type AlbumDetail, type AlbumSummary, apiPaths } from "@murmur/shared/client";
 import { useAdmin } from "../admin";
 import { api } from "../api";
 import { CardMenu, MenuItem, MenuSep } from "../card-menu";
+import { HideMenuItem } from "../hidden";
 import { usePlayerControls } from "../player/engine";
 import { AlbumMatchDialog } from "./match";
-import { useMineChange } from "./mine";
 import { AddToPlaylistSheet } from "./song-menu";
 
 const loadAlbum = (id: string) => api<AlbumDetail>(apiPaths.album(id));
 
 /**
- * An album's menu, the same on its card and its page: Play, Up Next, a playlist, its artist and
- * your music, then for admins Match. The songs are fetched only when an item needs them.
+ * An album's menu, the same on its card and its page: Play, Up Next, a playlist and its artist,
+ * then for admins Match, then Hide. The songs are fetched only when an item needs them.
  */
 export function AlbumMenuItems({
   album,
   choose,
   onAddToPlaylist,
   onMatch,
+  after,
 }: {
   album: AlbumSummary;
   choose: (fn: () => unknown) => () => void;
   onAddToPlaylist: (trackIds: string[]) => void;
   onMatch: () => void;
+  /** Runs once the album is hidden: its own page goes back. */
+  after?: () => void;
 }) {
   const router = useRouter();
   const { isAdmin } = useAdmin();
   const p = usePlayerControls();
-  const send = useMineChange();
-  const inMusic = albumInMusic(album);
   return (
     <>
       <MenuItem
@@ -59,16 +60,13 @@ export function AlbumMenuItems({
       </MenuItem>
       <MenuItem onClick={choose(async () => onAddToPlaylist((await loadAlbum(album.id)).tracks.map((t) => t.id)))}>Add to playlist…</MenuItem>
       <MenuItem onClick={choose(() => router.push(`/music/artist/${album.artistId}`))}>Go to {album.artist}</MenuItem>
-      {/* A partly added album offers to add the rest; only a whole one offers to come out. */}
-      <MenuItem danger={inMusic === "all"} onClick={choose(() => send(inMusic !== "all", { albumIds: [album.id] }))}>
-        {inMusic === "all" ? "Remove from your music" : "Add to your music"}
-      </MenuItem>
       {isAdmin ? (
         <>
           <MenuSep />
           <MenuItem onClick={choose(onMatch)}>Match…</MenuItem>
         </>
       ) : null}
+      <HideMenuItem change={{ kind: "album", id: album.id }} title={album.title} choose={choose} after={after} />
     </>
   );
 }

@@ -4,11 +4,22 @@ import type { BackupStatusDto, ServerVersionDto, UserPrefs } from "./index";
 // Settings shared by the web player and the Android app.
 
 /** The tab the app opens on: Books, or the first one left when it's hidden. You is always there. */
-export function firstTab(tabs: UserPrefs["tabs"]): "books" | "podcasts" | "music" | "watch" | "you" {
-  if (tabs.books !== false) return "books";
-  if (tabs.podcasts) return "podcasts";
-  if (tabs.music) return "music";
-  return tabs.watch ? "watch" : "you";
+export type LibrarySection = "books" | "music" | "watch";
+
+export const LIBRARY_SECTION_LABELS: Record<LibrarySection, string> = { books: "Books", music: "Music", watch: "Watch" };
+
+/** The sections Library shows, in order. None left hides the Library tab. */
+export function librarySections(tabs: UserPrefs["tabs"]): LibrarySection[] {
+  const out: LibrarySection[] = [];
+  if (tabs.books !== false) out.push("books");
+  if (tabs.music) out.push("music");
+  if (tabs.watch) out.push("watch");
+  return out;
+}
+
+/** Where the app opens: Library's first section, then Podcasts, then You. */
+export function firstTab(tabs: UserPrefs["tabs"]): LibrarySection | "podcasts" | "you" {
+  return librarySections(tabs)[0] ?? (tabs.podcasts ? "podcasts" : "you");
 }
 
 export type ThemeChoice = "system" | "dark" | "light";

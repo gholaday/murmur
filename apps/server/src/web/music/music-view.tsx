@@ -2,51 +2,47 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ALBUM_SORTS,
   type AlbumSort,
   type AlbumSummary,
   albumCover,
-  albumInMusic,
-  albumInMusicLabel,
   albumsByArtist,
-  apiPaths,
   type ArtistSummary,
   artistImage,
+  type LikedMusicDto,
   type MusicHomeDto,
   type MusicSummaryDto,
   type PlaylistSummary,
   plural,
   sortAlbums,
-  type TrackDto,
+  LIKED_SONGS,
   MUSIC_TABS,
   type MusicTab,
   storageKeys,
 } from "@murmur/shared/client";
 import { useAdmin } from "../admin";
-import { api } from "../api";
 import { Cover } from "../cover";
 import { Mixer } from "../mixer";
-import { ChevronIcon, FilterIcon, FolderIcon, MusicIcon, PauseIcon, PlayIcon, ProfileIcon } from "../icons";
+import { FilterIcon, MusicIcon, PauseIcon, PlayIcon, ProfileIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
 import { type MusicSource, usePlayerControls, usePlayerSelect } from "../player/engine";
 import { GroupGrid } from "../library/library";
+import { LibraryTitle } from "../library/library-title";
 import { ChoiceSheet } from "../sheet";
-import { SongRowsSkeleton } from "../skeletons";
 import { Chip, Chips, EmptyState, ScrollRow, SectionTitle, useSavedChoice } from "../ui";
 import { AlbumCardMenu } from "./album-menu";
-import { AlbumBadge, useMineChange } from "./mine";
 import { NewPlaylistButton, PlaylistCard } from "./playlist-view";
 import { SongRow } from "./song-row";
 
 const TABS = MUSIC_TABS;
 
-/** The album sort, kept in this browser and shared by the Music tab and Browse. */
+/** The album sort, kept in this browser. */
 export const useAlbumSort = () => useSavedChoice<AlbumSort>(storageKeys.albumSort, "added", ALBUM_SORTS);
 
-/** Cover with title and a sub line; `badge` puts the add / added button on the cover. */
-export function AlbumCard({ album, sub, badge }: { album: AlbumSummary; sub?: string | null; badge?: boolean }) {
+/** Cover with title and a sub line. */
+export function AlbumCard({ album, sub }: { album: AlbumSummary; sub?: string | null }) {
   // Any of its songs, from the album itself or from a playlist or Up Next.
   const current = usePlayerSelect((s) => s.item?.type === "track" && s.item.album?.id === album.id);
   const playing = usePlayerSelect((s) => current && s.playing);
@@ -57,7 +53,6 @@ export function AlbumCard({ album, sub, badge }: { album: AlbumSummary; sub?: st
           <Cover src={albumCover(album.id, album.coverHash)} color={album.coverColor} title={album.title} subtitle={album.artist} />
         </Link>
         {current ? <Mixer playing={playing} /> : null}
-        {badge ? <AlbumBadge title={album.title} added={albumInMusic(album) === "all"} albumId={album.id} /> : null}
       </div>
       <AlbumCardMenu album={album} />
       <Link href={`/music/album/${album.id}`} className="card-link">
@@ -65,24 +60,6 @@ export function AlbumCard({ album, sub, badge }: { album: AlbumSummary; sub?: st
         <div className="card-sub">{sub === undefined ? album.artist : (sub ?? " ")}</div>
       </Link>
     </div>
-  );
-}
-
-/** The way into Browse, above the chips. */
-function BrowseRow({ summary }: { summary: MusicSummaryDto }) {
-  const notAdded = summary.albums - summary.mine.albums;
-  return (
-    <Link href="/music/browse" className="browse-row">
-      <span className="browse-row-icon">
-        <FolderIcon />
-      </span>
-      <span className="list-row-main">
-        <span className="list-row-title">Browse</span>
-        <span className="list-row-sub">{notAdded > 0 ? `${plural(notAdded, "album")} you haven't added` : "Everything's in your music"}</span>
-      </span>
-      {summary.newAlbums > 0 ? <span className="new-pill">{summary.newAlbums} new</span> : null}
-      <ChevronIcon size={20} />
-    </Link>
   );
 }
 
@@ -96,36 +73,6 @@ function NoMusic() {
       </span>
       <h2>No music yet</h2>
       <p>{isAdmin ? "Mount your music at /music, and your albums show up here." : "Albums show up here once they're added."}</p>
-    </div>
-  );
-}
-
-/** First visit: nothing added yet. */
-function EmptyMusic({ total }: { total: number }) {
-  const send = useMineChange();
-  const [busy, setBusy] = useState(false);
-  const addAll = async () => {
-    setBusy(true);
-    try {
-      const all = await api<AlbumSummary[]>(apiPaths.albums("all"));
-      await send(true, { albumIds: all.map((a) => a.id) });
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="music-empty">
-      <span className="music-empty-icon">
-        <MusicIcon size={34} />
-      </span>
-      <h2>Pick the music you want</h2>
-      <p>Add the albums and songs you like and they show up here. The rest stays out of the way.</p>
-      <Link href="/music/browse" className="btn btn-primary btn-big">
-        Browse
-      </Link>
-      <button type="button" className="btn btn-big" disabled={busy} onClick={addAll}>
-        {busy ? "Adding…" : total === 1 ? "Add the album" : `Add all ${plural(total, "album")}`}
-      </button>
     </div>
   );
 }
@@ -189,7 +136,7 @@ function MusicHome({ home }: { home: MusicHomeDto }) {
           <SectionTitle title={likeAlbum.title} />
           <ScrollRow>
             {likeAlbum.items.map((a) => (
-              <AlbumCard key={a.id} album={a} badge />
+              <AlbumCard key={a.id} album={a} />
             ))}
           </ScrollRow>
         </section>
@@ -206,10 +153,10 @@ function MusicHome({ home }: { home: MusicHomeDto }) {
       ) : null}
       {home.newAlbums.length ? (
         <section className="section">
-          <SectionTitle title="New albums" />
+          <SectionTitle title="New albums" count={home.newAlbums.length} noun="new album" />
           <ScrollRow>
             {home.newAlbums.map((a) => (
-              <AlbumCard key={a.id} album={a} badge />
+              <AlbumCard key={a.id} album={a} />
             ))}
           </ScrollRow>
         </section>
@@ -218,13 +165,56 @@ function MusicHome({ home }: { home: MusicHomeDto }) {
   );
 }
 
-/** The Music tab: Home's shelves, then your music as albums, artists or songs, with Browse above. */
+/** Liked albums, then liked songs with Play. */
+function LikedTab({ liked }: { liked: LikedMusicDto }) {
+  const player = usePlayerControls();
+  const source: MusicSource = { ...LIKED_SONGS, tracks: liked.tracks };
+  const from = usePlayerSelect((s) => s.isPlayingFrom(LIKED_SONGS.kind, LIKED_SONGS.refId));
+  const playing = usePlayerSelect((s) => from && s.playing);
+  if (!liked.albums.length && !liked.tracks.length) {
+    return <EmptyState title="No likes yet">Tap the heart on any song or album to find it here.</EmptyState>;
+  }
+  return (
+    <>
+      {liked.albums.length ? (
+        <section className="section" style={{ marginTop: 0 }}>
+          <SectionTitle title="Albums" count={liked.albums.length} noun="album" />
+          <div className="grid">
+            {liked.albums.map((a) => (
+              <AlbumCard key={a.id} album={a} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {liked.tracks.length ? (
+        <section className="section" style={liked.albums.length ? undefined : { marginTop: 0 }}>
+          <SectionTitle title="Songs" count={liked.tracks.length} noun="song" />
+          <div className="songs-actions">
+            <button type="button" className="btn btn-primary" onClick={() => (from ? player.toggle() : player.playMusic(source, -1))}>
+              {playing ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
+              {from ? (playing ? "Pause" : "Resume") : "Play"}
+            </button>
+            <ShuffleButton source={source} size={20} />
+          </div>
+          <div className="list">
+            {liked.tracks.map((t, i) => (
+              <SongRow key={t.id} track={t} onPlay={() => player.playMusic(source, i)} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+/** Library's Music section: Home's shelves, what you liked, your playlists, and every album and artist. */
 export function MusicView({
   summary,
   home,
   albums,
   artists,
   playlists,
+  liked,
   tab: initialTab,
 }: {
   summary: MusicSummaryDto;
@@ -232,21 +222,14 @@ export function MusicView({
   albums: AlbumSummary[];
   artists: ArtistSummary[];
   playlists: PlaylistSummary[];
+  liked: LikedMusicDto;
   tab: MusicTab;
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const player = usePlayerControls();
   const [tab, setTab] = useState<MusicTab>(initialTab);
   const [sort, setSort] = useAlbumSort();
   const [sortOpen, setSortOpen] = useState(false);
-  const [songs, setSongs] = useState<TrackDto[] | null>(null);
-
-  // Songs load the first time they're shown, and again when your music changes.
-  useEffect(() => {
-    if (tab !== "songs") return;
-    api<TrackDto[]>(apiPaths.tracks("mine")).then(setSongs, () => setSongs([]));
-  }, [tab, summary.mine.tracks]);
 
   const switchTab = (next: MusicTab) => {
     setTab(next);
@@ -255,33 +238,22 @@ export function MusicView({
 
   const sorted = useMemo(() => sortAlbums(albums, sort), [albums, sort]);
   const byArtist = useMemo(() => albumsByArtist(albums), [albums]);
-  const songsFrom = usePlayerSelect((s) => s.isPlayingFrom("songs", null));
-  const songsPlaying = usePlayerSelect((s) => songsFrom && s.playing);
 
-  if (!summary.enabled || (summary.mine.tracks === 0 && playlists.length === 0)) {
+  if (!summary.enabled) {
     return (
       <>
         <div className="page-head">
-          <h1 className="page-title">Music</h1>
+          <LibraryTitle current="music" />
         </div>
-        {summary.enabled ? (
-          <>
-            <BrowseRow summary={summary} />
-            <EmptyMusic total={summary.albums} />
-          </>
-        ) : (
-          <NoMusic />
-        )}
+        <NoMusic />
       </>
     );
   }
 
-  const songsSource: MusicSource = { kind: "songs", refId: null, title: "Your songs", tracks: songs ?? [] };
-
   return (
     <>
       <div className="page-head">
-        <h1 className="page-title">Music</h1>
+        <LibraryTitle current="music" />
         <div className="head-actions">
           {tab === "albums" ? (
             <button type="button" className="icon-btn" aria-label={`Sort albums, ${ALBUM_SORTS.find((s) => s.id === sort)?.label}`} onClick={() => setSortOpen(true)}>
@@ -290,8 +262,6 @@ export function MusicView({
           ) : null}
         </div>
       </div>
-
-      <BrowseRow summary={summary} />
 
       <Chips kind="tabs" label="Music view">
         {TABS.map((t) => (
@@ -304,10 +274,12 @@ export function MusicView({
       <div key={tab} className="view-fade" style={{ marginTop: 16 }}>
         {tab === "home" ? (
           <MusicHome home={home} />
+        ) : tab === "liked" ? (
+          <LikedTab liked={liked} />
         ) : tab === "albums" ? (
           <div className="grid">
             {sorted.map((a) => (
-              <AlbumCard key={a.id} album={a} sub={albumInMusic(a) === "some" ? albumInMusicLabel(a) : undefined} />
+              <AlbumCard key={a.id} album={a} />
             ))}
           </div>
         ) : tab === "artists" ? (
@@ -323,7 +295,7 @@ export function MusicView({
           ) : (
             <EmptyState>Nothing here yet.</EmptyState>
           )
-        ) : tab === "playlists" ? (
+        ) : (
           <>
             {/* New playlist is the first tile. */}
             <div className="grid">
@@ -334,25 +306,6 @@ export function MusicView({
             </div>
             {playlists.length ? null : <EmptyState>Make a playlist, then add songs to it from the menu on any song.</EmptyState>}
           </>
-        ) : songs === null ? (
-          <SongRowsSkeleton />
-        ) : songs.length ? (
-          <>
-            <div className="songs-actions">
-              <button type="button" className="btn btn-primary" onClick={() => (songsFrom ? player.toggle() : player.playMusic(songsSource, -1))}>
-                {songsPlaying ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
-                {songsFrom ? (songsPlaying ? "Pause" : "Resume") : "Play all"}
-              </button>
-              <ShuffleButton source={songsSource} size={20} />
-            </div>
-            <div className="list">
-              {songs.map((t, i) => (
-                <SongRow key={t.id} track={t} onPlay={() => player.playMusic(songsSource, i)} />
-              ))}
-            </div>
-          </>
-        ) : (
-          <EmptyState>Nothing here yet.</EmptyState>
         )}
       </div>
 

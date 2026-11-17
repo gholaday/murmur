@@ -1,7 +1,9 @@
 import { useEffect, useRef } from "react";
-import { Pressable, ScrollView, type ScrollViewInstance, View, type StyleProp, type ViewStyle } from "react-native";
+import { Pressable, type ScrollViewInstance, View, type StyleProp, type ViewStyle } from "react-native";
+import { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
 import { selectHaptic } from "@/lib/haptics";
+import { useShelfTouch } from "@/lib/library";
 import { fonts, useTheme } from "@/theme";
 import { PAD } from "./library";
 import { Text } from "./ui";
@@ -48,6 +50,7 @@ export function TextTabs<T extends string | number>({
   const t = useTheme();
   const reduced = useReducedMotion();
   const scroll = useRef<ScrollViewInstance>(null);
+  const touch = useShelfTouch();
   const spots = useRef(new Map<T, { x: number; width: number }>());
   const box = useRef(0);
   const lineX = useSharedValue(0);
@@ -101,9 +104,11 @@ export function TextTabs<T extends string | number>({
     >
       {/* The hairline stays put under tabs that scroll. */}
       <View pointerEvents="none" style={{ position: "absolute", left: inset, right: inset, bottom: 0, height: 1, backgroundColor: t.line }} />
-      <ScrollView
+      {/* Gesture handler's, held like a shelf, so inside Library dragging tabs that overflow scrolls them rather than the section. */}
+      <GHScrollView
         ref={scroll}
         horizontal
+        {...touch}
         style={trailing ? { flex: 1 } : null}
         showsHorizontalScrollIndicator={false}
         onLayout={(e) => (box.current = e.nativeEvent.layout.width)}
@@ -135,26 +140,28 @@ export function TextTabs<T extends string | number>({
           );
         })}
         <Animated.View pointerEvents="none" style={[{ position: "absolute", left: 0, bottom: 0, height: 2, borderRadius: 1, backgroundColor: t.accent }, line]} />
-      </ScrollView>
+      </GHScrollView>
       {trailing ? <View style={{ flexDirection: "row", marginRight: inset - 10 }}>{trailing}</View> : null}
     </View>
   );
 }
 
+const NOT_SHOWN = Symbol("not shown");
+
 /**
- * Fades what's under a screen's text tabs in when the tab changes (not when the screen opens).
- * Spread the style onto each part of the content that changes with the tab.
+ * Fades what's under a screen's text tabs in when the tab changes (and when the screen opens, with
+ * `onOpen`). Spread the style onto each part of the content that changes with the tab.
  */
-export function useTabFade(tab: unknown) {
+export function useTabFade(tab: unknown, onOpen = false) {
   const reduced = useReducedMotion();
-  const opacity = useSharedValue(1);
-  const shown = useRef(tab);
+  const opacity = useSharedValue(onOpen && !reduced ? 0 : 1);
+  const shown = useRef(onOpen ? NOT_SHOWN : tab);
   useEffect(() => {
     if (shown.current === tab) return;
     shown.current = tab;
     if (reduced) return;
     opacity.set(0);
-    opacity.set(withTiming(1, { duration: FADE_MS }));
+    opacity.set(withTiming(1, { duration: FADE_MS, easing: Easing.out(Easing.cubic) }));
   }, [tab, reduced, opacity]);
   return useAnimatedStyle(() => ({ opacity: opacity.value }));
 }

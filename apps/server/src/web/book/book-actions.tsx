@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { bookListening, bookStarted, type BookSummary, errorText } from "@murmur/shared/client";
 import { useAdmin } from "../admin";
 import { MenuItem, MenuSep } from "../card-menu";
+import { HideMenuItem } from "../hidden";
 import { useNowPlaying, usePlayerControls } from "../player/engine";
 import { setFinished } from "../progress";
 import { EditBookDialog, type EditTab } from "./edit-dialog";
@@ -71,16 +72,19 @@ export function BookActions({ children }: { children: React.ReactNode }) {
 
 /**
  * A book's menu, the same on its card and its page: playing it, then for admins Edit, Match and
- * Mark as matched. Mounted only while open, so it follows the player cheaply.
+ * Mark as matched, then Hide. Mounted only while open, so it follows the player cheaply.
  */
 export function BookMenuItems({
   book,
   edit,
   choose,
+  after,
 }: {
   book: BookSummary;
   edit: (bookId: string, tab: EditTab) => void;
   choose: (fn: () => unknown) => () => void;
+  /** Runs once the book is hidden: its own page goes back. */
+  after?: () => void;
 }) {
   const router = useRouter();
   const player = usePlayerControls();
@@ -107,6 +111,7 @@ export function BookMenuItems({
           ) : null}
         </>
       ) : null}
+      <HideMenuItem change={{ kind: "book", id: book.id }} title={book.title} choose={choose} after={after} />
     </>
   );
 }

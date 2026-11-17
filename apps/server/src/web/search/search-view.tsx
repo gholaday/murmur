@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { apiPaths, hasKind, parseRecent, plural, storageKeys, withRecent, type SearchKind, type SearchName, type SearchResultsDto, type UserPrefs } from "@murmur/shared/client";
 import { api } from "../api";
+import { HIDDEN_CHANGED } from "../hidden";
 import { CloseIcon, SearchIcon } from "../icons";
 import { BookCard } from "../library/book-card";
 import { AlbumCard, ArtistCard } from "../music/music-view";
@@ -12,7 +13,6 @@ import { SongRow } from "../music/song-row";
 import { EpisodeRow } from "../podcasts/episode-row";
 import { usePlayerControls } from "../player/engine";
 import { PodcastCard } from "../podcasts/podcasts-view";
-import { useSearchState } from "./search-state";
 import { Chip, Chips, EmptyState, ScrollRow, SectionTitle } from "../ui";
 import { PosterCard, StillCard } from "../watch/cards";
 
@@ -54,8 +54,8 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
       (k.id === "watch" && tabs.watch),
   );
   const startKind = params.get("kind") as SearchKind | null;
-  // The box is shared with the bottom bar's, which keeps what's typed while you open a result.
-  const { query, setQuery, submits } = useSearchState();
+  // Back from a result comes back with the search in the address.
+  const [query, setQuery] = useState(() => params.get("q") ?? "");
   const [kind, setKind] = useState<SearchKind>(kinds.some((k) => k.id === startKind) ? startKind! : "all");
   const [results, setResults] = useState<SearchResultsDto | null>(null);
   const [allResults, setAllResults] = useState<SearchResultsDto | null>(null);
@@ -63,24 +63,19 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
   const [recent, setRecent] = useState<string[]>([]);
   const input = useRef<HTMLInputElement>(null);
   const q = query.trim();
+  // Hiding something from a result asks again, so it leaves the results.
+  const [reload, setReload] = useState(0);
+  useEffect(() => {
+    const again = () => setReload((n) => n + 1);
+    window.addEventListener(HIDDEN_CHANGED, again);
+    return () => window.removeEventListener(HIDDEN_CHANGED, again);
+  }, []);
 
   useEffect(() => {
     setRecent(readRecent());
-    // Opened from an address with a search in it, such as a reload.
-    const fromUrl = params.get("q");
-    if (fromUrl && !query) setQuery(fromUrl);
-    // Only on opening; later changes come from the box.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Opened with nothing typed: ready to type.
+    if (!input.current?.value) input.current?.focus({ preventScroll: true });
   }, []);
-
-  // Enter in the bottom bar's box.
-  const lastSubmits = useRef(submits);
-  useEffect(() => {
-    if (submits === lastSubmits.current) return;
-    lastSubmits.current = submits;
-    remember(q);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [submits]);
 
   // The address keeps the search, so Back from a result comes back to it.
   useEffect(() => {
@@ -119,13 +114,25 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
       stale = true;
       clearTimeout(timer);
     };
-  }, [q, kind]);
+  }, [q, kind, reload]);
 
-  // Only the kinds that found something get a tab; none at all, no tabs.
-  const shown = allResults ? kinds.filter((k) => k.id === "all" || hasKind(allResults, k.id)) : [];
+  // Tabs only for kinds with matches, and none unless two kinds have some (All would say the same).
+  // While the next answer comes, the last one's tabs stay, so they don't blink out at each key.
+  const found = allResults ? kinds.filter((k) => k.id !== "all" && hasKind(allResults, k.id)) : [];
+  const shownKinds = found.length > 1 ? [kinds[0]!, ...found] : [];
+  // A tab whose kind has nothing for this search goes back to All.
+  const fresh = allResults?.q === q;
+  const kindFound = found.some((k) => k.id === kind);
+  const kindEmpty = fresh && kind !== "all" && !kindFound;
   useEffect(() => {
-    if (allResults && kind !== "all" && !hasKind(allResults, kind)) setKind("all");
-  }, [allResults, kind]);
+    if (!kindEmpty) return;
+    setKind("all");
+    // All's answer is already here, so it shows while All is asked for again.
+    setResults(allResults);
+  }, [kindEmpty, allResults]);
+  // Until then, All's answer shows, rather than the old tab's empty one.
+  const shown = kindEmpty ? allResults : results;
+  const shownKind = kindEmpty ? "all" : kind;
 
   const remember = (term: string) => {
     if (!term.trim()) return;
@@ -144,7 +151,6 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
       <div className="page-head">
         <h1 className="page-title">Search</h1>
       </div>
-      {/* Wide screens only: on phones the box is in the bottom bar. */}
       <form
         className="search-bar"
         role="search"
@@ -161,16 +167,29 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
             type="search"
             enterKeyHint="search"
             aria-label="Search"
-            placeholder="Books, podcasts, music and more"
+            placeholder="Search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          {query ? (
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="Clear"
+              onClick={() => {
+                setQuery("");
+                input.current?.focus();
+              }}
+            >
+              <CloseIcon size={20} />
+            </button>
+          ) : null}
         </label>
       </form>
 
-      {q && shown.length > 1 ? (
+      {q && shownKinds.length ? (
         <Chips kind="tabs" label="Search in">
-          {shown.map((k) => (
+          {shownKinds.map((k) => (
             <Chip key={k.id} selected={kind === k.id} onClick={() => setKind(k.id)}>
               {k.label}
             </Chip>
@@ -180,12 +199,12 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
 
       {!q ? (
         <RecentSearches recent={recent} onPick={setQuery} onForget={forget} />
-      ) : failed && !results ? (
+      ) : failed && !shown ? (
         <EmptyState>Couldn&apos;t search the server.</EmptyState>
-      ) : results ? (
+      ) : shown ? (
         // Clicking through to a result keeps the search among the recent ones.
-        <div key={`${results.q}|${kind}`} onClickCapture={(e) => (e.target as HTMLElement).closest("a, button") && remember(q)}>
-          <Results results={results} kind={kind} onKind={setKind} />
+        <div key={`${shown.q}|${shownKind}`} onClickCapture={(e) => (e.target as HTMLElement).closest("a, button") && remember(q)}>
+          <Results results={shown} kind={shownKind} onKind={setKind} />
         </div>
       ) : null}
     </>
@@ -271,7 +290,7 @@ function Results({ results: r, kind, onKind }: { results: SearchResultsDto; kind
       <Group title="Songs" show={r.songs.length > 0} onOpen={open("music")}>
         <div className="list">
           {songs.map((t, i) => (
-            <SongRow key={t.id} track={t} toggle onPlay={() => player.playMusic({ kind: "songs", refId: null, title: `"${r.q}"`, tracks: r.songs }, i)} />
+            <SongRow key={t.id} track={t} onPlay={() => player.playMusic({ kind: "songs", refId: null, title: `"${r.q}"`, tracks: r.songs }, i)} />
           ))}
         </div>
       </Group>

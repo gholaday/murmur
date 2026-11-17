@@ -5,16 +5,19 @@ import { clock, duration, plural } from "./format";
 import { addTo, collator } from "./library";
 
 export type AlbumSort = "added" | "name" | "artist" | "year";
-export type MusicTab = "home" | "albums" | "artists" | "songs" | "playlists";
+export type MusicTab = "home" | "liked" | "playlists" | "albums" | "artists";
 
-/** The Music screen's chips, in order. */
+/** The Music section's tabs, in order. */
 export const MUSIC_TABS: Array<{ id: MusicTab; label: string }> = [
   { id: "home", label: "Home" },
+  { id: "liked", label: "Liked" },
   { id: "playlists", label: "Playlists" },
   { id: "albums", label: "Albums" },
   { id: "artists", label: "Artists" },
-  { id: "songs", label: "Songs" },
 ];
+
+/** Where Liked songs play from in Up Next, the same on the web and the app, so each shows it as playing. */
+export const LIKED_SONGS = { kind: "songs", refId: "liked", title: "Liked songs" } as const;
 
 export const ALBUM_SORTS: Array<{ id: AlbumSort; label: string }> = [
   { id: "added", label: "Recently added" },
@@ -23,10 +26,10 @@ export const ALBUM_SORTS: Array<{ id: AlbumSort; label: string }> = [
   { id: "year", label: "Year" },
 ];
 
-/** "mine" is your music (songs you added, and their albums and artists); "all" is Browse. */
+/** Deprecated, gone in 2.0: the server shows all music whichever is asked for. */
 export type MusicScope = "mine" | "all";
 
-/** An album counts as new in Browse for this long after the scan finds it. */
+/** An album counts as new on Music's Home for this long after the scan finds it. */
 export const NEW_ALBUM_DAYS = 14;
 
 /** Whether the server has music at all, and how much. Music is hidden everywhere when `enabled` is false. */
@@ -38,7 +41,7 @@ export interface MusicSummaryDto {
   tracks: number;
   /** Albums found in the last NEW_ALBUM_DAYS days. */
   newAlbums: number;
-  /** Your music: albums you have any songs from, and how many songs. */
+  /** Deprecated, gone in 2.0: the same as `albums` and `tracks`, for older apps. */
   mine: { albums: number; tracks: number };
 }
 
@@ -63,10 +66,22 @@ export function shuffled<T>(list: T[], first?: T): T[] {
   return out;
 }
 
-/** Add or remove songs from your music; an album adds or removes all its songs. */
+/** Deprecated, gone in 2.0: what older apps send to apiPaths.mine, which does nothing now. */
 export interface MusicMineChange {
   trackIds?: string[];
   albumIds?: string[];
+}
+
+/** Songs and albums to like or unlike. */
+export interface MusicLikeChange {
+  trackIds?: string[];
+  albumIds?: string[];
+}
+
+/** The Liked tab: liked albums, then liked songs, newest like first. */
+export interface LikedMusicDto {
+  albums: AlbumSummary[];
+  tracks: TrackDto[];
 }
 
 export interface AlbumSummary {
@@ -83,10 +98,12 @@ export interface AlbumSummary {
   trackCount: number;
   durationSec: number;
   addedAt: number;
-  /** How many of its songs are in your music; equal to trackCount when all are. */
+  /** Deprecated, gone in 2.0: always trackCount now that all music is shown. */
   songsInMusic: number;
-  /** Details were applied through Match (admins see unmatched albums in Browse). */
+  /** Details were applied through Match. */
   matched: boolean;
+  /** You liked the album. */
+  liked?: boolean;
 }
 
 export interface TrackDto {
@@ -103,8 +120,10 @@ export interface TrackDto {
   mimeType: string;
   /** The album's cover, which songs share. */
   coverHash: string | null;
-  /** You added it to your music. */
+  /** Deprecated, gone in 2.0: always true now that all music is shown. */
   inMusic: boolean;
+  /** You liked the song. */
+  liked?: boolean;
 }
 
 export interface AlbumDetail extends AlbumSummary {
@@ -314,17 +333,6 @@ export function albumFacts(a: AlbumSummary): string[] {
 
 /** The line under an artist's name: albums, or songs when they only appear on others' albums. */
 export const artistSub = (a: ArtistSummary): string => (a.albumCount ? plural(a.albumCount, "album") : plural(a.trackCount, "song"));
-
-/** How much of an album is in your music. */
-export const albumInMusic = (a: AlbumSummary): "all" | "some" | "none" =>
-  a.songsInMusic === 0 ? "none" : a.songsInMusic >= a.trackCount ? "all" : "some";
-
-/** "In your music", "3 of 10 songs", or null when none are. */
-export function albumInMusicLabel(a: AlbumSummary): string | null {
-  const state = albumInMusic(a);
-  if (state === "none") return null;
-  return state === "all" ? "In your music" : `${a.songsInMusic} of ${plural(a.trackCount, "song")}`;
-}
 
 /** Found by the scan in the last NEW_ALBUM_DAYS days. */
 export const isNewAlbum = (a: AlbumSummary, now: number = Date.now()): boolean => now - a.addedAt < NEW_ALBUM_DAYS * 86_400_000;

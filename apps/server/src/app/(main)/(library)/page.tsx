@@ -2,6 +2,7 @@ import { emptyLibraryReason, firstTab } from "@murmur/shared";
 import { redirect } from "next/navigation";
 import { listBooks } from "@/server/books";
 import { getContext } from "@/server/context";
+import { hiddenFor, visibleBooks } from "@/server/hidden";
 import { getPrefs } from "@/server/prefs";
 import { requirePageUser } from "@/server/session";
 import { Library } from "@/web/library/library";
@@ -13,7 +14,7 @@ export default async function LibraryPage() {
   // This is also where the app opens, so with Books hidden it goes to the first tab left.
   const first = firstTab(prefs.tabs);
   if (first !== "books") redirect(`/${first}`);
-  const books = await listBooks(ctx, user.id);
+  const books = visibleBooks(await listBooks(ctx, user.id), hiddenFor(ctx, user.id));
   const emptyReason = emptyLibraryReason(ctx.scanState);
   // en-CA formats as YYYY-MM-DD in the server's time zone (TZ).
   const today = new Date().toLocaleDateString("en-CA");

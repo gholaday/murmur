@@ -6,9 +6,10 @@ import {
   apiPaths,
   type ArtistDetail,
   type ArtistSummary,
-  type MusicMineChange,
-  type MusicScope,
+  type LikedMusicDto,
+  type MusicLikeChange,
   type MusicHomeDto,
+  type SearchResultsDto,
   type MusicSummaryDto,
   type PlaylistDetail,
   type PlaylistSummary,
@@ -97,28 +98,28 @@ export const useBook = (id: string) =>
 /** Whether the server has music; everything about music hides until it says so. */
 export const useMusicSummary = () => useQuery({ queryKey: keys.music, queryFn: () => api<MusicSummaryDto>(apiPaths.music) });
 
+/** For a feature newer than the server: a 404 means it doesn't have it, and the answer is null. */
+export function nullIfMissing(err: unknown): null {
+  if (err instanceof HttpError && err.status === 404) return null;
+  throw err;
+}
+
 /** The Home chip's shelves: Jump back in, On repeat and New albums. Null on a server from before Home. */
 export const useMusicHome = () =>
-  useQuery({
-    queryKey: keys.musicHome,
-    queryFn: () =>
-      api<MusicHomeDto>(apiPaths.musicHome).catch((err: unknown) => {
-        if (err instanceof HttpError && err.status === 404) return null;
-        throw err;
-      }),
-  });
+  useQuery({ queryKey: keys.musicHome, queryFn: () => api<MusicHomeDto>(apiPaths.musicHome).catch(nullIfMissing) });
 
-// Music comes in two scopes: "mine" is your music (songs you added, and their albums and artists),
-// "all" is everything, shown under Browse.
-
-/** Albums newest first; screens sort them on the phone, so a sort change needs no refetch. */
-export const useAlbums = (scope: MusicScope, enabled = true) =>
-  useQuery({ queryKey: keys.albums(scope), queryFn: () => api<AlbumSummary[]>(apiPaths.albums(scope, "added")), enabled });
+/** Every album, newest first; screens sort them on the phone, so a sort change needs no refetch. */
+export const useAlbums = (enabled = true) =>
+  useQuery({ queryKey: keys.albums, queryFn: () => api<AlbumSummary[]>(apiPaths.albums("added")), enabled });
 
 export const useAlbum = (id: string) => useQuery({ queryKey: keys.album(id), queryFn: () => api<AlbumDetail>(apiPaths.album(id)) });
 
-export const useArtists = (scope: MusicScope, enabled = true) =>
-  useQuery({ queryKey: keys.artists(scope), queryFn: () => api<ArtistSummary[]>(apiPaths.artists(scope)), enabled });
+export const useArtists = (enabled = true) =>
+  useQuery({ queryKey: keys.artists, queryFn: () => api<ArtistSummary[]>(apiPaths.artists), enabled });
+
+/** The Liked tab: liked albums, then liked songs, newest like first. Null on a server from before likes (1.4). */
+export const useLikedMusic = (enabled = true) =>
+  useQuery({ queryKey: keys.musicLiked, queryFn: () => api<LikedMusicDto>(apiPaths.musicLiked).catch(nullIfMissing), enabled });
 
 /** An album's colour from the cache, looked up once per album rather than on every render. */
 export function useAlbumColor(id: string | undefined): string | null {
@@ -136,50 +137,115 @@ function cachedAlbumColor(id: string): string | null {
   return null;
 }
 
-/** All of an artist's albums and songs, each marked with how much is in your music. */
+/** All of an artist's albums and songs. */
 export const useArtist = (id: string) => useQuery({ queryKey: keys.artist(id), queryFn: () => api<ArtistDetail>(apiPaths.artist(id)) });
 
-/** Songs A to Z; lists filter them on the phone. */
-export const useTracks = (scope: MusicScope, enabled = true) =>
-  useQuery({ queryKey: keys.tracks(scope), queryFn: () => api<TrackDto[]>(apiPaths.tracks(scope)), enabled });
-
 /**
- * Adds songs to your music, or removes them; an album means all its songs. Every cached list shows
- * the change at once, then everything music refetches from the server.
+ * Likes songs or albums, or unlikes them. Every cached list shows the heart at once, and the Liked
+ * tab gains or loses them; a failure puts it all back.
  */
-export async function setInMusic(change: { albums?: AlbumSummary[]; tracks?: TrackDto[] }, on: boolean) {
+export async function setLiked(change: { albums?: AlbumSummary[]; tracks?: TrackDto[] }, on: boolean) {
   const albumIds = new Set(change.albums?.map((a) => a.id));
-  // Only songs that actually change move their album's count.
-  const moved = (change.tracks ?? []).filter((t) => t.inMusic !== on);
-  const trackIds = new Set(moved.map((t) => t.id));
-  const delta = new Map<string, number>();
-  for (const t of moved) delta.set(t.albumId, (delta.get(t.albumId) ?? 0) + (on ? 1 : -1));
+  const trackIds = new Set(change.tracks?.map((t) => t.id));
+  const album = <A extends AlbumSummary>(a: A): A => (albumIds.has(a.id) ? { ...a, liked: on } : a);
+  const track = (t: TrackDto): TrackDto => (trackIds.has(t.id) ? { ...t, liked: on } : t);
+  const tracks = (list: TrackDto[] | undefined) => list?.map(track);
 
-  const album = <A extends AlbumSummary>(a: A): A =>
-    albumIds.has(a.id)
-      ? { ...a, songsInMusic: on ? a.trackCount : 0 }
-      : delta.has(a.id)
-        ? { ...a, songsInMusic: Math.max(0, Math.min(a.trackCount, a.songsInMusic + delta.get(a.id)!)) }
-        : a;
-  const track = (t: TrackDto): TrackDto => (albumIds.has(t.albumId) || trackIds.has(t.id) ? { ...t, inMusic: on } : t);
-
+  // What each list held, to put back if the server can't take it (offline too).
+  const snapshot = LIKE_LISTS.flatMap((queryKey) => queryClient.getQueriesData({ queryKey }));
+  const before = queryClient.getQueryData<LikedMusicDto | null>(keys.musicLiked);
+  queryClient.setQueriesData<TrackDto>({ queryKey: keys.all.track }, (t) => t && track(t));
   queryClient.setQueriesData<AlbumSummary[]>({ queryKey: keys.all.albums }, (list) => list?.map(album));
-  queryClient.setQueriesData<TrackDto[]>({ queryKey: keys.all.tracks }, (list) => list?.map(track));
+  queryClient.setQueriesData<TrackDto[]>({ queryKey: keys.all.tracks }, tracks);
+  queryClient.setQueriesData<TrackDto[]>({ queryKey: keys.trackPlays }, tracks);
   queryClient.setQueriesData<AlbumDetail>({ queryKey: keys.all.album }, (a) => a && { ...album(a), tracks: a.tracks.map(track) });
   queryClient.setQueriesData<ArtistDetail>({ queryKey: keys.all.artist }, (a) => a && { ...a, albums: a.albums.map(album), appearsOn: a.appearsOn.map(track) });
-
-  const body: MusicMineChange = {};
-  if (albumIds.size) body.albumIds = [...albumIds];
-  if (change.tracks?.length) body.trackIds = change.tracks.map((t) => t.id);
-  try {
-    const summary = await api<MusicSummaryDto>(apiPaths.mine, { method: on ? "PUT" : "DELETE", body });
-    queryClient.setQueryData(keys.music, summary);
-  } catch (err) {
-    toast.error(err instanceof Error ? err.message : on ? "Couldn't add that." : "Couldn't remove that.");
-  } finally {
-    const { music, albums, artists, tracks, album, artist } = keys.all;
-    for (const queryKey of [music, albums, artists, tracks, album, artist]) void queryClient.invalidateQueries({ queryKey });
+  queryClient.setQueriesData<PlaylistDetail>({ queryKey: keys.all.playlist }, (p) => p && { ...p, tracks: p.tracks.map(track) });
+  queryClient.setQueryData<MusicHomeDto | null>(
+    keys.musicHome,
+    (h) =>
+      h && {
+        ...h,
+        onRepeat: h.onRepeat?.map(track),
+        newAlbums: h.newAlbums?.map(album),
+        jumpBackIn: h.jumpBackIn?.map((i) => (i.kind === "album" ? { ...i, album: album(i.album) } : i)),
+        moreLikeAlbum: h.moreLikeAlbum && { ...h.moreLikeAlbum, items: h.moreLikeAlbum.items.map(album) },
+      },
+  );
+  queryClient.setQueriesData<SearchResultsDto>({ queryKey: keys.all.search }, (r) => r && { ...r, songs: r.songs.map(track), albums: r.albums.map(album) });
+  if (before) {
+    const likedAlbums = (change.albums ?? []).map((a) => ({ ...a, liked: true }));
+    const likedTracks = (change.tracks ?? []).map((t) => ({ ...t, liked: true }));
+    queryClient.setQueryData<LikedMusicDto>(keys.musicLiked, {
+      albums: on ? [...likedAlbums, ...before.albums.filter((a) => !albumIds.has(a.id))] : before.albums.filter((a) => !albumIds.has(a.id)),
+      tracks: on ? [...likedTracks, ...before.tracks.filter((t) => !trackIds.has(t.id))] : before.tracks.filter((t) => !trackIds.has(t.id)),
+    });
   }
+
+  const body: MusicLikeChange = {};
+  if (albumIds.size) body.albumIds = [...albumIds];
+  if (trackIds.size) body.trackIds = [...trackIds];
+  try {
+    await api(apiPaths.musicLikes, { method: on ? "PUT" : "DELETE", body });
+    void queryClient.invalidateQueries({ queryKey: keys.musicLiked });
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : on ? "Couldn't like that." : "Couldn't unlike that.");
+    // Every heart goes back as it was, then the server is asked again for the truth.
+    for (const [queryKey, data] of snapshot) queryClient.setQueryData(queryKey, data);
+    for (const queryKey of LIKE_LISTS) void queryClient.invalidateQueries({ queryKey });
+  }
+}
+
+/** Every cached list a like shows in. */
+const LIKE_LISTS = [
+  keys.all.albums,
+  keys.all.tracks,
+  keys.all.track,
+  keys.trackPlays,
+  keys.all.album,
+  keys.all.artist,
+  keys.all.playlist,
+  keys.musicHome,
+  keys.musicLiked,
+  keys.all.search,
+];
+
+/** A song as some loaded list has it (its album, a playlist, Liked, Recently played), for liking one known only by id. */
+function cachedTrack(id: string): TrackDto | undefined {
+  const lists: (TrackDto[] | undefined)[] = [
+    queryClient.getQueryData<LikedMusicDto>(keys.musicLiked)?.tracks,
+    queryClient.getQueryData<TrackDto[]>(keys.trackPlays),
+    ...queryClient.getQueriesData<AlbumDetail>({ queryKey: keys.all.album }).map(([, a]) => a?.tracks),
+    ...queryClient.getQueriesData<PlaylistDetail>({ queryKey: keys.all.playlist }).map(([, p]) => p?.tracks),
+    ...queryClient.getQueriesData<TrackDto[]>({ queryKey: keys.all.tracks }).map(([, list]) => list),
+  ];
+  for (const list of lists) {
+    const found = list?.find((t) => t.id === id);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+/**
+ * Whether the song is liked, from the song itself (a song on a hidden album isn't in Liked), with
+ * any change made here on top. Undefined on a server from before likes, which shows no heart.
+ */
+export function useTrackLiked(id: string | undefined): boolean | undefined {
+  const song = useQuery({
+    queryKey: keys.track(id ?? ""),
+    queryFn: () => api<TrackDto>(apiPaths.track(id!)),
+    enabled: !!id,
+    // A list's copy shows at once (and offline) until the song's own comes.
+    placeholderData: () => (id ? cachedTrack(id) : undefined),
+  });
+  return id ? song.data?.liked : undefined;
+}
+
+/** Likes or unlikes the song playing, known only by id. */
+export async function setTrackLiked(id: string, on: boolean) {
+  const track = queryClient.getQueryData<TrackDto>(keys.track(id)) ?? cachedTrack(id);
+  if (track) return setLiked({ tracks: [track] }, on);
+  toast.error("Couldn't do that.");
 }
 
 // ---------- Playlists (each person's own) ----------
@@ -206,11 +272,11 @@ export const createPlaylist = async (name: string, trackIds: string[] = []) =>
 export const updatePlaylist = async (id: string, change: { name?: string; trackIds?: string[] }) =>
   savedPlaylist(await api<PlaylistDetail>(apiPaths.playlist(id), { method: "PATCH", body: change }));
 
-/** Songs to pick from: yours or everything on the server, matching a search the server runs. */
-export const useTrackSearch = (scope: MusicScope, q: string, enabled = true) =>
+/** Songs on the server matching a search the server runs, to pick from. */
+export const useTrackSearch = (q: string, enabled = true) =>
   useQuery({
-    queryKey: q ? [...keys.tracks(scope), q] : keys.tracks(scope),
-    queryFn: () => api<TrackDto[]>(apiPaths.tracks(scope, q || undefined)),
+    queryKey: keys.tracks(q),
+    queryFn: () => api<TrackDto[]>(apiPaths.tracks(q)),
     placeholderData: keepPreviousData,
     enabled,
   });

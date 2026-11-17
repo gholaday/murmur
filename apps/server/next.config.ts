@@ -14,7 +14,8 @@ const nextConfig: NextConfig = {
   ...(process.env.MURMUR_VERSION ? { env: { MURMUR_VERSION: process.env.MURMUR_VERSION } } : {}),
   images: { unoptimized: true },
   // Going back to a tab shows it straight away. Live changes and the players refresh what's changed.
-  experimental: { staleTimes: { dynamic: 30 } },
+  // agentUpgrade: Next nudges coding agents only about security upgrades.
+  experimental: { staleTimes: { dynamic: 30 }, agentUpgrade: "security" },
   // Nothing Murmur serves is a page to sniff into or a thing to frame.
   headers: async () => [
     {
@@ -31,6 +32,8 @@ const nextConfig: NextConfig = {
     { source: "/profile", destination: "/you", permanent: true },
     { source: "/settings", destination: "/you", permanent: true },
     { source: "/up-next", destination: "/listening", permanent: true },
+    // Browse went in 1.5: all music shows in Music itself.
+    { source: "/music/browse", destination: "/music?tab=albums", permanent: true },
   ],
 };
 

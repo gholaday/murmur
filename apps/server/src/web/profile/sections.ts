@@ -1,6 +1,6 @@
 // The settings rows on You, shared by the page (rows) and /you/<id> (one group per page).
 
-export type SettingsSection = "account" | "appearance" | "playback" | "server" | "library" | "podcasts" | "users" | "tabs";
+export type SettingsSection = "account" | "appearance" | "playback" | "server" | "library" | "podcasts" | "users" | "tabs" | "hidden";
 
 /** In the app's order; each opens /you/<id>. */
 export const SECTIONS: Array<{ id: SettingsSection; title: string; admin?: boolean }> = [
@@ -12,6 +12,7 @@ export const SECTIONS: Array<{ id: SettingsSection; title: string; admin?: boole
   { id: "podcasts", title: "Podcasts" },
   { id: "users", title: "Users", admin: true },
   { id: "tabs", title: "Tabs" },
+  { id: "hidden", title: "Hidden" },
 ];
 
 /** The section a /you/<id> address names, if this person may open it. */

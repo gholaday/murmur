@@ -24,7 +24,10 @@ import {
   thirdTile,
   timeLeft,
   FALLBACK_TINT,
+  apiPaths,
+  type TrackDto,
 } from "@murmur/shared/client";
+import { api } from "../api";
 import { BookmarkNoteSheet, BookmarkRows } from "../bookmark-rows";
 import { newBookmark, useBookmarks } from "../bookmarks";
 import {
@@ -58,6 +61,7 @@ import { cssMs, isNarrow } from "../css-vars";
 import { useCast } from "../cast/cast";
 import { playableHref, usePlayer, usePosition, useTint } from "./engine";
 import { VolumeRow } from "./volume-control";
+import { LikeButton, likeTaps, noteFetchedLike } from "../music/likes";
 
 /**
  * On a phone, pulling the player's top bar or cover down drags the whole player with your finger;
@@ -164,6 +168,21 @@ export function FullPlayer() {
       document.body.style.overflow = "";
     };
   }, [expanded, setExpanded]);
+
+  // A song's like as it is now, since the queued copy may be older (liked on another device).
+  const songId = item?.type === "track" ? item.id : null;
+  useEffect(() => {
+    if (!expanded || !songId) return;
+    let live = true;
+    const since = likeTaps();
+    api<TrackDto>(apiPaths.track(songId)).then(
+      (t) => live && noteFetchedLike(songId, !!t.liked, since),
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+  }, [expanded, songId]);
 
   if (!item || (!expanded && !closing)) return null;
 
@@ -299,7 +318,9 @@ export function FullPlayer() {
             </h1>
             <div className="player-sub">{multiChapter && !segmented && chapter ? chapter.title : item.subtitle}</div>
           </div>
-          {song ? null : (
+          {song ? (
+            <LikeButton key={item.id} title={item.title} liked={!!item.liked} change={{ trackIds: [item.id] }} size={24} />
+          ) : (
             <button type="button" className={`icon-btn${nearBookmark ? " on" : ""}`} aria-label={nearBookmark ? "Edit bookmark" : "Bookmark this spot"} aria-pressed={!!nearBookmark} onClick={onBookmark}>
               <BookmarkIcon filled={!!nearBookmark} />
             </button>

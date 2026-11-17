@@ -1,6 +1,7 @@
 import { watchDetailsSchema } from "@murmur/shared";
 import { requireAdmin, requireUser } from "@/server/auth";
 import { getContext } from "@/server/context";
+import { hiddenFor, visibleMovie } from "@/server/hidden";
 import { HttpError, json, jsonWithEtag, readJson, route } from "@/server/http";
 import { saveWatchDetails } from "@/server/watch/edit";
 import { getMovie } from "@/server/watch/queries";
@@ -12,7 +13,7 @@ export const GET = route<Ctx>(async (req, { params }) => {
   const user = requireUser(ctx, req);
   const movie = await getMovie(ctx, user.id, (await params).id);
   if (!movie) throw new HttpError(404, "Movie not found.");
-  return jsonWithEtag(req, movie);
+  return jsonWithEtag(req, visibleMovie(movie, hiddenFor(ctx, user.id)));
 });
 
 /** Edit: the title, year and description, which a later match leaves alone. */

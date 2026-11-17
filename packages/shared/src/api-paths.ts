@@ -41,22 +41,28 @@ export const apiPaths = {
   music: "/api/music",
   /** MusicHomeDto: the Home chip's shelves. */
   musicHome: "/api/music/home",
-  /** AlbumSummary[]: "mine" is albums you have songs from, "all" is Browse. */
-  albums: (scope: "mine" | "all", sort: "added" | "name" | "artist" | "year" = "added") => `/api/music/albums?scope=${scope}&sort=${sort}`,
+  /** AlbumSummary[], every album. The server ignores the old `?scope=` (gone in 2.0). */
+  albums: (sort: "added" | "name" | "artist" | "year" = "added") => `/api/music/albums?sort=${sort}`,
   /** AlbumDetail. */
   album: (albumId: string) => `/api/music/albums/${albumId}`,
   albumCoverUrl: (albumId: string, coverHash: string, size: 200 | 600) =>
     `/api/music/albums/${albumId}/cover?size=${size}&h=${coverHash}`,
   /** ArtistSummary[], A to Z. */
-  artists: (scope: "mine" | "all") => `/api/music/artists?scope=${scope}`,
+  artists: "/api/music/artists",
   /** ArtistDetail. */
   artist: (artistId: string) => `/api/music/artists/${artistId}`,
   artistPhotoUrl: (artistId: string, photoHash: string, size: 200 | 600) =>
     `/api/music/artists/${artistId}/photo?size=${size}&h=${photoHash}`,
   /** TrackDto[], A to Z, or matching `q` (title, artist or album). */
-  tracks: (scope: "mine" | "all", q?: string) => `/api/music/tracks?scope=${scope}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
-  /** PUT adds songs to your music, DELETE removes them: body MusicMineChange. */
+  tracks: (q?: string) => `/api/music/tracks${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+  /** Deprecated, gone in 2.0: PUT and DELETE do nothing now that all music is shown. */
   mine: "/api/music/mine",
+  /** PUT likes songs and albums, DELETE unlikes them: body MusicLikeChange. */
+  musicLikes: "/api/music/likes",
+  /** LikedMusicDto: what you liked, newest first. */
+  musicLiked: "/api/music/liked",
+  /** GET HiddenDto; PUT hides one thing, DELETE unhides it: body HiddenChange. */
+  hidden: "/api/hidden",
   /**
    * Up Next, one running list. GET UpNextDto; PUT the whole list (UpNextInput) after a change;
    * PATCH { index } as it moves on; POST { itemType, itemId, at } adds an item from anywhere.

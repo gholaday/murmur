@@ -10,7 +10,7 @@ import { Cover } from "./cover";
 import { SearchIcon } from "./icons";
 import { SheetHead } from "./match";
 import { useHealth } from "./settings";
-import { Sheet, SheetDivider, SheetItem, useMenuIdle } from "./sheet";
+import { HideItem, Sheet, SheetDivider, SheetItem, useMenuIdle } from "./sheet";
 import { Bone, Skeleton } from "./skeleton";
 import { toast } from "./toast";
 import { Button, Chips, EditFoot, Field, Text } from "./ui";
@@ -44,6 +44,7 @@ export function WatchActions({
   open,
   onClose,
   onIdle,
+  onHidden,
   extra,
 }: {
   kind: "movie" | "show";
@@ -52,6 +53,8 @@ export function WatchActions({
   open: boolean;
   onClose: () => void;
   onIdle?: () => void;
+  /** On the movie's or show's own page: goes back once it's hidden. */
+  onHidden?: () => void;
   extra?: React.ReactNode;
 }) {
   const admin = useIsAdmin();
@@ -106,6 +109,7 @@ export function WatchActions({
             {canMatch ? <SheetItem label="Match…" disabled={!item} onPress={then(() => setEditing("match"))} /> : null}
           </>
         ) : null}
+        <HideItem kind={kind} id={id} title={title} onClose={onClose} onHidden={onHidden} />
       </Sheet>
       {admin && item ? <WatchEditSheet kind={kind} item={item} tab={editing} onClose={() => setEditing(null)} /> : null}
     </>

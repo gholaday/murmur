@@ -199,10 +199,9 @@ export function EmptyState({ title, children, style }: { title?: React.ReactNode
 }
 
 /** The grey badge counting what's in a list, read out as "12 books". */
-/** A grey count of what's in a list, or `accent` for how many are new. */
-export function CountPill({ count, noun, accent }: { count: number; noun?: string; accent?: boolean }) {
+export function CountPill({ count, noun }: { count: number; noun?: string }) {
   return (
-    <span className={accent ? "count-pill accent" : "count-pill"} aria-label={noun ? plural(count, noun) : undefined}>
+    <span className="count-pill" aria-label={noun ? plural(count, noun) : undefined}>
       {count}
     </span>
   );
@@ -213,19 +212,17 @@ export function SectionTitle({
   title,
   count,
   noun,
-  accent,
   onOpen,
 }: {
   title: React.ReactNode;
   count?: number;
   noun?: string;
-  accent?: boolean;
   onOpen?: () => void;
 }) {
   const inner = (
     <>
       {title}
-      {count !== undefined ? <CountPill count={count} noun={noun} accent={accent} /> : null}
+      {count !== undefined ? <CountPill count={count} noun={noun} /> : null}
     </>
   );
   return onOpen ? (

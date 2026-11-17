@@ -8,7 +8,6 @@ import {
   albumDiscs,
   type AlbumDetail,
   albumFacts,
-  albumInMusic,
   type ArtistDetail,
   FALLBACK_TINT,
   artistImage,
@@ -21,27 +20,24 @@ import {
 } from "@murmur/shared/client";
 import { useAdmin } from "../admin";
 import { Cover } from "../cover";
-import { MoreIcon, PauseIcon, PlayIcon, PlusIcon } from "../icons";
+import { MoreIcon, PauseIcon, PlayIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
 import { MixerBars } from "../mixer";
 import { BackRow, HeroBar, SectionTitle } from "../ui";
-import { Sheet, SheetItem } from "../sheet";
 import { type MusicSource, usePlayerControls, usePlayerSelect } from "../player/engine";
-import { MenuSheet } from "../card-menu";
+import { MenuItem, MenuSheet } from "../card-menu";
+import { HideMenuItem, useLeave } from "../hidden";
 import { AlbumMenuItems, useAlbumMenuSheets } from "./album-menu";
 import { ArtistPhotoDialog } from "./match";
-import { MineToggle, useMineChange } from "./mine";
+import { LikeButton } from "./likes";
 import { SongMenuButton } from "./song-menu";
 import { AlbumCard } from "./music-view";
 import { SongRow } from "./song-row";
 
 export function AlbumView({ album }: { album: AlbumDetail }) {
-  const send = useMineChange();
-  const [busy, setBusy] = useState(false);
+  const leave = useLeave();
   const [menu, setMenu] = useState(false);
   const menuSheets = useAlbumMenuSheets(album);
-  const state = albumInMusic(album);
-  const toAdd = album.trackCount - album.songsInMusic;
   const p = usePlayerControls();
   const coverSrc = albumCover(album.id, album.coverHash, 600);
   const source: MusicSource = { kind: "album", refId: album.id, title: album.title, tracks: album.tracks };
@@ -55,12 +51,6 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
     if (from) return p.toggle();
     p.playMusic(source, -1);
     p.setExpanded(true);
-  };
-
-  const change = async (add: boolean) => {
-    setBusy(true);
-    await send(add, { albumIds: [album.id] });
-    setBusy(false);
   };
 
   return (
@@ -94,37 +84,14 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
         </div>
       </div>
 
-      {state === "all" ? (
-        <div className="actions">
-          <button type="button" className="btn btn-primary btn-big" onClick={onPlay}>
-            {from && playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
-            <span>{from ? (playing ? "Pause" : "Resume") : "Play"}</span>
-          </button>
-          <ShuffleButton source={source} />
-        </div>
-      ) : (
-        <>
-          <div className="actions">
-            <button type="button" className="btn btn-primary btn-big" disabled={busy} onClick={() => change(true)}>
-              <PlusIcon size={20} />
-              <span>{state === "none" ? "Add to your music" : `Add the other ${plural(toAdd, "song")}`}</span>
-            </button>
-            <button
-              type="button"
-              className="btn-round"
-              aria-label={from && playing ? "Pause" : "Play"}
-              onClick={onPlay}
-            >
-              {from && playing ? <PauseIcon /> : <PlayIcon />}
-            </button>
-          </div>
-          {state === "some" ? (
-            <p className="muted small" style={{ margin: "10px 0 0" }}>
-              {`${album.songsInMusic} of ${plural(album.trackCount, "song")} in your music`}
-            </p>
-          ) : null}
-        </>
-      )}
+      <div className="actions">
+        <button type="button" className="btn btn-primary btn-big" onClick={onPlay}>
+          {from && playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
+          <span>{from ? (playing ? "Pause" : "Resume") : "Play"}</span>
+        </button>
+        <ShuffleButton source={source} />
+        <LikeButton round size={22} title={album.title} liked={!!album.liked} change={{ albumIds: [album.id] }} />
+      </div>
 
       {albumDiscs(album.tracks).map((d) => (
         <section key={d.disc ?? 0} className="section">
@@ -144,7 +111,7 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
                   ) : null}
                 </span>
                 <span className="muted small">{songLength(t)}</span>
-                <MineToggle title={t.title} added={t.inMusic} change={{ trackIds: [t.id] }} />
+                <LikeButton title={t.title} liked={!!t.liked} change={{ trackIds: [t.id] }} />
                 <SongMenuButton track={t} hideAlbum />
               </li>
             ))}
@@ -156,7 +123,9 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
         open={menu}
         onClose={() => setMenu(false)}
         title={album.title}
-        items={(choose) => <AlbumMenuItems album={album} choose={choose} onAddToPlaylist={menuSheets.onAddToPlaylist} onMatch={menuSheets.onMatch} />}
+        items={(choose) => (
+          <AlbumMenuItems album={album} choose={choose} onAddToPlaylist={menuSheets.onAddToPlaylist} onMatch={menuSheets.onMatch} after={leave("/music?tab=albums")} />
+        )}
       />
       {menuSheets.sheets}
     </>
@@ -165,62 +134,42 @@ export function AlbumView({ album }: { album: AlbumDetail }) {
 
 export function ArtistView({ artist }: { artist: ArtistDetail }) {
   const router = useRouter();
+  const leave = useLeave();
   const { isAdmin } = useAdmin();
-  const send = useMineChange();
   const p = usePlayerControls();
-  const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
   const [photo, setPhoto] = useState(false);
-  const notFull = artist.albums.filter((a) => albumInMusic(a) !== "all");
-  const anyAdded = artist.albums.some((a) => albumInMusic(a) !== "none");
-  const addedCount = artist.albums.length - notFull.length;
 
   return (
     <>
       <BackRow fallback="/music">
-        {isAdmin ? (
-          <button type="button" className="icon-btn" aria-label="Artist options" onClick={() => setMenu(true)}>
-            <MoreIcon />
-          </button>
-        ) : null}
+        <button type="button" className="icon-btn" aria-label="Artist options" onClick={() => setMenu(true)}>
+          <MoreIcon />
+        </button>
       </BackRow>
       <div className="artist-head">
         <Cover className="artist-photo" src={artistImage(artist, 600)} color={null} title={artist.name} />
         <div style={{ minWidth: 0 }}>
           <h1 className="page-title">{artist.name}</h1>
-          <div className="page-sub">{addedCount ? `${artistSub(artist)}, ${addedCount} in your music` : artistSub(artist)}</div>
+          <div className="page-sub">{artistSub(artist)}</div>
         </div>
       </div>
-      <Sheet open={menu} onClose={() => setMenu(false)} title={artist.name}>
-        <SheetItem
-          onClick={() => {
-            setMenu(false);
-            setPhoto(true);
-          }}
-        >
-          Change photo…
-        </SheetItem>
-      </Sheet>
+      <MenuSheet
+        open={menu}
+        onClose={() => setMenu(false)}
+        title={artist.name}
+        items={(choose) => (
+          <>
+            {isAdmin ? <MenuItem onClick={choose(() => setPhoto(true))}>Change photo…</MenuItem> : null}
+            <HideMenuItem change={{ kind: "artist", id: artist.id }} title={artist.name} choose={choose} after={leave("/music?tab=artists")} divider={isAdmin} />
+          </>
+        )}
+      />
       {isAdmin && photo ? <ArtistPhotoDialog artist={artist} onClose={() => setPhoto(false)} onChanged={() => router.refresh()} /> : null}
-      {notFull.length ? (
-        <button
-          type="button"
-          className="btn btn-outline add-all"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            await send(true, { albumIds: notFull.map((a) => a.id) });
-            setBusy(false);
-          }}
-        >
-          <PlusIcon size={18} />
-          {anyAdded ? `Add the other ${plural(notFull.length, "album")}` : notFull.length === 1 ? "Add the album" : `Add all ${plural(notFull.length, "album")}`}
-        </button>
-      ) : null}
       {artist.albums.length ? (
         <div className="grid" style={{ marginTop: 16 }}>
           {artist.albums.map((a) => (
-            <AlbumCard key={a.id} album={a} sub={a.year ?? plural(a.trackCount, "song")} badge />
+            <AlbumCard key={a.id} album={a} sub={a.year ?? plural(a.trackCount, "song")} />
           ))}
         </div>
       ) : null}
@@ -233,7 +182,6 @@ export function ArtistView({ artist }: { artist: ArtistDetail }) {
                 key={t.id}
                 track={t}
                 sub={songSub(t)}
-                toggle
                 onPlay={() => p.playMusic({ kind: "artist", refId: artist.id, title: artist.name, tracks: artist.appearsOn }, artist.appearsOn.indexOf(t))}
               />
             ))}

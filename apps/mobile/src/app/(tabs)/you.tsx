@@ -9,6 +9,7 @@ import { NavRow } from "@/components/settings-page";
 import { StatsBoundary, StatsCard } from "@/components/stats";
 import { CardLink } from "@/components/ui";
 import { formatBytes, useDownloads } from "@/lib/downloads";
+import { useCanHideAndLike } from "@/lib/hidden";
 import { useSession } from "@/lib/session";
 import { useTheme, useThemeMode } from "@/theme";
 
@@ -62,6 +63,7 @@ function SettingsRows({ admin, username }: { admin: boolean; username?: string }
   const version = useServerVersion().data;
   // Admin-only; listeners can't read it.
   const users = useUsers(admin).data;
+  const canHide = useCanHideAndLike();
 
   return (
     <Card>
@@ -76,7 +78,8 @@ function SettingsRows({ admin, username }: { admin: boolean; username?: string }
           <NavRow title="Users" value={users ? String(users.length) : null} href="/users" />
         </>
       ) : null}
-      <NavRow title="Tabs" href="/tab-settings" last />
+      <NavRow title="Tabs" href="/tab-settings" last={!canHide} />
+      {canHide ? <NavRow title="Hidden" href="/hidden" last /> : null}
     </Card>
   );
 }

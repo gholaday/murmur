@@ -6,6 +6,6 @@ import { musicSummary } from "@/server/music/queries";
 /** Whether the server has music, and how much; apps hide music entirely when it's off. */
 export const GET = route(async (req) => {
   const ctx = await getContext();
-  const user = requireUser(ctx, req);
-  return jsonWithEtag(req, musicSummary(ctx, user.id));
+  requireUser(ctx, req);
+  return jsonWithEtag(req, musicSummary(ctx));
 });

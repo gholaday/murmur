@@ -1,10 +1,9 @@
 import { memo, useState } from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, type StyleProp, View, type ViewStyle } from "react-native";
 import { router } from "expo-router";
 import {
   ALBUM_SORTS,
   albumCover,
-  albumInMusic,
   type AlbumSort,
   type AlbumSummary,
   artistImage,
@@ -17,7 +16,7 @@ import {
   storageKeys,
   type TrackDto,
 } from "@murmur/shared/client";
-import { setInMusic, useAlbum } from "@/lib/data";
+import { setLiked, useAlbum } from "@/lib/data";
 import { selectHaptic, withLongPressHaptic } from "@/lib/haptics";
 import { downloadTrack, removeDownload, useDownload, useInAlbumDownload } from "@/lib/downloads";
 import { useIsAdmin } from "@/lib/session";
@@ -25,11 +24,11 @@ import { createSavedStore } from "@/lib/store";
 import { addToUpNext, playMusic, isCurrent, isPlayingFrom, isWaiting, removeWaiting, toggle, toggleShuffle, usePlayerSelect } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { CheckIcon, DragIcon, MoreIcon, PauseIcon, PlayIcon, PlusIcon, ProfileIcon, ShuffleIcon } from "./icons";
+import { DragIcon, HeartIcon, MoreIcon, PauseIcon, PlayIcon, ProfileIcon, ShuffleIcon } from "./icons";
 import { AlbumMatchSheet } from "./match";
 import { Mixer, MixerBars, useNowPlaying } from "./mixer";
 import { AddToPlaylistSheet } from "./playlists";
-import { Sheet, SheetDivider, SheetItem, useCardMenu, useMenuIdle } from "./sheet";
+import { HideItem, Sheet, SheetDivider, SheetItem, useCardMenu, useMenuIdle } from "./sheet";
 import { DragHandle } from "./sortable-list";
 import { toast } from "./toast";
 import { ACTION_HEIGHT, IconButton, Pill, Pills, Text } from "./ui";
@@ -52,16 +51,28 @@ export const openArtist = (id: string) => router.push(`/artist/${id}`);
 
 /**
  * An album's menu, the same from a card's long press and the album page's ⋯ (like the web's):
- * play, Up Next, playlist, artist and your music, then for admins Match.
+ * play, Up Next, playlist and artist, then for admins Match.
  */
-export function AlbumActions({ album, open, onClose, onIdle }: { album: AlbumSummary; open: boolean; onClose: () => void; onIdle?: () => void }) {
+export function AlbumActions({
+  album,
+  open,
+  onClose,
+  onIdle,
+  onHidden,
+}: {
+  album: AlbumSummary;
+  open: boolean;
+  onClose: () => void;
+  onIdle?: () => void;
+  /** On the album's own page: goes back once it's hidden. */
+  onHidden?: () => void;
+}) {
   const admin = useIsAdmin();
   // The songs, for playing and adding; already cached on the album page.
   const tracks = useAlbum(album.id).data?.tracks;
   const [adding, setAdding] = useState(false);
   const [matching, setMatching] = useState(false);
   useMenuIdle(open || adding || matching, onIdle);
-  const all = albumInMusic(album) === "all";
   const then = (fn: () => void) => () => {
     onClose();
     fn();
@@ -82,19 +93,13 @@ export function AlbumActions({ album, open, onClose, onIdle }: { album: AlbumSum
         <SheetItem label="Add to queue" disabled={!tracks} onPress={then(() => tracks && void addSongsToUpNext(tracks))} />
         <SheetItem label="Add to playlist…" disabled={!tracks} onPress={then(() => setAdding(true))} />
         <SheetItem label={`Go to ${album.artist}`} onPress={then(() => openArtist(album.artistId))} />
-        <SheetItem
-          label={all ? "Remove from your music" : "Add to your music"}
-          onPress={then(() => {
-            selectHaptic();
-            void setInMusic({ albums: [album] }, !all);
-          })}
-        />
         {admin ? (
           <>
             <SheetDivider />
             <SheetItem label="Match…" onPress={then(() => setMatching(true))} />
           </>
         ) : null}
+        <HideItem kind="album" id={album.id} title={album.title} onClose={onClose} onHidden={onHidden} />
       </Sheet>
       <AddToPlaylistSheet open={adding} onClose={() => setAdding(false)} title={album.title} trackIds={tracks?.map((tr) => tr.id) ?? []} />
       {admin ? <AlbumMatchSheet album={matching ? album : null} onClose={() => setMatching(false)} /> : null}
@@ -134,17 +139,9 @@ export function AlbumSortSheet({ open, onClose }: { open: boolean; onClose: () =
 
 // ---------- Cards and rows ----------
 
-// The + badge is light on any cover, in either theme.
-const BADGE_LIGHT = "#f3f1ec";
-const BADGE_INK = "#141833";
-
-/**
- * Cover with the title and artist under it, for album grids. With `badge`, a round button on the
- * cover adds the whole album to your music (+), or takes it out again when every song is in (✓).
- */
-export const AlbumCard = memo(function AlbumCard({ album, width, sub, badge }: { album: AlbumSummary; width: number; sub?: string | null; badge?: boolean }) {
+/** Cover with the title and artist under it, for album grids. */
+export const AlbumCard = memo(function AlbumCard({ album, width, sub }: { album: AlbumSummary; width: number; sub?: string | null }) {
   const t = useTheme();
-  const all = albumInMusic(album) === "all";
   // From the album itself, a playlist or Up Next: any song of this album playing counts.
   const now = useNowPlaying((s) => s.item?.type === "track" && s.item.album?.id === album.id);
   const menu = useCardMenu();
@@ -162,32 +159,6 @@ export const AlbumCard = memo(function AlbumCard({ album, width, sub, badge }: {
       <View>
         <Cover path={albumCover(album.id, album.coverHash, 600)} title={album.title} color={album.coverColor} />
         {now ? <Mixer playing={now === "playing"} /> : null}
-        {badge ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={all ? `Remove ${album.title} from your music` : `Add ${album.title} to your music`}
-            accessibilityState={{ checked: all }}
-            hitSlop={6}
-            onPress={() => {
-              selectHaptic();
-              void setInMusic({ albums: [album] }, !all);
-            }}
-            style={{
-              position: "absolute",
-              right: 8,
-              bottom: 8,
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: all ? t.accent : BADGE_LIGHT,
-              elevation: 4,
-            }}
-          >
-            {all ? <CheckIcon size={18} color={t.onAccent} /> : <PlusIcon size={18} color={BADGE_INK} />}
-          </Pressable>
-        ) : null}
       </View>
       <View style={{ gap: 2 }}>
         <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14, color: now ? t.accent : t.text }}>
@@ -361,18 +332,16 @@ function SongSheetItems({ track, onClose, hideAlbum, onAddToPlaylist }: { track:
 export const usePlayingSong = (id: string) => useNowPlaying((s) => isCurrent(s, "track", id));
 
 /**
- * A song with its album's cover, title, "Artist, Album" and length; `toggle` adds a + / ✓ at the
- * end. With `onPlay` a tap plays it, otherwise it opens its album.
+ * A song with its album's cover, title, "Artist, Album", length and heart. With `onPlay` a tap
+ * plays it, otherwise it opens its album.
  */
 export const SongRow = memo(function SongRow({
   track,
-  toggle,
   onPlay,
   onMore,
   sortable,
 }: {
   track: TrackDto;
-  toggle?: boolean;
   /** Called with the row's song, so a long list can pass one function to every row and keep the memo. */
   onPlay?: (track: TrackDto) => void;
   /** The ⋯ button and a long press: the song's menu. */
@@ -413,6 +382,7 @@ export const SongRow = memo(function SongRow({
         <Pressable {...press} style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.7 : 1 })}>
           {body}
         </Pressable>
+        <SongLike track={track} />
         {more ? <SongMoreButton track={track} onPress={more} /> : null}
         <DragHandle label={`Drag to reorder ${track.title}`}>
           <DragIcon size={20} color={t.muted} />
@@ -426,7 +396,7 @@ export const SongRow = memo(function SongRow({
       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, borderBottomWidth: 1, borderBottomColor: t.line, opacity: pressed ? 0.7 : 1 })}
     >
       {body}
-      {toggle ? <InMusicToggle track={track} /> : null}
+      <SongLike track={track} />
       {more ? <SongMoreButton track={track} onPress={more} last /> : null}
     </Pressable>
   );
@@ -441,7 +411,7 @@ export function SongMoreButton({ track, onPress, last }: { track: TrackDto; onPr
   );
 }
 
-/** A numbered song on an album: number, title (and its own artist when it differs), length, + / ✓. */
+/** A numbered song on an album: number, title (and its own artist when it differs), length, heart. */
 export function TrackRow({
   track,
   n,
@@ -502,29 +472,66 @@ export function TrackRow({
         </View>
         <Length track={track} />
       </Pressable>
-      <InMusicToggle track={track} />
+      <SongLike track={track} />
       {onMore ? <SongMoreButton track={track} onPress={onMore} last /> : null}
     </View>
   );
 }
 
-/** Adds one song to your music (+), or takes it out (✓ in the accent colour). */
-function InMusicToggle({ track }: { track: TrackDto }) {
+/** A song's heart: filled in the accent once liked. */
+function SongLike({ track }: { track: TrackDto }) {
   const t = useTheme();
-  const on = track.inMusic;
+  const on = !!track.liked;
+  // A server from before likes sends none, and there's no heart.
+  if (track.liked === undefined) return null;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={on ? `Remove ${track.title} from your music` : `Add ${track.title} to your music`}
+      accessibilityLabel={on ? `Unlike ${track.title}` : `Like ${track.title}`}
       accessibilityState={{ checked: on }}
       onPress={() => {
         selectHaptic();
-        void setInMusic({ tracks: [track] }, !on);
+        void setLiked({ tracks: [track] }, !on);
       }}
       style={({ pressed }) => ({ width: 40, height: 44, marginRight: -6, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.6 : 1 })}
     >
-      {on ? <CheckIcon size={20} color={t.accent} /> : <PlusIcon size={20} color={t.muted} />}
+      <HeartIcon size={20} filled={on} color={on ? t.accent : t.faint} />
     </Pressable>
+  );
+}
+
+/**
+ * A round heart for a whole album or the song playing: filled in the accent once liked, an
+ * outline otherwise.
+ */
+export function LikeButton({
+  liked,
+  label,
+  onPress,
+  size = 24,
+  color,
+  style,
+}: {
+  liked: boolean;
+  label: string;
+  onPress: () => void;
+  size?: number;
+  color?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const t = useTheme();
+  return (
+    <IconButton
+      label={liked ? `Unlike ${label}` : `Like ${label}`}
+      accessibilityState={{ checked: liked }}
+      style={style}
+      onPress={() => {
+        selectHaptic();
+        onPress();
+      }}
+    >
+      <HeartIcon size={size} filled={liked} color={liked ? t.accent : (color ?? t.text)} />
+    </IconButton>
   );
 }
 

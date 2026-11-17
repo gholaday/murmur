@@ -15,6 +15,8 @@ export const storageKeys = {
   watchSort: "murmur.watchSort",
   /** AlbumSort. */
   albumSort: "murmur.albumSort",
+  /** LibrarySection: the Library section last open. */
+  librarySection: "murmur.librarySection",
   /** The last few search terms, newest first. */
   recentSearches: "murmur.recentSearches",
   /** BookmarkDto[], and the changes not sent yet. */

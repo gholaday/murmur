@@ -5,9 +5,9 @@ A self-hosted audiobook, podcast, music, movie and TV server with a web player a
 Murmur reads your audiobook folders (the Audiobookshelf layout, `Author/[Series]/Title/`), follows podcasts by RSS, plays your music and, with an optional add-on, your movies and shows, and keeps your place in sync across devices. It runs as one Docker container, plus a container for each add-on you turn on, and your library is mounted read-only: Murmur never changes your files.
 
 <p>
-  <img src="docs/screenshots/books.webp" width="19%" alt="Books tab with Continue listening, Next in series and Recently added">
-  <img src="docs/screenshots/music.webp" width="19%" alt="Music tab with Browse and album covers">
-  <img src="docs/screenshots/watch.webp" width="19%" alt="Watch tab with Continue watching and Recently added movies">
+  <img src="docs/screenshots/books.webp" width="19%" alt="Books in Library with Continue listening, Next in series and Recently added">
+  <img src="docs/screenshots/music.webp" width="19%" alt="Music in Library with Jump back in and album covers">
+  <img src="docs/screenshots/watch.webp" width="19%" alt="Watch in Library with Continue watching and Recently added movies">
   <img src="docs/screenshots/player.webp" width="19%" alt="Full-screen player">
   <img src="docs/screenshots/stats.webp" width="19%" alt="Listening stats on You">
 </p>
@@ -16,12 +16,12 @@ Murmur is inspired by [Audiobookshelf](https://www.audiobookshelf.org/) and [Ple
 
 - **Audiobooks:** single-file `.m4b` and multi-file books, chapters, series, home shelves (including More like your last book and Short listens), a Play next shelf you put in order, and optional metadata matching from Audible (always confirmed by you).
 - **Podcasts:** search or add by RSS URL, OPML import and export, a queue, and the newest episodes kept on the server.
-- **Music (optional):** albums, artists and songs read from their tags, your own music and playlists for each person, a Home with Jump back in, On repeat and New albums, songs in the queue, and album matching from MusicBrainz and Deezer.
-- **Movies and shows (optional):** a Watch tab with Continue watching, Next episodes, Next in the collection and More like, from `Title (Year)` movie folders and `Show/Season` folders. Posters, descriptions and episode names come from TMDB. Files play as they are where the device can, and otherwise are converted on the server, on its GPU where it has one, with a choice of audio track and subtitles, a 720p option for slow connections, the next episode lined up, and downloads to the phone. A separate add-on, `murmur-video`, does the video work; set up in [addons/video](addons/video/README.md).
+- **Music (optional):** albums, artists and songs read from their tags, likes and playlists for each person, a Home with Jump back in, On repeat and New albums, songs in the queue, and album matching from MusicBrainz and Deezer.
+- **Movies and shows (optional):** Watch, beside Books and Music in Library, with Continue watching, Next episodes, Next in the collection and More like, from `Title (Year)` movie folders and `Show/Season` folders. Posters, descriptions and episode names come from TMDB. Files play as they are where the device can, and otherwise are converted on the server, on its GPU where it has one, with a choice of audio track and subtitles, a 720p option for slow connections, the next episode lined up, and downloads to the phone. A separate add-on, `murmur-video`, does the video work; set up in [addons/video](addons/video/README.md).
 - **Search everywhere:** one box finds books, podcast episodes, music and movies at once.
 - **Stats:** time spent on books, podcasts, music and video by week, month, year or all time, your streak, and what you played most.
 - **Players:** a web player and an Android app with background playback, offline downloads, speed control, a sleep timer and bookmarks with notes on books and episodes, and for video, picture in picture and a landscape player. On an iPhone, the web player can be added to the home screen to open like an app.
-- **Multiple users,** each with their own progress, subscriptions, queue and music. Podcasts, Music and Watch can each be hidden by anyone who doesn't use them.
+- **Multiple users,** each with their own progress, subscriptions, queue and likes. Podcasts, Music and Watch can each be hidden by anyone who doesn't use them, and any book, album, artist, movie or show can be hidden from your lists.
 - **Optional podcast ad skipping:** a separate add-on finds the ads in episodes. Each device then chooses to play them as usual, mark them on the seek bar with a Skip ad button, or skip them automatically with Undo. Set up in [addons/adscan](addons/adscan/README.md).
 
 ## Get started

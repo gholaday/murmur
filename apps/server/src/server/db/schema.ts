@@ -178,21 +178,38 @@ export const tracks = sqliteTable(
 );
 
 /**
- * The songs each person added to their music. Albums and artists in "your music" are worked
- * out from these: an album is in it when any of its songs is.
+ * Songs and albums each person liked. No foreign key on the item, so a like outlives a rescan
+ * like track_plays; song and album ids are kept while their files are.
  */
-export const userTracks = sqliteTable(
-  "user_tracks",
+export const musicLikes = sqliteTable(
+  "music_likes",
   {
     userId: integer("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    trackId: text("track_id")
-      .notNull()
-      .references(() => tracks.id, { onDelete: "cascade" }),
-    addedAt: integer("added_at").notNull(),
+    kind: text("kind", { enum: ["track", "album"] }).notNull(),
+    itemId: text("item_id").notNull(),
+    likedAt: integer("liked_at").notNull(),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.trackId] }), index("user_tracks_track_idx").on(t.trackId)],
+  (t) => [primaryKey({ columns: [t.userId, t.kind, t.itemId] })],
+);
+
+/**
+ * What each person hid from their lists, shelves and search. No foreign key, so it outlives a
+ * rescan: books, albums, movies and shows by id (kept while their files are), artists by name
+ * key like artist_photos, since a rescan can drop and recreate the artist row.
+ */
+export const hiddenItems = sqliteTable(
+  "hidden_items",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["book", "album", "artist", "movie", "show"] }).notNull(),
+    itemId: text("item_id").notNull(),
+    hiddenAt: integer("hidden_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.kind, t.itemId] })],
 );
 
 /** Each person's own playlists. */
@@ -210,7 +227,7 @@ export const playlists = sqliteTable(
   (t) => [index("playlists_user_idx").on(t.userId)],
 );
 
-/** A playlist's songs in order. A song is in a playlist once; it leaves when its file does, like your music. */
+/** A playlist's songs in order. A song is in a playlist once; it leaves when its file does. */
 export const playlistTracks = sqliteTable(
   "playlist_tracks",
   {

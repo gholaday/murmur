@@ -62,6 +62,8 @@ export interface Playable {
   podcastId: string | null;
   /** A song's album, for its cover colour, "Go to album" and the lock screen. */
   album: { id: string; title: string } | null;
+  /** A song you liked, as it was when it was queued. */
+  liked?: boolean;
   /** Where playback starts if it isn't already loaded. */
   startAt: number;
   speed: number;
@@ -121,6 +123,7 @@ export function trackToPlayable(t: TrackDto): Playable {
     chapters: [],
     podcastId: null,
     album: { id: t.albumId, title: t.album },
+    liked: !!t.liked,
     startAt: 0,
     speed: 1,
   };

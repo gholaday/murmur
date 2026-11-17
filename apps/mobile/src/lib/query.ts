@@ -39,11 +39,13 @@ for (const key of [LISTS_KEY, DETAILS_KEY]) {
   const saved = getJson<DehydratedState>(key);
   if (saved) hydrate(queryClient, saved);
 }
+// 1.4 saved "your music" lists, which are gone; dropped, they leave the saved copy at its next save.
+for (const queryKey of [[...keys.all.albums, "mine"], [...keys.all.tracks, "mine"]]) queryClient.removeQueries({ queryKey, exact: true });
 for (const q of queryClient.getQueryCache().getAll()) lastData.set(q.queryHash, q.state.data);
 
 /**
- * Only what the app needs to open offline is saved: library, podcasts, your music, Up Next and
- * the pages behind them. Searches, previews, Browse and admin screens refetch, which keeps the
+ * Only what the app needs to open offline is saved: library, podcasts, music, Up Next and
+ * the pages behind them. Searches, previews and admin screens refetch, which keeps the
  * saved copy (read in full at every launch) small. Pages are saved apart from the lists, so
  * opening one doesn't write every list again, and only the newest few are kept.
  */
@@ -64,10 +66,10 @@ const PERSISTED = [
   all.artist,
   all.playlists,
   all.playlist,
-  // Albums, artists and songs come in two scopes; only your own is kept, not Browse's.
-  keys.albums("mine"),
-  keys.artists("mine"),
-  keys.tracks("mine"),
+  all.albums,
+  all.artists,
+  // What you hid, so search with no connection leaves it out too.
+  all.hidden,
   // Movies and shows: the Watch tab, its lists and pages.
   keys.watch.all,
 ];
