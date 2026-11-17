@@ -36,7 +36,7 @@ export function useEpisodePlay(episode: EpisodeWithShow) {
 }
 
 /** The accent play pill with the time, then the progress bar once it's started. */
-export function EpisodePlayPill({ play }: { play: ReturnType<typeof useEpisodePlay> }) {
+function EpisodePlayPill({ play }: { play: ReturnType<typeof useEpisodePlay> }) {
   const { playing, loading, played, dur, position, time, onPlay } = play;
   const pct = dur ? Math.min(100, (position / dur) * 100) : 0;
   return (
@@ -78,11 +78,8 @@ export function EpisodeRow({
 }) {
   const player = usePlayerControls();
   const play = useEpisodePlay(episode);
-  const { current, played, dur } = play;
-  const queued = usePlayerSelect((s) => s.isWaiting({ itemType: "episode", itemId: episode.id }));
   const bookmarks = useBookmarks("episode", episode.id, firstBookmarks);
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
   // Lists carry only the start of long notes; the rest loads when the row is expanded.
   const [fullNotes, setFullNotes] = useState<string | null>(null);
 
@@ -100,34 +97,8 @@ export function EpisodeRow({
 
   const showHref = `/podcasts/${episode.podcastId}`;
 
-  const run = async (fn: () => Promise<unknown>, done: string) => {
-    setBusy(true);
-    try {
-      await fn();
-      toast(done);
-      onChanged?.();
-    } catch (err) {
-      toast.error(errorText(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const toggleQueue = () =>
-    queued
-      ? run(async () => player.removeWaiting({ itemType: "episode", itemId: episode.id }), "Removed from queue")
-      : run(() => player.addToUpNext({ itemType: "episode", itemId: episode.id }, "last"), "Added to queue");
-
-  const togglePlayed = () =>
-    run(async () => {
-      const finished = current ? !played : !episode.progress?.finished;
-      // The player saves the one it has loaded; the refresh after this waits for either save.
-      if (current) await player.markCurrent(finished);
-      else await setFinished("episode", episode.id, dur, finished);
-    }, episode.progress?.finished ? "Marked as unplayed" : "Marked as played");
-
   return (
-    <div className={`episode ${played ? "played" : ""} ${open ? "episode-open" : ""}`}>
+    <div className={`episode ${play.played ? "played" : ""} ${open ? "episode-open" : ""}`}>
       {showThumb ? (
         <Link href={showHref} className="episode-thumb" aria-label={episode.podcastTitle} tabIndex={-1}>
           <Cover
@@ -175,30 +146,77 @@ export function EpisodeRow({
             </div>
           ) : null}
         </div>
-        <div className="episode-actions">
-          <EpisodePlayPill play={play} />
-          <button
-            type="button"
-            className="episode-icon"
-            aria-label={queued ? "Remove from queue" : "Add to queue"}
-            aria-pressed={queued}
-            disabled={busy || current}
-            onClick={() => void toggleQueue()}
-          >
-            <QueueAddIcon size={20} queued={queued} />
-          </button>
-          <button
-            type="button"
-            className="episode-icon"
-            aria-label={episode.progress?.finished ? "Mark unplayed" : "Mark played"}
-            aria-pressed={!!episode.progress?.finished}
-            disabled={busy}
-            onClick={() => void togglePlayed()}
-          >
-            <PlayedIcon size={20} played={!!episode.progress?.finished} />
-          </button>
-        </div>
+        <EpisodeActions episode={episode} play={play} onChanged={onChanged} />
       </div>
+    </div>
+  );
+}
+
+/** An episode's buttons: the play pill, then queue and played. Rows and Continue listening cards share them. */
+export function EpisodeActions({
+  episode,
+  play,
+  onChanged,
+}: {
+  episode: EpisodeWithShow;
+  play: ReturnType<typeof useEpisodePlay>;
+  /** Called after played changes so the list can refresh. */
+  onChanged?: () => void;
+}) {
+  const player = usePlayerControls();
+  const { current, played, dur } = play;
+  const queued = usePlayerSelect((s) => s.isWaiting({ itemType: "episode", itemId: episode.id }));
+  const [busy, setBusy] = useState(false);
+
+  const run = async (fn: () => Promise<unknown>, done: string) => {
+    setBusy(true);
+    try {
+      await fn();
+      toast(done);
+      onChanged?.();
+    } catch (err) {
+      toast.error(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleQueue = () =>
+    queued
+      ? run(async () => player.removeWaiting({ itemType: "episode", itemId: episode.id }), "Removed from queue")
+      : run(() => player.addToUpNext({ itemType: "episode", itemId: episode.id }, "last"), "Added to queue");
+
+  const togglePlayed = () =>
+    run(async () => {
+      const finished = current ? !played : !episode.progress?.finished;
+      // The player saves the one it has loaded; the refresh after this waits for either save.
+      if (current) await player.markCurrent(finished);
+      else await setFinished("episode", episode.id, dur, finished);
+    }, episode.progress?.finished ? "Marked as unplayed" : "Marked as played");
+
+  return (
+    <div className="episode-actions">
+      <EpisodePlayPill play={play} />
+      <button
+        type="button"
+        className="episode-icon"
+        aria-label={queued ? "Remove from queue" : "Add to queue"}
+        aria-pressed={queued}
+        disabled={busy || current}
+        onClick={() => void toggleQueue()}
+      >
+        <QueueAddIcon size={20} queued={queued} />
+      </button>
+      <button
+        type="button"
+        className="episode-icon"
+        aria-label={episode.progress?.finished ? "Mark unplayed" : "Mark played"}
+        aria-pressed={!!episode.progress?.finished}
+        disabled={busy}
+        onClick={() => void togglePlayed()}
+      >
+        <PlayedIcon size={20} played={!!episode.progress?.finished} />
+      </button>
     </div>
   );
 }

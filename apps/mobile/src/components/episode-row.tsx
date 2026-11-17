@@ -1,5 +1,5 @@
 import { memo, useState } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import { ActivityIndicator, Pressable, type StyleProp, View, type ViewStyle } from "react-native";
 import { router } from "expo-router";
 import { apiPaths, duration, type EpisodeWithShow, pastStart, shortDate, timeLeft } from "@murmur/shared/client";
 import { useBookmarks } from "@/lib/bookmarks";
@@ -31,50 +31,12 @@ export const EpisodeRow = memo(function EpisodeRow({
 }) {
   const t = useTheme();
   const play = useEpisodePlay(episode);
-  const { current, played, finished, dur } = play;
-  const queued = usePlayerSelect((s) => isWaiting(s.upNext, { itemType: "episode", itemId: episode.id }));
-  const dl = useDownload("podcast", episode.id);
+  const { played } = play;
   const bookmarks = useBookmarks("episode", episode.id);
   const [open, setOpen] = useState(false);
   const notes = useEpisodeNotes(episode, open);
-  const [busy, setBusy] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState(false);
-
-  const ref = { itemType: "episode" as const, itemId: episode.id };
 
   const openShow = () => router.push(`/show/${episode.podcastId}`);
-
-  const run = async (fn: () => Promise<unknown>, done: string) => {
-    setBusy(true);
-    try {
-      await fn();
-      toast.show(done);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const toggleQueue = () =>
-    queued
-      ? run(async () => removeWaiting(ref), "Removed from queue")
-      : run(() => addToUpNext(ref, "last"), "Added to queue");
-
-  const togglePlayed = () =>
-    run(
-      async () => {
-        if (current) markCurrent(!played);
-        else setFinished("episode", episode.id, dur, !finished);
-      },
-      finished ? "Marked as unplayed" : "Marked as played",
-    );
-
-  const onDownload = () => {
-    if (dl?.status === "done") setConfirmRemove(true);
-    else if (dl?.status === "downloading") removeDownload("podcast", episode.id);
-    else downloadEpisode(episode);
-  };
 
   return (
     <View style={{ flexDirection: "row", gap: 14, alignItems: "flex-start", paddingTop: 14, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: t.line }}>
@@ -147,33 +109,82 @@ export const EpisodeRow = memo(function EpisodeRow({
           </View>
         ) : null}
 
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 }}>
-          <EpisodePlay play={play} />
-          <ActionIcon label={queued ? "Remove from queue" : "Add to queue"} selected={queued} disabled={busy || current} onPress={() => void toggleQueue()}>
-            <QueueAddIcon size={20} queued={queued} color={queued ? t.accent : t.text2} />
-          </ActionIcon>
-          <ActionIcon label={finished ? "Mark unplayed" : "Mark played"} selected={finished} disabled={busy} onPress={() => void togglePlayed()}>
-            <PlayedIcon size={20} played={finished} color={finished ? t.accent : t.text2} checkColor={t.onAccent} />
-          </ActionIcon>
-          <ActionIcon
-            label={dl?.status === "error" ? "Download failed, try again" : dl ? (dl.status === "downloading" ? "Cancel download" : "Remove download") : "Download"}
-            selected={dl?.status === "done"}
-            onPress={onDownload}
-          >
-            {dl?.status === "downloading" ? (
-              <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: t.accent }}>{Math.round(dl.progress * 100)}%</Text>
-            ) : (
-              <DownloadIcon size={20} color={dl?.status === "done" ? t.accent : dl?.status === "error" ? t.danger : t.text2} />
-            )}
-          </ActionIcon>
-        </View>
+        <EpisodeActions episode={episode} play={play} style={{ marginTop: 6 }} />
       </View>
+    </View>
+  );
+});
+
+/** An episode's buttons: the play pill, then queue, played and download. Rows and Continue listening cards share them. */
+export function EpisodeActions({ episode, play, style }: { episode: EpisodeWithShow; play: ReturnType<typeof useEpisodePlay>; style?: StyleProp<ViewStyle> }) {
+  const t = useTheme();
+  const { current, played, finished, dur } = play;
+  const queued = usePlayerSelect((s) => isWaiting(s.upNext, { itemType: "episode", itemId: episode.id }));
+  const dl = useDownload("podcast", episode.id);
+  const [busy, setBusy] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  const ref = { itemType: "episode" as const, itemId: episode.id };
+
+  const run = async (fn: () => Promise<unknown>, done: string) => {
+    setBusy(true);
+    try {
+      await fn();
+      toast.show(done);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleQueue = () =>
+    queued
+      ? run(async () => removeWaiting(ref), "Removed from queue")
+      : run(() => addToUpNext(ref, "last"), "Added to queue");
+
+  // The player saves the one it has loaded.
+  const togglePlayed = () =>
+    run(
+      async () => {
+        if (current) await markCurrent(!played);
+        else setFinished("episode", episode.id, dur, !finished);
+      },
+      finished ? "Marked as unplayed" : "Marked as played",
+    );
+
+  const onDownload = () => {
+    if (dl?.status === "done") setConfirmRemove(true);
+    else if (dl?.status === "downloading") removeDownload("podcast", episode.id);
+    else downloadEpisode(episode);
+  };
+
+  return (
+    <View style={[{ flexDirection: "row", alignItems: "center", gap: 4 }, style]}>
+      <EpisodePlay play={play} />
+      <ActionIcon label={queued ? "Remove from queue" : "Add to queue"} selected={queued} disabled={busy || current} onPress={() => void toggleQueue()}>
+        <QueueAddIcon size={20} queued={queued} color={queued ? t.accent : t.text2} />
+      </ActionIcon>
+      <ActionIcon label={finished ? "Mark unplayed" : "Mark played"} selected={finished} disabled={busy} onPress={() => void togglePlayed()}>
+        <PlayedIcon size={20} played={finished} color={finished ? t.accent : t.text2} checkColor={t.onAccent} />
+      </ActionIcon>
+      <ActionIcon
+        label={dl?.status === "error" ? "Download failed, try again" : dl ? (dl.status === "downloading" ? "Cancel download" : "Remove download") : "Download"}
+        selected={dl?.status === "done"}
+        onPress={onDownload}
+      >
+        {dl?.status === "downloading" ? (
+          <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: t.accent }}>{Math.round(dl.progress * 100)}%</Text>
+        ) : (
+          <DownloadIcon size={20} color={dl?.status === "done" ? t.accent : dl?.status === "error" ? t.danger : t.text2} />
+        )}
+      </ActionIcon>
       {confirmRemove ? (
         <RemoveDownloadSheet open title={episode.title} onConfirm={() => removeDownload("podcast", episode.id)} onClose={() => setConfirmRemove(false)} />
       ) : null}
     </View>
   );
-});
+}
 
 /**
  * What an episode's play pill shows, following the player: only what it needs, so play and pause
@@ -207,7 +218,7 @@ export function useEpisodePlay(episode: EpisodeWithShow) {
 }
 
 /** The accent play pill with the time, then the progress bar once started. */
-export function EpisodePlay({ play: p }: { play: ReturnType<typeof useEpisodePlay> }) {
+function EpisodePlay({ play: p }: { play: ReturnType<typeof useEpisodePlay> }) {
   const t = useTheme();
   return (
     <>
@@ -244,30 +255,6 @@ export function EpisodePlay({ play: p }: { play: ReturnType<typeof useEpisodePla
         </View>
       ) : null}
     </>
-  );
-}
-
-/** Marks a started episode played, as the Continue listening cards have it (no unplayed: everything there is in progress). */
-export function MarkPlayedButton({ episode, play: p }: { episode: EpisodeWithShow; play: ReturnType<typeof useEpisodePlay> }) {
-  const t = useTheme();
-  const [busy, setBusy] = useState(false);
-  const onPress = async () => {
-    setBusy(true);
-    try {
-      // The player saves the one it has loaded; the card leaves the shelf when the list refreshes.
-      if (p.current) await markCurrent(true);
-      else setFinished("episode", episode.id, p.dur, true);
-      toast.show("Marked as played");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <ActionIcon label="Mark played" disabled={busy} onPress={() => void onPress()}>
-      <PlayedIcon size={20} played={false} color={t.text2} checkColor={t.onAccent} />
-    </ActionIcon>
   );
 }
 

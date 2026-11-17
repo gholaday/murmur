@@ -27,34 +27,15 @@ import {
 import { api } from "../api";
 import { Cover } from "../cover";
 import { Mixer } from "../mixer";
-import { useNowPlaying, usePlayerControls } from "../player/engine";
-import { FilterIcon, PlayedIcon, PlusIcon } from "../icons";
-import { setFinished } from "../progress";
+import { useNowPlaying } from "../player/engine";
+import { FilterIcon, PlusIcon } from "../icons";
 import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle } from "../ui";
 import { ChoiceSheet, Sheet } from "../sheet";
-import { EpisodePlayPill, EpisodeRow, useEpisodePlay } from "./episode-row";
+import { EpisodeActions, EpisodeRow, useEpisodePlay } from "./episode-row";
 
 /** An episode you're part way through, as a wide card on Home's sideways shelf. */
 function ContinueEpisodeCard({ episode: e, onChanged }: { episode: EpisodeWithShow; onChanged: () => void }) {
   const play = useEpisodePlay(e);
-  const player = usePlayerControls();
-  const [busy, setBusy] = useState(false);
-  const markPlayed = async () => {
-    setBusy(true);
-    try {
-      // The player saves the one it has loaded and refreshes the page itself.
-      if (play.current) await player.markCurrent(true);
-      else {
-        await setFinished("episode", e.id, play.dur, true);
-        onChanged();
-      }
-      toast("Marked as played");
-    } catch (err) {
-      toast.error(errorText(err));
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <div
       className={`pod-continue${play.current ? " playing" : ""}`}
@@ -72,12 +53,7 @@ function ContinueEpisodeCard({ episode: e, onChanged }: { episode: EpisodeWithSh
           <span className="pod-continue-title">{e.title}</span>
         </span>
       </Link>
-      <div className="episode-actions">
-        <EpisodePlayPill play={play} />
-        <button type="button" className="episode-icon" aria-label="Mark played" disabled={busy} onClick={() => void markPlayed()}>
-          <PlayedIcon size={20} played={false} />
-        </button>
-      </div>
+      <EpisodeActions episode={e} play={play} onChanged={onChanged} />
     </div>
   );
 }
