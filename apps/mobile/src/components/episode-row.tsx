@@ -247,6 +247,30 @@ export function EpisodePlay({ play: p }: { play: ReturnType<typeof useEpisodePla
   );
 }
 
+/** Marks a started episode played, as the Continue listening cards have it (no unplayed: everything there is in progress). */
+export function MarkPlayedButton({ episode, play: p }: { episode: EpisodeWithShow; play: ReturnType<typeof useEpisodePlay> }) {
+  const t = useTheme();
+  const [busy, setBusy] = useState(false);
+  const onPress = async () => {
+    setBusy(true);
+    try {
+      // The player saves the one it has loaded; the card leaves the shelf when the list refreshes.
+      if (p.current) await markCurrent(true);
+      else setFinished("episode", episode.id, p.dur, true);
+      toast.show("Marked as played");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <ActionIcon label="Mark played" disabled={busy} onPress={() => void onPress()}>
+      <PlayedIcon size={20} played={false} color={t.text2} checkColor={t.onAccent} />
+    </ActionIcon>
+  );
+}
+
 function ActionIcon({
   label,
   selected,

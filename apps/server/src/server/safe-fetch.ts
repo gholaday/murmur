@@ -95,11 +95,14 @@ const agent = new Agent({ connect: { lookup: checkedLookup } });
 export async function safeFetch(url: string, init: RequestInit = {}): Promise<Response> {
   let current = new URL(url);
   let method = init.method ?? "GET";
+  // fetch sends "Accept-Language: *" by default, and some hosts (Captivate's audio) answer that with 404.
+  const headers = new Headers(init.headers);
+  if (!headers.has("accept-language")) headers.set("accept-language", "en");
   for (let hop = 0; ; hop++) {
     await assertPublicHost(current);
     let res: Response;
     try {
-      const options = { ...init, method, redirect: "manual", dispatcher: agent } as Parameters<typeof undiciFetch>[1];
+      const options = { ...init, headers, method, redirect: "manual", dispatcher: agent } as Parameters<typeof undiciFetch>[1];
       res = (await undiciFetch(current, options)) as unknown as Response;
     } catch (err) {
       // A refusal from the lookup comes wrapped in "fetch failed".

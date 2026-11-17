@@ -66,4 +66,4 @@ a.episode-show:hover { color: var(--accent); }
 .pod-continue-title { font-size: 15px; font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pod-continue.playing .pod-continue-title { color: var(--accent); }
 .pod-continue .episode-actions { position: relative; z-index: 1; margin-top: 0; pointer-events: none; }
-.pod-continue .episode-play { pointer-events: auto; }
+.pod-continue :is(.episode-play, .episode-icon) { pointer-events: auto; }

@@ -13,7 +13,7 @@ import {
 import { createStore } from "@/lib/store";
 import { fonts, mixColor, useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { EpisodePlay, useEpisodePlay } from "./episode-row";
+import { EpisodePlay, MarkPlayedButton, useEpisodePlay } from "./episode-row";
 import { HeroBones, ItemHero, MetaLine } from "./hero";
 import { CheckIcon, LockIcon, PlusIcon } from "./icons";
 import { PAD } from "./library";
@@ -201,6 +201,7 @@ export function ContinueCard({ episode, width }: { episode: EpisodeWithShow; wid
       </View>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
         <EpisodePlay play={play} />
+        <MarkPlayedButton episode={episode} play={play} />
       </View>
     </Pressable>
   );
