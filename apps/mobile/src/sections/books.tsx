@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { FlatList, PixelRatio, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import Animated, { FadeIn as EnterFade, LayoutAnimationConfig } from "react-native-reanimated";
@@ -37,7 +37,7 @@ import { GAP, gridRows, Group, openAllBooks, openGroup, openShelf, PAD, safeShel
 import { TextTabs, useTabFade } from "@/components/text-tabs";
 import { Bar, Button, CountPill, IconButton, Text } from "@/components/ui";
 import { saveBookSections, useBookSections, useBooks } from "@/lib/data";
-import { librarySwipeLocked, useSectionJumps } from "@/lib/library";
+import { useSectionJumps } from "@/lib/library";
 import { withLongPressHaptic } from "@/lib/haptics";
 import { isCurrent } from "@/player/engine";
 import { useTheme } from "@/theme";
@@ -69,11 +69,6 @@ export function BooksSection() {
   // A new tab, or a tap on Books in the title row, fades the content in.
   const jumps = useSectionJumps("books");
   const tabFade = useTabFade(`${tab}:${jumps}`, jumps > 0);
-  // Dragging shelves into order mustn't swipe Library to Music.
-  useEffect(() => {
-    librarySwipeLocked.set(customizing);
-    return () => librarySwipeLocked.set(false);
-  }, [customizing]);
 
   const list = useMemo(() => books.data ?? [], [books.data]);
   // Why the library is empty, such as the first scan still running.
@@ -112,8 +107,9 @@ export function BooksSection() {
   }, [list, tab]);
 
 
+  // The title row and tabs stay put above whatever scrolls.
   const header = (
-    <View style={{ paddingTop: top }}>
+    <View style={{ paddingTop: top, paddingHorizontal: PAD }}>
       <LibraryTitle
         current="books"
         right={
@@ -144,10 +140,8 @@ export function BooksSection() {
     </View>
   );
 
-  const listHeader = header;
   const plain = (body: React.ReactNode) => (
     <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24 }} refreshControl={refresh} keyboardShouldPersistTaps="handled">
-      {listHeader}
       <FadeIn when={fade} style={tabFade}>{body}</FadeIn>
     </ScrollView>
   );
@@ -156,7 +150,6 @@ export function BooksSection() {
   if (books.isPending) {
     content = (
       <View style={{ flex: 1, paddingHorizontal: PAD }}>
-        {listHeader}
         <Skeleton>
           <SectionBone />
           <CoverGridBones />
@@ -170,7 +163,6 @@ export function BooksSection() {
   } else if (tab === "books") {
     content = (
       <BooksTab
-        header={listHeader}
         books={list}
         sorted={sorted}
         fade={fade}
@@ -184,7 +176,6 @@ export function BooksSection() {
     // One item per author or series: its heading and its sideways shelf.
     content = (
       <VirtualList
-        header={listHeader}
         data={groups}
         keyOf={(g) => g.name}
         fade={fade}
@@ -202,12 +193,7 @@ export function BooksSection() {
   } else if (tab === "finished" && finishedRows.length) {
     content = (
       <VirtualList
-        header={
-          <>
-            {listHeader}
-            <View style={{ height: 20 }} />
-          </>
-        }
+        header={<View style={{ height: 20 }} />}
         data={finishedRows}
         keyOf={(r) => r[0]!.id}
         fade={fade}
@@ -229,10 +215,10 @@ export function BooksSection() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
+      {header}
       {content}
     </View>
   );
-
 }
 
 type TabFade = ReturnType<typeof useTabFade>;
@@ -251,8 +237,7 @@ type BookGroup = {
 };
 
 /**
- * A virtualised list under the page header, so long libraries only mount the rows near the
- * screen. Used by the Authors, Series and Finished views.
+ * A virtualised list, so long libraries only mount the rows near the screen. Used by the Authors, Series and Finished views.
  */
 function VirtualList<T>({
   header,
@@ -300,7 +285,6 @@ function VirtualList<T>({
  * adds Hide/Show and a handle to drag each into order. Changes save straight away.
  */
 function BooksTab({
-  header,
   books,
   sorted,
   fade,
@@ -309,7 +293,6 @@ function BooksTab({
   customizing,
   onCustomize,
 }: {
-  header: React.ReactNode;
   books: BookSummary[];
   sorted: BookSummary[];
   fade: boolean;
@@ -422,7 +405,6 @@ function BooksTab({
   return (
     <SortableScrollProvider value={scroll}>
       <Animated.ScrollView {...scrollProps} contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24 }} refreshControl={refresh}>
-        {header}
         <FadeIn when={fade} style={tabFade}>
           <SortableList
             items={customizing ? sections : shown}

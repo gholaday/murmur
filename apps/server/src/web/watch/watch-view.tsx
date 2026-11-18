@@ -126,6 +126,7 @@ export function WatchView({
 
   return (
     <>
+      <div className="library-head">
       <div className="page-head">
         <LibraryTitle current="watch" />
         <div className="head-actions">
@@ -136,7 +137,6 @@ export function WatchView({
           ) : null}
         </div>
       </div>
-      <ChoiceSheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort" choices={WATCH_SORTS} value={sort} onPick={setSort} />
       <Chips kind="tabs" label="Watch">
         {TABS.map((t) => (
           <Chip key={t.id} selected={tab === t.id} onClick={() => show(t.id)}>
@@ -144,6 +144,8 @@ export function WatchView({
           </Chip>
         ))}
       </Chips>
+      </div>
+      <ChoiceSheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort" choices={WATCH_SORTS} value={sort} onPick={setSort} />
 
       <div key={tab} className="view-fade">
       {all.length === 0 ? (

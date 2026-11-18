@@ -1,9 +1,7 @@
 import { useEffect, useRef } from "react";
-import { Pressable, type ScrollViewInstance, View, type StyleProp, type ViewStyle } from "react-native";
-import { ScrollView as GHScrollView } from "react-native-gesture-handler";
+import { Pressable, ScrollView, type ScrollViewInstance, View, type StyleProp, type ViewStyle } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
 import { selectHaptic } from "@/lib/haptics";
-import { useShelfTouch } from "@/lib/library";
 import { fonts, useTheme } from "@/theme";
 import { PAD } from "./library";
 import { Text } from "./ui";
@@ -52,7 +50,6 @@ export function TextTabs<T extends string | number>({
   const t = useTheme();
   const reduced = useReducedMotion();
   const scroll = useRef<ScrollViewInstance>(null);
-  const touch = useShelfTouch();
   const spots = useRef(new Map<T, { x: number; width: number }>());
   const box = useRef(0);
   const lineX = useSharedValue(0);
@@ -119,11 +116,9 @@ export function TextTabs<T extends string | number>({
     >
       {/* The hairline stays put under tabs that scroll. */}
       <View pointerEvents="none" style={{ position: "absolute", left: inset, right: inset, bottom: 0, height: 1, backgroundColor: t.line }} />
-      {/* Gesture handler's, held like a shelf, so inside Library dragging tabs that overflow scrolls them rather than the section. */}
-      <GHScrollView
+      <ScrollView
         ref={scroll}
         horizontal
-        {...touch}
         style={trailing ? { flex: 1 } : null}
         showsHorizontalScrollIndicator={false}
         onLayout={(e) => {
@@ -161,7 +156,7 @@ export function TextTabs<T extends string | number>({
           );
         })}
         <Animated.View pointerEvents="none" style={[{ position: "absolute", left: 0, bottom: 0, height: 2, borderRadius: 1, backgroundColor: t.accent }, line]} />
-      </GHScrollView>
+      </ScrollView>
       {trailing ? <View style={{ flexDirection: "row", marginRight: inset - 10 }}>{trailing}</View> : null}
     </View>
   );

@@ -252,6 +252,7 @@ export function MusicView({
 
   return (
     <>
+      <div className="library-head">
       <div className="page-head">
         <LibraryTitle current="music" />
         <div className="head-actions">
@@ -270,6 +271,7 @@ export function MusicView({
           </Chip>
         ))}
       </Chips>
+      </div>
 
       <div key={tab} className="view-fade" style={{ marginTop: 16 }}>
         {tab === "home" ? (

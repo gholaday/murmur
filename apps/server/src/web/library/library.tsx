@@ -313,6 +313,7 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
 
   return (
     <>
+      <div className="library-head">
       <div className="page-head">
         <LibraryTitle current="books" />
         <div className="head-actions">
@@ -330,8 +331,6 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
           ) : null}
         </div>
       </div>
-
-      <>
           <Chips kind="tabs" label="Library view">
             {TABS.map((t) => (
               <Chip
@@ -346,7 +345,9 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
               </Chip>
             ))}
           </Chips>
+      </div>
 
+      <>
           <div key={tab} className="view-fade">
           {tab === "books" ? (
             <>

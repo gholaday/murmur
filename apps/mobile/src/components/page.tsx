@@ -1,11 +1,10 @@
 import { useCallback, useRef } from "react";
 import { Pressable, ScrollView, type ScrollViewInstance, useWindowDimensions, View } from "react-native";
 import { router, useNavigation } from "expo-router";
-import { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LIBRARY_SECTION_LABELS, type LibrarySection, librarySections } from "@murmur/shared/client";
 import { useTabPrefs } from "@/lib/data";
-import { jumpToSection, useShelfTouch } from "@/lib/library";
+import { jumpToSection } from "@/lib/library";
 import { usePlayerSelect } from "@/player/engine";
 import { useVideoSelect } from "@/player/video";
 import { useTheme } from "@/theme";
@@ -129,14 +128,11 @@ export function LibraryTitle({ current, right }: { current: LibrarySection; righ
   const scroll = useRef<ScrollViewInstance>(null);
   const width = useRef(0);
   const narrow = useWindowDimensions().width <= 420;
-  const touch = useShelfTouch();
   return (
     <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12, paddingVertical: 8 }}>
-      {/* Held like a shelf, so dragging names that overflow scrolls them rather than the section. */}
-      <GHScrollView
+      <ScrollView
         ref={scroll}
         horizontal
-        {...touch}
         showsHorizontalScrollIndicator={false}
         // As tall as the buttons, so a section without any keeps its tabs at the same height.
         style={{ flex: 1, minHeight: 44 }}
@@ -163,7 +159,7 @@ export function LibraryTitle({ current, right }: { current: LibrarySection; righ
             </Text>
           </Pressable>
         ))}
-      </GHScrollView>
+      </ScrollView>
       {right ? <View style={{ flexDirection: "row" }}>{right}</View> : null}
     </View>
   );

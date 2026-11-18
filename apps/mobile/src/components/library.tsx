@@ -1,8 +1,6 @@
-import { Pressable, View, useWindowDimensions } from "react-native";
-import { ScrollView as GHScrollView } from "react-native-gesture-handler";
+import { Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
 import { type BookSummary, SHELF_TITLES, shelfBooks, type ShelfId, shelfTitle } from "@murmur/shared/client";
-import { useShelfTouch } from "@/lib/library";
 import { useTheme } from "@/theme";
 import { NumberBadge, Text } from "./ui";
 
@@ -41,22 +39,17 @@ export function Grid({ children }: { children: React.ReactNode }) {
   return <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: GAP, rowGap: 18 }}>{children}</View>;
 }
 
-/**
- * One row of covers that scrolls freely sideways, bleeding to the screen edge. Gesture handler's
- * scroll view, so inside Library a flick scrolls the shelf rather than switching the section.
- */
+/** One row of covers that scrolls freely sideways, bleeding to the screen edge. */
 export function Shelf({ children }: { children: React.ReactNode }) {
-  const touch = useShelfTouch();
   return (
-    <GHScrollView
+    <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      {...touch}
       style={{ marginHorizontal: -PAD }}
       contentContainerStyle={{ paddingHorizontal: PAD, columnGap: GAP }}
     >
       {children}
-    </GHScrollView>
+    </ScrollView>
   );
 }
 

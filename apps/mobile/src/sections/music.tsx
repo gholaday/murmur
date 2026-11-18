@@ -156,8 +156,9 @@ export function MusicSection() {
     setSeen((s) => (s.has(next) ? s : new Set(s).add(next)));
   };
 
+  // The title row and tabs stay put above the list.
   const header = (
-    <View style={{ paddingTop: top, marginBottom: 18 }}>
+    <View style={{ paddingTop: top, paddingHorizontal: PAD }}>
       <LibraryTitle
         current="music"
         right={
@@ -215,13 +216,13 @@ export function MusicSection() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
+      {header}
       <FlatList
         data={noFolder ? [] : items}
         keyExtractor={(i) => i.key}
-        contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24, flexGrow: 1 }}
+        contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: 18, paddingBottom: 24, flexGrow: 1 }}
         refreshControl={refresh}
         keyboardShouldPersistTaps="handled"
-        ListHeaderComponent={header}
         ListEmptyComponent={<Animated.View style={tabFade}>{empty}</Animated.View>}
         // With no playlists, the grid is just the New playlist tile, with the note under it.
         ListFooterComponent={

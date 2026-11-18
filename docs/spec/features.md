@@ -9,7 +9,7 @@
 
 ## Library
 
-- The bottom bar is Search, Library, Podcasts and You. Library holds Books, Music and Watch as sections; its title row is their names side by side at title size, the current one bright and the others dimmed, always in the same order. Tap one to switch, or swipe sideways in the app. Each section keeps its own tabs and its own buttons at the top right
+- The bottom bar is Search, Library, Podcasts and You. Library holds Books, Music and Watch as sections; its title row is their names side by side at title size, the current one bright and the others dimmed, always in the same order. Tap one to switch. The title row and the section's tabs stay at the top while the content scrolls. Each section keeps its own tabs and its own buttons at the top right
 - Library opens the section you were last in (kept on the device). On the web the sections keep their addresses (`/`, `/music`, `/watch`) and Library is highlighted on all of them
 - A section switched off under Tabs drops out of the title row; with one left it reads as a plain title, and with none the Library tab goes
 

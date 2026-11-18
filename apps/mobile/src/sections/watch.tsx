@@ -120,8 +120,9 @@ export function WatchSection() {
   const loading = movies.isPending || shows.isPending || (tab === "home" && home.isPending);
   const failed = movies.error ?? shows.error ?? (tab === "home" ? home.error : null);
 
+  // The title row and tabs stay put above the list.
   const header = (
-    <View style={{ paddingTop: top, marginBottom: 18, gap: 14 }}>
+    <View style={{ paddingTop: top, paddingHorizontal: PAD }}>
       <LibraryTitle
         current="watch"
         right={
@@ -133,7 +134,7 @@ export function WatchSection() {
           ) : null
         }
       />
-      {noFolder ? null : <TextTabs options={TABS} value={tab} onPick={setTab} style={{ marginTop: -14 }} />}
+      {noFolder ? null : <TextTabs options={TABS} value={tab} onPick={setTab} />}
     </View>
   );
 
@@ -162,13 +163,13 @@ export function WatchSection() {
   const gridView = tab !== "home" || !online;
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
+      {header}
       <FlatList
         data={noFolder ? [] : rows}
         keyExtractor={(r) => r.key}
-        contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24, flexGrow: 1 }}
+        contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: 18, paddingBottom: 24, flexGrow: 1 }}
         refreshControl={refresh}
         keyboardShouldPersistTaps="handled"
-        ListHeaderComponent={header}
         ListEmptyComponent={<Animated.View style={tabFade}>{empty}</Animated.View>}
         ItemSeparatorComponent={gridView ? RowGap : undefined}
         windowSize={7}
