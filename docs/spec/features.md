@@ -36,11 +36,11 @@
 
 ## Podcasts
 
-- Find podcasts by name (Apple's public podcast search, no API key needed) or paste an RSS feed URL; OPML import and export
+- Browse to find shows: search by name (Apple's public directory, no API key needed) or paste a feed link, More like shelves for shows you listen to (and a More like tab on every show's page, followed or not), the top shows overall and per category, and Not interested; OPML import and export
 - Feeds are checked on a schedule (default every 30 minutes, and once at startup)
 - Episodes stream through the server, which keeps the newest episodes of each followed show on disk (see [Podcasts and ad detection](podcasts.md)); the phone can download any episode
 - A queue, and played, unplayed and archived states per episode
-- The Podcasts tab has Home and Shows. Home has Continue listening as a shelf of wide cards on each show's colour, and the 6 latest New episodes grouped by show; Shows is every show in a grid, in the chosen sort
+- The Podcasts tab has Home, Shows and Browse. Home has Continue listening as a shelf of wide cards on each show's colour, and the 6 latest New episodes grouped by show; Shows is every show in a grid, in the chosen sort
 - A show's page has Episodes, Unplayed (episodes not finished) and Bookmarks (only when it has some, grouped by episode) as tabs, with search and sort beside them
 - Optional ad detection: ads marked on the seek bar, Skip ad, or Auto-skip with Undo
 

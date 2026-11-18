@@ -106,6 +106,7 @@ export function WatchView({
   // Older servers don't send these; a shelf the server couldn't build comes back empty.
   const nextInCollection = toItems(home.nextInCollection ?? []);
   const moreLike = home.moreLike ? { title: home.moreLike.title, items: toItems(home.moreLike.items) } : null;
+  const surprise = toItems(home.surprise ?? []);
   const recentMovies = recent.filter((i) => i.kind === "movie");
   const recentShows = recent.filter((i) => i.kind === "show");
 
@@ -149,7 +150,7 @@ export function WatchView({
         <EmptyState title="Nothing to watch yet">Movies and shows show up here once the scan finds them.</EmptyState>
       ) : tab === "home" ? (
         <>
-          {!home.continueWatching.length && !home.nextEpisodes.length && !nextInCollection.length && !moreLike?.items.length && !recentMovies.length && !recentShows.length ? (
+          {!home.continueWatching.length && !home.nextEpisodes.length && !nextInCollection.length && !moreLike?.items.length && !surprise.length && !recentMovies.length && !recentShows.length ? (
             <EmptyState>Nothing here yet.</EmptyState>
           ) : null}
           {home.continueWatching.length ? (
@@ -182,6 +183,12 @@ export function WatchView({
             <section className="section">
               <SectionTitle title={moreLike.title} />
               <PosterShelf items={moreLike.items} />
+            </section>
+          ) : null}
+          {surprise.length ? (
+            <section className="section">
+              <SectionTitle title="Surprise me" />
+              <PosterShelf items={surprise} />
             </section>
           ) : null}
           {recentMovies.length ? (

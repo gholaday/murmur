@@ -269,6 +269,8 @@ const userPrefsSchema = z.object({
   videoQuality: z.enum(["full", "light"]),
   /** The next episode starts on its own when the countdown ends; off, the card waits for a tap. */
   autoplayNext: z.boolean(),
+  /** Browse's charts and suggestions include shows the directory marks explicit. */
+  explicitShows: z.boolean(),
 });
 export type UserPrefs = z.infer<typeof userPrefsSchema>;
 export const userPrefsPatchSchema = userPrefsSchema.partial();
@@ -487,7 +489,10 @@ export interface PodcastSummary {
   privateFeed: boolean;
 }
 
-/** A podcast found by name in the public directory (Apple Podcasts search). */
+/**
+ * A show in the public directory (Apple Podcasts): a search result, a chart entry or a
+ * suggestion on Browse. All of them open the preview and subscribe the same way.
+ */
 export interface PodcastSearchResult {
   title: string;
   author: string | null;

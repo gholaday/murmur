@@ -55,17 +55,27 @@ export function useTabPrefs(): Required<UserPrefs["tabs"]> {
 }
 
 /** Saves a change, showing it at once; puts the old prefs back if the server says no. */
-function savePrefs(patch: UserPrefsPatch, failed: string) {
+function savePrefs(patch: UserPrefsPatch, failed: string, onSaved?: () => void) {
   const previous = queryClient.getQueryData<UserPrefs>(keys.prefs);
   if (previous) queryClient.setQueryData<UserPrefs>(keys.prefs, { ...previous, ...patch } as UserPrefs);
   api<UserPrefs>(apiPaths.prefs, { method: "PUT", body: patch })
-    .then((saved) => queryClient.setQueryData(keys.prefs, saved))
+    .then((saved) => {
+      queryClient.setQueryData(keys.prefs, saved);
+      onSaved?.();
+    })
     .catch((err: unknown) => {
       toast.error(err instanceof Error ? err.message : failed);
       if (previous) queryClient.setQueryData(keys.prefs, previous);
       else void queryClient.resetQueries({ queryKey: keys.prefs });
     });
 }
+
+/** Whether Browse's charts and suggestions include explicit shows; undefined on a server from before Browse. */
+export const useExplicitShows = (): boolean | undefined => usePrefs().data?.explicitShows;
+
+/** Browse's lists come back without (or with) explicit shows once it's saved. */
+export const saveExplicitShows = (on: boolean) =>
+  savePrefs({ explicitShows: on }, "Couldn't save that.", () => void queryClient.invalidateQueries({ queryKey: keys.podcastDirectory }));
 
 export const saveBookSections = (next: BookSection[]) => savePrefs({ bookSections: next }, "Couldn't save the layout.");
 

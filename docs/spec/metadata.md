@@ -73,7 +73,7 @@ Every card has an options menu, the same way for books, albums, movies and shows
 
 Edits are stored in the same override row as a match, so a rescan keeps them and the files are never touched.
 
-**You > Library** (admins only) holds the library's upkeep, so the tabs stay clean for everyone. A section per kind (Books, Music, Movies and shows) shows its count and last scan with a Rescan button, then its lists and folders: **Needs attention** (books with no cover, no author or missing files), **Not matched** for books and for albums, each with Match all. `GET /api/library/admin` gives the web and the app the same counts. **You > Podcasts** is its own row: the episode cache for admins, and on the web, OPML export for everyone (import is in the Podcasts tab's Add sheet). On the web it's hidden with the Podcasts tab for anyone who isn't an admin; in the app, which has no OPML export, it's for admins only.
+**You > Library** (admins only) holds the library's upkeep, so the tabs stay clean for everyone. A section per kind (Books, Music, Movies and shows) shows its count and last scan with a Rescan button, then its lists and folders: **Needs attention** (books with no cover, no author or missing files), **Not matched** for books and for albums, each with Match all. `GET /api/library/admin` gives the web and the app the same counts. **You > Podcasts** is its own row: the episode cache for admins, Explicit shows in Browse, and on the web, OPML export for everyone (import is at the bottom of the Podcasts tab's Browse). On the web it's hidden with the Podcasts tab for anyone who isn't an admin; in the app, which has no OPML export, it's for admins only.
 
 **Podcasts:** show and episode titles, artwork, descriptions and durations come from the RSS feed itself.
 

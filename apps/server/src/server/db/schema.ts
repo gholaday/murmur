@@ -194,6 +194,19 @@ export const musicLikes = sqliteTable(
   (t) => [primaryKey({ columns: [t.userId, t.kind, t.itemId] })],
 );
 
+/** Directory shows each person marked Not interested on Browse, by feed link. */
+export const podcastNotInterested = sqliteTable(
+  "podcast_not_interested",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    feedUrl: text("feed_url").notNull(),
+    at: integer("at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.feedUrl] })],
+);
+
 /**
  * What each person hid from their lists, shelves and search. No foreign key, so it outlives a
  * rescan: books, albums, movies and shows by id (kept while their files are), artists by name
@@ -362,6 +375,8 @@ export const podcasts = sqliteTable("podcasts", {
   coverHash: text("cover_hash"),
   etag: text("etag"),
   lastModified: text("last_modified"),
+  /** The shows the feed recommends (`podcast:podroll`), as a JSON list of feed links; Browse puts them first. */
+  podroll: text("podroll"),
   lastCheckedAt: integer("last_checked_at"),
   lastSuccessAt: integer("last_success_at"),
   lastError: text("last_error"),

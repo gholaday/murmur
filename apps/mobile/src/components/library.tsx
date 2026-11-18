@@ -122,7 +122,7 @@ export function Group({
   );
 }
 
-/** A section heading with its count that opens the section's full list. */
+/** A section heading, with its count if it has one, that opens the section's full list. */
 export function SectionHead({
   title,
   count,
@@ -131,7 +131,7 @@ export function SectionHead({
   onOpen,
 }: {
   title: string;
-  count: number;
+  count?: number;
   sub?: string | null;
   side?: string | null;
   onOpen: () => void;
@@ -144,7 +144,7 @@ export function SectionHead({
           <Text variant="heading" numberOfLines={1} style={{ flexShrink: 1 }}>
             {title}
           </Text>
-          <NumberBadge value={count} />
+          {count !== undefined ? <NumberBadge value={count} /> : null}
         </View>
         {sub ? <Text variant="small">{sub}</Text> : null}
       </Pressable>

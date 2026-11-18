@@ -120,7 +120,7 @@ Chrome only offers a full-screen install when Murmur is served over HTTPS, so se
 
 ## 5. Add podcasts
 
-In **Podcasts**, search by name or paste an RSS feed URL. To bring your shows over from another podcast app, use **Import OPML** in the same place.
+In **Podcasts > Browse**, search by name, paste an RSS feed link, or look through the top shows by category. To bring your shows over from another podcast app, use **Import OPML** at the bottom of Browse.
 
 Feeds are checked every 30 minutes, and the newest 3 episodes of each podcast are kept on the server so they start instantly. Admins can change the 3 in **You > Podcasts**.
 

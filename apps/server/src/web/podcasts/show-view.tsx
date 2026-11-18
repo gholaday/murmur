@@ -21,6 +21,7 @@ import {
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { BookmarkRows } from "../bookmark-rows";
+import { MoreLikeList } from "./browse";
 import { usePodcastBookmarks } from "../bookmarks";
 import { Cover } from "../cover";
 import { CheckIcon, FilterIcon, LockIcon, SearchIcon } from "../icons";
@@ -49,9 +50,11 @@ export function ShowView({
   bookmarks: firstBookmarks,
   pageSize,
   firstPage,
+  initialTab,
 }: {
   podcast: PodcastDetail;
   bookmarks: BookmarkDto[];
+  initialTab: ShowTab;
   /** Episodes shown per page; `firstPage` holds the newest page. */
   pageSize: number;
   firstPage: EpisodeDto[];
@@ -60,7 +63,7 @@ export function ShowView({
   const [oldestFirst, setOldestFirst] = useState(false);
   const [limit, setLimit] = useState(pageSize);
   const [sheet, setSheet] = useState<null | "menu" | "unsubscribe" | "sort">(null);
-  const [tabPicked, setTab] = useState<ShowTab>("episodes");
+  const [tabPicked, setTab] = useState<ShowTab>(initialTab);
   const player = usePlayerControls();
   const bookmarks = usePodcastBookmarks(podcast.id, firstBookmarks);
   // Grouped by episode, newest bookmark's episode first. Rows are in order within each.
@@ -184,7 +187,7 @@ export function ShowView({
               </Chip>
             ))}
           </Chips>
-          {tab === "bookmarks" ? null : (
+          {tab === "bookmarks" || tab === "morelike" ? null : (
             <div className="show-tabs-actions">
               <button
                 type="button"
@@ -206,13 +209,15 @@ export function ShowView({
             </div>
           )}
         </div>
-        {searching && tab !== "bookmarks" ? (
+        {searching && tab !== "bookmarks" && tab !== "morelike" ? (
           <SearchBox value={query} onChange={setQuery} placeholder="Search episodes" label="Search episodes" />
         ) : null}
       </div>
 
       <div key={tab} className="view-fade">
-      {tab === "bookmarks" ? (
+      {tab === "morelike" ? (
+        <MoreLikeList feedUrl={podcast.feedUrl} />
+      ) : tab === "bookmarks" ? (
         <div className="pod-bookmarks">
           {bookmarkGroups.map((group) => (
             <section key={group[0]!.itemId} className="bookmark-group">

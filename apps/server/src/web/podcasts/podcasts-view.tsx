@@ -1,13 +1,11 @@
 "use client";
 
-import { toast } from "sonner";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   apiPaths,
   type EpisodeWithShow,
-  errorText,
   FALLBACK_TINT,
   NEW_EPISODES_PAGE,
   newByShow,
@@ -18,19 +16,16 @@ import {
   type PodcastListId,
   type PodcastSort,
   type PodcastTab,
-  type OpmlImportResult,
-  plural,
-  type PodcastSearchResult,
   type PodcastSummary,
   sortShows,
 } from "@murmur/shared/client";
-import { api } from "../api";
 import { Cover } from "../cover";
 import { Mixer } from "../mixer";
 import { useNowPlaying } from "../player/engine";
 import { FilterIcon, PlusIcon } from "../icons";
-import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SearchBox, SectionTitle } from "../ui";
-import { ChoiceSheet, Sheet } from "../sheet";
+import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SectionTitle } from "../ui";
+import { ChoiceSheet } from "../sheet";
+import { BrowseView } from "./browse";
 import { EpisodeActions, EpisodeRow, useEpisodePlay } from "./episode-row";
 
 /** An episode you're part way through, as a wide card on Home's sideways shelf. */
@@ -73,6 +68,8 @@ export function PodcastCard({ podcast: p }: { podcast: PodcastSummary }) {
   );
 }
 
+const tabFrom = (value: string | null): PodcastTab => (value === "shows" || value === "browse" ? value : "home");
+
 export function PodcastsView({
   podcasts,
   continueEpisodes,
@@ -85,17 +82,23 @@ export function PodcastsView({
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  // Coming back from a search result reopens Add podcast with the same search.
-  const addQuery = params.get("add");
-  const [adding, setAdding] = useState(addQuery !== null);
   const [sortOpen, setSortOpen] = useState(false);
   const [sort, setSort] = useState<PodcastSort>("latest");
   const [newShown, setNewShown] = useState(NEW_EPISODES_PAGE);
+  // + switches to Browse with the box focused; picking the tab itself doesn't focus it.
+  const [focusBox, setFocusBox] = useState(false);
   const refresh = () => router.refresh();
   const listParam = params.get("list");
   const list = listParam && listParam in PODCAST_LIST_TITLES ? (listParam as PodcastListId) : null;
-  const tab: PodcastTab = params.get("tab") === "shows" ? "shows" : "home";
-  const switchTab = (next: PodcastTab) => window.history.replaceState(null, "", next === "home" ? pathname : `${pathname}?tab=${next}`);
+  const tab = tabFrom(params.get("tab"));
+  const switchTab = (next: PodcastTab) => {
+    setFocusBox(false);
+    window.history.replaceState(null, "", next === "home" ? pathname : `${pathname}?tab=${next}`);
+  };
+  const addPodcast = () => {
+    switchTab("browse");
+    setFocusBox(true);
+  };
 
   const shows = useMemo(() => sortShows(podcasts, sort), [podcasts, sort]);
   const groups = useMemo(() => newByShow(newEpisodes), [newEpisodes]);
@@ -106,40 +109,15 @@ export function PodcastsView({
     window.scrollTo(0, 0);
   };
 
-  const sortButton =
-    podcasts.length > 1 ? (
-      <button type="button" className="icon-btn" aria-label="Sort podcasts" onClick={() => setSortOpen(true)}>
-        <FilterIcon />
-      </button>
-    ) : null;
-
-  const sheets = (
-    <>
-      <AddPodcastSheet
-        open={adding}
-        initialQuery={addQuery ?? ""}
-        onClose={() => {
-          setAdding(false);
-          if (addQuery !== null) window.history.replaceState(null, "", pathname);
-        }}
-        onAdded={(id) => {
-          setAdding(false);
-          // Refresh first so going back from the new podcast shows it in the list,
-          // instead of the cached page from before subscribing.
-          refresh();
-          if (id) router.push(`/podcasts/${id}`);
-        }}
-      />
-
-      <ChoiceSheet
-        open={sortOpen}
-        onClose={() => setSortOpen(false)}
-        title="Sort podcasts"
-        choices={(Object.keys(PODCAST_SORT_LABEL) as PodcastSort[]).map((id) => ({ id, label: PODCAST_SORT_LABEL[id] }))}
-        value={sort}
-        onPick={setSort}
-      />
-    </>
+  const sortSheet = (
+    <ChoiceSheet
+      open={sortOpen}
+      onClose={() => setSortOpen(false)}
+      title="Sort podcasts"
+      choices={(Object.keys(PODCAST_SORT_LABEL) as PodcastSort[]).map((id) => ({ id, label: PODCAST_SORT_LABEL[id] }))}
+      value={sort}
+      onPick={setSort}
+    />
   );
 
   // A section's full list, opened from its heading.
@@ -172,7 +150,20 @@ export function PodcastsView({
             ) : null}
           </>
         )}
-        {sheets}
+      </>
+    );
+  }
+
+  const browse = <BrowseView initialQuery={params.get("q") ?? ""} focus={focusBox} />;
+
+  // With nothing followed yet, Browse is the whole page: it's where shows are found.
+  if (podcasts.length === 0) {
+    return (
+      <>
+        <div className="page-head">
+          <h1 className="page-title">Podcasts</h1>
+        </div>
+        {browse}
       </>
     );
   }
@@ -181,286 +172,73 @@ export function PodcastsView({
     <>
       <div className="page-head">
         <h1 className="page-title">Podcasts</h1>
-        <div className="head-actions">
-          {sortButton}
-          <button type="button" className="icon-btn accent" aria-label="Add podcast" onClick={() => setAdding(true)}>
-            <PlusIcon />
-          </button>
-        </div>
-      </div>
-
-      {podcasts.length === 0 ? (
-        <EmptyState title="No podcasts yet">
-          <div style={{ marginTop: 16 }}>
-            <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
-              Add a podcast
+        {tab !== "browse" ? (
+          <div className="head-actions view-fade">
+            {tab === "shows" && podcasts.length > 1 ? (
+              <button type="button" className="icon-btn" aria-label="Sort podcasts" onClick={() => setSortOpen(true)}>
+                <FilterIcon />
+              </button>
+            ) : null}
+            <button type="button" className="icon-btn accent" aria-label="Add podcast" onClick={addPodcast}>
+              <PlusIcon />
             </button>
           </div>
-        </EmptyState>
-      ) : (
-        <>
-          <Chips kind="tabs" label="Podcasts view">
-            {PODCAST_TABS.map((t) => (
-              <Chip key={t.id} selected={tab === t.id} onClick={() => switchTab(t.id)}>
-                {t.label}
-              </Chip>
-            ))}
-          </Chips>
-
-          <div key={tab} className="view-fade">
-            {tab === "shows" ? (
-              <div className="grid" style={{ marginTop: 16 }}>
-                {shows.map((p) => (
-                  <PodcastCard key={p.id} podcast={p} />
-                ))}
-              </div>
-            ) : (
-              <>
-                {continueEpisodes.length ? (
-                  <section className="section">
-                    <div className="section-head">
-                      <SectionTitle title={PODCAST_LIST_TITLES.continue} count={continueEpisodes.length} noun="episode" onOpen={() => open("continue")} />
-                    </div>
-                    <ScrollRow className="row-scroll pod-continue-row">
-                      {continueEpisodes.map((e) => (
-                        <ContinueEpisodeCard key={e.id} episode={e} onChanged={refresh} />
-                      ))}
-                    </ScrollRow>
-                  </section>
-                ) : null}
-
-                {groups.length ? (
-                  <section className="section">
-                    <div className="section-head">
-                      <SectionTitle title={PODCAST_LIST_TITLES.new} count={newEpisodes.length} noun="new episode" onOpen={() => open("new")} />
-                    </div>
-                    <div>
-                      {groups.slice(0, PODCAST_SECTION_SIZE).map((g) => (
-                        <EpisodeRow key={g.episode.id} episode={g.episode} showThumb newCount={g.count} onChanged={refresh} />
-                      ))}
-                    </div>
-                  </section>
-                ) : null}
-
-                {!continueEpisodes.length && !groups.length ? (
-                  <EmptyState title="Nothing new">New episodes from your shows will show here.</EmptyState>
-                ) : null}
-              </>
-            )}
-          </div>
-        </>
-      )}
-
-      {sheets}
-    </>
-  );
-}
-
-/**
- * Find a podcast by name and subscribe in one tap, or open a result to look first.
- * Searches as you type. The search is kept in the URL so back from a result returns to it.
- */
-function PodcastSearch({ initialQuery, onAdded }: { initialQuery: string; onAdded: (id: string | null) => void }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [query, setQuery] = useState(initialQuery);
-
-  const openResult = (r: PodcastSearchResult) => {
-    window.history.replaceState(null, "", `${pathname}?add=${encodeURIComponent(query.trim())}`);
-    router.push(r.subscribedId ? `/podcasts/${r.subscribedId}` : `/podcasts/preview?feed=${encodeURIComponent(r.feedUrl)}`);
-  };
-  const [results, setResults] = useState<PodcastSearchResult[] | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [adding, setAdding] = useState<string | null>(null);
-
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) {
-      setResults(null);
-      setError(null);
-      return;
-    }
-    let stale = false;
-    const timer = setTimeout(() => {
-      setSearching(true);
-      api<PodcastSearchResult[]>(apiPaths.podcastSearch(q))
-        .then((r) => {
-          if (stale) return;
-          setResults(r);
-          setError(null);
-        })
-        .catch((err: unknown) => {
-          if (!stale) setError(err instanceof Error ? err.message : "Search failed.");
-        })
-        .finally(() => {
-          if (!stale) setSearching(false);
-        });
-    }, 350);
-    return () => {
-      stale = true;
-      clearTimeout(timer);
-    };
-  }, [query]);
-
-  const subscribe = async (r: PodcastSearchResult) => {
-    setAdding(r.feedUrl);
-    try {
-      const podcast = await api<PodcastSummary>(apiPaths.podcasts, { method: "POST", body: { feedUrl: r.feedUrl } });
-      toast(`Subscribed to ${podcast.title}`);
-      onAdded(podcast.id);
-    } catch (err) {
-      toast.error(errorText(err, "Couldn't add that podcast."));
-    } finally {
-      setAdding(null);
-    }
-  };
-
-  return (
-    <div className="form">
-      <SearchBox value={query} onChange={setQuery} placeholder="Search podcasts" label="Search podcasts" />
-      {error ? (
-        <p className="error small" role="alert" style={{ margin: 0 }}>
-          {error}
-        </p>
-      ) : null}
-      {searching && !results ? (
-        <div className="loading-center" style={{ padding: 24 }} aria-busy="true" aria-label="Searching">
-          <div className="spinner" />
-        </div>
-      ) : results ? (
-        results.length === 0 ? (
-          <p className="muted" style={{ margin: 0 }}>
-            No podcasts found.
-          </p>
-        ) : (
-          <div className="list search-results" aria-busy={searching || undefined}>
-            {results.map((r) => (
-              <div key={r.feedUrl} className="list-row">
-                <button type="button" className="search-result-open" onClick={() => openResult(r)}>
-                  <Cover className="thumb" src={r.thumbUrl}color={null} title={r.title} />
-                  <span className="list-row-main">
-                    <span className="list-row-title" style={{ fontSize: 14 }}>
-                      {r.title}
-                    </span>
-                    {r.author ? <span className="list-row-sub">{r.author}</span> : null}
-                    {r.episodeCount ? <span className="list-row-sub">{plural(r.episodeCount, "episode")}</span> : null}
-                  </span>
-                </button>
-                {r.subscribedId ? (
-                  <button type="button" className="btn" onClick={() => openResult(r)}>
-                    Open
-                  </button>
-                ) : (
-                  <button type="button" className="btn btn-primary" disabled={adding !== null} onClick={() => void subscribe(r)}>
-                    {adding === r.feedUrl ? "Adding…" : "Subscribe"}
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )
-      ) : null}
-    </div>
-  );
-}
-
-function AddPodcastSheet({
-  open,
-  initialQuery,
-  onClose,
-  onAdded,
-}: {
-  open: boolean;
-  initialQuery: string;
-  onClose: () => void;
-  /** The new show's id, or null after an OPML import. */
-  onAdded: (id: string | null) => void;
-}) {
-  const [url, setUrl] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
-
-  const subscribe = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setMessage(null);
-    try {
-      const podcast = await api<PodcastSummary>(apiPaths.podcasts, { method: "POST", body: { feedUrl: url.trim() } });
-      setUrl("");
-      toast(`Subscribed to ${podcast.title}`);
-      onAdded(podcast.id);
-    } catch (err) {
-      setMessage({ text: err instanceof Error ? err.message : "Couldn't add that feed.", error: true });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const importOpml = async (file: File) => {
-    setBusy(true);
-    setMessage({ text: "Importing… large lists can take a minute.", error: false });
-    try {
-      const res = await fetch(apiPaths.podcastsOpml, { method: "POST", headers: { "Content-Type": "text/xml" }, body: await file.text() });
-      const data = (await res.json()) as OpmlImportResult | { error: string };
-      if (!res.ok || "error" in data) throw new Error("error" in data ? data.error : "Import failed.");
-      const failed = data.failed.length ? ` ${data.failed.length} couldn't be loaded.` : "";
-      const text = `Added ${plural(data.added, "podcast")}, ${data.alreadySubscribed} already followed.${failed}`;
-      setMessage(null);
-      if (data.failed.length) toast.error(text);
-      else toast(text);
-      if (data.added) onAdded(null);
-    } catch (err) {
-      setMessage({ text: err instanceof Error ? err.message : "Import failed.", error: true });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Sheet open={open} onClose={onClose} title="Add a podcast">
-      <PodcastSearch initialQuery={initialQuery} onAdded={onAdded} />
-      <form className="form" onSubmit={subscribe}>
-        <label className="label">
-          Or paste an RSS feed URL
-          <input
-            className="input"
-            type="url"
-            inputMode="url"
-            placeholder="https://example.com/feed.xml"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            required
-          />
-        </label>
-        <button type="submit" className="btn btn-primary" disabled={busy || !url.trim()}>
-          {busy ? "Adding…" : "Subscribe"}
-        </button>
-      </form>
-      <div className="form-row">
-        <label className="btn" style={{ flex: 1, cursor: "pointer" }}>
-          Import OPML
-          <input
-            type="file"
-            accept=".opml,.xml,text/xml,application/xml"
-            className="sr-only"
-            disabled={busy}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              e.target.value = "";
-              if (f) void importOpml(f);
-            }}
-          />
-        </label>
-        <a className="btn" style={{ flex: 1 }} href={apiPaths.podcastsOpml} download="murmur-podcasts.opml">
-          Export OPML
-        </a>
+        ) : null}
       </div>
-      {message ? (
-        <p className={message.error ? "error small" : "muted small"} role="status">
-          {message.text}
-        </p>
-      ) : null}
-    </Sheet>
+
+      <Chips kind="tabs" label="Podcasts view">
+        {PODCAST_TABS.map((t) => (
+          <Chip key={t.id} selected={tab === t.id} onClick={() => switchTab(t.id)}>
+            {t.label}
+          </Chip>
+        ))}
+      </Chips>
+
+      <div key={tab} className="view-fade">
+        {tab === "browse" ? (
+          browse
+        ) : tab === "shows" ? (
+          <div className="grid" style={{ marginTop: 16 }}>
+            {shows.map((p) => (
+              <PodcastCard key={p.id} podcast={p} />
+            ))}
+          </div>
+        ) : (
+          <>
+            {continueEpisodes.length ? (
+              <section className="section">
+                <div className="section-head">
+                  <SectionTitle title={PODCAST_LIST_TITLES.continue} count={continueEpisodes.length} noun="episode" onOpen={() => open("continue")} />
+                </div>
+                <ScrollRow className="row-scroll pod-continue-row">
+                  {continueEpisodes.map((e) => (
+                    <ContinueEpisodeCard key={e.id} episode={e} onChanged={refresh} />
+                  ))}
+                </ScrollRow>
+              </section>
+            ) : null}
+
+            {groups.length ? (
+              <section className="section">
+                <div className="section-head">
+                  <SectionTitle title={PODCAST_LIST_TITLES.new} count={newEpisodes.length} noun="new episode" onOpen={() => open("new")} />
+                </div>
+                <div>
+                  {groups.slice(0, PODCAST_SECTION_SIZE).map((g) => (
+                    <EpisodeRow key={g.episode.id} episode={g.episode} showThumb newCount={g.count} onChanged={refresh} />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {!continueEpisodes.length && !groups.length ? (
+              <EmptyState title="Nothing new">New episodes from your shows will show here.</EmptyState>
+            ) : null}
+          </>
+        )}
+      </div>
+
+      {sortSheet}
+    </>
   );
 }

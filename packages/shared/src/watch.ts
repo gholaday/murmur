@@ -257,6 +257,8 @@ export interface WatchHomeDto {
   nextInCollection?: WatchPoster[];
   /** Films like the one you finished last; null when there's nothing to show. */
   moreLike?: { title: string; items: WatchPoster[] } | null;
+  /** Unwatched films picked at random, new each hour. Missing from servers before 1.6. */
+  surprise?: WatchPoster[];
   recentlyAdded: WatchPoster[];
 }
 

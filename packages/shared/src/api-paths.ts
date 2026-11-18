@@ -189,6 +189,14 @@ export const apiPaths = {
   podcasts: "/api/podcasts",
   /** PodcastSearchResult[]. */
   podcastSearch: (q: string) => `/api/podcasts/search?q=${encodeURIComponent(q)}`,
+  /** PodcastBrowse: More like shelves and the top shows. */
+  podcastBrowse: "/api/podcasts/browse",
+  /** PodcastMoreLike for a show, followed or not. */
+  podcastMoreLike: (feedUrl: string) => `/api/podcasts/more-like?feedUrl=${encodeURIComponent(feedUrl)}`,
+  /** PodcastSearchResult[], the top 50 shows overall or in one category. */
+  podcastChart: (genreId: number | null) => `/api/podcasts/charts${genreId ? `?genre=${genreId}` : ""}`,
+  /** PUT { feedUrl } keeps a show out of Browse; DELETE { feedUrl } undoes it. */
+  podcastNotInterested: "/api/podcasts/not-interested",
   /** PodcastPreview, before following. */
   podcastPreview: (feedUrl: string) => `/api/podcasts/preview?feedUrl=${encodeURIComponent(feedUrl)}`,
   /** GET your shows as OPML, POST an OPML file to follow them. */

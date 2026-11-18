@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, type GestureResponderEvent, Keyboard, Pressable, TextInput, View } from "react-native";
+import { Animated, type GestureResponderEvent, Pressable, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { hasKind, type SearchKind, type SearchResultsDto, type TrackDto } from "@murmur/shared/client";
 import { BookCard } from "@/components/book-card";
 import { EpisodeRow } from "@/components/episode-row";
-import { ChevronIcon, CloseIcon, SearchIcon } from "@/components/icons";
+import { ChevronIcon, CloseIcon } from "@/components/icons";
 import { GAP, gridRows, openGroup, PAD, Shelf, useGridWidth, useShelfWidth } from "@/components/library";
 import { AlbumCard, ArtistCard, SongRow, SongSheet } from "@/components/music";
 import { Empty, PageTitle, SectionTitle, useTopInset } from "@/components/page";
 import { ShowCard } from "@/components/podcasts";
+import { SearchPill } from "@/components/search-pill";
 import { useKeyboardHeight } from "@/components/sheet";
 import { FadeIn, ListRowBone, Skeleton } from "@/components/skeleton";
 import { StickyHeading, useStickyHeading } from "@/components/sticky-heading";
@@ -19,7 +20,7 @@ import { useTabPrefs } from "@/lib/data";
 import { forgetSearch, rememberSearch, searchKind, searchText, useDebounced, useRecentSearches, useSearch } from "@/lib/search";
 import { openMovie, openTvShow } from "@/lib/watch";
 import { playMusic } from "@/player/engine";
-import { fonts, useTheme } from "@/theme";
+import { useTheme } from "@/theme";
 
 /** Episode and song rows on All; cards show the server's full group in a shelf. */
 const ALL_ROWS = 4;
@@ -155,80 +156,16 @@ export default function Search() {
   );
 }
 
-/** The search box: a pill with an accent outline while typing, and an X once there's text. It takes focus when Search opens empty. */
+/** The search box. It takes focus when Search opens empty. */
 function SearchField() {
-  const t = useTheme();
   const text = searchText.useValue();
-  const [focused, setFocused] = useState(false);
   const input = useRef<TextInputRef>(null);
   useFocusEffect(
     useCallback(() => {
       if (!searchText.get()) input.current?.focus();
     }, []),
   );
-  // Android keeps the box focused when back closes the keyboard; it should look done with.
-  useEffect(() => {
-    const sub = Keyboard.addListener("keyboardDidHide", () => input.current?.blur());
-    return () => sub.remove();
-  }, []);
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-        height: 48,
-        paddingLeft: 14.5,
-        paddingRight: text ? 6 : 14.5,
-        borderRadius: 24,
-        borderWidth: 1.5,
-        borderColor: focused ? t.accent : t.track,
-        backgroundColor: focused ? t.surface2 : t.surface,
-      }}
-    >
-      <SearchIcon size={20} color={t.muted} />
-      <TextInput
-        ref={input}
-        value={text}
-        onChangeText={searchText.set}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        onSubmitEditing={() => rememberSearch(searchText.get())}
-        placeholder="Search"
-        placeholderTextColor={t.faint}
-        selectionColor={t.accent}
-        returnKeyType="search"
-        accessibilityLabel="Search"
-        // Android's font padding sits the text low; without it, centred, it lines up with the magnifier.
-        style={{
-          flex: 1,
-          minWidth: 0,
-          height: 44,
-          color: t.text,
-          fontFamily: fonts.semibold,
-          fontSize: 15,
-          lineHeight: 20,
-          paddingVertical: 0,
-          includeFontPadding: false,
-          textAlignVertical: "center",
-        }}
-      />
-      {text ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Clear search"
-          hitSlop={4}
-          onPress={() => {
-            searchText.set("");
-            input.current?.focus();
-          }}
-          style={({ pressed }) => ({ width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.6 : 1 })}
-        >
-          <CloseIcon size={18} color={t.muted} />
-        </Pressable>
-      ) : null}
-    </View>
-  );
+  return <SearchPill ref={input} value={text} onChangeText={searchText.set} onSubmitEditing={() => rememberSearch(searchText.get())} placeholder="Search" />;
 }
 
 /** Each group as rows: a heading, then its cards in a shelf (All) or a grid (its own tab), or its list rows. */

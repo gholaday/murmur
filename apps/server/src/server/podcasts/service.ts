@@ -152,10 +152,22 @@ export function createPodcastService(deps: Deps) {
     const upsert = upsertEpisode();
     sqlite.transaction(() => {
       sqlite
-        .prepare(`UPDATE podcasts SET title = ?, author = ?, description = ?, link = ?, image_url = ?, etag = ?,
+        .prepare(`UPDATE podcasts SET title = ?, author = ?, description = ?, link = ?, image_url = ?, podroll = ?, etag = ?,
                   last_modified = ?, last_checked_at = ?, last_success_at = ?, last_error = NULL, failure_count = 0
                   WHERE id = ?`)
-        .run(feed.title, feed.author, feed.description, feed.link, feed.imageUrl, etag, lastModified, now, now, podcastId);
+        .run(
+          feed.title,
+          feed.author,
+          feed.description,
+          feed.link,
+          feed.imageUrl,
+          feed.podroll.length ? JSON.stringify(feed.podroll) : null,
+          etag,
+          lastModified,
+          now,
+          now,
+          podcastId,
+        );
       for (const e of feed.episodes) {
         upsert.run({ id: newId(), podcastId, now, ...e });
       }

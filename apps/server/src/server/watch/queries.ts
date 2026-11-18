@@ -345,6 +345,25 @@ async function moreLikeShelf(all: ShelfMovieRow[], progress: Map<string, VideoPr
   return { title: `More like ${source.title}`, items: await moviePosters(ranked.slice(0, SIMILAR_LIMIT), progress) };
 }
 
+/**
+ * The Watch home's Surprise me: unwatched films at random. The draw holds for the hour, so the
+ * shelf doesn't reshuffle under you while you look, and each person gets their own.
+ */
+async function surpriseShelf(all: ShelfMovieRow[], progress: Map<string, VideoProgress>, userId: number) {
+  const seed = `${Math.floor(Date.now() / 3_600_000)}:${userId}:`;
+  const rank = (id: string) => {
+    let h = 2166136261;
+    for (const c of seed + id) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+    return h >>> 0;
+  };
+  const picks = all
+    .filter((m) => !startedVideo(progress.get(m.id)))
+    .map((m) => ({ m, r: rank(m.id) }))
+    .sort((a, b) => a.r - b.r)
+    .map((x) => x.m);
+  return moviePosters(picks.slice(0, SIMILAR_LIMIT), progress);
+}
+
 export async function listShows(ctx: AppContext, userId: number): Promise<ShowSummary[]> {
   const rows = ctx.sqlite.prepare(`${SHOW_SELECT} GROUP BY s.id ORDER BY s.sort_title, s.year`).all({ user: userId }) as ShowRow[];
   const colors = await colorsFor(rows.map((r) => r.poster_hash || r.first_still));
@@ -548,8 +567,11 @@ export async function watchHome(ctx: AppContext, userId: number): Promise<WatchH
     shelf("next in the collection", () => nextInCollectionShelf(all, progress), []),
     shelf("more like", () => moreLikeShelf(all, progress), null),
   ]);
+  // Surprise me leaves out what the shelves above already show.
+  const shown = new Set([...nextInCollection, ...(moreLike?.items ?? [])].map((p) => p.id));
+  const surprise = await shelf("surprise me", () => surpriseShelf(all.filter((m) => !shown.has(m.id)), progress, userId), []);
 
-  return { enabled: true, continueWatching, nextEpisodes, nextInCollection, moreLike, recentlyAdded };
+  return { enabled: true, continueWatching, nextEpisodes, nextInCollection, moreLike, surprise, recentlyAdded };
 }
 
 /** Search hits: movies and shows as posters, TV episodes as cards, each in the order given; gone ones are left out. */

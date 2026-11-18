@@ -78,14 +78,23 @@ Each episode has a scan status: queued, scanning, done or failed, with the attem
 
 The same on the web and the app; the rules they share are in `packages/shared/src/podcasts.ts`.
 
-- **Podcasts tab:** Sort and Add at the top right, then Home and Shows text tabs (`PODCAST_TABS`). Home shows, hiding any that's empty:
+- **Podcasts tab:** Home, Shows and Browse text tabs (`PODCAST_TABS`). Add (+) is at the top right on Home and Shows; it opens Browse with the box focused. Sort is there on Shows. With nothing followed yet, the tab is just Browse. Home shows the following, hiding any that's empty:
   - Continue listening: a sideways shelf of wide cards. Each card sits on `surface` mixed with 15% of the show's colour and has the cover, the show, the episode title (two lines at most), and the play pill and progress bar. The pill plays and the rest of the card opens the show.
   - New episodes, with an accent count: the 6 latest, one row per show with how many are new (`newByShow`, `PODCAST_SECTION_SIZE`).
 
   Both headings open their full lists. With neither, Home says "Nothing new" and "New episodes from your shows will show here." Shows is every show in a grid, in the chosen sort.
-- **A show's page:** the book page's header: the cover, title, author, and one muted line with the episode count, the latest date and Private. An accent check on the cover's top right corner shows you're subscribed and asks before unsubscribing; a show from search has a heart there that subscribes. Then the description. A sticky row holds Episodes, Unplayed and Bookmarks text tabs (`SHOW_TABS`) with search and sort on its right.
+- **Browse** is where shows are found. Every show on it is a `PodcastSearchResult`, whether it's a search result, a chart entry or a suggestion, and each works the same way. Tapping the show opens its preview, or its page once followed. The heart subscribes in place and a toast offers Open. Once followed, the heart becomes an accent check that opens the show.
+  - **The box** sticks to the top. It searches the directory by name from 2 letters, or, given a feed link (`feedLinkIn`), shows that one feed; a link that isn't a feed says "That link isn't a podcast feed." Its text is kept in the URL (`?tab=browse&q=`), so back from a show returns to it. Clearing it brings back the shelves as they were.
+  - **More like *show*:** up to 3 shelves, one per category, from the 8 followed shows you played most recently. The show you played last always gets the first shelf; the others take turns in an order that changes each day (`dailyOrder`). A shelf holds 12 shows, without what you follow. First come the shows the followed show's own feed recommends (`podcast:podroll`). The rest come from searching the directory for what the show is about: its title, the subject in its title ("great books" for Ascend - The Great Books Podcast) and the words and phrases its episode titles keep coming back to (`server/podcasts/more-like.ts`). A show several searches find, near their tops, in the same category, ranks highest; outside the main category it takes two searches agreeing, and with no category in common three. The category's chart tops up a shelf the searches can't fill. The 12 are picked each day from the best 18 and keep their rank order. A card's ⋯ (or right-click) has Subscribe, See episodes and Not interested. Not interested is saved per person (`podcast_not_interested`) and keeps the show out of Browse and charts, with Undo.
+  - **Top shows:** the top 5 on phones and 10 in two columns on wide screens, ranked. The heading opens Top shows (`/podcasts/top`), the top 50 with All and category text tabs (`PODCAST_GENRES`).
+  - **Categories:** a tile per category, opening Top shows on its tab. Then Import OPML and Export OPML.
+  - **Where it comes from:** Apple's public charts for the US (no key), looked up for feed links. Charts are cached for a day and lookups for a week, in memory and shared by every user (`server/podcasts/directory.ts`). A followed show's category comes from searching its title and matching its feed link, and is kept for a week too, as are More like's searches and the podroll shows, read from their own feeds. A feed's podroll is saved on every feed check in `podcasts.podroll`. Charts and suggestions include explicit shows unless You > Podcasts > Explicit shows in Browse is turned off; search always includes them.
+  - **Failure:** if the directory can't be reached, Browse says "Can't reach the podcast directory" with Try again, and a pasted feed link still works. A More like shelf that fails is left off on its own.
+- **A show's page:** the book page's header: the cover, title, author, and one muted line with the episode count, the latest date and Private. An accent check on the cover's top right corner shows you're subscribed and asks before unsubscribing; a show from search has a heart there that subscribes. Then the description. A sticky row holds Episodes, Unplayed, Bookmarks and More like text tabs (`SHOW_TABS`) with search and sort on its right. `?tab=morelike` opens on More like.
   - Unplayed is every episode not finished (`unplayedEpisodes`), so it loads the full list the way search does. With nothing left it says "No unplayed episodes" and "You're all caught up."
   - Bookmarks lists the show's bookmarks grouped by episode, newest first. It's only there while the show has some, and it hides search and sort.
+  - More like lists up to 30 shows like this one as Browse's rows (`GET /api/podcasts/more-like?feedUrl=`, `moreLikeFor`), found the same way as Browse's shelves but in the same order every day, best match first. When the feed has a podroll, those shows come first under "Recommended by the show", then the rest under "Similar shows". Shows you follow (by feed link or title), Not interested and, by your setting, explicit shows are left out. It loads as the tab opens, with row bones; nothing found says "No similar shows found", and a dead directory says "Can't reach the podcast directory." with Try again. It hides search and sort. Browse's "More like *show*" headings open it.
+  - A show you don't follow (its preview) has Episodes and More like tabs. More like reads what it's about from the feed the preview just read.
 
 ## Player and settings
 
@@ -111,6 +120,8 @@ The same on the web and the app; the rules they share are in `packages/shared/sr
 | `episode_files` | Episode, path under `/cache`, size, status (downloading, ready, failed), attempts, downloaded at, last played at |
 | `episode_ads` | Cached file, start, end, kind, advertiser, first words |
 | `ad_scans` | Cached file, status, pieces done, attempts, last error, lease expiry, not before, wanted at |
+| `podcast_not_interested` | Person, feed link and when: shows kept out of Browse |
+| `podcasts.podroll` | The feed links a show recommends (`podcast:podroll`), as JSON, for More like |
 
 ---
 

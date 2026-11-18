@@ -58,6 +58,7 @@ export function ProfileView({
   server,
   tabs,
   autoplayNext,
+  explicitShows,
   musicFolders,
   movieFolders,
   showFolders,
@@ -79,6 +80,8 @@ export function ProfileView({
   music: MusicSummaryDto;
   tabs: UserPrefs["tabs"];
   autoplayNext: boolean;
+  /** Browse's charts and suggestions include explicit shows. */
+  explicitShows: boolean;
   user: UserDto;
   users: UserDto[];
   folders: LibraryFolderDto[];
@@ -125,6 +128,7 @@ export function ProfileView({
             <>
               {cache ? <EpisodeCacheCard cache={cache} onChanged={refresh} /> : null}
               <SettingsCard>
+                <ExplicitSwitch initial={explicitShows} />
                 <Setting title="Export subscriptions">
                   <a className="btn" href={apiPaths.podcastsOpml} download="murmur-podcasts.opml">
                     Export
@@ -172,6 +176,19 @@ export function ProfileView({
       </section>
     </>
   );
+}
+
+/** Whether Browse's charts and suggestions include explicit shows. Search always does. */
+function ExplicitSwitch({ initial }: { initial: boolean }) {
+  const [on, setOn] = useState(initial);
+  const toggle = (next: boolean) => {
+    setOn(next);
+    api(apiPaths.prefs, { method: "PUT", body: { explicitShows: next } }).catch((err: unknown) => {
+      setOn(!next);
+      toast.error(errorText(err));
+    });
+  };
+  return <SwitchRow title="Explicit shows in Browse" label="Explicit shows in Browse" checked={on} onChange={toggle} />;
 }
 
 /** Skip lengths, and what to do about ads when they're found. */

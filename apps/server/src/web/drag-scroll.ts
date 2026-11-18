@@ -4,13 +4,16 @@ import { useEffect } from "react";
 
 /** ScrollRow's scrolling element. */
 const ROWS = ".scroll-track";
+/** Text tabs too long for their row, like Top shows' categories. Every tab is a button. */
+const TABS = ".chips[role=tablist]";
 /** How far the mouse moves before a press becomes a drag rather than a click. */
 const THRESHOLD = 6;
 
 /**
- * Lets a mouse drag sideways rows (shelves, Continue listening) the way a finger swipes them.
- * Touch already scrolls natively, so only mouse presses are handled. A press that turns into
- * a drag swallows the click that follows, so letting go over a book doesn't open it.
+ * Lets a mouse drag sideways rows (shelves, Continue listening, text tabs that don't fit) the way
+ * a finger swipes them (the wheel over such tabs is Chips' own). Touch already scrolls natively,
+ * so only mouse presses are handled. A press that turns into a drag swallows the click that
+ * follows, so letting go over a book or a tab doesn't open it.
  */
 export function useDragToScroll() {
   useEffect(() => {
@@ -27,8 +30,9 @@ export function useDragToScroll() {
     const down = (e: PointerEvent) => {
       if (e.pointerType !== "mouse" || e.button !== 0) return;
       const target = e.target as Element;
-      if (target.closest("button, input, [role=menu]")) return;
-      const found = target.closest<HTMLElement>(ROWS);
+      const tabs = target.closest<HTMLElement>(TABS);
+      if (!tabs && target.closest("button, input, [role=menu]")) return;
+      const found = tabs ?? target.closest<HTMLElement>(ROWS);
       if (!found || found.scrollWidth <= found.clientWidth) return;
       row = found;
       startX = e.clientX;

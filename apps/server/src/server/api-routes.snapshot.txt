@@ -70,6 +70,10 @@
 /api/podcasts/[id]/episodes GET
 /api/podcasts/[id]/refresh POST
 /api/podcasts/artwork GET
+/api/podcasts/browse GET
+/api/podcasts/charts GET
+/api/podcasts/more-like GET
+/api/podcasts/not-interested DELETE PUT
 /api/podcasts/opml GET POST
 /api/podcasts/preview GET
 /api/podcasts/search GET

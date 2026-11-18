@@ -28,6 +28,7 @@ export function getPrefs(ctx: AppContext, userId: number): UserPrefs {
     repeat: saved.repeat ?? "off",
     videoQuality: saved.videoQuality ?? "full",
     autoplayNext: saved.autoplayNext ?? true,
+    explicitShows: saved.explicitShows ?? true,
   };
 }
 

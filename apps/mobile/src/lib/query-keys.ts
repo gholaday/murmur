@@ -19,6 +19,7 @@ const root = {
   podcast: ["podcast"],
   podcastSearch: ["podcast-search"],
   podcastPreview: ["podcast-preview"],
+  podcastDirectory: ["podcast-directory"],
   episodes: ["episodes"],
   episode: ["episode"],
   newEpisodes: ["newEpisodes"],
@@ -61,6 +62,11 @@ export const keys = {
   podcast: (id: string) => [...root.podcast, id] as const,
   podcastSearch: (term: string) => [...root.podcastSearch, term] as const,
   podcastPreview: (feedUrl: string) => [...root.podcastPreview, feedUrl] as const,
+  /** Browse's shelves and the charts: every list from the podcast directory. */
+  podcastDirectory: root.podcastDirectory,
+  podcastBrowse: [...root.podcastDirectory, "browse"] as const,
+  podcastChart: (genreId: number | null) => [...root.podcastDirectory, "chart", genreId] as const,
+  podcastMoreLike: (feedUrl: string) => [...root.podcastDirectory, "more-like", feedUrl] as const,
   episodes: (podcastId: string) => [...root.episodes, podcastId] as const,
   /** The first page of a show's episodes, shown while the rest load. */
   episodesFirst: (podcastId: string) => [...root.episodes, podcastId, "first"] as const,

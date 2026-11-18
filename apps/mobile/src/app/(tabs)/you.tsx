@@ -8,6 +8,7 @@ import { Card, useServerVersion, useUsers, VersionNotice } from "@/components/se
 import { NavRow } from "@/components/settings-page";
 import { StatsBoundary, StatsCard } from "@/components/stats";
 import { CardLink } from "@/components/ui";
+import { useExplicitShows, useTabPrefs } from "@/lib/data";
 import { formatBytes, useDownloads } from "@/lib/downloads";
 import { useCanHideAndLike } from "@/lib/hidden";
 import { useSession } from "@/lib/session";
@@ -64,6 +65,8 @@ function SettingsRows({ admin, username }: { admin: boolean; username?: string }
   // Admin-only; listeners can't read it.
   const users = useUsers(admin).data;
   const canHide = useCanHideAndLike();
+  const tabs = useTabPrefs();
+  const explicit = useExplicitShows();
 
   return (
     <Card>
@@ -71,13 +74,10 @@ function SettingsRows({ admin, username }: { admin: boolean; username?: string }
       <NavRow title="Appearance" value={THEME_CHOICES.find((x) => x.id === mode)?.label} href="/appearance" />
       <NavRow title="Playback" href="/playback" />
       <NavRow title="Server" value={version ? `Murmur ${version.version}` : null} href="/server" />
-      {admin ? (
-        <>
-          <NavRow title="Library" href="/library" />
-          <NavRow title="Podcasts" href="/episode-cache" />
-          <NavRow title="Users" value={users ? String(users.length) : null} href="/users" />
-        </>
-      ) : null}
+      {admin ? <NavRow title="Library" href="/library" /> : null}
+      {/* Everyone has Explicit shows in Browse while Podcasts is on; admins have the episode settings too. */}
+      {admin || (tabs.podcasts && explicit !== undefined) ? <NavRow title="Podcasts" href="/episode-cache" /> : null}
+      {admin ? <NavRow title="Users" value={users ? String(users.length) : null} href="/users" /> : null}
       <NavRow title="Tabs" href="/tab-settings" last={!canHide} />
       {canHide ? <NavRow title="Hidden" href="/hidden" last /> : null}
     </Card>

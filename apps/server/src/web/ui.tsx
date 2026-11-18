@@ -12,35 +12,43 @@ import { plural } from "@murmur/shared/client";
 import { BackIcon, ChevronIcon, MoreIcon, SearchIcon } from "./icons";
 
 /**
+ * Whether a sideways row is at its start and its end, for arrows that page it. `items` is how
+ * many things it holds. With `on` false it measures nothing, for rows that never show their ends.
+ */
+function useScrollEnds(ref: React.RefObject<HTMLDivElement | null>, items: number, on = true) {
+  const [ends, setEnds] = useState({ start: true, end: true });
+  const update = () => {
+    const el = ref.current;
+    if (!el || !on) return;
+    const start = el.scrollLeft <= 1;
+    const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
+    setEnds((e) => (e.start === start && e.end === end ? e : { start, end }));
+  };
+  // Items can arrive after the first paint, and the window can be resized. Not on every render: a
+  // page of rows would measure them all on each keystroke, and an arrow showing can shift the
+  // measure and flip the ends back and forth.
+  useEffect(update, [items]);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !on) return;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [on]);
+  const page = (dir: 1 | -1) => {
+    const el = ref.current;
+    el?.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: "smooth" });
+  };
+  return { ends, update, page };
+}
+
+/**
  * A sideways row (`shelf` or `row-scroll`) with arrows that page it left and right. They only
  * show for a mouse, while it's over the row, and each hides once its end is reached.
  */
 export function ScrollRow({ className = "shelf", children }: { className?: string; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [ends, setEnds] = useState({ start: true, end: true });
-  const update = () => {
-    const el = ref.current;
-    if (!el) return;
-    const start = el.scrollLeft <= 1;
-    const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
-    setEnds((e) => (e.start === start && e.end === end ? e : { start, end }));
-  };
-  // Cards can arrive after the first paint, and the window can be resized. Not on every render: a
-  // page of rows would measure them all on each keystroke, and an arrow showing can shift the
-  // measure and flip the ends back and forth.
-  const cards = Children.count(children);
-  useEffect(update, [cards]);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  const page = (dir: 1 | -1) => {
-    const el = ref.current;
-    el?.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: "smooth" });
-  };
+  const { ends, update, page } = useScrollEnds(ref, Children.count(children));
   return (
     <div className="scroll-row">
       {/* .scroll-track: every sideways row, for its scrollbar and for dragging with the mouse (drag-scroll.ts). */}
@@ -253,11 +261,39 @@ export function Chips({
   children: React.ReactNode;
 }) {
   const role = kind === "tabs" ? "tablist" : kind === "radio" ? "radiogroup" : undefined;
+  const ref = useRef<HTMLDivElement>(null);
+  const tabs = kind === "tabs";
+  const { ends, update } = useScrollEnds(ref, Children.count(children), tabs);
+  // A plain wheel only scrolls up and down; over tabs that don't fit, it moves them sideways.
+  // Listened for on the tabs alone: a wheel listener that can cancel slows scrolling wherever it covers.
+  useEffect(() => {
+    const el = ref.current;
+    if (!tabs || !el) return;
+    const wheel = (e: WheelEvent) => {
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 0 || Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
+      // At either end, let the page scroll on as usual.
+      if ((e.deltaY < 0 && el.scrollLeft <= 0) || (e.deltaY > 0 && el.scrollLeft >= max - 1)) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener("wheel", wheel, { passive: false });
+    return () => el.removeEventListener("wheel", wheel);
+  }, [tabs]);
   return (
     <ChipsKindContext.Provider value={kind}>
-      <div className="chips" role={role} aria-label={label} style={wrap ? { flexWrap: "wrap" } : undefined}>
+      <div
+        ref={ref}
+        className="chips"
+        role={role}
+        aria-label={label}
+        style={wrap ? { flexWrap: "wrap" } : undefined}
+        onScroll={tabs ? update : undefined}
+        // Tabs too long for the row fade out at an end that has more, so it reads as scrollable.
+        data-more={tabs ? (ends.start ? (ends.end ? undefined : "end") : ends.end ? "start" : "both") : undefined}
+      >
         {children}
-        {kind === "tabs" ? <TabInk /> : null}
+        {tabs ? <TabInk /> : null}
       </div>
     </ChipsKindContext.Provider>
   );

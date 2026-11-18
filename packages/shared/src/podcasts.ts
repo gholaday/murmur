@@ -1,4 +1,4 @@
-import type { EpisodeCacheStatusDto, EpisodeDto, EpisodeWithShow, PodcastSummary } from "./index";
+import type { EpisodeCacheStatusDto, EpisodeDto, EpisodeWithShow, PodcastSearchResult, PodcastSummary } from "./index";
 
 // Podcast lists and settings shared by the web player and the Android app.
 
@@ -14,11 +14,64 @@ export function sortShows(shows: PodcastSummary[], sort: PodcastSort): PodcastSu
   return out.sort((a, b) => (b.latestPublishedAt ?? 0) - (a.latestPublishedAt ?? 0));
 }
 
-export type PodcastTab = "home" | "shows";
+export type PodcastTab = "home" | "shows" | "browse";
 export const PODCAST_TABS: Array<{ id: PodcastTab; label: string }> = [
   { id: "home", label: "Home" },
   { id: "shows", label: "Shows" },
+  { id: "browse", label: "Browse" },
 ];
+
+// ---------- Browse ----------
+
+/** Apple Podcasts' top-level categories, which Browse's charts are per. Names are shortened. */
+export const PODCAST_GENRES: Array<{ id: number; name: string }> = [
+  { id: 1301, name: "Arts" },
+  { id: 1321, name: "Business" },
+  { id: 1303, name: "Comedy" },
+  { id: 1304, name: "Education" },
+  { id: 1483, name: "Fiction" },
+  { id: 1511, name: "Government" },
+  { id: 1512, name: "Health" },
+  { id: 1487, name: "History" },
+  { id: 1305, name: "Kids and family" },
+  { id: 1502, name: "Leisure" },
+  { id: 1310, name: "Music" },
+  { id: 1489, name: "News" },
+  { id: 1314, name: "Religion" },
+  { id: 1533, name: "Science" },
+  { id: 1324, name: "Society and culture" },
+  { id: 1545, name: "Sports" },
+  { id: 1318, name: "Technology" },
+  { id: 1488, name: "True crime" },
+  { id: 1309, name: "TV and film" },
+];
+
+/** How many of the top shows Browse lists before its heading opens all of them. */
+export const BROWSE_TOP_SIZE = 5;
+
+/** Browse: "More like" shelves for shows you follow, then the top shows. */
+export interface PodcastBrowse {
+  moreLike: Array<{ podcastId: string; title: string; shows: PodcastSearchResult[] }>;
+  top: PodcastSearchResult[];
+}
+
+/** A followed show's More like tab: the shows its feed recommends, then similar shows, best first. */
+export interface PodcastMoreLike {
+  recommended: PodcastSearchResult[];
+  similar: PodcastSearchResult[];
+}
+
+/**
+ * The feed link in Browse's box as an https address, or null when it's words to search for.
+ * Takes "feed://", a bare host with a path, and "www." without a scheme.
+ */
+export function feedLinkIn(text: string): string | null {
+  const t = text.trim();
+  if (/^https?:\/\/\S+$/i.test(t)) return t;
+  if (/^feed:\/\/\S+$/i.test(t)) return `https://${t.slice(7)}`;
+  if (/^www\.\S+$/i.test(t) || /^[\w-]+(\.[\w-]+)+\/\S*$/.test(t)) return `https://${t}`;
+  return null;
+}
 
 /** Home's sections, each opening its full list from the heading. Every show is on the Shows tab. */
 export type PodcastListId = "continue" | "new";
@@ -49,12 +102,13 @@ export function newByShow(episodes: EpisodeWithShow[]): { episode: EpisodeWithSh
 /** Episodes shown before the rest load. */
 export const EPISODE_PAGE = 20;
 
-export type ShowTab = "episodes" | "unplayed" | "bookmarks";
+export type ShowTab = "episodes" | "unplayed" | "bookmarks" | "morelike";
 /** The show page's tabs, in order. Bookmarks only shows when the show has some. */
 export const SHOW_TABS: Array<{ id: ShowTab; label: string }> = [
   { id: "episodes", label: "Episodes" },
   { id: "unplayed", label: "Unplayed" },
   { id: "bookmarks", label: "Bookmarks" },
+  { id: "morelike", label: "More like" },
 ];
 
 /** The Unplayed tab: episodes not finished, in progress ones included, in the order given. */

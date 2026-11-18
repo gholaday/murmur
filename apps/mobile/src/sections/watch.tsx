@@ -100,11 +100,14 @@ export function WatchSection() {
     // Older servers don't send these; a shelf the server couldn't build comes back empty.
     const nextInCollection = items(h.nextInCollection ?? []);
     const moreLike = items(h.moreLike?.items ?? []);
+    const surprise = items(h.surprise ?? []);
     const out: Row[] = [];
     if (h.continueWatching.length) out.push({ kind: "stills", key: "continue", title: "Continue watching", cards: h.continueWatching });
     if (h.nextEpisodes.length) out.push({ kind: "stills", key: "next", title: "Next episodes", cards: h.nextEpisodes });
     if (nextInCollection.length) out.push({ kind: "shelf", key: "collection", title: "Next in the collection", items: nextInCollection });
     if (h.moreLike && moreLike.length) out.push({ kind: "shelf", key: "like", title: h.moreLike.title, items: moreLike });
+    // Unwatched movies picked at random; the server picks again each hour.
+    if (surprise.length) out.push({ kind: "shelf", key: "surprise", title: "Surprise me", items: surprise });
     const recentMovies = recent.filter((i) => i.kind === "movie");
     const recentShows = recent.filter((i) => i.kind === "show");
     if (recentMovies.length) out.push({ kind: "shelf", key: "movies", title: "Recently added movies", items: recentMovies });

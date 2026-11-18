@@ -2,7 +2,18 @@ import { useEffect, useState } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { apiPaths, duration, type PodcastPreview, type PodcastPreviewEpisode, type PodcastSummary, shortDate } from "@murmur/shared/client";
+import Reanimated from "react-native-reanimated";
+import {
+  apiPaths,
+  duration,
+  type PodcastPreview,
+  type PodcastPreviewEpisode,
+  type PodcastSummary,
+  SHOW_TABS,
+  type ShowTab,
+  shortDate,
+} from "@murmur/shared/client";
+import { MoreLikeList } from "@/components/browse";
 import { HeroBackdrop } from "@/components/hero";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
@@ -10,14 +21,17 @@ import { BackRow, Empty, NestedFallback, useBottomPad, useTopInset } from "@/com
 import { ShowHero, ShowHeroBones, SubscribeButton } from "@/components/podcasts";
 import { FadeIn } from "@/components/skeleton";
 import { StickyHeading, useStickyHeading } from "@/components/sticky-heading";
+import { TextTabs, useTabFade } from "@/components/text-tabs";
 import { toast } from "@/components/toast";
 import { Text } from "@/components/ui";
 import { api } from "@/lib/api";
 import { keys } from "@/lib/data";
-import { queryClient } from "@/lib/query";
+import { refreshAfterSubscribe, useHasDirectory } from "@/lib/directory";
 import { fonts, useTheme } from "@/theme";
 
-type Item = "top" | "heading" | "empty" | PodcastPreviewEpisode;
+type Item = "top" | "heading" | "empty" | "morelike" | PodcastPreviewEpisode;
+
+const PREVIEW_TABS = SHOW_TABS.filter((t) => t.id === "episodes" || t.id === "morelike");
 
 /** A podcast from search, read live from its feed, with Subscribe. Browse only: nothing plays. */
 export default function PreviewScreen() {
@@ -29,6 +43,9 @@ export default function PreviewScreen() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const sticky = useStickyHeading();
+  const hasDirectory = useHasDirectory();
+  const [tab, setTab] = useState<ShowTab>("episodes");
+  const tabFade = useTabFade(tab);
 
   // Read live each time; the server caches it for a few minutes.
   const query = useQuery({
@@ -63,10 +80,7 @@ export default function PreviewScreen() {
     try {
       const show = await api<PodcastSummary>(apiPaths.podcasts, { method: "POST", body: { feedUrl: preview.feedUrl } });
       toast.show(`Subscribed to ${show.title}`);
-      void queryClient.invalidateQueries({ queryKey: keys.podcasts });
-      void queryClient.invalidateQueries({ queryKey: keys.newEpisodes });
-      void queryClient.invalidateQueries({ queryKey: keys.continueEpisodes });
-      void queryClient.invalidateQueries({ queryKey: keys.all.podcastSearch });
+      refreshAfterSubscribe();
       // Replace, so back from the new podcast goes to the search, not this preview.
       router.replace(`/show/${show.id}`);
     } catch (err) {
@@ -105,7 +119,10 @@ export default function PreviewScreen() {
   );
 
   // The list's items: the top of the page, the heading (which sticks), then the episodes.
-  const items: Item[] = ["top", "heading", ...(preview.episodes.length ? preview.episodes : ["empty" as const])];
+  const items: Item[] =
+    tab === "morelike" && hasDirectory
+      ? ["top", "heading", "morelike"]
+      : ["top", "heading", ...(preview.episodes.length ? preview.episodes : ["empty" as const])];
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -122,13 +139,25 @@ export default function PreviewScreen() {
             item === "top" ? (
               topBlock
             ) : item === "heading" ? (
-              <StickyHeading title="Episodes" count={preview.episodeCount} sticky={sticky.sticky} />
+              hasDirectory ? (
+                <StickyHeading sticky={sticky.sticky}>
+                  <TextTabs options={PREVIEW_TABS} value={tab} onPick={setTab} gap={20} />
+                </StickyHeading>
+              ) : (
+                <StickyHeading title="Episodes" count={preview.episodeCount} sticky={sticky.sticky} />
+              )
+            ) : item === "morelike" ? (
+              <Reanimated.View style={[{ paddingHorizontal: PAD }, tabFade]}>
+                <MoreLikeList feedUrl={preview.feedUrl} />
+              </Reanimated.View>
             ) : item === "empty" ? (
-              <Empty>No episodes.</Empty>
+              <Reanimated.View style={tabFade}>
+                <Empty>No episodes.</Empty>
+              </Reanimated.View>
             ) : (
-              <View style={{ paddingHorizontal: PAD }}>
+              <Reanimated.View style={[{ paddingHorizontal: PAD }, tabFade]}>
                 <PreviewEpisodeRow episode={item} />
-              </View>
+              </Reanimated.View>
             )
           }
         />

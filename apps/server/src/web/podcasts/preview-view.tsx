@@ -12,19 +12,25 @@ import {
   shortDate,
   apiPaths,
   FALLBACK_TINT,
+  SHOW_TABS,
+  type ShowTab,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { PlusIcon } from "../icons";
-import { BackRow, HeroBar, Description, EmptyState, SectionTitle } from "../ui";
+import { BackRow, Chip, Chips, HeroBar, Description, EmptyState } from "../ui";
+import { MoreLikeList } from "./browse";
 
 const PAGE = 20;
+/** A show you don't follow has no unplayed episodes or bookmarks yet. */
+const PREVIEW_TABS = SHOW_TABS.filter((t) => t.id === "episodes" || t.id === "morelike");
 
 /** A podcast from search, read live from its feed, with Subscribe. Episodes can't be played yet. */
 export function PreviewView({ preview, error }: { preview?: PodcastPreview; error?: string }) {
   const router = useRouter();
   const [limit, setLimit] = useState(PAGE);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<ShowTab>("episodes");
 
   if (!preview) {
     return (
@@ -77,12 +83,21 @@ export function PreviewView({ preview, error }: { preview?: PodcastPreview; erro
       {preview.description ? <Description text={preview.description} longerThan={140} lines={2} /> : null}
 
       <div className="episodes-head">
-        <div className="section-head">
-          <SectionTitle title="Episodes" count={preview.episodeCount} noun="episode" />
+        <div className="show-tabs">
+          <Chips kind="tabs" label="Episodes view">
+            {PREVIEW_TABS.map((t) => (
+              <Chip key={t.id} selected={tab === t.id} onClick={() => setTab(t.id)}>
+                {t.label}
+              </Chip>
+            ))}
+          </Chips>
         </div>
       </div>
 
-      {preview.episodes.length === 0 ? (
+      <div key={tab} className="view-fade">
+      {tab === "morelike" ? (
+        <MoreLikeList feedUrl={preview.feedUrl} />
+      ) : preview.episodes.length === 0 ? (
         <EmptyState>No episodes.</EmptyState>
       ) : (
         <div>
@@ -98,6 +113,7 @@ export function PreviewView({ preview, error }: { preview?: PodcastPreview; erro
           ) : null}
         </div>
       )}
+      </div>
     </>
   );
 }

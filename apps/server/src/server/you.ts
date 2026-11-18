@@ -36,6 +36,7 @@ export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<Rea
     watch: watchSummary(ctx),
     tabs: prefs.tabs,
     autoplayNext: prefs.autoplayNext,
+    explicitShows: prefs.explicitShows,
     user,
     users,
     folders: user.isAdmin ? await folderList(ctx.db, ctx.sqlite) : [],

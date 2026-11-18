@@ -13,6 +13,7 @@ import {
   unplayedEpisodes,
 } from "@murmur/shared/client";
 import { BookmarkRows, openBookmark } from "@/components/bookmarks";
+import { MoreLikeList } from "@/components/browse";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { EpisodeRow } from "@/components/episode-row";
 import { HeroBackdrop } from "@/components/hero";
@@ -30,11 +31,12 @@ import { Button, IconButton, Text } from "@/components/ui";
 import { api } from "@/lib/api";
 import { usePodcastBookmarks } from "@/lib/bookmarks";
 import { invalidateListening, keys, useEpisodes, useFirstEpisodes, usePodcast } from "@/lib/data";
+import { useHasDirectory } from "@/lib/directory";
 import { queryClient } from "@/lib/query";
 import { refreshUpNext } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
-type Item = "top" | "heading" | "empty" | "bookmarks" | EpisodeWithShow;
+type Item = "top" | "heading" | "empty" | "bookmarks" | "morelike" | EpisodeWithShow;
 
 /** A podcast's bookmarks by episode, the most recently bookmarked first. */
 function byEpisode(bookmarks: BookmarkDto[]): BookmarkDto[][] {
@@ -48,7 +50,9 @@ export default function ShowScreen() {
   const t = useTheme();
   const top = useTopInset();
   const bottomPad = useBottomPad();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `tab` opens a tab other than Episodes, e.g. More like from a Browse shelf.
+  const { id, tab: openOn } = useLocalSearchParams<{ id: string; tab?: string }>();
+  const hasDirectory = useHasDirectory();
   const podcast = usePodcast(id);
   // The newest page shows first; the full list loads once you scroll past it, ask for more,
   // search or sort oldest first. Offline, whichever of the two is cached shows.
@@ -84,12 +88,19 @@ export default function ShowScreen() {
         : [],
     [data, show],
   );
-  const [tab, setTab] = useState<ShowTab>("episodes");
+  const [tab, setTab] = useState<ShowTab>(openOn === "morelike" ? "morelike" : "episodes");
   // Bookmarks is only a tab while there are some; deleting the last one goes back to Episodes.
-  const shownTab: ShowTab = tab === "bookmarks" && !bookmarks.length ? "episodes" : tab;
-  // Kept there, so a bookmark added later doesn't switch tabs by itself.
-  if (shownTab !== tab) setTab(shownTab);
-  const tabs = useMemo(() => (bookmarks.length ? SHOW_TABS : SHOW_TABS.filter((s) => s.id !== "bookmarks")), [bookmarks.length]);
+  // More like needs a server with the podcast directory.
+  const shownTab: ShowTab = (tab === "bookmarks" && !bookmarks.length) || (tab === "morelike" && !hasDirectory) ? "episodes" : tab;
+  // Kept there, so a bookmark added later doesn't switch tabs by itself. More like stays asked
+  // for, in case prefs are still loading.
+  if (shownTab !== tab && tab === "bookmarks") setTab(shownTab);
+  const tabs = useMemo(
+    () => SHOW_TABS.filter((s) => (s.id !== "bookmarks" || bookmarks.length) && (s.id !== "morelike" || hasDirectory)),
+    [bookmarks.length, hasDirectory],
+  );
+  // Search and sort are for episodes; bookmarks and similar shows are as they are.
+  const episodeTab = shownTab === "episodes" || shownTab === "unplayed";
   const tabFade = useTabFade(shownTab);
   // Set when Unplayed had to wait for the full list, so its rows fade in when it comes.
   const [unplayedWaited, setUnplayedWaited] = useState(false);
@@ -117,6 +128,7 @@ export default function ShowScreen() {
   // The list's items: the top of the page, the heading (which sticks), then the tab's content.
   const items: Item[] = useMemo(() => {
     if (shownTab === "bookmarks") return ["top", "heading", "bookmarks"];
+    if (shownTab === "morelike") return ["top", "heading", "morelike"];
     // Unplayed waits for the full list, so it never shows the first page's unplayed as all of them.
     // Offline the fetch pauses rather than runs, and whatever is cached shows.
     if (shownTab === "unplayed" && !complete && full.isFetching) return ["top", "heading"];
@@ -194,8 +206,7 @@ export default function ShowScreen() {
         onPick={pickTab}
         gap={20}
         trailing={
-          // Search and sort are for episodes; the bookmarks are as they are.
-          shownTab === "bookmarks" ? null : (
+          !episodeTab ? null : (
             <>
               <IconButton
                 label={searching ? "Close search" : "Search episodes"}
@@ -214,7 +225,7 @@ export default function ShowScreen() {
           )
         }
       />
-      {searching && shownTab !== "bookmarks" ? (
+      {searching && episodeTab ? (
           <View
             style={{
               flexDirection: "row",
@@ -275,6 +286,10 @@ export default function ShowScreen() {
                 ) : (
                   <Empty>No episodes.</Empty>
                 )}
+              </Reanimated.View>
+            ) : item === "morelike" ? (
+              <Reanimated.View style={[{ paddingHorizontal: PAD }, tabFade]}>
+                <MoreLikeList feedUrl={show.feedUrl} />
               </Reanimated.View>
             ) : item === "bookmarks" ? (
               <Reanimated.View style={[{ paddingHorizontal: PAD - 12, paddingTop: 8, gap: 12 }, tabFade]}>

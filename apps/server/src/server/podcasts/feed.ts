@@ -27,6 +27,8 @@ export interface ParsedFeed {
   imageUrl: string | null;
   /** `<itunes:block>Yes</itunes:block>`: the feed asks directories not to list it. */
   unlisted: boolean;
+  /** Feed links of the shows the feed itself recommends (`podcast:podroll`), at most 20. */
+  podroll: string[];
   episodes: ParsedEpisode[];
 }
 
@@ -44,7 +46,7 @@ const parser = new XMLParser({
   trimValues: true,
   processEntities: entityLimits,
   htmlEntities: true,
-  isArray: (name) => name === "item" || name === "outline" || name === "psc:chapter",
+  isArray: (name) => name === "item" || name === "outline" || name === "psc:chapter" || name === "podcast:remoteItem",
 });
 
 /** Types an episode's audio may be served as. Anything else a feed claims is served as MP3 instead of trusted. */
@@ -181,6 +183,14 @@ export function parseFeed(xml: string): ParsedFeed {
     imageUrl: httpUrl(attr(channel["itunes:image"], "href") ?? text((channel.image as Node | undefined)?.url)),
     // Asks directories not to list it, which private and members-only feeds almost always do.
     unlisted: text(channel["itunes:block"])?.toLowerCase() === "yes",
+    // Entries with only a feedGuid need Podcast Index to find their feed, so they're skipped.
+    podroll: [
+      ...new Set(
+        (((channel["podcast:podroll"] as Node | undefined)?.["podcast:remoteItem"] as Node[] | undefined) ?? [])
+          .map((r) => httpUrl(attr(r, "feedUrl")))
+          .filter((u): u is string => !!u),
+      ),
+    ].slice(0, 20),
     episodes,
   };
 }

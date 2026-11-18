@@ -72,6 +72,7 @@ function App({ signedIn }: { signedIn: boolean }) {
           <Stack.Screen name="shelf" />
           <Stack.Screen name="podcast-list" />
           <Stack.Screen name="preview" />
+          <Stack.Screen name="top-shows" />
           <Stack.Screen name="account" />
           <Stack.Screen name="appearance" />
           <Stack.Screen name="playback" />

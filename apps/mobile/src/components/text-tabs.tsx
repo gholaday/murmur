@@ -14,6 +14,8 @@ const EASE = Easing.bezier(0.2, 0.8, 0.2, 1);
 
 /** Where each remembered tab row's line last was, and when. */
 const lastLine = new Map<string, { value: unknown; x: number; width: number; at: number }>();
+/** The time, for lastLine; only ever read from layout and press handlers. */
+const now = () => Date.now();
 
 /**
  * Text tabs that switch what a screen shows: muted words, the picked one in the text colour, with
@@ -65,13 +67,13 @@ export function TextTabs<T extends string | number>({
     // Tabs remounted by their own switch (a screen whose list changes with the tab) slide on from
     // where the line just was.
     const last = memoryKey ? lastLine.get(memoryKey) : undefined;
-    if (!placed.current && last && last.value !== to && Date.now() - last.at < 1000 && !reduced) {
+    if (!placed.current && last && last.value !== to && now() - last.at < 1000 && !reduced) {
       lineX.set(last.x);
       lineWidth.set(last.width);
       placed.current = true;
       slide = true;
     }
-    if (memoryKey) lastLine.set(memoryKey, { value: to, x: spot.x, width: spot.width, at: Date.now() });
+    if (memoryKey) lastLine.set(memoryKey, { value: to, x: spot.x, width: spot.width, at: now() });
     if (slide && placed.current && !reduced) {
       lineX.set(withTiming(spot.x, { duration: SLIDE_MS, easing: EASE }));
       lineWidth.set(withTiming(spot.width, { duration: SLIDE_MS, easing: EASE }));
@@ -82,15 +84,28 @@ export function TextTabs<T extends string | number>({
     placed.current = true;
   };
 
-  // Slides the line over, and keeps the picked tab on screen, as when Search opens on a kind's tab.
-  useEffect(() => {
-    moveLine(value, true);
+  // Keeps the picked tab on screen.
+  const bringIntoView = (animated: boolean) => {
     const spot = spots.current.get(value);
     if (!spot || !box.current) return;
     const right = spot.x + spot.width + inset;
-    if (right > box.current) scroll.current?.scrollTo({ x: right - box.current, animated: !reduced });
-    else if (spot.x - inset < 0) scroll.current?.scrollTo({ x: 0, animated: !reduced });
-    // moveLine reads refs and shared values only.
+    if (right > box.current) scroll.current?.scrollTo({ x: right - box.current, animated });
+    else if (spot.x - inset < 0) scroll.current?.scrollTo({ x: 0, animated });
+  };
+  // Until the row and the picked tab are both measured, the tab can't be brought into view; the
+  // first time they are, it's put there without scrolling, as when a screen opens on a far tab.
+  const shown = useRef(false);
+  const firstView = () => {
+    if (shown.current || !spots.current.has(value) || !box.current) return;
+    shown.current = true;
+    bringIntoView(false);
+  };
+
+  // Slides the line over, and scrolls the picked tab into view, as when Search's kind changes.
+  useEffect(() => {
+    moveLine(value, true);
+    bringIntoView(!reduced);
+    // moveLine and bringIntoView read refs and shared values only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, inset, reduced]);
 
@@ -111,7 +126,10 @@ export function TextTabs<T extends string | number>({
         {...touch}
         style={trailing ? { flex: 1 } : null}
         showsHorizontalScrollIndicator={false}
-        onLayout={(e) => (box.current = e.nativeEvent.layout.width)}
+        onLayout={(e) => {
+          box.current = e.nativeEvent.layout.width;
+          firstView();
+        }}
         contentContainerStyle={{ paddingHorizontal: inset, gap }}
       >
         {options.map((o) => {
@@ -123,13 +141,16 @@ export function TextTabs<T extends string | number>({
               accessibilityState={{ selected }}
               onLayout={(e) => {
                 spots.current.set(o.id, { x: e.nativeEvent.layout.x, width: e.nativeEvent.layout.width });
-                if (o.id === value) moveLine(o.id, false);
+                if (o.id === value) {
+                  moveLine(o.id, false);
+                  firstView();
+                }
               }}
               onPress={() => {
                 if (!selected) selectHaptic();
                 // Stamped as the switch starts, so the line the next mount finds is fresh.
                 const from = spots.current.get(value);
-                if (memoryKey && from) lastLine.set(memoryKey, { value, x: from.x, width: from.width, at: Date.now() });
+                if (memoryKey && from) lastLine.set(memoryKey, { value, x: from.x, width: from.width, at: now() });
                 onPick(o.id);
               }}
               hitSlop={{ left: 12, right: 12 }}
