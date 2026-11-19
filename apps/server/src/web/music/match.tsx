@@ -17,10 +17,11 @@ import {
   errorText,
   plural,
   apiPaths,
+  reviewLabel,
   storageKeys,
 } from "@murmur/shared/client";
 import { api } from "../api";
-import { scoreClass } from "../book/match-dialog";
+import { scoreClass, usePreviewAhead } from "../book/match-dialog";
 import { Cover } from "../cover";
 import { BackIcon, CloseIcon } from "../icons";
 import { useBackdropClose } from "../sheet";
@@ -158,12 +159,22 @@ function AlbumMatchPanel({ albumId, onApplied }: { albumId: string; onApplied: (
     void search();
   }, [search]);
 
+  const loadPreview = useCallback(
+    (key: string) => {
+      const c = result?.candidates.find((x) => keyOf(x) === key);
+      return c ? api<AlbumMatchPreview>(apiPaths.albumMatchPreview(albumId, c)) : null;
+    },
+    [result, albumId],
+  );
+  const ahead = usePreviewAhead(selected, loadPreview);
+  const changes = ahead ? ALBUM_FIELDS.filter((f) => canApply(ahead, f.field)).length : null;
+
   const review = async () => {
-    const c = result?.candidates.find((x) => keyOf(x) === selected);
-    if (!c) return;
+    if (!selected) return;
     setBusy(true);
     try {
-      const p = await api<AlbumMatchPreview>(apiPaths.albumMatchPreview(albumId, c));
+      const p = ahead ?? (await loadPreview(selected));
+      if (!p) return;
       setPreview(p);
       setChosen(new Set(lastAlbumFields() ?? p.recommended));
     } catch (err) {
@@ -275,12 +286,13 @@ function AlbumMatchPanel({ albumId, onApplied }: { albumId: string; onApplied: (
               <p className="muted">No results.</p>
             ) : (
               <>
-                <div className="match-bar">
-                  <span className="muted small">{plural(result.candidates.length, "result")}</span>
-                  <button type="button" className="btn btn-primary" disabled={!selected || busy} onClick={() => void review()}>
-                    {busy ? "Loading…" : selected ? "Review changes" : "Pick a result"}
-                  </button>
-                </div>
+                {selected ? (
+                  <div className="match-bar">
+                    <button type="button" className="btn btn-primary wide" disabled={busy || changes === 0} onClick={() => void review()}>
+                      {busy ? "Loading…" : reviewLabel(changes)}
+                    </button>
+                  </div>
+                ) : null}
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {result.candidates.map((c) => {
                     const k = keyOf(c);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, TextInput, View } from "react-native";
+import { Pressable, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { apiPaths, changedFields, errorText, pastStart, type WatchArtOption, type WatchMatchResult } from "@murmur/shared/client";
 import { absolute, api, authHeaders } from "@/lib/api";
@@ -7,8 +7,8 @@ import { useIsAdmin } from "@/lib/session";
 import { invalidateWatch, markWatched, openVideoPlayer, showEpisodes, useMovie, useShow } from "@/lib/watch";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { SearchIcon } from "./icons";
-import { SheetHead } from "./match";
+import { SearchButton, SearchInput, SheetHead } from "./match";
+import { PictureEdit, type PictureOption, usePicturePick } from "./picture-edit";
 import { useHealth } from "./settings";
 import { HideItem, Sheet, SheetDivider, SheetItem, useMenuIdle } from "./sheet";
 import { Bone, Skeleton } from "./skeleton";
@@ -146,6 +146,27 @@ function WatchEdit({ kind, item, startTab, open, onClose }: { kind: "movie" | "s
   const [busy, setBusy] = useState(false);
   const changes = changedFields(form, saved);
   const base = apiPaths.watchItem(kind, item.id);
+  const picture = usePicturePick();
+  const [match, setMatch] = useState<WatchMatchResult | null>(null);
+  const [matching, setMatching] = useState(false);
+  const pickTab = (next: WatchEditTab) => {
+    setTab(next);
+    picture.setPicked(null);
+  };
+
+  const applyMatch = async (r: WatchMatchResult) => {
+    setMatching(true);
+    try {
+      await api(`${base}/match`, { method: "POST", body: { tmdbId: r.tmdbId } });
+      toast.show(`Matched to ${r.title}`);
+      invalidateWatch();
+      onClose();
+    } catch (err) {
+      toast.error(errorText(err));
+    } finally {
+      setMatching(false);
+    }
+  };
 
   const save = async () => {
     setBusy(true);
@@ -186,10 +207,21 @@ function WatchEdit({ kind, item, startTab, open, onClose }: { kind: "movie" | "s
       onClose={onClose}
       head={head}
       tall
-      foot={<EditFoot changes={changes} busy={busy} disabled={!form.title.trim()} onSave={() => void save()} />}
+      // Save is for the details; the pictures and Match each have their own button, once something's picked.
+      foot={
+        tab === "details" ? (
+          <EditFoot changes={changes} busy={busy} disabled={!form.title.trim()} onSave={() => void save()} />
+        ) : tab === "match" ? (
+          match && match.tmdbId !== item.tmdbId ? (
+            <Button label={matching ? "Matching…" : "Use this match"} disabled={matching} onPress={() => void applyMatch(match)} />
+          ) : null
+        ) : (
+          picture.foot
+        )
+      }
     >
       <View style={{ paddingHorizontal: 12, gap: 14, paddingBottom: 8 }}>
-        <TextTabs options={tabs} value={tab} onPick={setTab} label="Edit" />
+        <TextTabs options={tabs} value={tab} onPick={pickTab} label="Edit" />
         {tab === "details" ? (
           FIELDS.map(({ field, label }) => (
             <View key={field} style={{ gap: 6 }}>
@@ -211,9 +243,18 @@ function WatchEdit({ kind, item, startTab, open, onClose }: { kind: "movie" | "s
             </View>
           ))
         ) : tab === "poster" || tab === "backdrop" ? (
-          <ArtTab key={tab} which={tab} kind={kind} item={item} base={base} canSuggest={canMatch && item.tmdbId !== null} />
+          <ArtTab
+            key={tab}
+            which={tab}
+            kind={kind}
+            item={item}
+            base={base}
+            canSuggest={canMatch && item.tmdbId !== null}
+            picked={picture.picked}
+            onPick={picture.setPicked}
+          />
         ) : (
-          <WatchMatchPanel kind={kind} id={item.id} title={item.title} year={item.year} tmdbId={item.tmdbId} onMatched={onClose} />
+          <WatchMatchPanel kind={kind} title={item.title} year={item.year} tmdbId={item.tmdbId} picked={match} onPick={setMatch} />
         )}
       </View>
     </Sheet>
@@ -224,10 +265,24 @@ function WatchEdit({ kind, item, startTab, open, onClose }: { kind: "movie" | "s
  * The Poster or Background tab, laid out like the book's Cover: the picture now and where it's
  * from, then choose an image, paste a link, or pick one of TMDB's.
  */
-function ArtTab({ which, kind, item, base, canSuggest }: { which: Picture; kind: "movie" | "show"; item: WatchEditable; base: string; canSuggest: boolean }) {
-  const t = useTheme();
+function ArtTab({
+  which,
+  kind,
+  item,
+  base,
+  canSuggest,
+  picked,
+  onPick,
+}: {
+  which: Picture;
+  kind: "movie" | "show";
+  item: WatchEditable;
+  base: string;
+  canSuggest: boolean;
+  picked: string | null;
+  onPick: (o: PictureOption | null) => void;
+}) {
   const [options, setOptions] = useState<WatchArtOption[] | null>(null);
-  const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const hash = which === "poster" ? item.posterHash : item.backdropHash;
   const artUrl = kind === "movie" ? apiPaths.movieArtUrl : apiPaths.showArtUrl;
@@ -260,10 +315,7 @@ function ArtTab({ which, kind, item, base, canSuggest }: { which: Picture; kind:
     }
   };
 
-  const choose = async () => {
-    const picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 1 });
-    const file = picked.canceled ? null : picked.assets[0];
-    if (!file) return;
+  const upload = (file: ImagePicker.ImagePickerAsset) => {
     void act(async () => {
       const body = new FormData();
       // React Native's FormData takes a file as its uri, name and type.
@@ -273,92 +325,57 @@ function ArtTab({ which, kind, item, base, canSuggest }: { which: Picture; kind:
     });
   };
 
-  const columns = poster ? 3 : 2;
-  const thumb = { flexBasis: `${100 / columns - 3}%` as const, flexGrow: 0 };
   return (
-    <>
-      <View style={{ flexDirection: "row", gap: 14, alignItems: "flex-end" }}>
-        <Cover path={hash ? artUrl(item.id, which, hash, "large") : null} title={item.title} color={item.color} size={140} aspectRatio={poster ? 2 / 3 : 16 / 9} radius={10} />
-        <View style={{ flex: 1, gap: 10 }}>
-          <Text variant="small">{item.chosenArt[which] ? "Your own picture" : hash ? "From TMDB" : "No picture yet"}</Text>
-          {/* Takes off the chosen picture; TMDB's, or the files' after a rescan, comes back. */}
-          {item.chosenArt[which] ? (
-            <Button
-              label="Remove"
-              kind="secondary"
-              disabled={busy}
-              onPress={() => void act(() => api(`${base}/${which}`, { method: "DELETE" }), "Removed")}
-              style={{ paddingHorizontal: 16 }}
-            />
-          ) : null}
-        </View>
-      </View>
-      <Button label="Choose an image" kind="secondary" disabled={busy} onPress={() => void choose()} />
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        <Input value={url} onChangeText={setUrl} placeholder="Or paste an image link" accessibilityLabel="Image link" keyboardType="url" autoCapitalize="none" autoCorrect={false} style={{ flex: 1 }} />
-        <Button
-          label="Use link"
-          kind="secondary"
-          disabled={busy || !url.trim()}
-          onPress={() => void act(() => api(`${base}/${which}`, { method: "POST", body: { url: url.trim() } })).then((ok) => ok && setUrl(""))}
-          style={{ height: 48, paddingHorizontal: 18 }}
-        />
-      </View>
-      {canSuggest ? (
-        <View style={{ gap: 10 }}>
-          <Text variant="bodyStrong" style={{ fontSize: 14 }}>
-            Suggestions
-          </Text>
-          {options === null ? (
-            <Skeleton style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {Array.from({ length: columns * 2 }, (_, i) => (
-                <View key={i} style={thumb}>
-                  <Bone height={poster ? 120 : 90} radius={8} />
-                </View>
-              ))}
-            </Skeleton>
-          ) : options.length === 0 ? (
-            <Text variant="small">TMDB has no other pictures for this.</Text>
-          ) : (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {options.map((o) => (
-                <Pressable
-                  key={o.tmdbPath}
-                  accessibilityRole="button"
-                  accessibilityLabel="Use this picture"
-                  disabled={busy}
-                  onPress={() => void act(() => api(`${base}/${which}`, { method: "POST", body: { tmdbPath: o.tmdbPath } }))}
-                  style={({ pressed }) => [thumb, { opacity: pressed || busy ? 0.6 : 1 }]}
-                >
-                  <Cover path={o.thumbUrl} title={item.title} color={t.surface2} aspectRatio={poster ? 2 / 3 : 16 / 9} radius={8} />
-                </Pressable>
-              ))}
-            </View>
-          )}
-        </View>
-      ) : null}
-    </>
+    <PictureEdit
+      path={hash ? artUrl(item.id, which, hash, "large") : null}
+      title={item.title}
+      color={item.color}
+      aspectRatio={poster ? 2 / 3 : 16 / 9}
+      source={item.chosenArt[which] ? "Your own picture" : hash ? "From TMDB" : "No picture yet"}
+      // Takes off the chosen picture; TMDB's, or the files' after a rescan, comes back.
+      removeLabel={item.chosenArt[which] ? "Remove" : null}
+      onRemove={() => void act(() => api(`${base}/${which}`, { method: "DELETE" }), "Removed")}
+      busy={busy}
+      onUpload={upload}
+      onLink={(u) => act(() => api(`${base}/${which}`, { method: "POST", body: { url: u } }))}
+      options={
+        canSuggest
+          ? options?.map((o) => ({
+              key: o.tmdbPath,
+              thumb: o.thumbUrl,
+              label: "Use this picture",
+              apply: () => act(() => api(`${base}/${which}`, { method: "POST", body: { tmdbPath: o.tmdbPath } })),
+            })) ?? null
+          : undefined
+      }
+      emptyText="TMDB has no other pictures for this."
+      picked={picked}
+      onPick={onPick}
+    />
   );
 }
 
 const matchSearch = (kind: "movie" | "show", q: string, y: string) =>
   api<WatchMatchResult[]>(apiPaths.watchMatchSearch({ kind, q, year: /^\d{4}$/.test(y) ? y : undefined }));
 
-/** Match, like the web's: the title and year to search, TMDB's results, and picking one applies it straight away. */
+/**
+ * Match, like the web's: the title and year to search and TMDB's results. Tapping a result only
+ * picks it; the sheet's Use this match applies it.
+ */
 function WatchMatchPanel({
-  onMatched,
   kind,
-  id,
   title,
   year,
   tmdbId,
+  picked,
+  onPick,
 }: {
-  onMatched: () => void;
   kind: "movie" | "show";
-  id: string;
   title: string;
   year: string | null;
   tmdbId: number | null;
+  picked: WatchMatchResult | null;
+  onPick: (r: WatchMatchResult | null) => void;
 }) {
   const t = useTheme();
   const [query, setQuery] = useState(title);
@@ -397,53 +414,18 @@ function WatchMatchPanel({
     };
   }, [kind, title, year]);
 
-  const pick = async (r: WatchMatchResult) => {
-    setBusy(true);
-    try {
-      await api(`${apiPaths.watchItem(kind, id)}/match`,{ method: "POST", body: { tmdbId: r.tmdbId } });
-      toast.show(`Matched to ${r.title}`);
-      invalidateWatch();
-      onMatched();
-    } catch (err) {
-      toast.error(errorText(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const input = { color: t.text, fontFamily: fonts.medium, fontSize: 15 } as const;
+  // Until something is picked, the current match shows as the one.
+  const isOn = (r: WatchMatchResult) => (picked ? r.tmdbId === picked.tmdbId : r.tmdbId === tmdbId);
+  const submit = () => query.trim() && void search(query.trim(), yearText.trim());
   return (
     <View style={{ gap: 12, paddingBottom: 8 }}>
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, height: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: t.surface2 }}>
-          <SearchIcon size={20} color={t.muted} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Title"
-            accessibilityLabel="Search title"
-            placeholderTextColor={t.faint}
-            selectionColor={t.accent}
-            returnKeyType="search"
-            onSubmitEditing={() => query.trim() && void search(query.trim(), yearText.trim())}
-            style={[input, { flex: 1 }]}
-          />
-        </View>
-        <TextInput
-          value={yearText}
-          onChangeText={setYearText}
-          placeholder="Year"
-          accessibilityLabel="Year"
-          keyboardType="number-pad"
-          maxLength={4}
-          placeholderTextColor={t.faint}
-          selectionColor={t.accent}
-          returnKeyType="search"
-          onSubmitEditing={() => query.trim() && void search(query.trim(), yearText.trim())}
-          style={[input, { width: 76, height: 48, paddingHorizontal: 14, borderRadius: 14, backgroundColor: t.surface2 }]}
-        />
+      <View style={{ flexDirection: "row" }}>
+        <SearchInput value={query} onChange={setQuery} placeholder="Title" label="Search title" icon onSubmit={submit} />
       </View>
-      <Button label="Search" busy={busy && results !== null} disabled={!query.trim()} onPress={() => void search(query.trim(), yearText.trim())} />
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        <SearchInput value={yearText} onChange={setYearText} placeholder="Year" label="Year" year onSubmit={submit} />
+        <SearchButton disabled={busy || !query.trim()} onPress={submit} />
+      </View>
       {results === null ? (
         // Placeholders shaped like the result rows: a poster with a title, year and overview.
         <Skeleton style={{ gap: 8 }}>
@@ -467,16 +449,15 @@ function WatchMatchPanel({
           <Pressable
             key={r.tmdbId}
             accessibilityRole="button"
-            accessibilityState={{ selected: r.tmdbId === tmdbId, disabled: busy }}
-            disabled={busy}
-            onPress={() => void pick(r)}
+            accessibilityState={{ selected: isOn(r) }}
+            onPress={() => onPick(picked?.tmdbId === r.tmdbId ? null : r)}
             style={({ pressed }) => ({
               flexDirection: "row",
               gap: 12,
               padding: 8,
               borderRadius: 12,
               borderWidth: 1.5,
-              borderColor: r.tmdbId === tmdbId ? t.accent : t.line,
+              borderColor: isOn(r) ? t.accent : t.line,
               backgroundColor: pressed ? t.surface2 : "transparent",
             })}
           >

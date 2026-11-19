@@ -182,11 +182,14 @@ export function WatchEditDialog({
           )}
         </div>
 
-        <div className="edit-foot">
-          <button type="button" className="btn btn-primary" disabled={busy || !dirty || !form.title.trim()} onClick={() => void save()}>
-            {busy ? "Saving…" : saveLabel(changes)}
-          </button>
-        </div>
+        {/* Save is for the details; pictures and Match have their own buttons. */}
+        {tab === "details" ? (
+          <div className="edit-foot">
+            <button type="button" className="btn btn-primary" disabled={busy || !dirty || !form.title.trim()} onClick={() => void save()}>
+              {busy ? "Saving…" : saveLabel(changes)}
+            </button>
+          </div>
+        ) : null}
       </div>
     </dialog>
   );
@@ -213,6 +216,8 @@ function ArtworkTab({
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
+  // Tapping a suggestion only picks it; Use this picture applies it.
+  const [picked, setPicked] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const hash = which === "poster" ? item.posterHash : item.backdropHash;
   const artUrl = kind === "movie" ? apiPaths.movieArtUrl : apiPaths.showArtUrl;
@@ -254,6 +259,20 @@ function ArtworkTab({
 
   return (
     <div className="cover-tab">
+      {picked ? (
+        <div className="match-bar">
+          <button
+            type="button"
+            className="btn btn-primary wide"
+            disabled={busy}
+            onClick={() =>
+              void act(() => api(`${base}/${which}`, { method: "POST", body: { tmdbPath: picked } })).then((ok) => ok && setPicked(null))
+            }
+          >
+            {busy ? "Saving…" : "Use this picture"}
+          </button>
+        </div>
+      ) : null}
       <div className="cover-current">
         <Cover
           src={hash ? artUrl(item.id, which, hash, "large") : null}
@@ -333,8 +352,9 @@ function ArtworkTab({
                   key={o.tmdbPath}
                   type="button"
                   disabled={busy}
-                  aria-label="Use this picture"
-                  onClick={() => void act(() => api(`${base}/${which}`, { method: "POST", body: { tmdbPath: o.tmdbPath } }))}
+                  aria-label="Pick this picture"
+                  aria-pressed={picked === o.tmdbPath}
+                  onClick={() => setPicked(picked === o.tmdbPath ? null : o.tmdbPath)}
                 >
                   <img src={o.thumbUrl} alt="" loading="lazy" />
                 </button>

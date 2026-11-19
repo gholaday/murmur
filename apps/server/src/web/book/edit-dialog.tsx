@@ -262,11 +262,14 @@ export function EditBookDialog({
             )}
           </div>
 
-          <div className="edit-foot">
-            <button type="button" className="btn btn-primary" disabled={busy || !(detailsDirty || chaptersDirty)} onClick={() => void save()}>
-              {busy ? "Saving…" : saveLabel(detailChanges + chapterChanges)}
-            </button>
-          </div>
+          {/* Save is for the details and chapters; the cover, Match and files act on their own. */}
+          {tab === "details" || tab === "chapters" ? (
+            <div className="edit-foot">
+              <button type="button" className="btn btn-primary" disabled={busy || !(detailsDirty || chaptersDirty)} onClick={() => void save()}>
+                {busy ? "Saving…" : saveLabel(detailChanges + chapterChanges)}
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </dialog>
@@ -436,6 +439,8 @@ function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
   const [url, setUrl] = useState("");
   const [dragging, setDragging] = useState(false);
   const [suggestions, setSuggestions] = useState<MatchSearchResult | null>(null);
+  // Tapping a suggestion only picks it; Use this picture applies it.
+  const [picked, setPicked] = useState<string | null>(null);
   const book = info.book;
 
   useEffect(() => {
@@ -466,6 +471,13 @@ function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
 
   return (
     <div className="cover-tab">
+      {picked ? (
+        <div className="match-bar">
+          <button type="button" className="btn btn-primary wide" disabled={busy} onClick={() => void fromUrl(picked).then(() => setPicked(null))}>
+            {busy ? "Saving…" : "Use this picture"}
+          </button>
+        </div>
+      ) : null}
       <div className="cover-current">
         <Cover
           src={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 600) : null}
@@ -484,7 +496,7 @@ function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
             disabled={busy}
             onClick={() => void act(() => api<BookEditInfo>(apiPaths.bookCover(book.id), { method: "DELETE" }), "Using the files' cover")}
           >
-            {info.scannedCoverHash ? "Use the files' cover" : "Remove custom cover"}
+            Remove
           </button>
         ) : null}
       </div>
@@ -550,8 +562,9 @@ function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
                 key={`${c.provider}:${c.providerId}`}
                 type="button"
                 disabled={busy}
-                onClick={() => void fromUrl(c.coverUrl!)}
-                aria-label={`Use the ${PROVIDER_NAME[c.provider]} cover of ${c.title}`}
+                aria-pressed={picked === c.coverUrl}
+                onClick={() => setPicked(picked === c.coverUrl ? null : c.coverUrl!)}
+                aria-label={`Pick the ${PROVIDER_NAME[c.provider]} cover of ${c.title}`}
               >
                 <img src={c.coverUrl!} alt="" loading="lazy" />
                 <span className="small">{PROVIDER_NAME[c.provider]}</span>

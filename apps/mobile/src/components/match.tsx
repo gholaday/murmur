@@ -15,6 +15,7 @@ import {
   type MatchSearchResult,
   type MatchValues,
   plural,
+  reviewLabel,
   seriesLabel,
   storageKeys,
 } from "@murmur/shared/client";
@@ -76,7 +77,8 @@ function sameAs<F extends string, V>(fields: { field: F; text: (v: V) => string 
   return !!text(proposed) && norm(text(current)) === norm(text(proposed));
 }
 
-const keyOf = (c: { provider: string; providerId: string }) => `${c.provider}:${c.providerId}`;
+type ResultRef = { provider: string; providerId: string };
+const keyOf = (c: ResultRef) => `${c.provider}:${c.providerId}`;
 
 /** Keeps a sheet's subject while it slides away, and counts each opening so its state starts afresh. */
 function useOpening<T>(value: T | null) {
@@ -86,6 +88,26 @@ function useOpening<T>(value: T | null) {
     setState({ open, shown: open ? value : state.shown, round: open && !state.open ? state.round + 1 : state.round });
   }
   return { open, shown: state.shown, round: state.round };
+}
+
+/**
+ * The picked result's preview, loaded as soon as it's picked so Review can say how many changes it
+ * makes. A failed load leaves the count off; Review asks again and says what went wrong.
+ */
+function usePreviewAhead<P>(picked: ResultRef | null, load: (c: ResultRef) => Promise<P>): P | null {
+  const [ahead, setAhead] = useState<{ picked: ResultRef; preview: P } | null>(null);
+  useEffect(() => {
+    if (!picked) return;
+    let live = true;
+    load(picked).then(
+      (preview) => live && setAhead({ picked, preview }),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [picked, load]);
+  return ahead && ahead.picked === picked ? ahead.preview : null;
 }
 
 // ---------- Books ----------
@@ -142,12 +164,15 @@ export function useBookMatch(bookId: string, shown: boolean, onApplied: () => vo
     }
   };
 
+  const picked = result?.candidates.find((x) => keyOf(x) === selected) ?? null;
+  const loadPreview = useCallback((c: ResultRef) => api<MatchPreview>(apiPaths.bookMatchPreview(bookId, c)), [bookId]);
+  const ahead = usePreviewAhead(picked, loadPreview);
+
   const review = async () => {
-    const c = result?.candidates.find((x) => keyOf(x) === selected);
-    if (!c) return;
+    if (!picked) return;
     setBusy(true);
     try {
-      const p = await api<MatchPreview>(apiPaths.bookMatchPreview(bookId, c));
+      const p = ahead ?? (await loadPreview(picked));
       setPreview(p);
       setChosen(new Set(lastBookFields() ?? p.recommended));
     } catch (err) {
@@ -160,6 +185,8 @@ export function useBookMatch(bookId: string, shown: boolean, onApplied: () => vo
   const blocked = (p: MatchPreview, f: MatchField) => (f === "chapters" ? p.chaptersNote : null);
   const can = (p: MatchPreview, f: MatchField) =>
     !!BOOK_FIELDS.find((x) => x.field === f)?.text(p.proposed) && !blocked(p, f) && !sameAs(BOOK_FIELDS, p.current, p.proposed, f);
+  // The fields Review would let you apply, which is what its button counts.
+  const changes = ahead ? BOOK_FIELDS.filter((x) => can(ahead, x.field)).length : null;
   // A remembered field this result has no value for stays unticked and isn't sent.
   const fields = preview ? [...chosen].filter((f) => can(preview, f)) : [];
 
@@ -183,8 +210,8 @@ export function useBookMatch(bookId: string, shown: boolean, onApplied: () => vo
   const candidates = result?.candidates ?? [];
   const foot = preview ? (
     <ApplyButton count={fields.length} busy={busy} onPress={() => void apply()} />
-  ) : candidates.length ? (
-    <ResultsFoot count={candidates.length} picked={!!selected} busy={busy} onPress={() => void review()} />
+  ) : picked ? (
+    <ReviewButton changes={changes} busy={busy} onPress={() => void review()} />
   ) : null;
   const body = (
     <>
@@ -295,12 +322,15 @@ function AlbumMatch({ album, open, onClose }: { album: AlbumRef; open: boolean; 
     }
   };
 
+  const picked = result?.candidates.find((x) => keyOf(x) === selected) ?? null;
+  const loadPreview = useCallback((c: ResultRef) => api<AlbumMatchPreview>(apiPaths.albumMatchPreview(album.id, c)), [album.id]);
+  const ahead = usePreviewAhead(picked, loadPreview);
+
   const review = async () => {
-    const c = result?.candidates.find((x) => keyOf(x) === selected);
-    if (!c) return;
+    if (!picked) return;
     setBusy(true);
     try {
-      const p = await api<AlbumMatchPreview>(apiPaths.albumMatchPreview(album.id, c));
+      const p = ahead ?? (await loadPreview(picked));
       setPreview(p);
       setChosen(new Set(lastAlbumFields() ?? p.recommended));
     } catch (err) {
@@ -315,6 +345,7 @@ function AlbumMatch({ album, open, onClose }: { album: AlbumRef; open: boolean; 
     f === "tracks" ? p.proposed.songs.length > 0 && songsText(p.current) === songsText(p.proposed) : sameAs(ALBUM_FIELDS, p.current, p.proposed, f);
   const can = (p: AlbumMatchPreview, f: AlbumMatchField) => !!ALBUM_FIELDS.find((x) => x.field === f)?.text(p.proposed) && !blocked(p, f) && !same(p, f);
   const fields = preview ? [...chosen].filter((f) => can(preview, f)) : [];
+  const changes = ahead ? ALBUM_FIELDS.filter((x) => can(ahead, x.field)).length : null;
 
   const apply = async () => {
     if (!preview || fields.length === 0) return;
@@ -347,8 +378,8 @@ function AlbumMatch({ album, open, onClose }: { album: AlbumRef; open: boolean; 
       foot={
         preview ? (
           <ApplyButton count={fields.length} busy={busy} onPress={() => void apply()} />
-        ) : candidates.length ? (
-          <ResultsFoot count={candidates.length} picked={!!selected} busy={busy} onPress={() => void review()} />
+        ) : picked ? (
+          <ReviewButton changes={changes} busy={busy} onPress={() => void review()} />
         ) : null
       }
     >
@@ -520,28 +551,23 @@ function ReviewHead({ from, onBack }: { from: string; onBack: () => void }) {
   );
 }
 
-function ResultsFoot({ count, picked, busy, onPress }: { count: number; picked: boolean; busy: boolean; onPress: () => void }) {
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-      <Text variant="small" style={{ flex: 1 }}>
-        {plural(count, "result")}
-      </Text>
-      <Button label={picked ? "Review changes" : "Pick a result"} busy={busy} disabled={!picked} onPress={onPress} style={{ height: 48 }} />
-    </View>
-  );
+/** Review for the picked result, counting its changes once its preview is in. */
+function ReviewButton({ changes, busy, onPress }: { changes: number | null; busy: boolean; onPress: () => void }) {
+  return <Button label={reviewLabel(changes)} busy={busy} disabled={changes === 0} onPress={onPress} />;
 }
 
 function ApplyButton({ count, busy, onPress }: { count: number; busy: boolean; onPress: () => void }) {
   return <Button label={count ? `Apply ${plural(count, "field")}` : "Pick a field"} busy={busy} disabled={count === 0} onPress={onPress} />;
 }
 
-function SearchInput({
+export function SearchInput({
   value,
   onChange,
   placeholder,
   label,
   icon,
   onSubmit,
+  year,
 }: {
   value: string;
   onChange: (text: string) => void;
@@ -549,6 +575,8 @@ function SearchInput({
   label: string;
   icon?: boolean;
   onSubmit: () => void;
+  /** A four-digit year: number keys only. */
+  year?: boolean;
 }) {
   const t = useTheme();
   return (
@@ -563,13 +591,15 @@ function SearchInput({
         selectionColor={t.accent}
         returnKeyType="search"
         onSubmitEditing={onSubmit}
+        keyboardType={year ? "number-pad" : undefined}
+        maxLength={year ? 4 : undefined}
         style={{ flex: 1, color: t.text, fontFamily: fonts.medium, fontSize: 15 }}
       />
     </View>
   );
 }
 
-function SearchButton({ disabled, onPress }: { disabled: boolean; onPress: () => void }) {
+export function SearchButton({ disabled, onPress }: { disabled: boolean; onPress: () => void }) {
   return <Button label="Search" kind="secondary" disabled={disabled} onPress={onPress} style={{ height: 48, paddingHorizontal: 18 }} />;
 }
 

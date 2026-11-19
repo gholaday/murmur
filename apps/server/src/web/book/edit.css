@@ -54,7 +54,10 @@
 .art-suggest.backdrop { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
 .art-suggest img, .art-suggest .skel { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; outline: 2px solid transparent; outline-offset: 2px; }
 .art-suggest.backdrop img, .art-suggest.backdrop .skel { aspect-ratio: 16 / 9; }
-.art-suggest button:hover img { outline-color: var(--accent); }
+.art-suggest button:hover img, .art-suggest button[aria-pressed="true"] img,
+.cover-suggest button[aria-pressed="true"] img { outline-color: var(--accent); }
+/* A picture tab's Use this picture bar spans the tab, above both columns. */
+.cover-tab > .match-bar { flex-basis: 100%; }
 .match-panel { display: flex; flex-direction: column; gap: 12px; }
 /* Review and Apply stay at the top of the dialog while the results or fields scroll under them.
    The negative margins reach the dialog's edges; top matches .edit-body's top padding. */
@@ -72,6 +75,8 @@
 }
 .match-bar:first-child { margin-top: -18px; }
 .match-bar .btn-primary { margin-left: auto; }
+/* Under the results: one full-width Review that says how many changes the pick makes. */
+.match-bar .btn-primary.wide { flex: 1; margin-left: 0; }
 .chapter-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .chapter-edit { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .chapter-edit li { display: flex; align-items: center; gap: 8px; }

@@ -92,6 +92,15 @@ export function saveLabel(changes: number): string {
   return changes ? `Save ${plural(changes, "change")}` : "Save";
 }
 
+/**
+ * Match's full-width button for the picked result (with nothing picked there's no button): what
+ * it would change, once its comparison has loaded (`changes` is null until then).
+ */
+export function reviewLabel(changes: number | null): string {
+  if (changes === null) return "Review changes";
+  return changes ? `Review ${plural(changes, "change")}` : "No changes";
+}
+
 export function seriesLabel(series: string | null, position: number | null): string | null {
   if (!series) return null;
   return position === null ? series : `${series} #${position}`;

@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- provider cover thumbnails are remote */
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { apiPaths, storageKeys, type BookDetail, duration, type MatchCandidate, type MatchField, type MatchPreview, type MatchSearchResult, type MatchValues, plural, seriesLabel } from "@murmur/shared/client";
+import { apiPaths, storageKeys, type BookDetail, duration, type MatchCandidate, type MatchField, type MatchPreview, type MatchSearchResult, type MatchValues, plural, reviewLabel, seriesLabel } from "@murmur/shared/client";
 import { api } from "../api";
 import { BackIcon } from "../icons";
 
@@ -71,6 +71,27 @@ function canApply(preview: MatchPreview, field: MatchField): boolean {
   return !!entry?.show(preview.proposed) && !blocked && !isSame(preview, field);
 }
 
+/**
+ * The picked result's comparison, loaded as soon as it's picked so the button can say how many
+ * changes it would make. Null until it's in, and for a pick it doesn't belong to.
+ */
+export function usePreviewAhead<P>(selected: string | null, load: (key: string) => Promise<P> | null): P | null {
+  const [ahead, setAhead] = useState<{ key: string; preview: P } | null>(null);
+  useEffect(() => {
+    if (!selected) return;
+    let live = true;
+    // A failed load leaves the count off; Review asks again and says what went wrong.
+    load(selected)?.then(
+      (preview) => live && setAhead({ key: selected, preview }),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [selected, load]);
+  return ahead?.key === selected ? ahead.preview : null;
+}
+
 export function scoreClass(score: number) {
   return score >= 90 ? "high" : score >= 70 ? "mid" : "";
 }
@@ -113,12 +134,22 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
     void search();
   }, [search]);
 
+  const loadPreview = useCallback(
+    (key: string) => {
+      const c = result?.candidates.find((x) => keyOf(x) === key);
+      return c ? api<MatchPreview>(apiPaths.bookMatchPreview(book.id, c)) : null;
+    },
+    [result, book.id],
+  );
+  const ahead = usePreviewAhead(selected, loadPreview);
+  const changes = ahead ? FIELDS.filter((f) => canApply(ahead, f.field)).length : null;
+
   const review = async () => {
-    const c = result?.candidates.find((x) => keyOf(x) === selected);
-    if (!c) return;
+    if (!selected) return;
     setBusy(true);
     try {
-      const p = await api<MatchPreview>(apiPaths.bookMatchPreview(book.id, c));
+      const p = ahead ?? (await loadPreview(selected));
+      if (!p) return;
       setPreview(p);
       // The fields applied last time, or the recommended ones the first time.
       setChosen(new Set(lastFields() ?? p.recommended));
@@ -234,12 +265,13 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
               <p className="muted">No results.</p>
             ) : (
               <>
-                <div className="match-bar">
-                  <span className="muted small">{plural(result.candidates.length, "result")}</span>
-                  <button type="button" className="btn btn-primary" disabled={!selected || busy} onClick={() => void review()}>
-                    {busy ? "Loading…" : selected ? "Review changes" : "Pick a result"}
-                  </button>
-                </div>
+                {selected ? (
+                  <div className="match-bar">
+                    <button type="button" className="btn btn-primary wide" disabled={busy || changes === 0} onClick={() => void review()}>
+                      {busy ? "Loading…" : reviewLabel(changes)}
+                    </button>
+                  </div>
+                ) : null}
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {result.candidates.map((c) => {
                     const k = keyOf(c);

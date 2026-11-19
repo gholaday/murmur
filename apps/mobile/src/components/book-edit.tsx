@@ -20,6 +20,7 @@ import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { MinusIcon, PlusIcon } from "./icons";
 import { PROVIDER_NAME, SheetHead, useBookMatch } from "./match";
+import { PictureEdit, type PictureOption, usePicturePick } from "./picture-edit";
 import { Sheet } from "./sheet";
 import { Bone, Skeleton } from "./skeleton";
 import { toast } from "./toast";
@@ -184,6 +185,8 @@ function BookEdit({ bookId, title, startTab, open, onClose }: { bookId: string; 
     setTab("details");
   });
 
+  const picture = usePicturePick();
+
   const b = info?.book;
   const head = (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
@@ -197,8 +200,9 @@ function BookEdit({ bookId, title, startTab, open, onClose }: { bookId: string; 
       </View>
     </View>
   );
+  // Save is for details and chapters; Cover and Match each have their own button, once something's picked.
   const foot =
-    tab === "match" ? match.foot : tab === "details" || tab === "chapters" ? (
+    tab === "match" ? match.foot : tab === "cover" ? picture.foot : tab === "details" || tab === "chapters" ? (
       <EditFoot changes={detailChanges + chapterChanges} busy={busy} onSave={() => void save()} />
     ) : null;
 
@@ -206,7 +210,15 @@ function BookEdit({ bookId, title, startTab, open, onClose }: { bookId: string; 
     <Sheet open={open} onClose={onClose} head={head} foot={foot} tall>
       <View style={{ gap: 14, paddingBottom: 8 }}>
         <View style={{ paddingHorizontal: 12 }}>
-          <TextTabs options={TABS} value={tab} onPick={setTab} label="Edit" />
+          <TextTabs
+            options={TABS}
+            value={tab}
+            onPick={(next) => {
+              setTab(next);
+              picture.setPicked(null);
+            }}
+            label="Edit"
+          />
         </View>
         {tab === "match" ? (
           match.body
@@ -228,7 +240,7 @@ function BookEdit({ bookId, title, startTab, open, onClose }: { bookId: string; 
             {tab === "details" ? (
               <DetailsTab info={info} form={form} setForm={setForm} />
             ) : tab === "cover" ? (
-              <CoverTab info={info} busy={busy} act={act} />
+              <CoverTab info={info} busy={busy} act={act} picked={picture.picked} onPick={picture.setPicked} />
             ) : tab === "chapters" ? (
               <ChaptersTab info={info} rows={rows} setRows={setRows} busy={busy} act={act} />
             ) : (
@@ -342,8 +354,19 @@ function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; s
   );
 }
 
-function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act: Act }) {
-  const [url, setUrl] = useState("");
+function CoverTab({
+  info,
+  busy,
+  act,
+  picked,
+  onPick,
+}: {
+  info: BookEditInfo;
+  busy: boolean;
+  act: Act;
+  picked: string | null;
+  onPick: (o: PictureOption | null) => void;
+}) {
   const [suggestions, setSuggestions] = useState<MatchSearchResult | null>(null);
   const book = info.book;
 
@@ -358,10 +381,7 @@ function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
     };
   }, [book.id]);
 
-  const choose = async () => {
-    const picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 1 });
-    const file = picked.canceled ? null : picked.assets[0];
-    if (!file) return;
+  const upload = (file: ImagePicker.ImagePickerAsset) => {
     void act(async () => {
       const body = new FormData();
       // React Native's FormData takes a file as its uri, name and type.
@@ -373,70 +393,32 @@ function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
     }, "Cover updated");
   };
   const fromUrl = (u: string) => act(() => api<BookEditInfo>(apiPaths.bookCover(book.id), { method: "POST", body: { url: u } }), "Cover updated");
-  const covers = (suggestions?.candidates ?? []).filter((c) => c.coverUrl).slice(0, 8);
-  const thumb = { flexBasis: "22%" as const, flexGrow: 0, gap: 4 };
+  const covers = suggestions && suggestions.candidates.filter((c) => c.coverUrl).slice(0, 8);
 
   return (
-    <>
-      <View style={{ flexDirection: "row", gap: 14, alignItems: "flex-end" }}>
-        <Cover path={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 600) : null} title={book.title} color={book.coverColor} size={140} radius={10} />
-        <View style={{ flex: 1, gap: 10 }}>
-          <Text variant="small">{info.coverSource === "custom" ? "Custom cover" : info.coverSource === "files" ? "From the files" : "No cover yet"}</Text>
-          {info.coverSource === "custom" ? (
-            <Button
-              label={info.scannedCoverHash ? "Use the files' cover" : "Remove custom cover"}
-              kind="secondary"
-              disabled={busy}
-              onPress={() => void act(() => api<BookEditInfo>(apiPaths.bookCover(book.id), { method: "DELETE" }), "Using the files' cover")}
-              style={{ paddingHorizontal: 16 }}
-            />
-          ) : null}
-        </View>
-      </View>
-      <Button label="Choose an image" kind="secondary" disabled={busy} onPress={() => void choose()} />
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        <Input value={url} onChangeText={setUrl} placeholder="Or paste an image link" accessibilityLabel="Image link" keyboardType="url" autoCapitalize="none" autoCorrect={false} style={{ flex: 1 }} />
-        <Button
-          label="Use link"
-          kind="secondary"
-          disabled={busy || !url.trim()}
-          onPress={() => void fromUrl(url.trim()).then(() => setUrl(""))}
-          style={{ height: 48, paddingHorizontal: 18 }}
-        />
-      </View>
-      <Text variant="bodyStrong" style={{ fontSize: 14 }}>
-        Suggestions
-      </Text>
-      {suggestions === null ? (
-        <Skeleton style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          {[0, 1, 2, 3].map((i) => (
-            <View key={i} style={thumb}>
-              <Bone height={72} radius={8} />
-            </View>
-          ))}
-        </Skeleton>
-      ) : covers.length === 0 ? (
-        <Text variant="small">No covers found online.</Text>
-      ) : (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          {covers.map((c) => (
-            <Pressable
-              key={`${c.provider}:${c.providerId}`}
-              accessibilityRole="button"
-              accessibilityLabel={`Use the ${PROVIDER_NAME[c.provider]} cover of ${c.title}`}
-              disabled={busy}
-              onPress={() => void fromUrl(c.coverUrl!)}
-              style={({ pressed }) => [thumb, { opacity: pressed || busy ? 0.6 : 1 }]}
-            >
-              <Cover path={c.coverUrl} title={c.title} radius={8} />
-              <Text variant="small" numberOfLines={1} style={{ fontSize: 11 }}>
-                {PROVIDER_NAME[c.provider]}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-    </>
+    <PictureEdit
+      path={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 600) : null}
+      title={book.title}
+      color={book.coverColor}
+      source={info.coverSource === "custom" ? "Custom cover" : info.coverSource === "files" ? "From the files" : "No cover yet"}
+      removeLabel={info.coverSource === "custom" ? "Remove" : null}
+      onRemove={() => void act(() => api<BookEditInfo>(apiPaths.bookCover(book.id), { method: "DELETE" }), "Using the files' cover")}
+      busy={busy}
+      onUpload={upload}
+      onLink={fromUrl}
+      options={
+        covers?.map((c) => ({
+          key: `${c.provider}:${c.providerId}`,
+          thumb: c.coverUrl!,
+          label: `Use the ${PROVIDER_NAME[c.provider]} cover of ${c.title}`,
+          caption: PROVIDER_NAME[c.provider],
+          apply: () => fromUrl(c.coverUrl!),
+        })) ?? null
+      }
+      emptyText="No covers found online."
+      picked={picked}
+      onPick={onPick}
+    />
   );
 }
 

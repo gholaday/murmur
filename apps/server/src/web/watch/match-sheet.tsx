@@ -8,7 +8,7 @@ import { api } from "../api";
 
 /**
  * Match for a movie or show, in its Edit, built like an artist's Change photo: the title and year
- * to search, TMDB's results, and picking one applies it straight away.
+ * to search and TMDB's results. Tapping one picks it, and Use this match applies it.
  */
 export function WatchMatchPanel({
   kind,
@@ -49,7 +49,11 @@ export function WatchMatchPanel({
     void search(title, year ?? "");
   }, [search, title, year]);
 
-  const pick = async (r: WatchMatchResult) => {
+  // Tapping a result only picks it; Use this match applies it. The current match has nothing to apply.
+  const [picked, setPicked] = useState<WatchMatchResult | null>(null);
+  const pickable = picked && picked.tmdbId !== tmdbId ? picked : null;
+
+  const apply = async (r: WatchMatchResult) => {
     setBusy(true);
     try {
       await api(`${apiPaths.watchItem(kind, id)}/match`, { method: "POST", body: { tmdbId: r.tmdbId } });
@@ -86,6 +90,13 @@ export function WatchMatchPanel({
           </button>
         </div>
       </form>
+      {pickable ? (
+        <div className="match-bar">
+          <button type="button" className="btn btn-primary wide" disabled={busy} onClick={() => void apply(pickable)}>
+            {busy ? "Matching…" : "Use this match"}
+          </button>
+        </div>
+      ) : null}
       {results === null ? (
         <div className="loading-center" aria-busy="true" aria-label="Searching">
           <div className="spinner" />
@@ -97,9 +108,9 @@ export function WatchMatchPanel({
               key={r.tmdbId}
               type="button"
               className="candidate"
-              aria-pressed={r.tmdbId === tmdbId}
+              aria-pressed={picked ? picked.tmdbId === r.tmdbId : r.tmdbId === tmdbId}
               disabled={busy}
-              onClick={() => void pick(r)}
+              onClick={() => setPicked(picked?.tmdbId === r.tmdbId ? null : r)}
             >
               {r.posterUrl ? <img src={r.posterUrl} alt="" loading="lazy" className="match-poster" /> : <div className="cover match-poster" />}
               <span className="candidate-main">
