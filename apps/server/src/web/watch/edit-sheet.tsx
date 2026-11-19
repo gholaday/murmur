@@ -4,15 +4,14 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { apiPaths, errorText, type WatchArtOption } from "@murmur/shared/client";
+import { apiPaths, changedFields, errorText, saveLabel, type WatchArtOption } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { CloseIcon } from "../icons";
 import { useBackdropClose } from "../sheet";
-import { Chip, Chips } from "../ui";
 import { WatchMatchPanel } from "./match-sheet";
 
-export type WatchEditTab = "details" | "artwork" | "match";
+export type WatchEditTab = "details" | "poster" | "backdrop" | "match";
 
 interface Editable {
   id: string;
@@ -36,7 +35,10 @@ export function WatchEditDialog({
   tab: startTab,
   canMatch,
   onClose,
+  onChanged,
 }: {
+  /** Runs after each change, for an opener that holds its own copy of `item` (a card menu). */
+  onChanged?: () => void;
   kind: "movie" | "show";
   item: Editable;
   tab: WatchEditTab;
@@ -51,7 +53,8 @@ export function WatchEditDialog({
   const saved = { title: item.title, year: item.year ?? "", description: item.description ?? "" };
   const [form, setForm] = useState(saved);
   const [busy, setBusy] = useState(false);
-  const dirty = form.title !== saved.title || form.year !== saved.year || form.description !== saved.description;
+  const changes = changedFields(form, saved);
+  const dirty = changes > 0;
   const base = apiPaths.watchItem(kind, item.id);
 
   useEffect(() => {
@@ -61,13 +64,14 @@ export function WatchEditDialog({
 
   const save = async () => {
     setBusy(true);
+    // The form takes what was sent: a stray space saved away would otherwise still count as a change.
+    const sent = { title: form.title.trim(), year: form.year.trim(), description: form.description.trim() };
     try {
-      await api(base, {
-        method: "PATCH",
-        body: { title: form.title.trim(), year: form.year.trim() || null, description: form.description.trim() || null },
-      });
+      await api(base, { method: "PATCH", body: { title: sent.title, year: sent.year || null, description: sent.description || null } });
+      setForm(sent);
       toast("Saved");
       router.refresh();
+      onChanged?.();
     } catch (err) {
       toast.error(errorText(err));
     } finally {
@@ -77,19 +81,40 @@ export function WatchEditDialog({
 
   const tabs: Array<{ id: WatchEditTab; label: string }> = [
     { id: "details", label: "Details" },
-    { id: "artwork", label: "Artwork" },
+    { id: "poster", label: "Poster" },
+    { id: "backdrop", label: "Background" },
     ...(canMatch ? [{ id: "match" as const, label: "Match" }] : []),
   ];
+  const artUrl = kind === "movie" ? apiPaths.movieArtUrl : apiPaths.showArtUrl;
+  const field = (f: keyof typeof form, label: string, input: React.ReactNode, wide = false) => (
+    <div className={`edit-field ${wide ? "wide" : ""}`}>
+      <div className="edit-label">
+        <label htmlFor={`watch-${f}`}>{label}</label>
+        {form[f] !== saved[f] ? (
+          <button type="button" className="link-btn" onClick={() => setForm({ ...form, [f]: saved[f] })}>
+            Undo
+          </button>
+        ) : null}
+      </div>
+      {input}
+    </div>
+  );
 
   return (
-    <dialog ref={ref} className="sheet wide" aria-label="Edit" onClose={onClose} {...backdropClose}>
+    <dialog ref={ref} className="sheet wide" aria-label={kind === "movie" ? "Edit movie" : "Edit show"} onClose={onClose} {...backdropClose}>
       <div className="edit">
         <div className="edit-head">
+          <Cover
+            className="edit-thumb poster"
+            src={item.posterHash ? artUrl(item.id, "poster", item.posterHash, "small") : null}
+            color={item.color}
+            title={item.title}
+          />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="sheet-title" style={{ padding: 0 }}>
-              Edit
+              {kind === "movie" ? "Edit movie" : "Edit show"}
             </div>
-            <div className="muted small edit-sub">{item.title}</div>
+            <div className="muted small edit-sub">{[item.title, item.year].filter(Boolean).join(", ")}</div>
           </div>
           <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
             <CloseIcon />
@@ -108,16 +133,15 @@ export function WatchEditDialog({
         <div className="edit-body">
           {tab === "details" ? (
             <div className="edit-grid">
-              <div className="edit-field wide">
-                <label className="edit-label" htmlFor="watch-title">
-                  Title
-                </label>
-                <input id="watch-title" className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-              </div>
-              <div className="edit-field">
-                <label className="edit-label" htmlFor="watch-year">
-                  Year
-                </label>
+              {field(
+                "title",
+                "Title",
+                <input id="watch-title" className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />,
+                true,
+              )}
+              {field(
+                "year",
+                "Year",
                 <input
                   id="watch-year"
                   className="input"
@@ -125,23 +149,23 @@ export function WatchEditDialog({
                   maxLength={4}
                   value={form.year}
                   onChange={(e) => setForm({ ...form, year: e.target.value })}
-                />
-              </div>
-              <div className="edit-field wide">
-                <label className="edit-label" htmlFor="watch-description">
-                  Description
-                </label>
+                />,
+              )}
+              {field(
+                "description",
+                "Description",
                 <textarea
                   id="watch-description"
                   className="input"
                   rows={6}
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                />
-              </div>
+                />,
+                true,
+              )}
             </div>
-          ) : tab === "artwork" ? (
-            <ArtworkTab kind={kind} item={item} base={base} canSuggest={canMatch && item.tmdbId !== null} />
+          ) : tab === "poster" || tab === "backdrop" ? (
+            <ArtworkTab key={tab} kind={kind} which={tab} item={item} base={base} canSuggest={canMatch && item.tmdbId !== null} onChanged={onChanged} />
           ) : (
             <WatchMatchPanel
               kind={kind}
@@ -158,33 +182,37 @@ export function WatchEditDialog({
           )}
         </div>
 
-        {tab === "details" ? (
-          <div className="edit-foot">
-            {dirty ? (
-              <span className="muted small" style={{ flex: 1 }}>
-                Unsaved changes
-              </span>
-            ) : null}
-            <button type="button" className="btn" onClick={onClose}>
-              Close
-            </button>
-            <button type="button" className="btn btn-primary" disabled={busy || !dirty || !form.title.trim()} onClick={() => void save()}>
-              {busy ? "Saving…" : "Save"}
-            </button>
-          </div>
-        ) : null}
+        <div className="edit-foot">
+          <button type="button" className="btn btn-primary" disabled={busy || !dirty || !form.title.trim()} onClick={() => void save()}>
+            {busy ? "Saving…" : saveLabel(changes)}
+          </button>
+        </div>
       </div>
     </dialog>
   );
 }
 
 /** The poster or the backdrop: choose an image, paste a link, or pick one of TMDB's. */
-function ArtworkTab({ kind, item, base, canSuggest }: { kind: "movie" | "show"; item: Editable; base: string; canSuggest: boolean }) {
+function ArtworkTab({
+  kind,
+  which,
+  item,
+  base,
+  canSuggest,
+  onChanged,
+}: {
+  kind: "movie" | "show";
+  which: "poster" | "backdrop";
+  item: Editable;
+  base: string;
+  canSuggest: boolean;
+  onChanged?: () => void;
+}) {
   const router = useRouter();
-  const [which, setWhich] = useState<"poster" | "backdrop">("poster");
   const [options, setOptions] = useState<WatchArtOption[] | null>(null);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const hash = which === "poster" ? item.posterHash : item.backdropHash;
   const artUrl = kind === "movie" ? apiPaths.movieArtUrl : apiPaths.showArtUrl;
@@ -207,8 +235,11 @@ function ArtworkTab({ kind, item, base, canSuggest }: { kind: "movie" | "show"; 
       await send();
       toast(done);
       router.refresh();
+      onChanged?.();
+      return true;
     } catch (err) {
       toast.error(errorText(err));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -222,33 +253,42 @@ function ArtworkTab({ kind, item, base, canSuggest }: { kind: "movie" | "show"; 
     });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <Chips kind="tabs" label="Picture">
-        <Chip selected={which === "poster"} onClick={() => setWhich("poster")}>
-          Poster
-        </Chip>
-        <Chip selected={which === "backdrop"} onClick={() => setWhich("backdrop")}>
-          Background
-        </Chip>
-      </Chips>
-      <div style={{ width: which === "poster" ? 140 : 320, maxWidth: "100%" }}>
+    <div className="cover-tab">
+      <div className="cover-current">
         <Cover
           src={hash ? artUrl(item.id, which, hash, "large") : null}
           color={item.color}
           title={item.title}
           className={which === "poster" ? "poster" : "still"}
         />
-      </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button type="button" className="btn" disabled={busy} onClick={() => fileInput.current?.click()}>
-          Choose an image
-        </button>
+        <span className="muted small">{item.chosenArt[which] ? "Your own picture" : hash ? "From TMDB" : "No picture yet"}</span>
         {item.chosenArt[which] ? (
           <button type="button" className="btn" disabled={busy} onClick={() => void act(() => api(`${base}/${which}`, { method: "DELETE" }), "Removed")}>
             Remove
           </button>
         ) : null}
       </div>
+      <div className="cover-options">
+      <button
+        type="button"
+        className={`cover-drop ${dragging ? "over" : ""}`}
+        disabled={busy}
+        onClick={() => fileInput.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          const file = e.dataTransfer.files[0];
+          if (file) void upload(file);
+        }}
+      >
+        <strong>Upload an image</strong>
+        <span className="muted small">Drop a JPG, PNG or WebP here, or click to choose one</span>
+      </button>
       <input
         ref={fileInput}
         type="file"
@@ -265,7 +305,7 @@ function ArtworkTab({ kind, item, base, canSuggest }: { kind: "movie" | "show"; 
         onSubmit={(e) => {
           e.preventDefault();
           const link = url.trim();
-          if (link) void act(() => api(`${base}/${which}`, { method: "POST", body: { url: link } })).then(() => setUrl(""));
+          if (link) void act(() => api(`${base}/${which}`, { method: "POST", body: { url: link } })).then((ok) => ok && setUrl(""));
         }}
       >
         <input className="input" type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Or paste an image link" aria-label="Image link" />
@@ -303,6 +343,7 @@ function ArtworkTab({ kind, item, base, canSuggest }: { kind: "movie" | "show"; 
           )}
         </>
       ) : null}
+      </div>
     </div>
   );
 }

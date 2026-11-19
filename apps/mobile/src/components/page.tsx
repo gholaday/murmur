@@ -70,7 +70,7 @@ export function NestedScreen({
   const bottom = useBottomPad();
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }} refreshControl={refreshControl}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }} refreshControl={refreshControl} keyboardShouldPersistTaps="handled">
         {backdrop}
         <BackRow right={right} />
         {children}

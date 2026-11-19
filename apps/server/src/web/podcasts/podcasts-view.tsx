@@ -23,7 +23,7 @@ import { Cover } from "../cover";
 import { Mixer } from "../mixer";
 import { useNowPlaying } from "../player/engine";
 import { FilterIcon, PlusIcon } from "../icons";
-import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SectionTitle } from "../ui";
+import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SectionTitle, StickyHead } from "../ui";
 import { ChoiceSheet } from "../sheet";
 import { BrowseView } from "./browse";
 import { EpisodeActions, EpisodeRow, useEpisodePlay } from "./episode-row";
@@ -160,9 +160,11 @@ export function PodcastsView({
   if (podcasts.length === 0) {
     return (
       <>
-        <div className="page-head">
-          <h1 className="page-title">Podcasts</h1>
-        </div>
+        <StickyHead>
+          <div className="page-head">
+            <h1 className="page-title">Podcasts</h1>
+          </div>
+        </StickyHead>
         {browse}
       </>
     );
@@ -170,6 +172,7 @@ export function PodcastsView({
 
   return (
     <>
+      <StickyHead>
       <div className="page-head">
         <h1 className="page-title">Podcasts</h1>
         {tab !== "browse" ? (
@@ -193,6 +196,7 @@ export function PodcastsView({
           </Chip>
         ))}
       </Chips>
+      </StickyHead>
 
       <div key={tab} className="view-fade">
         {tab === "browse" ? (

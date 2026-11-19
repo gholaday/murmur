@@ -7,8 +7,11 @@ import {
   apiPaths,
   type BookEditInfo,
   type BookEditValues,
+  changedFields,
+  changedRows,
   type ChapterDto,
   duration,
+  saveLabel,
   type KnownSeries,
   type MatchSearchResult,
   errorText,
@@ -85,7 +88,7 @@ function formatSize(bytes: number) {
 type Row = { title: string; start: string; sec?: number };
 const rowsOf = (chapters: ChapterDto[]): Row[] => chapters.map((c) => ({ title: c.title, start: formatClock(c.startSec), sec: c.startSec }));
 const startOf = (r: Row) => (r.sec !== undefined && r.start === formatClock(r.sec) ? r.sec : parseClock(r.start));
-const sameRows = (a: Row[], b: Row[]) => a.length === b.length && a.every((r, i) => r.title === b[i]!.title && r.start === b[i]!.start);
+const sameRow = (a: Row, b: Row) => a.title === b.title && a.start === b.start;
 
 /**
  * The admin's edit dialog for one book: details, cover, chapters, match and files.
@@ -139,8 +142,10 @@ export function EditBookDialog({
     if (!open && el.open) el.close();
   }, [open, initialTab, load]);
 
-  const detailsDirty = !!(info && form && JSON.stringify(form) !== JSON.stringify(formOf(info)));
-  const chaptersDirty = !!(info && !sameRows(rows, rowsOf(info.book.chapters)));
+  const detailChanges = info && form ? changedFields(form, formOf(info)) : 0;
+  const chapterChanges = info ? changedRows(rows, rowsOf(info.book.chapters), sameRow) : 0;
+  const detailsDirty = detailChanges > 0;
+  const chaptersDirty = chapterChanges > 0;
 
   /** Runs an action that returns fresh edit info, then refreshes the page behind. */
   const act = async (fn: () => Promise<BookEditInfo | void>, done: string) => {
@@ -258,16 +263,8 @@ export function EditBookDialog({
           </div>
 
           <div className="edit-foot">
-            {detailsDirty || chaptersDirty ? (
-              <span className="muted small" style={{ flex: 1 }}>
-                Unsaved changes
-              </span>
-            ) : null}
-            <button type="button" className="btn" onClick={onClose}>
-              Close
-            </button>
             <button type="button" className="btn btn-primary" disabled={busy || !(detailsDirty || chaptersDirty)} onClick={() => void save()}>
-              {busy ? "Saving…" : "Save"}
+              {busy ? "Saving…" : saveLabel(detailChanges + chapterChanges)}
             </button>
           </div>
         </div>

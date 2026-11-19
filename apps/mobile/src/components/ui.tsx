@@ -1,4 +1,4 @@
-import { createContext, useContext, type ComponentRef, type Ref } from "react";
+import { createContext, useContext, useState, type ComponentRef, type Ref } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from "react-native";
+import { saveLabel } from "@murmur/shared/client";
 import { selectHaptic } from "@/lib/haptics";
 import { fonts, useTheme, type Theme } from "@/theme";
 import { ChevronIcon, SearchIcon } from "./icons";
@@ -96,17 +97,46 @@ export function Button({
   );
 }
 
-/** An edit sheet's footer, like the web's: Save, and with edits made, "Unsaved changes" and Close beside it. */
-export function EditFoot({ dirty, busy, disabled, onSave, onClose }: { dirty: boolean; busy: boolean; disabled: boolean; onSave: () => void; onClose: () => void }) {
+/** An edit sheet's text box: a filled field that, until you tap in, shows the start of long text. */
+export function Input({ style, onFocus, onBlur, ...rest }: TextInputProps) {
   const t = useTheme();
-  if (!dirty) return <Button label="Save" busy={busy} disabled={disabled} onPress={onSave} />;
+  const [focused, setFocused] = useState(false);
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-      <RNText style={{ flex: 1, fontFamily: fonts.medium, fontSize: 13, color: t.muted }}>Unsaved changes</RNText>
-      <Button label="Close" kind="secondary" onPress={onClose} />
-      <Button label="Save" busy={busy} disabled={disabled} onPress={onSave} />
-    </View>
+    <TextInput
+      placeholderTextColor={t.faint}
+      selectionColor={t.accent}
+      // Android shows the end of long text; until you tap in, show its start.
+      selection={focused ? undefined : { start: 0 }}
+      onFocus={(e) => {
+        setFocused(true);
+        onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        onBlur?.(e);
+      }}
+      {...rest}
+      style={[{ minHeight: 48, borderRadius: 14, paddingHorizontal: 14, backgroundColor: t.surface2, color: t.text, fontFamily: fonts.medium, fontSize: 15 }, style]}
+    />
   );
+}
+
+/** A small accent text button beside a field's label, such as Undo or Reset. */
+export function LinkButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
+  const t = useTheme();
+  return (
+    <Pressable accessibilityRole="button" hitSlop={8} disabled={disabled} onPress={onPress} style={({ pressed }) => ({ opacity: disabled ? 0.45 : pressed ? 0.6 : 1 })}>
+      <RNText style={{ fontFamily: fonts.bold, fontSize: 13, color: t.accent }}>{label}</RNText>
+    </Pressable>
+  );
+}
+
+/**
+ * An edit sheet's footer, like the web's: one full-width Save, greyed out until something changes,
+ * then saying how many. Dragging the sheet or tapping behind it closes it.
+ */
+export function EditFoot({ changes, busy, disabled, onSave }: { changes: number; busy: boolean; disabled?: boolean; onSave: () => void }) {
+  return <Button label={busy ? "Saving…" : saveLabel(changes)} disabled={!changes || disabled || busy} onPress={onSave} />;
 }
 
 /** A round icon button with a 48dp touch target. */

@@ -98,7 +98,8 @@ img.cover.pending { opacity: 0; }
 
 /* Library's title row: Books, Music and Watch at title size; scrolls sideways if it doesn't fit. */
 /* A Library section's title row and tabs stay at the top while what's under them scrolls. */
-.library-head { position: sticky; top: -16px; z-index: 5; margin: -28px -20px 0; padding: 28px 20px 0; background: var(--bg); }
+/* Podcasts and Search keep theirs up the same way (`StickyHead`). */
+.library-head, .sticky-head { position: sticky; top: -16px; z-index: 5; margin: -28px -20px 0; padding: 28px 20px 0; background: var(--bg); }
 .library-title { display: flex; align-items: baseline; gap: 14px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .library-title::-webkit-scrollbar { display: none; }
 @media (max-width: 420px) { .library-title { gap: 12px; } .library-title .page-title { font-size: 28px; } }

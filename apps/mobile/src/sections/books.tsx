@@ -404,7 +404,7 @@ function BooksTab({
 
   return (
     <SortableScrollProvider value={scroll}>
-      <Animated.ScrollView {...scrollProps} contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24 }} refreshControl={refresh}>
+      <Animated.ScrollView {...scrollProps} contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24 }} refreshControl={refresh} keyboardShouldPersistTaps="handled">
         <FadeIn when={fade} style={tabFade}>
           <SortableList
             items={customizing ? sections : shown}

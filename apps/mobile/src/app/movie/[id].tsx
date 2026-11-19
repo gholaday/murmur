@@ -94,7 +94,7 @@ function MovieView({ movie }: { movie: MovieDetail }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView ref={scroll} contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: bottomPad }}>
+      <ScrollView ref={scroll} contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: bottomPad }} keyboardShouldPersistTaps="handled">
         <WatchHero
           kind="movie"
           id={movie.id}

@@ -243,6 +243,34 @@ export function SectionTitle({
 }
 
 /**
+ * A page's title row and tabs, kept at the top while the page scrolls, as Library's are. It tells
+ * the page where it ends (`--sticky-head`), so a sticky search box further down sits under it.
+ */
+export function StickyHead({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Before paint, so a sticky box below never shows at the top for a frame.
+  useLayoutEffect(() => {
+    const head = ref.current;
+    const page = head?.parentElement;
+    if (!head || !page) return;
+    // It sticks 16px above the top (`.sticky-head`), so its bottom shows 16px short of its height.
+    const set = () => page.style.setProperty("--sticky-head", `${head.getBoundingClientRect().height - 16}px`);
+    set();
+    const watch = new ResizeObserver(set);
+    watch.observe(head);
+    return () => {
+      watch.disconnect();
+      page.style.removeProperty("--sticky-head");
+    };
+  }, []);
+  return (
+    <div ref={ref} className="sticky-head">
+      {children}
+    </div>
+  );
+}
+
+/**
  * How a row of chips behaves: `tabs` switches views, `radio` picks one setting, and `toggle`
  * turns each chip on or off by itself.
  */

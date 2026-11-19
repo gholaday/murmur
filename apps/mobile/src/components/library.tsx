@@ -45,6 +45,9 @@ export function Shelf({ children }: { children: React.ReactNode }) {
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      // A card's menu, and the edit sheet it opens, sit inside the shelf as far as touches go: without
+      // this, the first tap in that sheet with the keyboard up only closes the keyboard.
+      keyboardShouldPersistTaps="handled"
       style={{ marginHorizontal: -PAD }}
       contentContainerStyle={{ paddingHorizontal: PAD, columnGap: GAP }}
     >

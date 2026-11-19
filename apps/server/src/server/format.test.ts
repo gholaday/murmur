@@ -1,5 +1,21 @@
 import { expect, it } from "vitest";
-import { clock, duration, shortDate, timeLeft } from "@murmur/shared/client";
+import { changedFields, changedRows, clock, duration, saveLabel, shortDate, timeLeft } from "@murmur/shared/client";
+
+it("counts an edit sheet's changes, one per added, removed or changed row", () => {
+  const same = (a: string, b: string) => a === b;
+  const saved = ["a", "b", "c", "d", "e"];
+  expect(changedRows(saved, saved, same)).toBe(0);
+  expect(changedRows(["a", "c", "d", "e"], saved, same)).toBe(1);
+  expect(changedRows(["x", "a", "b", "c", "d", "e"], saved, same)).toBe(1);
+  expect(changedRows(["a", "B", "c", "d", "e"], saved, same)).toBe(1);
+  expect(changedRows([], saved, same)).toBe(5);
+  expect(changedRows(["a", "X", "d", "Y", "e", "f"], saved, same)).toBe(4);
+  expect(changedRows(["a", "a", "a"], ["a", "a"], same)).toBe(1);
+  expect(changedFields({ title: "A", year: "2020" }, { title: "B", year: "2020" })).toBe(1);
+  expect(saveLabel(0)).toBe("Save");
+  expect(saveLabel(1)).toBe("Save 1 change");
+  expect(saveLabel(3)).toBe("Save 3 changes");
+});
 
 it("shows positions as a clock", () => {
   expect(clock(0)).toBe("0:00");

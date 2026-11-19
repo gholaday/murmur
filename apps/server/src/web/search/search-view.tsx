@@ -13,7 +13,7 @@ import { SongRow } from "../music/song-row";
 import { EpisodeRow } from "../podcasts/episode-row";
 import { usePlayerControls } from "../player/engine";
 import { PodcastCard } from "../podcasts/podcasts-view";
-import { Chip, Chips, EmptyState, ScrollRow, SectionTitle } from "../ui";
+import { Chip, Chips, EmptyState, ScrollRow, SectionTitle, StickyHead } from "../ui";
 import { PosterCard, StillCard } from "../watch/cards";
 
 const KINDS: Array<{ id: SearchKind; label: string }> = [
@@ -148,6 +148,7 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
 
   return (
     <>
+      <StickyHead>
       <div className="page-head">
         <h1 className="page-title">Search</h1>
       </div>
@@ -196,6 +197,7 @@ export function SearchView({ tabs }: { tabs: UserPrefs["tabs"] }) {
           ))}
         </Chips>
       ) : null}
+      </StickyHead>
 
       {!q ? (
         <RecentSearches recent={recent} onPick={setQuery} onForget={forget} />

@@ -124,7 +124,17 @@ export function PosterCardMenu({
           />
         )}
       />
-      {editing ? <WatchEditDialog kind={kind} item={editing.item} tab={editing.tab} canMatch={tmdb} onClose={() => setEditing(null)} /> : null}
+      {editing ? (
+        <WatchEditDialog
+          kind={kind}
+          item={editing.item}
+          tab={editing.tab}
+          canMatch={tmdb}
+          onClose={() => setEditing(null)}
+          // The sheet shows this copy, which the page refreshing behind it doesn't reach.
+          onChanged={() => void load().then((item) => setEditing((e) => e && { ...e, item }), () => undefined)}
+        />
+      ) : null}
     </>
   );
 }

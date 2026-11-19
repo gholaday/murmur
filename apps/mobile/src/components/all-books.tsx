@@ -39,6 +39,7 @@ export function AllBooks() {
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <FlatList
+        keyboardShouldPersistTaps="handled"
         data={rows}
         keyExtractor={(r) => r[0]!.id}
         contentContainerStyle={{ paddingTop: top, paddingHorizontal: PAD, paddingBottom: bottomPad }}

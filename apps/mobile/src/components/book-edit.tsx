@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
-import { Pressable, TextInput, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Pressable, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import {
   apiPaths,
   type BookEditInfo,
   type BookEditValues,
+  changedFields,
+  changedRows,
   type ChapterDto,
   duration,
   errorText,
@@ -22,7 +24,7 @@ import { Sheet } from "./sheet";
 import { Bone, Skeleton } from "./skeleton";
 import { toast } from "./toast";
 import { TextTabs } from "./text-tabs";
-import { Button, Caption, EditFoot, IconButton, Text } from "./ui";
+import { Button, Caption, EditFoot, IconButton, Input, LinkButton, Text } from "./ui";
 
 // A book's Edit for admins, like the web's: details, cover, chapters, match and files. Details and
 // chapters are saved with Save; cover, match and file actions apply at once.
@@ -99,7 +101,7 @@ function formatSize(bytes: number) {
 type Row = { title: string; start: string; sec?: number };
 const rowsOf = (chapters: ChapterDto[]): Row[] => chapters.map((c) => ({ title: c.title, start: formatClock(c.startSec), sec: c.startSec }));
 const startOf = (r: Row) => (r.sec !== undefined && r.start === formatClock(r.sec) ? r.sec : parseClock(r.start));
-const sameRows = (a: Row[], b: Row[]) => a.length === b.length && a.every((r, i) => r.title === b[i]!.title && r.start === b[i]!.start);
+const sameRow = (a: Row, b: Row) => a.title === b.title && a.start === b.start;
 
 type Act = (fn: () => Promise<BookEditInfo | void>, done: string) => Promise<void>;
 
@@ -137,8 +139,11 @@ function BookEdit({ bookId, title, startTab, open, onClose }: { bookId: string; 
     };
   }, [load, adopt]);
 
-  const detailsDirty = !!(info && form && JSON.stringify(form) !== JSON.stringify(formOf(info)));
-  const chaptersDirty = !!(info && !sameRows(rows, rowsOf(info.book.chapters)));
+  // Save says how many: changed details, plus chapter rows added, removed or changed.
+  const detailChanges = info && form ? changedFields(form, formOf(info)) : 0;
+  const chapterChanges = info ? changedRows(rows, rowsOf(info.book.chapters), sameRow) : 0;
+  const detailsDirty = detailChanges > 0;
+  const chaptersDirty = chapterChanges > 0;
 
   /** Runs an action that returns fresh edit info (or fetches it), then refreshes the screens behind. */
   const act: Act = async (fn, done) => {
@@ -194,7 +199,7 @@ function BookEdit({ bookId, title, startTab, open, onClose }: { bookId: string; 
   );
   const foot =
     tab === "match" ? match.foot : tab === "details" || tab === "chapters" ? (
-      <EditFoot dirty={detailsDirty || chaptersDirty} busy={busy} disabled={!(detailsDirty || chaptersDirty)} onSave={() => void save()} onClose={onClose} />
+      <EditFoot changes={detailChanges + chapterChanges} busy={busy} onSave={() => void save()} />
     ) : null;
 
   return (
@@ -236,41 +241,23 @@ function BookEdit({ bookId, title, startTab, open, onClose }: { bookId: string; 
   );
 }
 
-function Input({ style, onFocus, onBlur, ...rest }: React.ComponentProps<typeof TextInput>) {
-  const t = useTheme();
-  const [focused, setFocused] = useState(false);
-  return (
-    <TextInput
-      placeholderTextColor={t.faint}
-      selectionColor={t.accent}
-      // Android shows the end of long text; until you tap in, show its start.
-      selection={focused ? undefined : { start: 0 }}
-      onFocus={(e) => {
-        setFocused(true);
-        onFocus?.(e);
-      }}
-      onBlur={(e) => {
-        setFocused(false);
-        onBlur?.(e);
-      }}
-      {...rest}
-      style={[{ minHeight: 48, borderRadius: 14, paddingHorizontal: 14, backgroundColor: t.surface2, color: t.text, fontFamily: fonts.medium, fontSize: 15 }, style]}
-    />
-  );
-}
-
-function LinkButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
-  const t = useTheme();
-  return (
-    <Pressable accessibilityRole="button" hitSlop={8} disabled={disabled} onPress={onPress} style={({ pressed }) => ({ opacity: disabled ? 0.45 : pressed ? 0.6 : 1 })}>
-      <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.accent }}>{label}</Text>
-    </Pressable>
-  );
-}
-
 function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; setForm: (f: Form) => void }) {
   const t = useTheme();
-  const [seriesFocused, setSeriesFocused] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  // A tap on a suggestion can blur the field before the press registers (with a hardware keyboard
+  // it does, as the finger goes down), so a blur closes the list a moment later, unless a
+  // suggestion is being pressed by then.
+  const picking = useRef(false);
+  const closing = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const closeSoon = () => {
+    clearTimeout(closing.current);
+    closing.current = setTimeout(() => !picking.current && setSuggesting(false), 300);
+  };
+  const open = () => {
+    clearTimeout(closing.current);
+    setSuggesting(true);
+  };
+  useEffect(() => () => clearTimeout(closing.current), []);
   const field = (f: keyof Form, opts: { multiline?: boolean; placeholder?: string; numeric?: boolean } = {}) => {
     const scanned = scannedText(info.scanned, f);
     const saved = formOf(info)[f];
@@ -293,11 +280,14 @@ function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; s
           accessibilityLabel={FIELD_LABELS[f]}
           value={form[f]}
           placeholder={opts.placeholder}
-          onChangeText={(text) => setForm({ ...form, [f]: text })}
+          onChangeText={(text) => {
+            setForm({ ...form, [f]: text });
+            if (f === "series") open();
+          }}
           keyboardType={opts.numeric ? "decimal-pad" : undefined}
           multiline={opts.multiline}
-          onFocus={f === "series" ? () => setSeriesFocused(true) : undefined}
-          onBlur={f === "series" ? () => setSeriesFocused(false) : undefined}
+          onFocus={f === "series" ? open : undefined}
+          onBlur={f === "series" ? closeSoon : undefined}
           style={opts.multiline ? { height: 160, paddingTop: 12, textAlignVertical: "top" } : undefined}
         />
         {changed && !opts.multiline ? (
@@ -309,7 +299,7 @@ function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; s
     );
   };
   // The library's series as you type, so books land in the same one.
-  const hits = seriesFocused ? suggestSeries(info.knownSeries, form.series).filter((s) => s.name !== form.series) : [];
+  const hits = suggesting ? suggestSeries(info.knownSeries, form.series).filter((s) => s.name !== form.series) : [];
   return (
     <>
       {field("title")}
@@ -322,7 +312,17 @@ function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; s
             <Pressable
               key={s.name}
               accessibilityRole="button"
-              onPress={() => setForm({ ...form, series: s.name })}
+              onPressIn={() => (picking.current = true)}
+              onPressOut={() => {
+                picking.current = false;
+                closeSoon();
+              }}
+              onPress={() => {
+                picking.current = false;
+                clearTimeout(closing.current);
+                setSuggesting(false);
+                setForm({ ...form, series: s.name });
+              }}
               style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, minHeight: 44, backgroundColor: pressed ? t.chip : "transparent" })}
             >
               <Text numberOfLines={1} style={{ flex: 1, fontFamily: fonts.medium, fontSize: 14, color: t.text }}>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Animated as RNAnimated, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { newByShow, PODCAST_LIST_TITLES, PODCAST_SECTION_SIZE, PODCAST_TABS, type PodcastTab, sortShows } from "@murmur/shared/client";
 import { BrowseBody } from "@/components/browse";
@@ -11,7 +11,6 @@ import { ContinueCard, openPodcastList, ShowCard, SortSheet, useContinueWidth, u
 import { usePullRefresh } from "@/components/pull-refresh";
 import { SearchPill } from "@/components/search-pill";
 import { Bone, FadeIn, ListRowBone, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
-import { StickyHeading, useStickyHeading } from "@/components/sticky-heading";
 import { TextTabs, useTabFade } from "@/components/text-tabs";
 import { IconButton } from "@/components/ui";
 import { keys, useContinueEpisodes, useNewEpisodes, usePodcasts } from "@/lib/data";
@@ -23,7 +22,6 @@ export default function Podcasts() {
   const top = useTopInset();
   const gridWidth = useGridWidth();
   const continueWidth = useContinueWidth();
-  const sticky = useStickyHeading();
   // Kept while the tab stays mounted, like Music's.
   const [tab, setTab] = useState<PodcastTab>("home");
   const tabFade = useTabFade(tab);
@@ -130,42 +128,35 @@ export default function Podcasts() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <RNAnimated.ScrollView
-        {...sticky.scrollProps}
-        contentContainerStyle={{ paddingBottom: 24 }}
-        // The title and tabs are child 0; Browse's box, child 1, sticks under the status bar.
-        stickyHeaderIndices={browsing ? [1] : undefined}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        refreshControl={refresh}
-      >
-        <View onLayout={sticky.topProps.onLayout} style={[browsing ? sticky.topProps.style : null, { paddingTop: top, paddingHorizontal: PAD }]}>
-          <PageTitle
-            title="Podcasts"
-            right={
-              tab !== "browse" ? (
-                <>
-                  {tab === "shows" && shows.length > 1 ? (
-                    <IconButton label="Sort podcasts" onPress={() => setSortOpen(true)}>
-                      <FilterIcon color={t.text} />
-                    </IconButton>
-                  ) : null}
-                  <IconButton label="Add podcast" onPress={add}>
-                    <PlusIcon color={t.accent} />
+      {/* The title, tabs and Browse's box stay put above whatever scrolls, like Library's. */}
+      <View style={{ paddingTop: top, paddingHorizontal: PAD }}>
+        <PageTitle
+          title="Podcasts"
+          right={
+            tab !== "browse" ? (
+              <>
+                {tab === "shows" && shows.length > 1 ? (
+                  <IconButton label="Sort podcasts" onPress={() => setSortOpen(true)}>
+                    <FilterIcon color={t.text} />
                   </IconButton>
-                </>
-              ) : null
-            }
-          />
-          {tabbed ? <TextTabs options={PODCAST_TABS} value={tab} onPick={pick} /> : null}
-        </View>
+                ) : null}
+                <IconButton label="Add podcast" onPress={add}>
+                  <PlusIcon color={t.accent} />
+                </IconButton>
+              </>
+            ) : null
+          }
+        />
+        {tabbed ? <TextTabs options={PODCAST_TABS} value={tab} onPick={pick} /> : null}
         {browsing ? (
-          <StickyHeading sticky={sticky.sticky}>
+          <View style={{ paddingTop: 12, paddingBottom: 6 }}>
             <SearchPill value={query} onChangeText={setQuery} placeholder="Search podcasts or paste a feed link" autoFocus={focusBox} links />
-          </StickyHeading>
+          </View>
         ) : null}
-        <View style={{ paddingHorizontal: PAD }}>{podcasts.isPending ? body : <FadeIn when={fade}>{body}</FadeIn>}</View>
-      </RNAnimated.ScrollView>
+      </View>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 24 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" refreshControl={refresh}>
+        {podcasts.isPending ? body : <FadeIn when={fade}>{body}</FadeIn>}
+      </ScrollView>
 
       <SortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
     </View>

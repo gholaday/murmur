@@ -108,7 +108,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: bottomPad }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: bottomPad }} keyboardShouldPersistTaps="handled">
         <View style={{ paddingTop: top, paddingHorizontal: PAD }}>
           <HeroBackdrop path={cover600} color={book.coverColor} height={top + 460} />
           <BackRow

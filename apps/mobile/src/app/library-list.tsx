@@ -148,6 +148,7 @@ function ListScreen({
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <FlatList
+        keyboardShouldPersistTaps="handled"
         data={data}
         keyExtractor={(c) => c.key}
         contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }}

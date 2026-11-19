@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, type GestureResponderEvent, Pressable, View } from "react-native";
+import { FlatList, type GestureResponderEvent, Pressable, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { hasKind, type SearchKind, type SearchResultsDto, type TrackDto } from "@murmur/shared/client";
 import { BookCard } from "@/components/book-card";
@@ -12,7 +12,6 @@ import { ShowCard } from "@/components/podcasts";
 import { SearchPill } from "@/components/search-pill";
 import { useKeyboardHeight } from "@/components/sheet";
 import { FadeIn, ListRowBone, Skeleton } from "@/components/skeleton";
-import { StickyHeading, useStickyHeading } from "@/components/sticky-heading";
 import { TextTabs, useTabFade } from "@/components/text-tabs";
 import { CountPill, IconButton, Text, type TextInputRef } from "@/components/ui";
 import { PosterCard, StillCard } from "@/components/watch";
@@ -43,11 +42,11 @@ type Row =
   | { type: "episode"; key: string; episode: SearchResultsDto["episodes"][number] }
   | { type: "song"; key: string; track: TrackDto };
 
-/** The list's items: the box (which sticks), the tabs, then the results or what shows instead. */
-type Item = "box" | "tabs" | "empty" | Row;
+/** The list's items: the results, or what shows instead. */
+type Item = "empty" | Row;
 
 /**
- * Search everywhere: the box at the top, which sticks while the results scroll, then a tab for
+ * Search everywhere: the box at the top, which stays put while the results scroll, then a tab for
  * each kind that's shown, then groups of hits, each opening its own tab with See all. With the
  * box empty it lists recent searches. Offline it searches what's downloaded.
  */
@@ -55,7 +54,6 @@ export default function Search() {
   const t = useTheme();
   const top = useTopInset();
   const keyboard = useKeyboardHeight();
-  const sticky = useStickyHeading();
   const prefs = useTabPrefs();
   const text = searchText.useValue();
   const picked = searchKind.useValue();
@@ -102,43 +100,35 @@ export default function Search() {
     <Empty>{`Nothing matches "${q}".`}</Empty>
   );
 
-  const items: Item[] = ["box", "tabs", ...(q && rows.length ? rows : ["empty" as const])];
+  const items: Item[] = q && rows.length ? rows : ["empty"];
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <Animated.FlatList
+      {/* The title, box and tabs stay put above the results, like Library's. */}
+      <View style={{ paddingTop: top, paddingHorizontal: PAD }}>
+        <PageTitle title="Search" />
+        <View style={{ paddingTop: 8, paddingBottom: 6 }}>
+          <SearchField />
+        </View>
+        {shown.length ? (
+          <TextTabs label="Search in" options={shown.map((k) => ({ id: k, label: KIND_LABELS[k] }))} value={kind} onPick={searchKind.set} gap={20} style={{ marginTop: 8 }} />
+        ) : null}
+        {results.offline ? (
+          <Text variant="small" style={{ marginTop: 14 }}>
+            Showing downloaded only
+          </Text>
+        ) : null}
+      </View>
+      <FlatList
         data={items}
         keyExtractor={(item) => (typeof item === "string" ? item : item.key)}
         contentContainerStyle={{ paddingBottom: 24 + keyboard }}
-        {...sticky.scrollProps}
-        // The title (the list's header) is child 0; the box is child 1.
-        stickyHeaderIndices={[1]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        ListHeaderComponent={
-          <View {...sticky.topProps} style={{ paddingTop: top, paddingHorizontal: PAD, paddingBottom: 8 }}>
-            <PageTitle title="Search" />
-          </View>
-        }
         windowSize={7}
         maxToRenderPerBatch={8}
         renderItem={({ item }) =>
-          item === "box" ? (
-            <StickyHeading sticky={sticky.sticky}>
-              <SearchField />
-            </StickyHeading>
-          ) : item === "tabs" ? (
-            <View style={{ paddingHorizontal: PAD, marginTop: 8 }}>
-              {shown.length ? (
-                <TextTabs label="Search in" options={shown.map((k) => ({ id: k, label: KIND_LABELS[k] }))} value={kind} onPick={searchKind.set} gap={20} />
-              ) : null}
-              {results.offline ? (
-                <Text variant="small" style={{ marginTop: 14 }}>
-                  Showing downloaded only
-                </Text>
-              ) : null}
-            </View>
-          ) : item === "empty" ? (
+          item === "empty" ? (
             <FadeIn when={false} style={[tabFade, { paddingHorizontal: PAD }]}>
               {empty}
             </FadeIn>

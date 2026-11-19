@@ -104,7 +104,7 @@ function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: bottomPad }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: bottomPad }} keyboardShouldPersistTaps="handled">
         <WatchHero
           kind="show"
           id={show.id}

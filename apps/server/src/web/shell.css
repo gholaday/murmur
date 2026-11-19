@@ -41,8 +41,10 @@
 }
 .tab[aria-current="page"] { color: var(--accent); font-weight: 700; }
 
-/* The search page's box: stays at the top while the results scroll. */
-.search-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; padding: 8px 0; margin: -8px 0 4px; background: var(--bg); }
+/* The search page's box: stays at the top while the results scroll, under a StickyHead if the page has one. */
+.search-bar { position: sticky; top: var(--sticky-head, 0px); z-index: 5; display: flex; align-items: center; padding: 8px 0; margin: -8px 0 4px; background: var(--bg); }
+/* Search's box is part of its sticky head. */
+.sticky-head .search-bar { position: static; }
 .search-field {
   flex: 1;
   min-width: 0;
