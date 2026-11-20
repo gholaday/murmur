@@ -22,7 +22,7 @@ import { ALBUM_FIELDS, BOOK_FIELDS, lastAlbumFields, lastBookFields, PROVIDER_NA
 import { SmallButton } from "./settings";
 import { Sheet } from "./sheet";
 import { toast } from "./toast";
-import { Bar, Button, Chip, Chips, Text } from "./ui";
+import { Bar, Button, Chip, Chips, LinkButton, Text } from "./ui";
 
 // Match all, like the web's: a button over the unmatched books or albums, a sheet to pick the
 // fields, the run's progress, and its results to review and apply. The run itself is on the
@@ -522,14 +522,5 @@ function Changes({ item, indent }: { item: Item; indent: boolean }) {
         </View>
       ))}
     </View>
-  );
-}
-
-function LinkButton({ label, disabled, onPress }: { label: string; disabled: boolean; onPress: () => void }) {
-  const t = useTheme();
-  return (
-    <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} hitSlop={8} style={({ pressed }) => ({ opacity: disabled ? 0.45 : pressed ? 0.6 : 1 })}>
-      <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: t.accent }}>{label}</Text>
-    </Pressable>
   );
 }

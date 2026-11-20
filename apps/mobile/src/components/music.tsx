@@ -31,7 +31,7 @@ import { AddToPlaylistSheet } from "./playlists";
 import { HideItem, Sheet, SheetDivider, SheetItem, useCardMenu, useMenuIdle } from "./sheet";
 import { DragHandle } from "./sortable-list";
 import { toast } from "./toast";
-import { ACTION_HEIGHT, IconButton, Pill, Pills, Text } from "./ui";
+import { ACTION_HEIGHT, IconButton, Text } from "./ui";
 
 // Shared by the Music tab, Album and Artist screens. The text helpers (songSub, albumPills and so
 // on) live in @murmur/shared, so the web and the app say the same thing.
@@ -327,9 +327,8 @@ function SongSheetItems({ track, onClose, hideAlbum, onAddToPlaylist }: { track:
   );
 }
 
-/** Whether this song is the one playing, for drawing it in the accent colour. */
 /** "playing" or "paused" while this song is the one loaded, else null; only that row renders again. */
-export const usePlayingSong = (id: string) => useNowPlaying((s) => isCurrent(s, "track", id));
+const usePlayingSong = (id: string) => useNowPlaying((s) => isCurrent(s, "track", id));
 
 /**
  * A song with its album's cover, title, "Artist, Album", length and heart. With `onPlay` a tap
@@ -402,7 +401,7 @@ export const SongRow = memo(function SongRow({
   );
 });
 
-export function SongMoreButton({ track, onPress, last }: { track: TrackDto; onPress: () => void; last?: boolean }) {
+function SongMoreButton({ track, onPress, last }: { track: TrackDto; onPress: () => void; last?: boolean }) {
   const t = useTheme();
   return (
     <IconButton label={`More for ${track.title}`} onPress={onPress} style={{ width: 36, marginLeft: -6, marginRight: last ? -8 : 0 }}>
@@ -540,7 +539,6 @@ function Length({ track }: { track: TrackDto }) {
   return <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: t.muted, fontVariant: ["tabular-nums"] }}>{songLength(track)}</Text>;
 }
 
-/** The accent Play button over an album, playlist or your songs. */
 /** Where the songs on a screen play from: an album, a playlist, or Songs (refId null). */
 type MusicRef = { kind: UpNextSource["kind"]; refId: string | null };
 
@@ -603,6 +601,3 @@ export function ShuffleButton({ from, onPlay }: { from: MusicRef; onPlay: () => 
     />
   );
 }
-
-// Kept in ui.tsx so screens that don't need the music helpers can use them too.
-export { Pill, Pills };

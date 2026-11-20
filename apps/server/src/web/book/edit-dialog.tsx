@@ -65,13 +65,13 @@ function scannedText(s: BookEditValues, f: keyof Form): string {
 }
 
 /** "1:02:03", "62:03" or "3723" to seconds; null when it can't be read. */
-export function parseClock(text: string): number | null {
+function parseClock(text: string): number | null {
   const parts = text.trim().split(":");
   if (parts.length > 3 || parts.some((p) => !/^\d+(\.\d+)?$/.test(p))) return null;
   return parts.reduce((sum, p) => sum * 60 + Number(p), 0);
 }
 
-export function formatClock(sec: number): string {
+function formatClock(sec: number): string {
   const s = Math.round(sec);
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
@@ -107,7 +107,7 @@ export function EditBookDialog({
   tab?: EditTab;
   onClose: () => void;
   onChanged: () => void;
-  /** After a book with missing files is removed; by default the dialog closes and the list refreshes. */
+  /** After the book is removed from the library; by default the dialog closes and the list refreshes. */
   onRemoved?: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);

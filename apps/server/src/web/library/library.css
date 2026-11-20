@@ -129,7 +129,7 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--tex
 .artist-card { text-align: center; }
 .artist-card .cover { border-radius: 50%; }
 .artist-card-empty { background: var(--surface-2); color: var(--muted); display: flex; align-items: center; justify-content: center; }
-/* New playlist, first in the Playlists grid: a cover-sized dashed tile with an accent plus. */
+/* New playlist, first in the Playlists grid: a cover-sized filled tile with an accent plus, no outline. */
 .new-tile { display: flex; flex-direction: column; gap: 6px; text-align: left; color: inherit; }
 .new-tile-art { aspect-ratio: 1 / 1; width: 100%; border-radius: 8px; background: var(--surface-2); color: var(--accent); display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
 .new-tile:hover .new-tile-art { background: color-mix(in srgb, var(--surface-2), var(--text) 7%); }

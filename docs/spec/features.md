@@ -15,7 +15,7 @@
 
 ## Hiding
 
-- Hide, at the end of the ⋯ menu of a book, album, artist, movie or show, takes it out of your lists, home shelves (Continue listening and Continue watching too), search and Android Auto, with Undo. Hiding an artist hides their albums. Podcasts aren't hidden this way: you unfollow them
+- Hide, at the end of the ⋮ menu of a book, album, artist, movie or show, takes it out of your lists, home shelves (Continue listening and Continue watching too), search and Android Auto, with Undo. Hiding an artist hides their albums. Podcasts aren't hidden this way: you unfollow them
 - Hidden things stay in Downloads and in your stats, and their pages still open from a link
 - You > Hidden lists them under Books, Music and Watch, each with a grey count and an Unhide button per row; empty sections don't show, and with nothing hidden it says "Nothing hidden"
 - Per person (`hidden_items`: kind, id, time), with no foreign key so it outlives a rescan. Books, albums, movies and shows keep their ids while their files are there; artists are kept by name key, like `artist_photos`, since a rescan can recreate the artist. `GET /api/hidden` lists them by section, `PUT` hides and `DELETE` unhides (`{ kind, id }`)
@@ -31,7 +31,7 @@
 - Single-file `.m4b` and multi-file books, played as one continuous timeline
 - Automatic rescan when files are added, moved or removed
 - One or more library folders, set up in the compose file only: `/audiobooks`, and any mounted beside it as `/audiobooks-<name>`, picked up on every start. You > Library lists them with their counts
-- Mark finished, reset progress
+- Mark finished, and Start from the beginning in the player's ⋮
 - Metadata Match and editing for admins (see [Metadata](metadata.md))
 
 ## Podcasts
@@ -39,9 +39,9 @@
 - Browse to find shows: search by name (Apple's public directory, no API key needed) or paste a feed link, More like shelves for shows you listen to (and a More like tab on every show's page, followed or not), the top shows overall and per category, and Not interested; OPML import and export
 - Feeds are checked on a schedule (default every 30 minutes, and once at startup)
 - Episodes stream through the server, which keeps the newest episodes of each followed show on disk (see [Podcasts and ad detection](podcasts.md)); the phone can download any episode
-- A queue, and played, unplayed and archived states per episode
+- A queue, and played and unplayed states per episode
 - The Podcasts tab has Home, Shows and Browse. Home has Continue listening as a shelf of wide cards on each show's colour, and the 6 latest New episodes grouped by show; Shows is every show in a grid, in the chosen sort
-- A show's page has Episodes, Unplayed (episodes not finished) and Bookmarks (only when it has some, grouped by episode) as tabs, with search and sort beside them
+- A show's page has Episodes, Unplayed (episodes not finished) and Bookmarks (only when it has some, grouped by episode) and More like as tabs, with search and sort beside them
 - Optional ad detection: ads marked on the seek bar, Skip ad, or Auto-skip with Undo
 
 ## Music
@@ -82,10 +82,10 @@ Optional. More in [Watch](watch.md).
 
 - Mini player, expanding to a full-screen player tinted from the cover
 - Skip back and forward (configurable, defaults 10 s and 30 s), chapter skip. On an episode without chapters, previous and next (in the player, media keys and the notification) go to the item before or after it in the queue, and past either end to the episode above or below it in its show's list (`GET /episodes/:id/neighbor`). Previous restarts the episode first once it's more than 3 s in
-- Playback speed 0.5× to 3× (2× on Android), remembered per book and per show
+- Playback speed 0.5× to 2×, remembered per book and per show
 - Sleep timer: minutes or end of chapter
 - Episode chapters, when the show publishes them: the scrubber splits into one segment per chapter over the whole episode, with the playing chapter's title between the elapsed and remaining times in place of the time left (tap for the list), and dragging (or, on the web, hovering with a mouse) shows the title of the chapter you'd land in there, in the accent colour. A book's bar spans its current chapter instead
-- The third player tile is Chapters for anything with more than one chapter, where its sheet also has your bookmarks, else Bookmarks. Songs have none. The ad setting is in the episode's ⋯ menu. Which one is decided when the item loads, so tiles never change mid-listen
+- The third player tile is Chapters for anything with more than one chapter, where its sheet also has your bookmarks, else Bookmarks. Songs have none. The ad setting is in the episode's ⋮ menu. Which one is decided when the item loads, so tiles never change mid-listen
 - Bookmarks on books and episodes, per person, on the web and in the app (see [Bookmarks](#bookmarks))
 - In an episode's last 3 minutes, a Mark played button on the cover marks it played and closes the player, so a long outro needn't run out (not on episodes under 6 minutes). During an ad it sits above Skip ad, and Skip ad goes once the episode is in its last second
 - Volume slider and mute in the web player on desktop, remembered per browser (phones use their own buttons): a row under the audio player's controls, and a speaker that slides a slider out on the video player

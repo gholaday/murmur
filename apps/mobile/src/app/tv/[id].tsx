@@ -54,7 +54,7 @@ function mark(list: VideoEpisode[], done: boolean, what: string) {
 
 const markEpisode = (e: VideoEpisode, done: boolean) => mark([e], done, episodeLabel(e.season, e.episode));
 
-/** A show: poster, Resume on the next episode, a chip per season and its episodes. */
+/** A show: poster, Resume on the next episode, a tab per season and its episodes. */
 function ShowView({ show, askedSeason }: { show: ShowDetail; askedSeason: number | null }) {
   const t = useTheme();
   const bottomPad = useBottomPad();

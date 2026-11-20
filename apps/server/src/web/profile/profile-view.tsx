@@ -168,7 +168,7 @@ export function ProfileView({
       <section className="section">
         <h2 className="section-title">Settings</h2>
         <SettingsCard>
-          {/* Library holds only Podcasts for everyone but admins, so it goes when that tab is hidden. */}
+          {/* Podcasts' settings matter to everyone else only while that tab shows; admins keep it for the server-wide ones. */}
           {SECTIONS.filter((s) => (user.isAdmin || !s.admin) && (s.id !== "podcasts" || tabs.podcasts || user.isAdmin)).map((s) => (
             <SettingLink key={s.id} title={s.title} value={values[s.id]} href={`/you/${s.id}`} />
           ))}

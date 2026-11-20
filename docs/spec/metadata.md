@@ -23,7 +23,7 @@ _Admin only._
 
 After each scan, every book not tried yet is searched once, and a result scoring 100 is applied on its own: title, author and length all agree (no length caps a score at 85). It takes the cover (only when bigger), author, narrator, series, year and description, never a hand-edited field. Anything less waits in You > Library > Not matched for Match or Match all. `books.match_tried_at` keeps it from being asked again; a lookup that fails is tried after the next scan.
 
-1. From a book page or a library card's options menu, open **Match metadata**. The server searches Audible's catalog by title and author, with Google Books as a fallback.
+1. From a book page or a library card's options menu, open **Match…**. The server searches Audible's catalog by title and author, with Google Books as a fallback.
 2. You pick the right result from a list with covers.
 3. The match fills only empty or poor fields (missing cover, description, narrator, series, a better chapter list from Audnexus). Fields you don't tick are left alone, and **Undo all edits** in Edit's Files tab returns to the file metadata.
 4. Matched data is stored in the database as an override; your files are never modified, and a rescan never undoes a match.
@@ -57,9 +57,9 @@ The same book always gets the same answer, and a weak answer is shown as weak in
 
 _Admin only, web._
 
-Every card has an options menu, the same way for books, albums, movies and shows: a long press in the app, the ⋯ or a right-click on the web. The ⋯ on the item's own page opens the same items, for everyone, with admin items last:
+Every card has an options menu, the same way for books, albums, movies and shows: a long press in the app, the ⋮ or a right-click on the web. The ⋮ on the item's own page opens the same items, for everyone, with admin items last:
 - **Book:** Play, Add to Play next (books not yet started), Mark as finished; for admins Edit…, Match…, Mark as matched. Rescanning is You > Library's Rescan, or one book from Edit's Files tab.
-- **Album:** Play, Add to queue, Add to playlist…, Go to the artist; for admins Match…. An artist's page has a ⋯ with Change photo… for admins.
+- **Album:** Play, Add to queue, Add to playlist…, Go to the artist; for admins Match…. An artist's page has a ⋮ with Change photo… for admins.
 - **Every menu** ends with Hide after a divider (podcasts excepted), with Undo; see [Hiding](features.md#hiding).
 - **Movie or show:** Play or Resume, Mark as watched; for admins Edit… and Match… (with TMDB). The edit dialog has five tabs:
 

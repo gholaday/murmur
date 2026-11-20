@@ -50,7 +50,7 @@ export function noteFetchedLike(trackId: string, liked: boolean, since: number) 
 }
 
 /** Likes (`on`) or unlikes songs and albums; resolves false when it failed. */
-export function useLikeChange(): (on: boolean, change: MusicLikeChange) => Promise<boolean> {
+function useLikeChange(): (on: boolean, change: MusicLikeChange) => Promise<boolean> {
   const router = useRouter();
   return async (on, change) => {
     const tap = ++taps;

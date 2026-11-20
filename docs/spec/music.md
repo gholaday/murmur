@@ -17,7 +17,7 @@ Music is optional. It comes from one or more music folders, set up like the book
 - Its tabs are Home, Liked, Playlists, Albums and Artists, opening on Home.
 - **Likes:** a heart on the album page (beside Play, for the whole album), on every song row and in the full player next to the song's title. Likes are per person (`music_likes`: kind, song or album id, time), with no foreign key on the item so they outlive a rescan, like `track_plays`. Liking an album doesn't like its songs. `PUT` and `DELETE /api/music/likes` take `{ trackIds, albumIds }`; songs and albums carry an optional `liked`. Likes are only for music.
 - **Liked** (`GET /api/music/liked`) shows liked albums, then liked songs with Play and Shuffle, newest like first. With none: "No likes yet", and that the heart on any song or album puts it there.
-- **Hiding:** Hide in an album's or artist's ⋯ menu takes it out of the lists, Home's shelves, search and Android Auto, with Undo; hiding an artist hides their albums and the songs on them. It comes back from You > Hidden. See [Features](features.md#hiding).
+- **Hiding:** Hide in an album's or artist's ⋮ menu takes it out of the lists, Home's shelves, search and Android Auto, with Undo; hiding an artist hides their albums and the songs on them. It comes back from You > Hidden. See [Features](features.md#hiding).
 - Home (`GET /music/home`, `musicHome`) has five shelves, each built on its own so one that fails just doesn't show:
   - Jump back in: albums and playlists you played from, newest first.
   - On repeat: the songs you listened to longest over 30 days, from `listening_days`, so every device counts. It shows the top five; picking one queues up to 25. Its songs may come from albums in Jump back in: one shelf is songs, the other albums.
@@ -62,11 +62,11 @@ One running list of songs and episodes, like YouTube Music's (`up_next`, one row
 - Clear empties what's still to come, with Undo.
 - Lists from before 0.5 (the album in `play_context` and the queue in `queue_items`) were carried into Up Next by migration 0027, which dropped those tables.
 
-**Downloads (app):** a whole album or one song. Downloaded has a Music section, and downloaded music plays offline.
+**Downloads (app):** a whole album or one song. Downloads has a Music section, and downloaded music plays offline.
 
 ## Matching (admins)
 
-The books pattern, for albums: matched on their own after each scan when a result scores 100 (the song count has to agree), "Match metadata…" in an album's menu, and Match all under You > Library > Not matched, with the same dialog, compare table and review screen as books. Matching on its own takes the cover (only when bigger) and fills a missing year or genre.
+The books pattern, for albums: matched on their own after each scan when a result scores 100 (the song count has to agree), "Match…" in an album's menu, and Match all under You > Library > Not matched, with the same dialog, compare table and review screen as books. Matching on its own takes the cover (only when bigger) and fills a missing year or genre.
 
 - **Sources:** MusicBrainz (covers from the Cover Art Archive) and Deezer are searched together. Apple Music is asked only when neither has a result scoring 70 or more. All three are free with no key, and go through the 30-day provider cache. On a tie, MusicBrainz wins, because Deezer and Apple often list a reissue's year. MusicBrainz is held to one request a second, with one retry when it's busy.
 - **Scoring** (`music/match-score.ts`, with tests): title 40, artist 35, song count 25. Edition words ("Deluxe", "Remastered") and catalog numbers ("[2156]") are left out. A different song count is never suggested.

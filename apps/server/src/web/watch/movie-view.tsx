@@ -34,7 +34,7 @@ import { SubtitleRow } from "./subtitle-pick";
 import { readVersion, saveVersion } from "./version-memory";
 
 /** Codecs, size and name of a file, for when something won't play. */
-export function FileDetails({ file }: { file: VideoFileInfo }) {
+function FileDetails({ file }: { file: VideoFileInfo }) {
   const parts = fileDetailParts(file);
   return (
     <section className="section">

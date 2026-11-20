@@ -27,7 +27,7 @@ import { EmptyState, HeroBar } from "../ui";
 import { SongRow } from "./song-row";
 
 /** The playlist's album covers sharing one square (playlistCoverTiles), or a tile with the name when it has none. */
-export function PlaylistCover({ playlist, large }: { playlist: PlaylistSummary; large?: boolean }) {
+function PlaylistCover({ playlist, large }: { playlist: PlaylistSummary; large?: boolean }) {
   const { covers } = playlist;
   if (covers.length < 2) {
     const first = covers[0];

@@ -8,7 +8,7 @@ import { PosterCardMenu } from "./poster-menu";
 
 /** Where a movie or show page is. */
 const movieHref = (id: string) => `/watch/movie/${id}`;
-export const showHref = (id: string) => `/watch/show/${id}`;
+const showHref = (id: string) => `/watch/show/${id}`;
 /** The player's page for a movie or an episode; `v` picks a movie version and `q` a converted-video quality for this viewing. */
 export const playHref = (kind: "movie" | "episode", id: string, versionId?: string, quality?: VideoQuality | null) => {
   const params = new URLSearchParams();

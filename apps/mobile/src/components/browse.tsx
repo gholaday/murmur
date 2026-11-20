@@ -317,7 +317,7 @@ function BoxResults({ results }: { results: BoxFound }) {
   );
 }
 
-export const openTopShows = (genreId?: number) => router.push({ pathname: "/top-shows", params: genreId ? { genre: String(genreId) } : {} });
+const openTopShows = (genreId?: number) => router.push({ pathname: "/top-shows", params: genreId ? { genre: String(genreId) } : {} });
 
 /** More like shelves, the top shows and the categories, while the box is empty. Nothing on a server from before Browse. */
 function BrowseHome() {

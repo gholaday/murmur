@@ -23,9 +23,9 @@ import { Sheet, SheetItem } from "./sheet";
 import { Bone, Skeleton } from "./skeleton";
 import { ACTION_HEIGHT, NumberBadge, Text } from "./ui";
 
-// The sort is shared by Home's Your shows and the Shows tab, so both show the same order.
+// The Shows tab's sort, kept for the whole session.
 const sortStore = createStore<PodcastSort>("latest");
-const setSort =sortStore.set;
+const setSort = sortStore.set;
 export const useSort = sortStore.useValue;
 
 export function SortSheet({ open, onClose }: { open: boolean; onClose: () => void }) {

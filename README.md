@@ -5,9 +5,9 @@ A self-hosted audiobook, podcast, music, movie and TV server with a web player a
 Murmur reads your audiobook folders (the Audiobookshelf layout, `Author/[Series]/Title/`), follows podcasts by RSS, plays your music and, with an optional add-on, your movies and shows, and keeps your place in sync across devices. It runs as one Docker container, plus a container for each add-on you turn on, and your library is mounted read-only: Murmur never changes your files.
 
 <p>
-  <img src="docs/screenshots/books.webp" width="19%" alt="Books in Library with Continue listening, Next in series and Recently added">
-  <img src="docs/screenshots/music.webp" width="19%" alt="Music in Library with Jump back in and album covers">
-  <img src="docs/screenshots/watch.webp" width="19%" alt="Watch in Library with Continue watching and Recently added movies">
+  <img src="docs/screenshots/books.webp" width="19%" alt="Books in Library with Continue listening and More like">
+  <img src="docs/screenshots/music.webp" width="19%" alt="Music in Library with Jump back in and On repeat">
+  <img src="docs/screenshots/watch.webp" width="19%" alt="Watch in Library with Continue watching and More like">
   <img src="docs/screenshots/player.webp" width="19%" alt="Full-screen player">
   <img src="docs/screenshots/stats.webp" width="19%" alt="Listening stats on You">
 </p>

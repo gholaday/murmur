@@ -39,7 +39,7 @@ import { SongRow } from "./song-row";
 const TABS = MUSIC_TABS;
 
 /** The album sort, kept in this browser. */
-export const useAlbumSort = () => useSavedChoice<AlbumSort>(storageKeys.albumSort, "added", ALBUM_SORTS);
+const useAlbumSort = () => useSavedChoice<AlbumSort>(storageKeys.albumSort, "added", ALBUM_SORTS);
 
 /** Cover with title and a sub line. */
 export function AlbumCard({ album, sub }: { album: AlbumSummary; sub?: string | null }) {

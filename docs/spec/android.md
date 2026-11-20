@@ -7,12 +7,12 @@ The layout follows the familiar podcast-app pattern: bottom tabs, a persistent m
 | Tab or screen | Contents |
 | --- | --- |
 | Search | The first tab: a box that stays at the top, then a tab per kind once you type, and recent searches; books, authors and series, podcasts and episodes, music, and Watch in one search; offline it searches what's downloaded |
-| Library | Books, Music and Watch as sections, switched by tapping their names in the title row or swiping sideways |
-| Books (Library) | Home shelves, then books by title, author or series, and finished; sort and filters |
+| Library | Books, Music and Watch as sections, switched by tapping their names in the title row |
+| Books (Library) | Home shelves, then books by author or series, and finished; All books has the sort and filters |
 | Podcasts | Subscribed shows with unplayed counts and new episodes; find a show by name or add one by RSS URL |
 | Music (Library) | Home, Liked, Playlists, Albums and Artists, with hearts on albums, songs and the player |
 | Watch (Library) | Home, Movies, Shows and Watched |
-| You | Downloaded at the top in the app (what's saved on the phone, with its size), then the listening stats card and settings: account, appearance, playback, server, tabs, Hidden, and admin settings |
+| You | Downloads at the top in the app (what's saved on the phone, with its size), then the listening stats card and settings: account, appearance, playback, server, tabs, Hidden, and admin settings |
 | Book, show, album, artist or playlist page | Header with cover and colour band, description, chapters, episodes or songs, download and play buttons |
 | Full-screen player | Large cover, chapter or song name, scrubber, speed, sleep timer, skip buttons, chapter list, and a Queue tile with what's still to come that opens the running list (what played, what's playing and what's next; drag to reorder, remove, Clear) |
 

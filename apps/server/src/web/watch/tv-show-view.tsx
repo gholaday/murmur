@@ -65,7 +65,7 @@ function EpisodeRow({ e, onMark }: { e: VideoEpisode; onMark: (e: VideoEpisode, 
   );
 }
 
-/** A show: poster, Resume on the next episode, a chip per season and its episodes. */
+/** A show: poster, Resume on the next episode, a tab per season and its episodes. */
 export function TvShowView({ show }: { show: ShowDetail }) {
   const router = useRouter();
   const leave = useLeave();

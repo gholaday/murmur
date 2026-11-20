@@ -46,12 +46,11 @@ import {
   SkipForwardIcon,
   SubtitlesIcon,
 } from "@/components/icons";
-import { Pills } from "@/components/music";
 import { Empty, NestedFallback, SectionTitle } from "@/components/page";
 import { BufferingRing, CastButton, SeekThumb, SkipButton, Tile } from "@/components/player-controls";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
-import { Button, Caption, IconButton, Text } from "@/components/ui";
+import { Button, Caption, IconButton, Pills, Text } from "@/components/ui";
 import { QualitySheet, Still, SubtitleLine, SubtitleSheet } from "@/components/watch";
 import { absolute, authHeaders } from "@/lib/api";
 import { useAutoplayNext } from "@/lib/data";

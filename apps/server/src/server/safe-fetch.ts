@@ -11,7 +11,9 @@ import { HttpError } from "./http";
 // goes through a lookup that checks again, so a name whose record changes between the check and
 // the connection (DNS rebinding) is refused where it counts.
 
-const MAX_REDIRECTS = 5;
+// Podcast audio often chains one tracking prefix per ad network (Pints With Aquinas has seven),
+// so this matches the browser's 20 rather than guessing a smaller number.
+const MAX_REDIRECTS = 20;
 
 /** Inside the server's own network: loopback, link-local (the cloud metadata address lives there), unspecified. */
 function isLocal(ip: string): boolean {

@@ -47,7 +47,7 @@ function useDirectory(): Directory {
   return d;
 }
 
-export function DirectoryProvider({ children }: { children: React.ReactNode }) {
+function DirectoryProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [followed, setFollowed] = useState<Record<string, string>>({});
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
@@ -136,7 +136,7 @@ function SubscribeToggle({ show, className, size }: { show: PodcastSearchResult;
 }
 
 /** A show as a card on a shelf, with its menu on ⋯ or a right-click. */
-export function DirectoryCard({ show }: { show: PodcastSearchResult }) {
+function DirectoryCard({ show }: { show: PodcastSearchResult }) {
   const d = useDirectory();
   const router = useRouter();
   const id = d.followedId(show);
@@ -172,7 +172,7 @@ export function DirectoryCard({ show }: { show: PodcastSearchResult }) {
 }
 
 /** A show as a list row: a rank on charts, the episode count on search results. */
-export function DirectoryRow({ show, rank, sub }: { show: PodcastSearchResult; rank?: number; sub?: string | null }) {
+function DirectoryRow({ show, rank, sub }: { show: PodcastSearchResult; rank?: number; sub?: string | null }) {
   const d = useDirectory();
   if (d.isDismissed(show)) return null;
   return (
@@ -191,7 +191,7 @@ export function DirectoryRow({ show, rank, sub }: { show: PodcastSearchResult; r
   );
 }
 
-export function DirectoryRowsSkeleton({ count, rank = false }: { count: number; rank?: boolean }) {
+function DirectoryRowsSkeleton({ count, rank = false }: { count: number; rank?: boolean }) {
   return (
     <div className="list" role="status" aria-busy="true" aria-label="Loading">
       {Array.from({ length: count }, (_, i) => (
