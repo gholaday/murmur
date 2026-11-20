@@ -90,6 +90,9 @@ CHAPTER_RULES = (
 )
 # Two chapter starts this close are the same one, seen twice where the pieces overlap.
 CHAPTER_GAP_SEC = 90
+# A chapter starting this close to an ad's end is the topic after it, a little early; one starting
+# further inside is a chapter for the ad itself, which the model sometimes makes despite the rules.
+CHAPTER_AD_SLACK_SEC = 15
 
 # The Gemini library warns on every answer that it skipped the model's thinking parts; harmless noise.
 logging.getLogger("google_genai.types").setLevel(logging.ERROR)
@@ -631,9 +634,11 @@ def clean(ads: list[dict], duration: float) -> list[dict]:
 
 def clean_chapters(chapters: list[dict], ads: list[dict], duration: float) -> list[dict]:
     """
-    Topic chapters for the whole episode: in order, none starting inside an ad (moved to its end),
-    one start where overlapping pieces both saw it, the first at 0:00. Fewer than two is none.
-    Kept inside what Murmur accepts (aiChapterSchema in packages/shared).
+    Topic chapters for the whole episode: in order, none for an ad (one starting well inside a
+    mid-episode ad is dropped, so the topic before runs on; one in a pre-roll ad or just before an
+    ad's end moves to its end), one start where
+    overlapping pieces both saw it, the first at 0:00. Fewer than two is none. Kept inside what
+    Murmur accepts (aiChapterSchema in packages/shared).
     """
     starts = []
     for c in chapters:
@@ -643,9 +648,12 @@ def clean_chapters(chapters: list[dict], ads: list[dict], duration: float) -> li
         if not title or not title.strip():
             continue
         start = max(0.0, float(c["startSec"]))
-        for a in ads:
-            if a["startSec"] <= start < a["endSec"]:
-                start = a["endSec"]
+        inside = next((a for a in ads if a["startSec"] <= start < a["endSec"]), None)
+        # The opening chapter often starts in a pre-roll ad; that one just moves past it.
+        if inside and inside["startSec"] > 0 and inside["endSec"] - start > CHAPTER_AD_SLACK_SEC:
+            continue
+        if inside:
+            start = inside["endSec"]
         if start < duration - 30:
             starts.append({"startSec": start, "title": title.strip()})
     out: list[dict] = []

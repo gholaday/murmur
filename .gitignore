@@ -24,3 +24,6 @@ docs/TODO.md
 
 # Written by next dev
 apps/server/AGENTS.md
+
+# Python bytecode
+__pycache__/
