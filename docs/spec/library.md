@@ -27,7 +27,9 @@ Author/Series/Book 3 - Title/...
 
 **Scans:** a full scan on startup and on demand from Settings; between scans, a file watcher picks up changes after 30 s of quiet. Network mounts that don't report changes can use polling (`WATCH_POLLING`), and a periodic rescan is the safety net.
 
-**Missing files:** a book whose files are gone shows "Files missing" and is listed under Needs attention. It stays until an admin removes it from Edit > Files, so a drive that's away for a while loses nothing; a book whose files are still there can't be removed. Listening progress is kept.
+**Missing files:** a book whose files are gone shows "Files missing" and is listed under Needs attention. It stays until an admin removes it, so a drive that's away for a while loses nothing.
+
+**Removing a book:** Edit > Files > Remove from library takes any book out, for one whose files are gone or one that imported wrongly. The files are never touched, so a book whose folder is still there comes back on the next scan as a new book; move or fix the folder first. A book that comes back doesn't get its old edits, match or progress.
 
 ---
 

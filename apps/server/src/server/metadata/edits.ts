@@ -214,12 +214,12 @@ export function rescanBook(ctx: AppContext, bookId: string) {
   void (where?.dir ? ctx.scanner.scanChanged([path.join(where.root, where.dir)]) : ctx.scanner.scan());
 }
 
-/** Removes a book whose files are gone; scans only mark it missing. Listening progress is kept. */
-export function removeMissingBook(ctx: AppContext, bookId: string) {
-  const info = ctx.sqlite.prepare("DELETE FROM books WHERE id = ? AND missing_since IS NOT NULL").run(bookId);
-  if (info.changes === 0) {
-    const exists = ctx.sqlite.prepare("SELECT 1 FROM books WHERE id = ?").get(bookId);
-    throw exists ? new HttpError(409, "Its files are still there.") : new HttpError(404, "Book not found.");
-  }
+/**
+ * Removes a book from the library; the files are never touched. Scans only mark missing books, so
+ * this is how they go. A book whose files are still there comes back on the next scan, as a new
+ * book (its edits and match are gone). Listening progress is kept.
+ */
+export function removeBook(ctx: AppContext, bookId: string) {
+  if (ctx.sqlite.prepare("DELETE FROM books WHERE id = ?").run(bookId).changes === 0) throw new HttpError(404, "Book not found.");
   bumpChanges("books");
 }

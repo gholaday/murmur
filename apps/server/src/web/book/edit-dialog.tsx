@@ -652,8 +652,7 @@ function ChaptersTab({
 }
 
 function FilesTab({ info, busy, act, onRemoved }: { info: BookEditInfo; busy: boolean; act: Act; onRemoved: () => void }) {
-  const [confirmUndo, setConfirmUndo] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [confirm, setConfirm] = useState<"undo" | "remove" | null>(null);
   const [removing, setRemoving] = useState(false);
   const hasEdits = info.edited.length > 0 || info.chaptersEdited || info.coverSource === "custom" || !!info.book.match;
   const remove = async () => {
@@ -686,60 +685,60 @@ function FilesTab({ info, busy, act, onRemoved }: { info: BookEditInfo; busy: bo
           </li>
         ))}
       </ul>
+      {confirm === "remove" && !missing ? <p className="muted small">The next scan adds it back unless you move or fix its folder.</p> : null}
       <div className="chapter-tools">
-        <button
-          type="button"
-          className="btn"
-          disabled={busy}
-          onClick={() =>
-            void act(async () => {
-              await api(apiPaths.bookRescan(info.book.id), { method: "POST" });
-            }, "Rescanning. Changes show in a moment.")
-          }
-        >
-          Rescan files
-        </button>
-        {missing ? (
-          confirmRemove ? (
-            <>
-              <button type="button" className="btn" onClick={() => setConfirmRemove(false)}>
-                Keep it
+        {confirm === "remove" ? (
+          <>
+            <button type="button" className="btn" onClick={() => setConfirm(null)}>
+              Keep it
+            </button>
+            <button type="button" className="btn btn-danger" disabled={removing} onClick={() => void remove()}>
+              Remove now
+            </button>
+          </>
+        ) : confirm === "undo" ? (
+          <>
+            <button type="button" className="btn" onClick={() => setConfirm(null)}>
+              Keep edits
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger"
+              disabled={busy}
+              onClick={() =>
+                void act(async () => {
+                  await api(apiPaths.bookMatch(info.book.id), { method: "DELETE" });
+                  setConfirm(null);
+                }, "Back to the files' details")
+              }
+            >
+              Undo every edit and match
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              onClick={() =>
+                void act(async () => {
+                  await api(apiPaths.bookRescan(info.book.id), { method: "POST" });
+                }, "Rescanning. Changes show in a moment.")
+              }
+            >
+              Rescan files
+            </button>
+            {hasEdits && !missing ? (
+              <button type="button" className="btn btn-danger" onClick={() => setConfirm("undo")}>
+                Undo all edits
               </button>
-              <button type="button" className="btn btn-danger" disabled={removing} onClick={() => void remove()}>
-                Remove now
-              </button>
-            </>
-          ) : (
-            <button type="button" className="btn btn-danger" onClick={() => setConfirmRemove(true)}>
+            ) : null}
+            <button type="button" className="btn btn-danger" onClick={() => setConfirm("remove")}>
               Remove from library
             </button>
-          )
-        ) : hasEdits ? (
-          confirmUndo ? (
-            <>
-              <button type="button" className="btn" onClick={() => setConfirmUndo(false)}>
-                Keep edits
-              </button>
-              <button
-                type="button"
-                className="btn btn-danger"
-                disabled={busy}
-                onClick={() =>
-                  void act(async () => {
-                    await api(apiPaths.bookMatch(info.book.id), { method: "DELETE" });
-                    setConfirmUndo(false);
-                  }, "Back to the files' details")
-                }
-              >
-                Undo every edit and match
-              </button>
-            </>
-          ) : (
-            <button type="button" className="btn btn-danger" onClick={() => setConfirmUndo(true)}>
-              Undo all edits
-            </button>
-          )
-        ) : null}
+          </>
+        )}
       </div>
     </div>
   );

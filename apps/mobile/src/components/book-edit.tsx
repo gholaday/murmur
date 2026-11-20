@@ -207,7 +207,7 @@ function BookEdit({
       return next;
     }, "Saved");
 
-  // Only offered once its files are missing; the server refuses otherwise.
+  // Takes the book out of the library; its files stay where they are.
   const remove = async () => {
     setBusy(true);
     try {
@@ -523,8 +523,7 @@ function ChaptersTab({ info, rows, setRows, busy, act }: { info: BookEditInfo; r
 
 function FilesTab({ info, busy, act, onRemove }: { info: BookEditInfo; busy: boolean; act: Act; onRemove: () => void }) {
   const t = useTheme();
-  const [confirmUndo, setConfirmUndo] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [confirm, setConfirm] = useState<null | "undo" | "remove">(null);
   const missing = info.book.missingSince !== null;
   const hasEdits = info.edited.length > 0 || info.chaptersEdited || info.coverSource === "custom" || !!info.book.match;
   const mono = { fontFamily: fonts.medium, fontSize: 13, color: t.text } as const;
@@ -554,45 +553,47 @@ function FilesTab({ info, busy, act, onRemove }: { info: BookEditInfo; busy: boo
           </View>
         ))}
       </View>
-      <Button
-        label="Rescan files"
-        kind="secondary"
-        disabled={busy}
-        onPress={() =>
-          void act(async () => {
-            await api(apiPaths.bookRescan(info.book.id),{ method: "POST" });
-          }, "Rescanning. Changes show in a moment.")
-        }
-      />
-      {missing ? (
-        confirmRemove ? (
+      {confirm === "remove" ? (
+        <View style={{ gap: 10 }}>
+          {!missing ? <Text variant="small">The next scan adds it back unless you move or fix its folder.</Text> : null}
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <Button label="Keep it" kind="secondary" onPress={() => setConfirmRemove(false)} style={{ flex: 1, paddingHorizontal: 12 }} />
+            <Button label="Keep it" kind="secondary" onPress={() => setConfirm(null)} style={{ flex: 1, paddingHorizontal: 12 }} />
             <Button label="Remove now" disabled={busy} onPress={onRemove} style={{ flex: 1, paddingHorizontal: 12, backgroundColor: t.danger }} />
           </View>
-        ) : (
-          dangerLink("Remove from library", () => setConfirmRemove(true))
-        )
-      ) : hasEdits ? (
-        confirmUndo ? (
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Button label="Keep edits" kind="secondary" onPress={() => setConfirmUndo(false)} style={{ flex: 1, paddingHorizontal: 12 }} />
-            <Button
-              label="Undo every edit and match"
-              disabled={busy}
-              onPress={() =>
-                void act(async () => {
-                  await api(apiPaths.bookMatch(info.book.id),{ method: "DELETE" });
-                  setConfirmUndo(false);
-                }, "Back to the files' details")
-              }
-              style={{ flex: 1, paddingHorizontal: 12, backgroundColor: t.danger }}
-            />
+        </View>
+      ) : confirm === "undo" ? (
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <Button label="Keep edits" kind="secondary" onPress={() => setConfirm(null)} style={{ flex: 1, paddingHorizontal: 12 }} />
+          <Button
+            label="Undo every edit and match"
+            disabled={busy}
+            onPress={() =>
+              void act(async () => {
+                await api(apiPaths.bookMatch(info.book.id),{ method: "DELETE" });
+                setConfirm(null);
+              }, "Back to the files' details")
+            }
+            style={{ flex: 1, paddingHorizontal: 12, backgroundColor: t.danger }}
+          />
+        </View>
+      ) : (
+        <>
+          <Button
+            label="Rescan files"
+            kind="secondary"
+            disabled={busy}
+            onPress={() =>
+              void act(async () => {
+                await api(apiPaths.bookRescan(info.book.id),{ method: "POST" });
+              }, "Rescanning. Changes show in a moment.")
+            }
+          />
+          <View style={{ flexDirection: "row", justifyContent: "center", gap: 28 }}>
+            {hasEdits && !missing ? dangerLink("Undo all edits", () => setConfirm("undo")) : null}
+            {dangerLink("Remove from library", () => setConfirm("remove"))}
           </View>
-        ) : (
-          dangerLink("Undo all edits", () => setConfirmUndo(true))
-        )
-      ) : null}
+        </>
+      )}
     </>
   );
 }
