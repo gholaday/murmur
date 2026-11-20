@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { listBookmarks } from "@/server/bookmarks";
 import { getBook } from "@/server/books";
 import { getContext } from "@/server/context";
@@ -9,7 +9,8 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
   const user = await requirePageUser();
   const ctx = await getContext();
   const book = await getBook(ctx, (await params).id, user.id);
-  if (!book) notFound();
+  // Removed from the library (or a stale link): back to the Library, as in the app.
+  if (!book) redirect("/");
   const bookmarks = listBookmarks(ctx, user.id).filter((b) => b.itemType === "book" && b.itemId === book.id);
   return <BookView book={book} bookmarks={bookmarks} />;
 }

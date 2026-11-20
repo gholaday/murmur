@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import * as Network from "expo-network";
 import { dehydrate, focusManager, hydrate, onlineManager, QueryClient, type DehydratedState, type Query } from "@tanstack/react-query";
-import { type SavedPlace, storageKeys } from "@murmur/shared/client";
+import { HttpError, type SavedPlace, storageKeys } from "@murmur/shared/client";
 import { keys, keyStartsWith } from "./query-keys";
 import { getJson, removeKey, setJson } from "./storage";
 
@@ -22,7 +22,9 @@ export const queryClient = new QueryClient({
     queries: {
       staleTime: 30_000,
       gcTime: 7 * 24 * 60 * 60 * 1000,
-      retry: (count, err) => count < 2 && !(err instanceof Error && /Signed out/.test(err.message)),
+      // Something that's gone stays gone: a retry would only hold its page blank, and offline it
+      // pauses there for good.
+      retry: (count, err) => count < 2 && !(err instanceof HttpError && err.status === 404) && !(err instanceof Error && /Signed out/.test(err.message)),
       networkMode: "offlineFirst",
       // Coming back to the app refreshes only what can change away from it: see lib/changes.ts.
       refetchOnWindowFocus: false,

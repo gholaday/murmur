@@ -105,13 +105,16 @@ export function BookActions({
   onClose,
   onIdle,
   onHidden,
+  onRemoved,
 }: {
   book: BookSummary;
   open: boolean;
   onClose: () => void;
   onIdle?: () => void;
-  /** On the book's own page: goes back once it's hidden or removed. */
+  /** On the book's own page: goes back once it's hidden. */
   onHidden?: () => void;
+  /** On the book's own page: leaves it once the book is removed from the library. */
+  onRemoved?: () => void;
 }) {
   const playing = usePlayerSelect((s) => s.playing);
   const admin = useIsAdmin();
@@ -165,7 +168,7 @@ export function BookActions({
         ) : null}
         <HideItem kind="book" id={book.id} title={book.title} onClose={onClose} onHidden={onHidden} />
       </Sheet>
-      {admin ? <BookEditSheet bookId={book.id} title={book.title} tab={editing} onClose={() => setEditing(null)} onRemoved={onHidden} /> : null}
+      {admin ? <BookEditSheet bookId={book.id} title={book.title} tab={editing} onClose={() => setEditing(null)} onRemoved={onRemoved} /> : null}
     </>
   );
 }

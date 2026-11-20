@@ -240,7 +240,7 @@
 .skip-ad { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px 6px 14px; border-radius: 999px; background: var(--ad); color: var(--on-ad); font-size: 13px; font-weight: 700; animation: fade-in 0.15s ease-out; }
 /* An episode's last few minutes: the same pill as Skip ad, in the accent colour. */
 .finish-pill { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px 6px 14px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 13px; font-weight: 700; animation: fade-in 0.15s ease-out; }
-.sheet-note { margin: -6px 0 0; font-size: 13px; color: var(--muted); }
+.sheet-note { margin: 0; font-size: 13px; color: var(--muted); }
 .sheet-item-text { display: flex; flex-direction: column; gap: 2px; padding-block: 8px; }
 .sheet-item-sub { font-size: 13px; font-weight: 400; color: var(--muted); }
 .sheet-group { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }

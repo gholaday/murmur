@@ -1,14 +1,14 @@
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
-import { apiPaths, type BookDetail, chapterAt, type ChapterDto, duration, pastStart, plural, timeLeft } from "@murmur/shared/client";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { apiPaths, type BookDetail, chapterAt, type ChapterDto, duration, HttpError, pastStart, plural, timeLeft } from "@murmur/shared/client";
 import { BookmarkRows, openBookmark } from "@/components/bookmarks";
 import { ChapterList } from "@/components/chapters";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { HeroBackdrop, ItemHero, MetaLine } from "@/components/hero";
 import { CheckIcon, DownloadIcon, MoreIcon, PauseIcon, PlayIcon, QueueAddIcon } from "@/components/icons";
 import { openGroup, PAD } from "@/components/library";
-import { BackRow, Empty, NestedFallback, useBackIfFocused, useBottomPad, SectionTitle, useTopInset } from "@/components/page";
+import { BackRow, Empty, NestedFallback, toLibrary, useBackIfFocused, useBottomPad, SectionTitle, useTopInset } from "@/components/page";
 import { BookActions, useBookActions } from "@/components/book-card";
 import { RemoveDownloadSheet } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
@@ -35,6 +35,13 @@ export default function BookScreen() {
   const book = query.data ?? saved;
   // Only a page that had to wait fades in; one already cached shows at once.
   const [waited] = useState(!book);
+  // Removed from the library: back to it, once this page is the one showing.
+  const gone = query.error instanceof HttpError && query.error.status === 404;
+  useFocusEffect(
+    useCallback(() => {
+      if (gone) toLibrary();
+    }, [gone]),
+  );
 
   if (!book) {
     return (
@@ -238,7 +245,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
       </ScrollView>
 
       <BottomMiniPlayer />
-      <BookActions book={book} open={menu} onClose={() => setMenu(false)} onHidden={backIfHere} />
+      <BookActions book={book} open={menu} onClose={() => setMenu(false)} onHidden={backIfHere} onRemoved={toLibrary} />
       <RemoveDownloadSheet
         open={confirmRemove}
         title={book.title}

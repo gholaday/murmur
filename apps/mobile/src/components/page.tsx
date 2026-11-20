@@ -16,6 +16,9 @@ import { CountPill, IconButton, Text } from "./ui";
 /** Back a screen, or to Library when there's nothing behind (opened from a link). */
 export const goBack = () => (router.canGoBack() ? router.back() : router.replace("/"));
 
+/** Straight to Library, closing every screen above it. */
+export const toLibrary = () => router.dismissTo("/");
+
 /** goBack for something that finishes later (Hide): only while this screen is still the one showing. */
 export function useBackIfFocused() {
   const navigation = useNavigation();
