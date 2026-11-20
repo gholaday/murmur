@@ -1,6 +1,7 @@
 import {
   addonAuthorization,
   addonVersionProblem,
+  FILE_SIZE_HEADER,
   type ProbedVideo,
   VIDEO_OWNER_HEADER,
   VIDEO_PASS_THROUGH_HEADERS,
@@ -15,6 +16,7 @@ import {
 import { Agent, fetch as undiciFetch } from "undici";
 import { env } from "../env";
 import { HttpError } from "../http";
+import { totalSize } from "../stream";
 
 // The video add-on (murmur-video) runs ffmpeg: it reads files for the scan, grabs stills and makes
 // streams and downloads. This is Murmur's side of it. The add-on answers errors as `{ error }` with
@@ -146,6 +148,8 @@ async function relay(req: Request, path: string, owner: string): Promise<Respons
     const value = res.headers.get(name);
     if (value) headers.set(name, value);
   }
+  const total = totalSize(res);
+  if (total !== null) headers.set(FILE_SIZE_HEADER, String(total));
   return new Response(req.method === "HEAD" ? null : res.body, { status: res.status, headers });
 }
 

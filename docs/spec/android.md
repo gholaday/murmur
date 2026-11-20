@@ -28,6 +28,8 @@ The bar is Search, Library, Podcasts and You. Books, Music, Watch and Podcasts a
 
 **Coming back:** the lists refresh when the app returns after five minutes or more, since live changes only cover scans and edits, not progress from another device or new episodes.
 
+**Downloads:** two audio downloads run at a time; the rest say "Waiting" until a slot frees. Next.js drops Content-Length from route handlers, so every `/api/stream` answer, HEAD included, also carries the whole file's size as `X-File-Size` (`FILE_SIZE_HEADER`). The app reads it with a HEAD before each file and measures progress against it.
+
 **Offline:** lists and the newest opened pages are cached on the phone, so the app opens and downloaded items play without a connection. The mini player comes back from the saved place at once, then moves if the server has a newer one. A downloaded video keeps its subtitles as VTT files beside it; any that weren't ready are fetched the next time it's opened with a connection. Progress and bookmarks are written to a local outbox first and sent to the server when it's reachable.
 
 **First run:** enter the server URL, then username and password; the app stores a token and never asks again until it's revoked.

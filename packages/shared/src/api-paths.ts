@@ -2,6 +2,12 @@ import type { SearchKind } from "./search";
 
 // ---------- URL helpers shared by web and app ----------
 
+/**
+ * A stream's whole file size, on every /api/stream answer (HEAD too) where it's known. Next.js
+ * drops Content-Length from route handlers, so a download reads its size from this instead.
+ */
+export const FILE_SIZE_HEADER = "X-File-Size";
+
 export const apiPaths = {
   /** BookDetail. */
   book: (bookId: string) => `/api/books/${bookId}`,

@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { apiPaths, duration, type EpisodeWithShow, pastStart, shortDate, timeLeft } from "@murmur/shared/client";
 import { useBookmarks } from "@/lib/bookmarks";
 import { useEpisodeNotes } from "@/lib/data";
-import { downloadEpisode, removeDownload, useDownload } from "@/lib/downloads";
+import { downloadEpisode, downloadingText, removeDownload, useDownload } from "@/lib/downloads";
 import { addToUpNext, episodeToPlayable, isCurrent, isWaiting, markCurrent, play, removeWaiting, setFinished, toggle, useItemPosition, usePlayerSelect } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { BookmarkRows, openBookmark } from "./bookmarks";
@@ -169,12 +169,12 @@ export function EpisodeActions({ episode, play, style }: { episode: EpisodeWithS
         <PlayedIcon size={20} played={finished} color={finished ? t.accent : t.text2} checkColor={t.onAccent} />
       </ActionIcon>
       <ActionIcon
-        label={dl?.status === "error" ? "Download failed, try again" : dl ? (dl.status === "downloading" ? "Cancel download" : "Remove download") : "Download"}
+        label={dl?.status === "error" ? "Download failed, try again" : dl ? (dl.status === "downloading" ? `${downloadingText(dl)}, tap to cancel` : "Remove download") : "Download"}
         selected={dl?.status === "done"}
         onPress={onDownload}
       >
         {dl?.status === "downloading" ? (
-          <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: t.accent }}>{Math.round(dl.progress * 100)}%</Text>
+          <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: dl.waiting ? t.muted : t.accent }}>{Math.round(dl.progress * 100)}%</Text>
         ) : (
           <DownloadIcon size={20} color={dl?.status === "done" ? t.accent : dl?.status === "error" ? t.danger : t.text2} />
         )}

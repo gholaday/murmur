@@ -6,6 +6,7 @@ import {
   cuesToVtt,
   type EpisodeAdsDto,
   type EpisodeWithShow,
+  FILE_SIZE_HEADER,
   type ItemType,
   loadSubtitleCues,
   type MovieDetail,
@@ -59,6 +60,8 @@ export type Download = {
   files: Record<number, string>;
   savedAt: number;
   error?: string;
+  /** Downloading, but waiting for its turn: audio goes two at a time, videos one at a time. */
+  waiting?: boolean;
 } & (
   | { type: "book"; book: BookDetail }
   /** `ads`: the episode's ad times as of the download (kept fresh while playing online). */
@@ -182,6 +185,23 @@ function folderFor(type: DownloadType, id: string): Directory {
 
 const active = new Map<string, AbortController>();
 
+/**
+ * The whole file's size, which the server sends in its own header (its replies come without
+ * Content-Length), so progress can show. 0 when it can't say, and the download goes on without it.
+ */
+async function fileSize(url: string): Promise<number> {
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), 5000);
+  try {
+    const res = await fetch(absolute(url), { method: "HEAD", headers: authHeaders(), signal: abort.signal });
+    return Number(res.headers.get(FILE_SIZE_HEADER)) || 0;
+  } catch {
+    return 0;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 type AudioFile = { index: number; url: string; mime: string; durationSec: number };
 
 /** Files that finished before a download failed, kept when it's tried again. */
@@ -199,8 +219,9 @@ function pumpAudio() {
   while (audioRunning < MAX_AUDIO) {
     const next = audioQueue.shift();
     if (!next) return;
-    // Cancelled while it waited.
-    if (index[next.key]?.status !== "downloading" || active.has(next.key)) continue;
+    // Cancelled while it waited, or already running. A run that was cancelled may still be
+    // stopping; a new download of the same item starts anyway.
+    if (index[next.key]?.status !== "downloading" || active.get(next.key)?.signal.aborted === false) continue;
     audioRunning++;
     void run(next.key, next.type, next.id, next.files).finally(() => {
       audioRunning--;
@@ -219,6 +240,7 @@ async function run(key: string, type: DownloadType, id: string, files: AudioFile
   folder.create({ intermediates: true, idempotent: true });
   const abort = new AbortController();
   active.set(key, abort);
+  patch(key, { waiting: false });
   const total = files.reduce((n, f) => n + Math.max(1, f.durationSec), 0);
   let doneWeight = 0;
   const saved = { ...index[key]?.files };
@@ -236,23 +258,28 @@ async function run(key: string, type: DownloadType, id: string, files: AudioFile
       }
       const dest = new File(folder, `${f.index}.${EXT[f.mime] ?? "audio"}`);
       if (dest.exists) dest.delete();
+      const known = await fileSize(f.url);
+      if (abort.signal.aborted) return;
       let lastUpdate = 0;
       const task = File.createDownloadTask(absolute(f.url), dest, {
         headers: authHeaders(),
         onProgress: ({ bytesWritten, totalBytes }) => {
-          if (Date.now() - lastUpdate < 500 || totalBytes <= 0) return;
+          const size = totalBytes > 0 ? totalBytes : known;
+          if (abort.signal.aborted || Date.now() - lastUpdate < 500 || size <= 0) return;
           // The first report is the first time its size is known.
-          if (!lastUpdate && totalBytes - bytesWritten > Paths.availableDiskSpace) {
+          if (!lastUpdate && size - bytesWritten > Paths.availableDiskSpace) {
             noRoom = true;
             task.cancel();
             return;
           }
           lastUpdate = Date.now();
-          setProgress(key, (doneWeight + (bytesWritten / totalBytes) * weight) / total);
+          setProgress(key, (doneWeight + (bytesWritten / size) * weight) / total);
         },
       });
       abort.signal.addEventListener("abort", () => task.cancel());
       const file = await task.downloadAsync();
+      // Removed meanwhile, and maybe downloaded again: this run's results aren't wanted.
+      if (abort.signal.aborted) return;
       if (noRoom) {
         toast.error("Not enough space on this phone.");
         throw new Error("Not enough space.");
@@ -268,14 +295,15 @@ async function run(key: string, type: DownloadType, id: string, files: AudioFile
     if (abort.signal.aborted) return;
     patch(key, { status: "error", error: err instanceof Error ? err.message : "Download failed." });
   } finally {
-    active.delete(key);
+    // A new download of the same item may have taken the key over.
+    if (active.get(key) === abort) active.delete(key);
   }
 }
 
 export function downloadBook(book: BookDetail) {
   const key = keyOf("book", book.id);
   if (index[key]?.status === "downloading") return;
-  commit({ ...index, [key]: { type: "book", id: book.id, book, status: "downloading", progress: 0, ...keptFiles(key), savedAt: Date.now() } });
+  commit({ ...index, [key]: { type: "book", id: book.id, book, status: "downloading", waiting: true, progress: 0, ...keptFiles(key), savedAt: Date.now() } });
   startAudio(
     key,
     "book",
@@ -289,7 +317,7 @@ export function downloadEpisode(episode: EpisodeWithShow) {
   if (index[key]?.status === "downloading") return;
   commit({
     ...index,
-    [key]: { type: "podcast", id: episode.id, episode, status: "downloading", progress: 0, ...keptFiles(key), savedAt: Date.now() },
+    [key]: { type: "podcast", id: episode.id, episode, status: "downloading", waiting: true, progress: 0, ...keptFiles(key), savedAt: Date.now() },
   });
   startAudio(key, "podcast", episode.id, [
     { index: 0, url: apiPaths.episodeUrl(episode.id), mime: "audio/mpeg", durationSec: episode.durationSec ?? 0 },
@@ -305,7 +333,7 @@ export function downloadEpisode(episode: EpisodeWithShow) {
 export function downloadAlbum(album: AlbumDetail) {
   const key = keyOf("album", album.id);
   if (index[key]?.status === "downloading") return;
-  commit({ ...index, [key]: { type: "album", id: album.id, album, status: "downloading", progress: 0, ...keptFiles(key), savedAt: Date.now() } });
+  commit({ ...index, [key]: { type: "album", id: album.id, album, status: "downloading", waiting: true, progress: 0, ...keptFiles(key), savedAt: Date.now() } });
   startAudio(
     key,
     "album",
@@ -317,7 +345,7 @@ export function downloadAlbum(album: AlbumDetail) {
 export function downloadTrack(track: TrackDto) {
   const key = keyOf("track", track.id);
   if (index[key]?.status === "downloading") return;
-  commit({ ...index, [key]: { type: "track", id: track.id, track, status: "downloading", progress: 0, ...keptFiles(key), savedAt: Date.now() } });
+  commit({ ...index, [key]: { type: "track", id: track.id, track, status: "downloading", waiting: true, progress: 0, ...keptFiles(key), savedAt: Date.now() } });
   startAudio(key, "track", track.id, [{ index: 0, url: apiPaths.trackUrl(track.id), mime: track.mimeType, durationSec: track.durationSec }]);
 }
 
@@ -354,6 +382,7 @@ async function runVideo(key: string) {
   folder.create({ intermediates: true, idempotent: true });
   const abort = new AbortController();
   active.set(key, abort);
+  patch(key, { waiting: false });
   const file = d.type === "movie" ? d.movie.versionList.find((v) => v.id === d.versionId)?.file : d.episode.file;
   const dest = new File(folder, `video.${videoExt(d.source, file?.container ?? "")}`);
   const source = d.source;
@@ -384,13 +413,15 @@ async function runVideo(key: string) {
   };
   const fetchFile = async (url: string, start: number) => {
     if (dest.exists) dest.delete();
+    const known = await fileSize(url);
     let lastUpdate = 0;
     const task = File.createDownloadTask(absolute(url), dest, {
       headers: authHeaders(),
       onProgress: ({ bytesWritten, totalBytes }) => {
-        if (Date.now() - lastUpdate < 500 || totalBytes <= 0) return;
+        const size = totalBytes > 0 ? totalBytes : known;
+        if (abort.signal.aborted || Date.now() - lastUpdate < 500 || size <= 0) return;
         lastUpdate = Date.now();
-        setProgress(key, start + (bytesWritten / totalBytes) * (1 - start));
+        setProgress(key, start + (bytesWritten / size) * (1 - start));
       },
     });
     abort.signal.addEventListener("abort", () => task.cancel());
@@ -469,8 +500,9 @@ export async function saveVideoSubtitles(videoId: string, tracks: VideoSubtitleT
   if (d) await saveSubtitles(keyOf(d.type, d.id), tracks);
 }
 
-/** "Preparing 40%" while the server makes a video, else "Downloading 95%": a running download's status line. */
+/** "Waiting" for its turn, "Preparing 40%" while the server makes a video, else "Downloading 95%": a running download's status line. */
 export function downloadingText(d: Download): string {
+  if (d.waiting) return "Waiting";
   if ((d.type === "movie" || d.type === "show") && d.source.made && d.progress < MAKING_SHARE) {
     return `Preparing ${Math.round((d.progress / MAKING_SHARE) * 100)}%`;
   }
@@ -530,7 +562,7 @@ export function downloadMovie(movie: MovieDetail, versionId: string, source: Vid
     ...(movie.backdropHash ? [apiPaths.movieArtUrl(movie.id, "backdrop", movie.backdropHash)] : []),
     ...(version.stillHash ? [apiPaths.videoStillUrl(version.id, version.stillHash, "small")] : []),
   ];
-  const entry = { type: "movie", id: movie.id, movie, versionId: version.id, source, art: {}, status: "downloading", progress: 0, bytes: 0, files: {}, savedAt: Date.now() } as const;
+  const entry = { type: "movie", id: movie.id, movie, versionId: version.id, source, art: {}, status: "downloading", waiting: true, progress: 0, bytes: 0, files: {}, savedAt: Date.now() } as const;
   startVideo(key, entry, art);
 }
 
@@ -545,7 +577,7 @@ export function downloadTvEpisode(show: ShowDetail, episode: VideoEpisode, sourc
     ...(show.backdropHash ? [apiPaths.showArtUrl(show.id, "backdrop", show.backdropHash)] : []),
     ...(episode.stillHash ? [apiPaths.videoStillUrl(episode.id, episode.stillHash, "small")] : []),
   ];
-  const entry = { type: "show", id: episode.id, episode, show, source, art: {}, status: "downloading", progress: 0, bytes: 0, files: {}, savedAt: Date.now() } as const;
+  const entry = { type: "show", id: episode.id, episode, show, source, art: {}, status: "downloading", waiting: true, progress: 0, bytes: 0, files: {}, savedAt: Date.now() } as const;
   startVideo(key, entry, art);
 }
 

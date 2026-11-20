@@ -11,7 +11,7 @@ import { RemoveDownloadSheet } from "@/components/sheet";
 import { Bone, FadeIn, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { ACTION_HEIGHT, IconButton, Text } from "@/components/ui";
 import { setLiked, useAlbum } from "@/lib/data";
-import { downloadAlbum, removeDownload, useDownload } from "@/lib/downloads";
+import { downloadAlbum, downloadingText, removeDownload, useDownload } from "@/lib/downloads";
 import { selectHaptic } from "@/lib/haptics";
 import { playMusic } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
@@ -131,9 +131,9 @@ function AlbumDownloadButton({ album }: { album: AlbumDetail }) {
         <ActionButton label="Remove download" round icon={<CheckIcon size={20} color={t.accent} />} onPress={() => setConfirm(true)} />
       ) : d?.status === "downloading" ? (
         <ActionButton
-          label={`Downloading ${pct}%, tap to cancel`}
+          label={`${downloadingText(d)}, tap to cancel`}
           round
-          icon={<Text style={{ fontFamily: fonts.bold, fontSize: 12, color: t.accent }}>{`${pct}%`}</Text>}
+          icon={<Text style={{ fontFamily: fonts.bold, fontSize: 12, color: d.waiting ? t.muted : t.accent }}>{`${pct}%`}</Text>}
           onPress={() => removeDownload("album", album.id)}
         />
       ) : (

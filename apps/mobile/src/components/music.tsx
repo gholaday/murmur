@@ -314,7 +314,7 @@ function SongSheetItems({ track, onClose, hideAlbum, onAddToPlaylist }: { track:
       {hideAlbum ? null : <SheetItem label="Go to album" onPress={close(() => openAlbum(track.albumId))} />}
       {own ? (
         <SheetItem
-          label={own.status === "downloading" ? `Cancel download, ${Math.round(own.progress * 100)}%` : "Remove download"}
+          label={own.status === "downloading" ? `Cancel download, ${own.waiting ? "waiting" : `${Math.round(own.progress * 100)}%`}` : "Remove download"}
           danger={own.status !== "downloading"}
           onPress={close(() => removeDownload("track", track.id))}
         />

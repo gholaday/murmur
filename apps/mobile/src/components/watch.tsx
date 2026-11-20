@@ -447,7 +447,7 @@ export function VideoDownloadButton({
     d?.status === "done" ? (
       <CheckIcon size={20} color={t.accent} />
     ) : d?.status === "downloading" ? (
-      <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: t.accent }}>{`${pct}%`}</Text>
+      <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: d.waiting ? t.muted : t.accent }}>{`${pct}%`}</Text>
     ) : (
       <DownloadIcon size={20} color={d?.status === "error" ? t.danger : round ? t.text : t.muted} />
     );

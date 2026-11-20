@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
-import { parseRange } from "@murmur/shared";
+import { FILE_SIZE_HEADER, parseRange } from "@murmur/shared";
 import { HttpError } from "./http";
 import { safeFetch } from "./safe-fetch";
 
@@ -54,6 +54,7 @@ export async function streamFile(req: Request, file: string, mimeType: string): 
     "Accept-Ranges": "bytes",
     "Cache-Control": "private, max-age=3600, no-transform",
     "Last-Modified": stat.mtime.toUTCString(),
+    [FILE_SIZE_HEADER]: String(size),
   };
 
   if (range === "unsatisfiable") {
@@ -95,7 +96,12 @@ const GROWING_STALL_MS = 60_000;
 export function streamGrowing(req: Request, file: string, download: GrowingFile, mimeType: string): Response {
   const size = download.size!;
   const range = parseRange(req.headers.get("range"), size);
-  const baseHeaders: Record<string, string> = { "Content-Type": mimeType, "Accept-Ranges": "bytes", "Cache-Control": "private, no-transform" };
+  const baseHeaders: Record<string, string> = {
+    "Content-Type": mimeType,
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "private, no-transform",
+    [FILE_SIZE_HEADER]: String(size),
+  };
   if (range === "unsatisfiable") {
     return new Response(null, { status: 416, headers: { ...baseHeaders, "Content-Range": `bytes */${size}` } });
   }
@@ -142,7 +148,14 @@ async function* readGrowing(file: string, download: GrowingFile, start: number, 
   }
 }
 
-const PASS_THROUGH_HEADERS =["content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified"];
+/** A relayed answer's whole file size: the total in Content-Range, else a full answer's length. */
+export function totalSize(res: { status: number; headers: { get(name: string): string | null } }): number | null {
+  const range = /\/(\d+)$/.exec(res.headers.get("content-range") ?? "");
+  const n = range ? Number(range[1]) : res.status === 200 ? Number(res.headers.get("content-length")) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+const PASS_THROUGH_HEADERS = ["content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified"];
 
 /**
  * Relays a publisher's audio with range support. Enclosure URLs usually chain through
@@ -171,6 +184,8 @@ export async function proxyStream(req: Request, url: string, mimeType: string, u
   }
   // Hosts sometimes label audio as octet-stream, which some players refuse. Only an audio type
   // of theirs is kept, so nothing relayed is ever served as a page.
+  const total = totalSize(upstream);
+  if (total !== null) out.set(FILE_SIZE_HEADER, String(total));
   const type = out.get("content-type");
   if (!type || !/^audio\//.test(type)) out.set("content-type", mimeType);
   out.set("X-Content-Type-Options", "nosniff");

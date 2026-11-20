@@ -15,7 +15,7 @@ import { FadeIn } from "@/components/skeleton";
 import { ACTION_HEIGHT, Bar, IconButton, RoundButton, Text } from "@/components/ui";
 import { useBookmarks } from "@/lib/bookmarks";
 import { useBook } from "@/lib/data";
-import { downloadBook, getDownload, removeDownload, useDownload, type Download } from "@/lib/downloads";
+import { downloadBook, downloadingText, getDownload, removeDownload, useDownload, type Download } from "@/lib/downloads";
 import {
   bookToPlayable,
   play,
@@ -108,7 +108,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
     download?.status === "done"
       ? "Remove download"
       : download?.status === "downloading"
-        ? `Downloading ${Math.round(download.progress * 100)}%`
+        ? `${downloadingText(download)}, tap to cancel`
         : download?.status === "error"
           ? "Download failed, try again"
           : "Download";
@@ -198,7 +198,7 @@ function BookView({ book, download }: { book: BookDetail; download: Download | u
             ) : null}
             <RoundButton label={downloadLabel} active={download?.status === "done"} onPress={toggleDownload}>
               {download?.status === "downloading" ? (
-                <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: t.accent }}>{Math.round(download.progress * 100)}%</Text>
+                <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: download.waiting ? t.muted : t.accent }}>{Math.round(download.progress * 100)}%</Text>
               ) : (
                 <DownloadIcon size={22} color={download?.status === "done" ? t.accent : download?.status === "error" ? t.danger : t.text} />
               )}
