@@ -7,7 +7,7 @@
 /api/bookmarks GET PUT
 /api/bookmarks/[id] DELETE
 /api/books GET
-/api/books/[id] GET
+/api/books/[id] DELETE GET
 /api/books/[id]/chapters PUT
 /api/books/[id]/cover DELETE GET POST
 /api/books/[id]/details PUT

@@ -4,7 +4,7 @@ Music is optional. It comes from one or more music folders, set up like the book
 
 ## Scanning
 
-- Music is read file by file, not folder by folder, and a file is probed again only when its size or modified time changes. One that can't be read isn't tried again for a day unless it changes (videos too, except when the add-on was down). It has its own watcher and the same missing-file grace period as books.
+- Music is read file by file, not folder by folder, and a file is probed again only when its size or modified time changes. One that can't be read isn't tried again for a day unless it changes (videos too, except when the add-on was down). It has its own watcher, and a song whose file is gone is removed after `MISSING_GRACE_DAYS` (7 days).
 - Albums are grouped by album artist plus album title. The album artist falls back to the song's artist. A song by someone other than the album artist (a compilation or a feature) is filed under the album and listed on its own artist's page under Appears on.
 - **Untagged files:** the folder is the album, its parent folder the artist, and the file name the title. A leading `01 - ` is the track number, and `CD 1`, `Disc 2` or `Part 3` folders belong to the album above them.
 - **Covers:** `cover.jpg`, `folder.jpg` or `front.jpg` in the album folder, else the first song's embedded picture.

@@ -107,15 +107,42 @@ const sameRow = (a: Row, b: Row) => a.title === b.title && a.start === b.start;
 type Act = (fn: () => Promise<BookEditInfo | void>, done: string) => Promise<void>;
 
 /** Edit for one book, opened on `tab`; null keeps it closed. */
-export function BookEditSheet({ bookId, title, tab, onClose }: { bookId: string; title: string; tab: BookEditTab | null; onClose: () => void }) {
+export function BookEditSheet({
+  bookId,
+  title,
+  tab,
+  onClose,
+  onRemoved,
+}: {
+  bookId: string;
+  title: string;
+  tab: BookEditTab | null;
+  onClose: () => void;
+  /** After the book is removed from the library, on top of closing. */
+  onRemoved?: () => void;
+}) {
   // Each opening starts afresh on the tab it was opened on; the sheet keeps it while it slides away.
   const [state, setState] = useState({ open: false, tab: "details" as BookEditTab, round: 0 });
   if ((tab !== null) !== state.open) setState({ open: tab !== null, tab: tab ?? state.tab, round: tab !== null ? state.round + 1 : state.round });
   if (state.round === 0) return null;
-  return <BookEdit key={state.round} bookId={bookId} title={title} startTab={state.tab} open={state.open} onClose={onClose} />;
+  return <BookEdit key={state.round} bookId={bookId} title={title} startTab={state.tab} open={state.open} onClose={onClose} onRemoved={onRemoved} />;
 }
 
-function BookEdit({ bookId, title, startTab, open, onClose }: { bookId: string; title: string; startTab: BookEditTab; open: boolean; onClose: () => void }) {
+function BookEdit({
+  bookId,
+  title,
+  startTab,
+  open,
+  onClose,
+  onRemoved,
+}: {
+  bookId: string;
+  title: string;
+  startTab: BookEditTab;
+  open: boolean;
+  onClose: () => void;
+  onRemoved?: () => void;
+}) {
   const [tab, setTab] = useState(startTab);
   const [info, setInfo] = useState<BookEditInfo | null>(null);
   const [form, setForm] = useState<Form | null>(null);
@@ -179,6 +206,21 @@ function BookEdit({ bookId, title, startTab, open, onClose }: { bookId: string; 
       }
       return next;
     }, "Saved");
+
+  // Only offered once its files are missing; the server refuses otherwise.
+  const remove = async () => {
+    setBusy(true);
+    try {
+      await api(apiPaths.book(bookId), { method: "DELETE" });
+      toast.show("Removed from the library");
+      void queryClient.invalidateQueries();
+      onClose();
+      onRemoved?.();
+    } catch (err) {
+      toast.error(errorText(err));
+      setBusy(false);
+    }
+  };
 
   const match = useBookMatch(bookId, tab === "match", () => {
     void act(async () => undefined, "Match applied");
@@ -244,7 +286,7 @@ function BookEdit({ bookId, title, startTab, open, onClose }: { bookId: string; 
             ) : tab === "chapters" ? (
               <ChaptersTab info={info} rows={rows} setRows={setRows} busy={busy} act={act} />
             ) : (
-              <FilesTab info={info} busy={busy} act={act} />
+              <FilesTab info={info} busy={busy} act={act} onRemove={() => void remove()} />
             )}
           </View>
         )}
@@ -479,16 +521,28 @@ function ChaptersTab({ info, rows, setRows, busy, act }: { info: BookEditInfo; r
   );
 }
 
-function FilesTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act: Act }) {
+function FilesTab({ info, busy, act, onRemove }: { info: BookEditInfo; busy: boolean; act: Act; onRemove: () => void }) {
   const t = useTheme();
   const [confirmUndo, setConfirmUndo] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const missing = info.book.missingSince !== null;
   const hasEdits = info.edited.length > 0 || info.chaptersEdited || info.coverSource === "custom" || !!info.book.match;
   const mono = { fontFamily: fonts.medium, fontSize: 13, color: t.text } as const;
+  const dangerLink = (label: string, onPress: () => void) => (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => ({ alignSelf: "center", paddingVertical: 8, opacity: pressed ? 0.6 : 1 })}>
+      <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: t.danger }}>{label}</Text>
+    </Pressable>
+  );
   return (
     <>
       <View style={{ gap: 6 }}>
         <Caption style={{ letterSpacing: 0.6 }}>Folder</Caption>
         <Text style={mono}>{info.folder ?? "Its library folder was removed."}</Text>
+        {missing ? (
+          <Text variant="small" style={{ color: t.danger }}>
+            These files are missing.
+          </Text>
+        ) : null}
       </View>
       <View>
         {info.files.map((f) => (
@@ -510,7 +564,16 @@ function FilesTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
           }, "Rescanning. Changes show in a moment.")
         }
       />
-      {hasEdits ? (
+      {missing ? (
+        confirmRemove ? (
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Button label="Keep it" kind="secondary" onPress={() => setConfirmRemove(false)} style={{ flex: 1, paddingHorizontal: 12 }} />
+            <Button label="Remove now" disabled={busy} onPress={onRemove} style={{ flex: 1, paddingHorizontal: 12, backgroundColor: t.danger }} />
+          </View>
+        ) : (
+          dangerLink("Remove from library", () => setConfirmRemove(true))
+        )
+      ) : hasEdits ? (
         confirmUndo ? (
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Button label="Keep edits" kind="secondary" onPress={() => setConfirmUndo(false)} style={{ flex: 1, paddingHorizontal: 12 }} />
@@ -527,9 +590,7 @@ function FilesTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
             />
           </View>
         ) : (
-          <Pressable accessibilityRole="button" onPress={() => setConfirmUndo(true)} style={({ pressed }) => ({ alignSelf: "center", paddingVertical: 8, opacity: pressed ? 0.6 : 1 })}>
-            <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: t.danger }}>Undo all edits</Text>
-          </Pressable>
+          dangerLink("Undo all edits", () => setConfirmUndo(true))
         )
       ) : null}
     </>

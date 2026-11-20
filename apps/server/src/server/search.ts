@@ -13,7 +13,6 @@ import {
 } from "@murmur/shared";
 import { booksByIds } from "./books";
 import type { AppContext } from "./context";
-import { env } from "./env";
 import { HIDDEN_SQL } from "./hidden";
 import { createLogger, errorMessage } from "./log";
 import { albumsByIds, artistsByIds, tracksByIds } from "./music/queries";
@@ -27,7 +26,7 @@ type IndexKind = "book" | "podcast" | "episode" | "artist" | "album" | "track" |
 
 /** Who may see a hit, beyond it still being there (which the list queries check). */
 const VISIBLE: Partial<Record<IndexKind, string>> = {
-  book: "EXISTS (SELECT 1 FROM books b WHERE b.id = r.ref AND (b.missing_since IS NULL OR b.missing_since > @grace))",
+  book: "EXISTS (SELECT 1 FROM books b WHERE b.id = r.ref)",
   podcast: "EXISTS (SELECT 1 FROM subscriptions s WHERE s.podcast_id = r.ref AND s.user_id = @user)",
   episode:
     "EXISTS (SELECT 1 FROM episodes e JOIN subscriptions s ON s.podcast_id = e.podcast_id AND s.user_id = @user WHERE e.id = r.ref)",
@@ -43,7 +42,7 @@ const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 function findIds(ctx: AppContext, userId: number, kind: IndexKind, q: string, limit: number): string[] {
   const hidden = kind in HIDDEN_SQL ? HIDDEN_SQL[kind as keyof typeof HIDDEN_SQL] : null;
   const visible = `${VISIBLE[kind] ? `AND ${VISIBLE[kind]}` : ""} ${hidden ? `AND NOT ${hidden("r.ref")}` : ""}`;
-  const params = { kind, user: userId, grace: Date.now() - env.missingGraceMs, limit: limit * 2 };
+  const params = { kind, user: userId, limit: limit * 2 };
   const fts = ftsQuery(q);
   const rows = (
     fts
@@ -80,9 +79,9 @@ function bookNames(ctx: AppContext, userId: number, q: string, limit: number): {
       `SELECT NULLIF(COALESCE(o.author, b.author), '') AS author,
               CASE WHEN o.series IS NOT NULL THEN NULLIF(o.series, '') ELSE b.series END AS series
        FROM books b LEFT JOIN book_overrides o ON o.book_id = b.id
-       WHERE (b.missing_since IS NULL OR b.missing_since > @grace) AND NOT ${HIDDEN_SQL.book("b.id")}`,
+       WHERE NOT ${HIDDEN_SQL.book("b.id")}`,
     )
-    .all({ grace: Date.now() - env.missingGraceMs, user: userId }) as Array<{ author: string | null; series: string | null }>;
+    .all({ user: userId }) as Array<{ author: string | null; series: string | null }>;
   const count = (values: Array<string | null>): SearchName[] => {
     const counts = new Map<string, number>();
     for (const v of values) if (v && searchKey(v).includes(key)) counts.set(v, (counts.get(v) ?? 0) + 1);

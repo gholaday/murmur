@@ -95,7 +95,6 @@ async function boot(): Promise<AppContext> {
     folders: () => listFolders(db),
     coversDir: env.coversDir,
     probeConcurrency: env.probeConcurrency,
-    missingGraceMs: env.missingGraceMs,
     log: createLogger("scanner"),
     state: scanState,
     afterScan: () => autoMatchPending(getContext),

@@ -27,6 +27,8 @@ Author/Series/Book 3 - Title/...
 
 **Scans:** a full scan on startup and on demand from Settings; between scans, a file watcher picks up changes after 30 s of quiet. Network mounts that don't report changes can use polling (`WATCH_POLLING`), and a periodic rescan is the safety net.
 
+**Missing files:** a book whose files are gone shows "Files missing" and is listed under Needs attention. It stays until an admin removes it from Edit > Files, so a drive that's away for a while loses nothing; a book whose files are still there can't be removed. Listening progress is kept.
+
 ---
 
 | [← Architecture](architecture.md) | [Contents](README.md) | [Metadata →](metadata.md) |

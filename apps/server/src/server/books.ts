@@ -1,6 +1,5 @@
 import { type BookDetail, type BookSummary, type ChapterDto, type MatchProvider, STATS_MIN_SEC } from "@murmur/shared";
 import type { AppContext } from "./context";
-import { env } from "./env";
 import { coverColors } from "./library/covers";
 
 interface BookRow {
@@ -86,10 +85,6 @@ function toSummary(r: BookRow, colors: Map<string, string>): BookSummary {
   };
 }
 
-/** Books shown in the library: here, or missing for less than the grace period (marked missing). */
-const SHOWN = "(b.missing_since IS NULL OR b.missing_since > @since)";
-const shownSince = () => Date.now() - env.missingGraceMs;
-
 /**
  * You > Library's book counts for admins, counted in SQL: everything shown, those with a problem
  * (bookIssues: no cover, no author, files missing) and those not matched.
@@ -101,9 +96,9 @@ export function bookCounts(ctx: AppContext): { total: number; attention: number;
               COUNT(*) FILTER (WHERE COALESCE(o.cover_hash, b.cover_hash) IS NULL OR NULLIF(COALESCE(o.author, b.author), '') IS NULL
                                      OR b.missing_since IS NOT NULL) AS attention,
               COUNT(*) FILTER (WHERE NOT (o.provider IS NOT NULL OR COALESCE(o.marked_matched, 0) = 1)) AS unmatched
-       FROM books b LEFT JOIN book_overrides o ON o.book_id = b.id WHERE ${SHOWN}`,
+       FROM books b LEFT JOIN book_overrides o ON o.book_id = b.id`,
     )
-    .get({ since: shownSince() }) as { total: number; attention: number; unmatched: number };
+    .get() as { total: number; attention: number; unmatched: number };
 }
 
 /** One query for the whole library, newest first. `userId` null leaves out anyone's place. */
@@ -111,10 +106,9 @@ export async function listBooks(ctx: AppContext, userId: number | null): Promise
   const rows = ctx.sqlite
     .prepare(
       `SELECT ${SUMMARY_COLUMNS} FROM books b ${JOINS}
-       WHERE ${SHOWN}
        ORDER BY b.added_at DESC, b.title`,
     )
-    .all({ user: userId, since: shownSince() }) as BookRow[];
+    .all({ user: userId }) as BookRow[];
   const colors = await coverColors(rows.map((r) => r.cover_hash));
   return rows.map((r) => toSummary(r, colors));
 }

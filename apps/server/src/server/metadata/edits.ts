@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { BookEditInfo, BookEditInput, BookEditValues, ChaptersEditInput, EditableField, KnownSeries } from "@murmur/shared";
 import { getBook, scannedChapters } from "../books";
+import { bumpChanges } from "../changes";
 import type { AppContext } from "../context";
 import { env } from "../env";
 import { HttpError } from "../http";
@@ -211,4 +212,14 @@ export function rescanBook(ctx: AppContext, bookId: string) {
     .prepare("SELECT lf.path AS root, b.folder_path AS dir FROM books b JOIN library_folders lf ON lf.id = b.library_folder_id WHERE b.id = ?")
     .get(bookId) as { root: string; dir: string } | undefined;
   void (where?.dir ? ctx.scanner.scanChanged([path.join(where.root, where.dir)]) : ctx.scanner.scan());
+}
+
+/** Removes a book whose files are gone; scans only mark it missing. Listening progress is kept. */
+export function removeMissingBook(ctx: AppContext, bookId: string) {
+  const info = ctx.sqlite.prepare("DELETE FROM books WHERE id = ? AND missing_since IS NOT NULL").run(bookId);
+  if (info.changes === 0) {
+    const exists = ctx.sqlite.prepare("SELECT 1 FROM books WHERE id = ?").get(bookId);
+    throw exists ? new HttpError(409, "Its files are still there.") : new HttpError(404, "Book not found.");
+  }
+  bumpChanges("books");
 }

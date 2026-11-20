@@ -428,7 +428,7 @@ export interface BookSummary {
   /** Dominant cover colour (#rrggbb) for tinted headers and placeholders. */
   coverColor: string | null;
   addedAt: number;
-  /** Set when the book's folder disappeared; it is hidden after 7 days. */
+  /** Set when the book's files disappeared; it stays until an admin removes it. */
   missingSince: number | null;
   /** Metadata was applied through Match, or an admin marked the book as needing none. */
   matched: boolean;

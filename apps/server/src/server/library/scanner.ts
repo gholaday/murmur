@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { eq, inArray, isNotNull, lt, and } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { Db } from "../db";
 import { bookFiles, books, chapters } from "../db/schema";
 import { newId } from "../ids";
@@ -19,7 +19,6 @@ interface ScannerDeps {
   folders: () => LibraryFolder[];
   coversDir: string;
   probeConcurrency: number;
-  missingGraceMs: number;
   log: Logger;
   state: ScanState;
   /** Runs after each scan, for lookups that need the new books (matching on their own). */
@@ -381,7 +380,7 @@ export function createScanner(deps: ScannerDeps) {
       db.delete(books).where(inArray(books.id, orphans)).run();
       stats.removed += orphans.length;
     }
-    // Other books we didn't see are marked missing, never deleted straight away.
+    // Other books we didn't see are marked missing, and stay until an admin removes them.
     const newlyMissing = existing
       .filter((b) => !seen.has(b.id) && !isOrphan(b.folderId) && !isUnavailable(b.folderId) && b.missingSince === null)
       .map((b) => b.id);
@@ -389,13 +388,6 @@ export function createScanner(deps: ScannerDeps) {
       db.update(books).set({ missingSince: now }).where(inArray(books.id, newlyMissing)).run();
       stats.missing = newlyMissing.length;
     }
-    // After the grace period they are removed; listening progress is kept regardless.
-    const removed = db
-      .delete(books)
-      .where(and(isNotNull(books.missingSince), lt(books.missingSince, now - deps.missingGraceMs)))
-      .returning({ id: books.id })
-      .all();
-    stats.removed += removed.length;
     if (stats.removed || stats.missing) bumpChanges("books");
     return { stats, problems };
   }

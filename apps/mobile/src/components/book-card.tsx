@@ -110,7 +110,7 @@ export function BookActions({
   open: boolean;
   onClose: () => void;
   onIdle?: () => void;
-  /** On the book's own page: goes back once it's hidden. */
+  /** On the book's own page: goes back once it's hidden or removed. */
   onHidden?: () => void;
 }) {
   const playing = usePlayerSelect((s) => s.playing);
@@ -165,7 +165,7 @@ export function BookActions({
         ) : null}
         <HideItem kind="book" id={book.id} title={book.title} onClose={onClose} onHidden={onHidden} />
       </Sheet>
-      {admin ? <BookEditSheet bookId={book.id} title={book.title} tab={editing} onClose={() => setEditing(null)} /> : null}
+      {admin ? <BookEditSheet bookId={book.id} title={book.title} tab={editing} onClose={() => setEditing(null)} onRemoved={onHidden} /> : null}
     </>
   );
 }

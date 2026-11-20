@@ -100,12 +100,15 @@ export function EditBookDialog({
   tab: initialTab = "details",
   onClose,
   onChanged,
+  onRemoved,
 }: {
   bookId: string;
   open: boolean;
   tab?: EditTab;
   onClose: () => void;
   onChanged: () => void;
+  /** After a book with missing files is removed; by default the dialog closes and the list refreshes. */
+  onRemoved?: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const backdropClose = useBackdropClose(onClose);
@@ -258,7 +261,7 @@ export function EditBookDialog({
                 }}
               />
             ) : (
-              <FilesTab info={info} busy={busy} act={act} />
+              <FilesTab info={info} busy={busy} act={act} onRemoved={onRemoved ?? (() => (onChanged(), onClose()))} />
             )}
           </div>
 
@@ -648,15 +651,30 @@ function ChaptersTab({
   );
 }
 
-function FilesTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act: Act }) {
+function FilesTab({ info, busy, act, onRemoved }: { info: BookEditInfo; busy: boolean; act: Act; onRemoved: () => void }) {
   const [confirmUndo, setConfirmUndo] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const hasEdits = info.edited.length > 0 || info.chaptersEdited || info.coverSource === "custom" || !!info.book.match;
+  const remove = async () => {
+    setRemoving(true);
+    try {
+      await api(apiPaths.book(info.book.id), { method: "DELETE" });
+      toast("Removed from the library");
+      onRemoved();
+    } catch (err) {
+      toast.error(errorText(err));
+      setRemoving(false);
+    }
+  };
+  const missing = info.book.missingSince !== null;
   return (
     <div className="form">
       <div>
         <div className="edit-label">Folder</div>
         <div className="folder-path">{info.folder ?? "Its library folder was removed."}</div>
       </div>
+      {missing ? <p className="error small">These files are missing.</p> : null}
       <ul className="file-list">
         {info.files.map((f) => (
           <li key={f.name}>
@@ -681,7 +699,22 @@ function FilesTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
         >
           Rescan files
         </button>
-        {hasEdits ? (
+        {missing ? (
+          confirmRemove ? (
+            <>
+              <button type="button" className="btn" onClick={() => setConfirmRemove(false)}>
+                Keep it
+              </button>
+              <button type="button" className="btn btn-danger" disabled={removing} onClick={() => void remove()}>
+                Remove now
+              </button>
+            </>
+          ) : (
+            <button type="button" className="btn btn-danger" onClick={() => setConfirmRemove(true)}>
+              Remove from library
+            </button>
+          )
+        ) : hasEdits ? (
           confirmUndo ? (
             <>
               <button type="button" className="btn" onClick={() => setConfirmUndo(false)}>

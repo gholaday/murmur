@@ -177,6 +177,7 @@ export function BookView({ book, bookmarks: firstBookmarks }: { book: BookDetail
           tab={editing}
           onClose={() => setEditing(null)}
           onChanged={() => router.refresh()}
+          onRemoved={() => router.replace("/")}
         />
       ) : null}
     </>
