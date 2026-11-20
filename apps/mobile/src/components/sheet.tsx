@@ -5,6 +5,7 @@ import Animated, { Easing, useAnimatedRef, useAnimatedScrollHandler, useAnimated
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
 import type { HiddenChange } from "@murmur/shared/client";
+import { selectHaptic } from "@/lib/haptics";
 import { hide, useCanHideAndLike } from "@/lib/hidden";
 import { fonts, useTheme } from "@/theme";
 import { CheckIcon, ChevronIcon, EyeOffIcon } from "./icons";
@@ -403,7 +404,11 @@ export function SheetItem({
       accessibilityRole="button"
       accessibilityState={{ selected: active, disabled }}
       disabled={disabled}
-      onPress={onPress}
+      onPress={() => {
+        // A choice among several (a sort, a sleep timer, a quality), as a chip gives.
+        if (active === false) selectHaptic();
+        onPress();
+      }}
       style={({ pressed }) => ({
         minHeight: SHEET_ROW,
         paddingHorizontal: 12,

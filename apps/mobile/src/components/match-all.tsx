@@ -13,6 +13,7 @@ import {
   plural,
 } from "@murmur/shared/client";
 import { api } from "@/lib/api";
+import { selectHaptic } from "@/lib/haptics";
 import { queryClient } from "@/lib/query";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
@@ -398,7 +399,10 @@ function MatchAllRow({
             accessibilityLabel={`Apply the match for ${item.title}`}
             accessibilityState={{ checked: picked }}
             hitSlop={8}
-            onPress={() => onPick(!picked)}
+            onPress={() => {
+              selectHaptic();
+              onPick(!picked);
+            }}
             style={{
               width: 22,
               height: 22,

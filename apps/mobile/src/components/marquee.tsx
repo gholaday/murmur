@@ -3,6 +3,7 @@ import { AppState, type StyleProp, type TextStyle, View, type ViewProps, type Vi
 import { useIsFocused, useNavigation, usePreventRemove } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import MaskedViewClass from "@react-native-masked-view/masked-view";
+import { TITLE_SCROLL, titleScrollLap } from "@murmur/shared/client";
 import Animated, {
   cancelAnimation,
   Easing,
@@ -21,9 +22,25 @@ const MaskedView = MaskedViewClass as unknown as React.ComponentType<ViewProps &
 
 /** Space between the end of the line and its next lap. */
 const GAP = 48;
-/** Scroll speed in points per second, and the pause before each lap. */
-const SPEED = 22;
-const REST_MS = 3000;
+
+/**
+ * Laps at the shared title speed: a short wait at first, then each lap slides one copy and its
+ * gap away and rests there before jumping back unseen. The second copy sits where the first
+ * began, so the rest looks the same as a rest at the start. Every scrolling line uses it.
+ */
+function lap(distance: number) {
+  const { durationMs } = titleScrollLap(distance);
+  return withDelay(
+    TITLE_SCROLL.firstRestMs,
+    withRepeat(
+      withSequence(
+        withTiming(-distance, { duration: durationMs - TITLE_SCROLL.restMs, easing: Easing.linear }),
+        withDelay(TITLE_SCROLL.restMs, withTiming(0, { duration: 0 })),
+      ),
+      -1,
+    ),
+  );
+}
 
 /**
  * One line that scrolls sideways when it's too wide to fit, and stays still when it fits. The
@@ -44,13 +61,7 @@ export function Marquee({ children, style }: { children: React.ReactNode; style?
     cancelAnimation(x);
     x.set(0);
     if (!run) return;
-    const lap = width + GAP;
-    x.set(
-      withRepeat(
-        withSequence(withDelay(REST_MS, withTiming(-lap, { duration: (lap / SPEED) * 1000, easing: Easing.linear })), withTiming(0, { duration: 0 })),
-        -1,
-      ),
-    );
+    x.set(lap(width + GAP));
     return () => cancelAnimation(x);
   }, [run, width, x]);
 
@@ -74,9 +85,7 @@ export function Marquee({ children, style }: { children: React.ReactNode; style?
   );
 }
 
-// A row's title, as the web's marquee (web/marquee.tsx): a 12 s loop that holds still for its first 15%.
-const LOOP_MS = 12000;
-const HOLD_MS = LOOP_MS * 0.15;
+// A row's title, as the web's marquee (web/marquee.tsx).
 const TITLE_GAP = 40;
 const FADE = 16;
 /** Closes already let through, so titles sharing a screen carry each one on once. */
@@ -109,12 +118,8 @@ export function MarqueeText({ text, variant, style }: { text: string; variant?: 
     cancelAnimation(x);
     x.set(0);
     if (!moving) return;
-    x.set(
-      withRepeat(
-        withSequence(withTiming(0, { duration: HOLD_MS }), withTiming(-full, { duration: LOOP_MS - HOLD_MS, easing: Easing.linear }), withTiming(0, { duration: 0 })),
-        -1,
-      ),
-    );
+    // `full` is the text and its gap: one copy's width, so the second lands where the first began.
+    x.set(lap(full));
     return () => cancelAnimation(x);
   }, [moving, full, x]);
   const track = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));

@@ -186,6 +186,11 @@ function PlayerScreen({ item }: { item: Playable }) {
   const spanLen = Math.max(1, span.end - span.start);
   const within = (at: number) => Math.min(spanLen, Math.max(0, at - span.start));
   const speed = speedDraft ?? p.speed;
+  // Reset and the step buttons tick like any other choice; the slider stays quiet while it moves.
+  const pickSpeed = (v: number) => {
+    selectHaptic();
+    setSpeed(v);
+  };
   const tint = item.color ?? albumColor ?? FALLBACK_TINT.artwork;
   // The page's tint, strongest at the top; the blurred cover fades into it a little lower down.
   const tintTop = mixColor(tint, t.bg, t.isDark ? 0.42 : 0.36);
@@ -518,13 +523,13 @@ function PlayerScreen({ item }: { item: Playable }) {
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <Text style={{ fontFamily: fonts.extrabold, fontSize: 28, color: t.text }}>{speedText(speed)}</Text>
             {speed !== 1 ? (
-              <Pressable onPress={() => setSpeed(1)} hitSlop={8}>
+              <Pressable onPress={() => pickSpeed(1)} hitSlop={8}>
                 <Text style={{ fontFamily: fonts.bold, color: t.accent }}>Reset</Text>
               </Pressable>
             ) : null}
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <StepButton label={`Slower by ${SPEED_STEP}`} disabled={p.speed <= MIN_SPEED} onPress={() => setSpeed(clampSpeed(p.speed - SPEED_STEP))}>
+            <StepButton label={`Slower by ${SPEED_STEP}`} disabled={p.speed <= MIN_SPEED} onPress={() => pickSpeed(clampSpeed(p.speed - SPEED_STEP))}>
               <MinusIcon size={20} color={t.text} />
             </StepButton>
             <Slider
@@ -543,7 +548,7 @@ function PlayerScreen({ item }: { item: Playable }) {
                 setSpeedDraft(null);
               }}
             />
-            <StepButton label={`Faster by ${SPEED_STEP}`} disabled={p.speed >= MAX_SPEED} onPress={() => setSpeed(clampSpeed(p.speed + SPEED_STEP))}>
+            <StepButton label={`Faster by ${SPEED_STEP}`} disabled={p.speed >= MAX_SPEED} onPress={() => pickSpeed(clampSpeed(p.speed + SPEED_STEP))}>
               <PlusIcon size={20} color={t.text} />
             </StepButton>
           </View>

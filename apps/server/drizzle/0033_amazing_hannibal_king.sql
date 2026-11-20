@@ -1,0 +1,1 @@
+ALTER TABLE `ad_scans` ADD `chapters` text;

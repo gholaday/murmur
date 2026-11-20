@@ -3,6 +3,7 @@ import { Pressable, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { apiPaths, changedFields, errorText, pastStart, type WatchArtOption, type WatchMatchResult } from "@murmur/shared/client";
 import { absolute, api, authHeaders } from "@/lib/api";
+import { selectHaptic } from "@/lib/haptics";
 import { useIsAdmin } from "@/lib/session";
 import { invalidateWatch, markWatched, openVideoPlayer, showEpisodes, useMovie, useShow } from "@/lib/watch";
 import { fonts, useTheme } from "@/theme";
@@ -450,7 +451,10 @@ function WatchMatchPanel({
             key={r.tmdbId}
             accessibilityRole="button"
             accessibilityState={{ selected: isOn(r) }}
-            onPress={() => onPick(picked?.tmdbId === r.tmdbId ? null : r)}
+            onPress={() => {
+              selectHaptic();
+              onPick(picked?.tmdbId === r.tmdbId ? null : r);
+            }}
             style={({ pressed }) => ({
               flexDirection: "row",
               gap: 12,

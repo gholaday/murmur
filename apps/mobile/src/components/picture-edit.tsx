@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Pressable, View, useWindowDimensions } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { selectHaptic } from "@/lib/haptics";
 import { useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { Bone, Skeleton } from "./skeleton";
@@ -128,7 +129,10 @@ export function PictureEdit({
                     accessibilityLabel={o.label}
                     accessibilityState={{ selected: on }}
                     disabled={busy}
-                    onPress={() => onPick(on ? null : o)}
+                    onPress={() => {
+                      selectHaptic();
+                      onPick(on ? null : o);
+                    }}
                     style={({ pressed }) => [thumb, { opacity: pressed || busy ? 0.6 : 1 }]}
                   >
                     {/* The outline is always there, so picking doesn't shift the grid. */}

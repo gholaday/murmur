@@ -68,6 +68,8 @@ MAX_AD_SEC = 300
 MAX_ADS = 500
 MAX_RETRY_AFTER_SEC = 2 * 86_400
 MAX_TEXT = 500
+MAX_CHAPTERS = 100
+MAX_CHAPTER_TITLE = 100
 # Gemini's daily quota resets at midnight Pacific time.
 PACIFIC = ZoneInfo("America/Los_Angeles")
 
@@ -78,6 +80,16 @@ AD_RULES = (
     "host_read or promo. advertiser is the brand, or empty if none is named. first_words is "
     "the first few words of the ad."
 )
+
+CHAPTER_RULES = (
+    "Also split it into chapters by topic, the way a long video is split into sections: start a "
+    "chapter where the conversation moves to a clearly different subject, usually every 5 to 15 "
+    "minutes, not for every aside. title names the topic in 2 to 6 plain words, in the "
+    "transcript's language, with no numbering. start is the first time of the line where the "
+    "topic begins. Ads are never chapters, and no chapter starts inside an ad."
+)
+# Two chapter starts this close are the same one, seen twice where the pieces overlap.
+CHAPTER_GAP_SEC = 90
 
 # The Gemini library warns on every answer that it skipped the model's thinking parts; harmless noise.
 logging.getLogger("google_genai.types").setLevel(logging.ERROR)
@@ -248,8 +260,11 @@ def parse_clock(value: str) -> float:
     return total
 
 
-def ask_gemini(prompt: str) -> list[dict]:
-    """Ads in one transcript piece. Retries what's worth retrying; raises Paused or ConfigError otherwise."""
+def ask_gemini(prompt: str) -> dict:
+    """
+    Ads and topic chapters in one transcript piece, as {"ads": [...], "chapters": [...]}. Retries
+    what's worth retrying; raises Paused or ConfigError otherwise.
+    """
     import httpx
     from google.genai import errors, types
     from pydantic import BaseModel
@@ -261,8 +276,13 @@ def ask_gemini(prompt: str) -> list[dict]:
         advertiser: str
         first_words: str
 
+    class Chapter(BaseModel):
+        start: str
+        title: str
+
     class Ads(BaseModel):
         ads: list[Ad]
+        chapters: list[Chapter]
 
     estimate = len(prompt) // 3
     bad_answers = 0
@@ -277,11 +297,14 @@ def ask_gemini(prompt: str) -> list[dict]:
             budget.record((res.usage_metadata and res.usage_metadata.prompt_token_count) or estimate)
             try:
                 parsed = Ads.model_validate_json(res.text or "")
-                return [
-                    {"startSec": parse_clock(a.start), "endSec": parse_clock(a.end), "kind": a.kind,
-                     "advertiser": a.advertiser or None, "firstWords": a.first_words or None}
-                    for a in parsed.ads
-                ]
+                return {
+                    "ads": [
+                        {"startSec": parse_clock(a.start), "endSec": parse_clock(a.end), "kind": a.kind,
+                         "advertiser": a.advertiser or None, "firstWords": a.first_words or None}
+                        for a in parsed.ads
+                    ],
+                    "chapters": [{"startSec": parse_clock(c.start), "title": c.title} for c in parsed.chapters],
+                }
             except ValueError as e:
                 raise BadAnswer(str(e)) from e
         except errors.APIError as e:
@@ -540,14 +563,24 @@ def transcript_lines(words: list[list]) -> str:
     return "\n".join(lines)
 
 
-def find_ads(words: list[list]) -> list[dict]:
+def analyze(words: list[list], first: bool, previous_topic: str | None) -> dict:
+    """One piece's ads and chapters. `previous_topic` is the last chapter of the piece before, so a
+    topic that carries on across the cut doesn't get a second chapter."""
     if not words:
-        return []
+        return {"ads": [], "chapters": []}
+    if first:
+        opening = "This part is the start of the episode, so its first chapter starts at its first line."
+    elif previous_topic:
+        opening = (f'The part before this one ended on the topic "{previous_topic}". If this part '
+                   "opens on the same topic, don't start a chapter for it.")
+    else:
+        opening = "This part follows on from an earlier one; only mark topics that begin in it."
     prompt = (
         "Below is a machine transcript of part of a podcast episode, each line starting with the "
         "times it begins and ends. It has recognition errors, so read past misheard words. " + AD_RULES +
         " Give start as the first time of the ad's first line and end as the second time of the "
-        "ad's last line, including any closing tagline or call to action, both as M:SS or H:MM:SS.\n\n"
+        "ad's last line, including any closing tagline or call to action, both as M:SS or H:MM:SS. "
+        + CHAPTER_RULES + " " + opening + "\n\n"
         + transcript_lines(words)
     )
     return ask_gemini(prompt)
@@ -596,6 +629,36 @@ def clean(ads: list[dict], duration: float) -> list[dict]:
     return out[:MAX_ADS]
 
 
+def clean_chapters(chapters: list[dict], ads: list[dict], duration: float) -> list[dict]:
+    """
+    Topic chapters for the whole episode: in order, none starting inside an ad (moved to its end),
+    one start where overlapping pieces both saw it, the first at 0:00. Fewer than two is none.
+    Kept inside what Murmur accepts (aiChapterSchema in packages/shared).
+    """
+    starts = []
+    for c in chapters:
+        if not isinstance(c, dict) or not number(c.get("startSec")):
+            continue
+        title = clip(c.get("title"), MAX_CHAPTER_TITLE)
+        if not title or not title.strip():
+            continue
+        start = max(0.0, float(c["startSec"]))
+        for a in ads:
+            if a["startSec"] <= start < a["endSec"]:
+                start = a["endSec"]
+        if start < duration - 30:
+            starts.append({"startSec": start, "title": title.strip()})
+    out: list[dict] = []
+    for c in sorted(starts, key=lambda c: c["startSec"]):
+        if out and c["startSec"] - out[-1]["startSec"] < CHAPTER_GAP_SEC:
+            continue
+        out.append(c)
+    if len(out) < 2:
+        return []
+    out[0]["startSec"] = 0.0
+    return out[:MAX_CHAPTERS]
+
+
 # ---------- Scans ----------
 
 def load(path: Path):
@@ -642,6 +705,7 @@ def process(job: dict) -> None:
         return words
 
     found: list[dict] = []
+    topics: list[dict] = []
     deferred: Paused | ConfigError | None = None
     for i in range(pieces):
         words = words_of(i)
@@ -649,11 +713,15 @@ def process(job: dict) -> None:
             # Run into the next piece, so an ad break on the cut is seen whole once.
             nxt = words_of(i + 1)
             words = words + [w for w in nxt if w[0] < (i + 1) * CHUNK_SEC + OVERLAP_SEC]
-        ads = load(work / f"ads-{i}.json")
-        if ads is None and deferred is None:
+        result = load(work / f"ads-{i}.json")
+        # A piece saved by an older version is just its list of ads.
+        if isinstance(result, list):
+            result = {"ads": result, "chapters": []}
+        if result is None and deferred is None:
             try:
-                ads = find_ads(words)
-                save(work / f"ads-{i}.json", ads)
+                last = max(topics, key=lambda c: c["startSec"]) if topics else None
+                result = analyze(words, i == 0, last["title"] if last else None)
+                save(work / f"ads-{i}.json", result)
                 set_status("ok", None)
             except Paused as e:
                 budget.pause(e.seconds, e.reason)
@@ -663,11 +731,14 @@ def process(job: dict) -> None:
                 budget.pause(3600, str(e))
                 set_status("error", str(e))
                 deferred = e
-        if ads is not None and deferred is None:
-            found += ads
+        if result is not None and deferred is None:
+            found += result["ads"]
+            topics += result["chapters"]
             done = i + 1 == pieces
+            ads = clean(found, duration)
             murmur(f"{API_SCAN}{file_id}", {
-                "status": "done" if done else "progress", "piecesDone": i + 1, "ads": clean(found, duration),
+                "status": "done" if done else "progress", "piecesDone": i + 1, "ads": ads,
+                "chapters": clean_chapters(topics, ads, duration),
             })
     if deferred is not None:
         # Every piece is transcribed by now, so this episode only needs Gemini when it comes back.
@@ -677,7 +748,8 @@ def process(job: dict) -> None:
         murmur(f"{API_SCAN}{file_id}", {"status": "deferred", "retryAfterSec": retry, "reason": str(deferred)[:MAX_TEXT]})
         return
     shutil.rmtree(work, ignore_errors=True)
-    log("scan done", episode=job["title"], ads=len(clean(found, duration)))
+    ads = clean(found, duration)
+    log("scan done", episode=job["title"], ads=len(ads), chapters=len(clean_chapters(topics, ads, duration)))
 
 
 def prune_state() -> None:

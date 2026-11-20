@@ -152,6 +152,8 @@ const keyOf = (it: Playable | null) => (it ? `${it.type}:${it.id}` : null);
 const PRELOAD_SEC = 10;
 /** Previous restarts the item once it's this far in, like a CD player. */
 const RESTART_AFTER_SEC = 3;
+/** A stop this close to the end is the finish. Some files run a little short of their listed length. */
+const END_SLACK_SEC = 3;
 export const PLAY_FAILED = "Couldn't play this. Check your connection and try again.";
 
 // ---------- State ----------
@@ -312,12 +314,16 @@ export function createPlayerCore(platform: PlayerPlatform) {
     adsAllowed = new Set();
     state = { ...state, ads: null };
     if (!it || it.type !== "episode") return;
+    let scanning = false;
     const fetchAds = async () => {
       try {
         const info = await platform.api<EpisodeAdsDto>(apiPaths.episodeAds(it.id));
         if (adsFor !== key) return;
         set({ ads: info });
         platform.adsLoaded?.(it.id, info);
+        // A scan that finishes while it plays may have made chapters from the transcript.
+        if (info.status === "done" && scanning && !state.item?.chapters.length) loadChapters(it.id, key);
+        scanning = info.status !== "done";
         if (!info.enabled || info.status === "done" || info.status === "failed") return;
       } catch {
         if (adsFor !== key) return;
@@ -338,8 +344,12 @@ export function createPlayerCore(platform: PlayerPlatform) {
     if (key === chaptersFor) return;
     chaptersFor = key;
     if (!it || it.type !== "episode") return;
+    loadChapters(it.id, key);
+  }
+
+  function loadChapters(episodeId: string, key: string | null) {
     platform
-      .api<ChapterDto[]>(apiPaths.episodeChapters(it.id))
+      .api<ChapterDto[]>(apiPaths.episodeChapters(episodeId))
       .then((chapters) => {
         const cur = state.item;
         if (chaptersFor !== key || !chapters.length || !cur || keyOf(cur) !== key) return;
@@ -376,6 +386,8 @@ export function createPlayerCore(platform: PlayerPlatform) {
   /** Whether that load was asked to play once ready; a seek before then keeps the wish. */
   let loadAutoplay = false;
   let lastSaved = 0;
+  /** The finish was saved by a stop at the end, so `ended` doesn't save it again. Cleared by playing. */
+  let finishSaved = false;
   /** Wall time of the last tick while playing; 0 after a pause, so a gap isn't counted. */
   let lastTickAt = 0;
   let lastTickKey: string | null = null;
@@ -408,6 +420,7 @@ export function createPlayerCore(platform: PlayerPlatform) {
   function startItem(it: Playable) {
     heardSec = 0;
     counted = false;
+    finishSaved = false;
     // A timer set for what was playing doesn't carry over.
     if (state.sleep.mode !== "off") setSleep({ mode: "off" });
     set({ item: it, speed: it.speed });
@@ -492,18 +505,24 @@ export function createPlayerCore(platform: PlayerPlatform) {
     if (loading !== state.loading) set({ loading });
   }
 
-  /** Playing or paused. A pause saves, unless it's the end, which `ended` saves. */
+  /** Playing or paused. A pause saves; a stop at the very end saves the finish. */
   function playingChanged(playing: boolean) {
     if (playing === state.playing) return;
     const was = state.playing;
     set({ playing });
-    if (!playing) lastTickAt = 0;
+    if (playing) finishSaved = false;
+    else lastTickAt = 0;
     const it = state.item;
     if (!was || playing || !it) return;
     const lastFile = it.files[it.files.length - 1];
-    // A pause right at the very end is the finish, which `ended` saves.
-    if (fileIndex === it.files.length - 1 && lastFile && lastFile.durationSec > 0 && position >= lastFile.startSec + lastFile.durationSec - 1) return;
-    void save();
+    // A stop at the very end is the finish, even when no `ended` follows: the sleep timer's "End of
+    // book" pauses just short of it, and a phone can report the stop but drop the end.
+    const atEnd = fileIndex === it.files.length - 1 && !!lastFile && lastFile.durationSec > 0 && position >= lastFile.startSec + lastFile.durationSec - END_SLACK_SEC;
+    if (!atEnd) return void save();
+    // A song's end is `ended`'s to handle: it moves on to the next one.
+    if (it.type === "track") return;
+    finishSaved = true;
+    void save(true);
   }
 
   /** The loaded file played to its end: a book's next file, else what follows the item. */
@@ -518,7 +537,8 @@ export function createPlayerCore(platform: PlayerPlatform) {
       if (state.sleep.mode === "chapter") return set({ sleep: { mode: "off" } });
       return playNext(nextIndex(state.upNext, state.repeat, true));
     }
-    void save(true);
+    if (!finishSaved) void save(true);
+    finishSaved = false;
     // A book ends there; nothing starts on its own. An episode goes on down Up Next (repeat is for songs).
     if (it.type === "episode") playNext(nextIndex(state.upNext, "off", true));
   }

@@ -2,10 +2,12 @@
 
 Murmur's optional ad detection add-on. It takes cached podcast episodes from Murmur one at a
 time, transcribes them with Groq's hosted Whisper (or Vosk on your server when Groq isn't set up
-or its allowance runs out), asks Gemini (as text) where the ads are, and sends the ad times
-back. Players then mark ads on the seek bar or skip them.
+or its allowance runs out), asks Gemini (as text) where the ads are and where the topics change,
+and sends the ad times and topic chapters back. Players then mark ads on the seek bar or skip
+them, and episodes whose publisher gives no chapters get chapters from the transcript.
 
-If this container is stopped or broken, Murmur plays everything as usual, without ad marks.
+If this container is stopped or broken, Murmur plays everything as usual, without ad marks or
+those chapters.
 
 ## Set up
 

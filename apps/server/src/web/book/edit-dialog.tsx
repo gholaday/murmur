@@ -150,8 +150,8 @@ export function EditBookDialog({
   const detailsDirty = detailChanges > 0;
   const chaptersDirty = chapterChanges > 0;
 
-  /** Runs an action that returns fresh edit info, then refreshes the page behind. */
-  const act = async (fn: () => Promise<BookEditInfo | void>, done: string) => {
+  /** Runs an action that returns fresh edit info, then refreshes the page behind. Resolves whether it worked. */
+  const act: Act = async (fn, done) => {
     setBusy(true);
     try {
       const next = await fn();
@@ -159,8 +159,10 @@ export function EditBookDialog({
       else await load();
       toast(done);
       onChanged();
+      return true;
     } catch (err) {
       toast.error(errorText(err));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -279,7 +281,7 @@ export function EditBookDialog({
   );
 }
 
-type Act = (fn: () => Promise<BookEditInfo | void>, done: string) => Promise<void>;
+type Act = (fn: () => Promise<BookEditInfo | void>, done: string) => Promise<boolean>;
 
 const FIELD_LABELS: Record<keyof Form, string> = {
   title: "Title",
@@ -476,7 +478,7 @@ function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
     <div className="cover-tab">
       {picked ? (
         <div className="match-bar">
-          <button type="button" className="btn btn-primary wide" disabled={busy} onClick={() => void fromUrl(picked).then(() => setPicked(null))}>
+          <button type="button" className="btn btn-primary wide" disabled={busy} onClick={() => void fromUrl(picked).then((ok) => ok && setPicked(null))}>
             {busy ? "Saving…" : "Use this picture"}
           </button>
         </div>

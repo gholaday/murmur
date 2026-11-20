@@ -20,6 +20,7 @@ import {
   storageKeys,
 } from "@murmur/shared/client";
 import { api } from "@/lib/api";
+import { selectHaptic } from "@/lib/haptics";
 import { queryClient } from "@/lib/query";
 import { getJson, setJson } from "@/lib/storage";
 import { fonts, useTheme } from "@/theme";
@@ -643,7 +644,10 @@ function ResultCard({
       accessibilityRole="button"
       accessibilityState={{ selected, disabled }}
       disabled={disabled}
-      onPress={onPress}
+      onPress={() => {
+        selectHaptic();
+        onPress();
+      }}
       style={({ pressed }) => ({
         flexDirection: "row",
         gap: 12,
@@ -713,6 +717,7 @@ function ReviewList<F extends string, V extends { coverWidth: number | null }>({
             accessibilityState={{ checked: on, disabled: !ok }}
             disabled={!ok}
             onPress={() => {
+              selectHaptic();
               const out = new Set(chosen);
               if (on) out.delete(field);
               else out.add(field);

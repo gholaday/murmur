@@ -218,7 +218,10 @@ function Checkbox({ label, checked, onChange }: { label: string; checked: boolea
     <Pressable
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
-      onPress={() => onChange(!checked)}
+      onPress={() => {
+        selectHaptic();
+        onChange(!checked);
+      }}
       style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 6 }}
     >
       <View

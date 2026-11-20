@@ -9,7 +9,7 @@ import { addToUpNext, episodeToPlayable, isCurrent, isWaiting, markCurrent, play
 import { fonts, useTheme } from "@/theme";
 import { BookmarkRows, openBookmark } from "./bookmarks";
 import { Cover } from "./cover";
-import { AdsCheckedIcon, BookmarkIcon, DownloadIcon, PauseIcon, PlayedIcon, PlayIcon, QueueAddIcon } from "./icons";
+import { BookmarkIcon, DownloadIcon, EnhancedIcon, PauseIcon, PlayedIcon, PlayIcon, QueueAddIcon } from "./icons";
 import { RemoveDownloadSheet } from "./sheet";
 import { toast } from "./toast";
 import { Caption, IconButton, NumberBadge, Text } from "./ui";
@@ -63,8 +63,8 @@ export const EpisodeRow = memo(function EpisodeRow({
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
             <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: t.muted }}>{shortDate(episode.publishedAt)}</Text>
             {episode.adsChecked ? (
-              <View accessible accessibilityLabel="Checked for ads">
-                <AdsCheckedIcon size={14} color={t.accent} />
+              <View accessible accessibilityLabel="Checked for ads and chapters">
+                <EnhancedIcon size={14} color={t.accent} />
               </View>
             ) : null}
             {bookmarks.length ? (

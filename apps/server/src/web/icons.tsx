@@ -219,11 +219,11 @@ export const VolumeIcon = ({ level, ...p }: IconProps & { level: number }) => (
     {level > 0.5 ? <path d="M18 6.5a8 8 0 0 1 0 11" /> : null}
   </Icon>
 );
-/** A shield with a check: the episode has been checked for ads. */
-export const AdsCheckedIcon = (p: IconProps) => (
+/** Sparkles: the episode was enhanced from its transcript (ads found, and chapters where it had none). */
+export const EnhancedIcon = (p: IconProps) => (
   <Icon {...p}>
-    <path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z" />
-    <path d="M9 12l2 2 4-4" />
+    <path d="M10 5c.7 4 2.6 5.9 6.5 6.5-3.9.6-5.8 2.5-6.5 6.5-.7-4-2.6-5.9-6.5-6.5C7.4 10.9 9.3 9 10 5z" fill="currentColor" stroke="none" />
+    <path d="M18 2.5c.3 1.9 1 2.6 2.8 2.9-1.8.3-2.5 1-2.8 2.9-.3-1.9-1-2.6-2.8-2.9 1.8-.3 2.5-1 2.8-2.9z" fill="currentColor" stroke="none" />
   </Icon>
 );
 export const SkipBackIcon = (p: IconProps) => (

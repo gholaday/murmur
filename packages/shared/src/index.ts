@@ -305,13 +305,34 @@ export const ADSCAN_LIMITS = {
   maxAds: 500,
   maxRetryAfterSec: 2 * 86_400,
   maxText: 500,
+  maxChapters: 100,
+  maxChapterTitle: 100,
 };
+
+/** A topic chapter the add-on made from the transcript, for episodes whose publisher gives none. */
+const aiChapterSchema = z.object({
+  startSec: z.number().min(0),
+  title: z.string().min(1).max(ADSCAN_LIMITS.maxChapterTitle),
+});
+export type AiChapter = z.infer<typeof aiChapterSchema>;
+/** Optional: an older add-on sends none, and a bad list costs only the chapters, not the ads. */
+const aiChaptersField = z.array(aiChapterSchema).max(ADSCAN_LIMITS.maxChapters).optional().catch(undefined);
 
 /** What the ad detection add-on sends back about a file it is scanning. */
 export const addonReportSchema = z.discriminatedUnion("status", [
-  /** Ads so far (the whole list each time) and how many pieces are done; extends the lease. */
-  z.object({ status: z.literal("progress"), piecesDone: z.number().int().min(0), ads: z.array(adSpanSchema).max(ADSCAN_LIMITS.maxAds) }),
-  z.object({ status: z.literal("done"), piecesDone: z.number().int().min(0), ads: z.array(adSpanSchema).max(ADSCAN_LIMITS.maxAds) }),
+  /** Ads and chapters so far (the whole lists each time) and how many pieces are done; extends the lease. */
+  z.object({
+    status: z.literal("progress"),
+    piecesDone: z.number().int().min(0),
+    ads: z.array(adSpanSchema).max(ADSCAN_LIMITS.maxAds),
+    chapters: aiChaptersField,
+  }),
+  z.object({
+    status: z.literal("done"),
+    piecesDone: z.number().int().min(0),
+    ads: z.array(adSpanSchema).max(ADSCAN_LIMITS.maxAds),
+    chapters: aiChaptersField,
+  }),
   /** Can't finish now (Gemini paused or misconfigured); hand it out again after `retryAfterSec`. */
   z.object({
     status: z.literal("deferred"),

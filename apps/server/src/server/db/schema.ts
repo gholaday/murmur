@@ -611,6 +611,11 @@ export const adScans = sqliteTable(
     notBefore: integer("not_before"),
     /** Last time someone was playing this episode, which moves it to the front. */
     wantedAt: integer("wanted_at"),
+    /**
+     * Topic chapters made from the transcript, as JSON `AiChapter[]`; used when the publisher gives
+     * none. Kept with the scan because, like the ads, they're timed to this copy of the audio.
+     */
+    chapters: text("chapters"),
     updatedAt: integer("updated_at").notNull(),
   },
   (t) => [index("ad_scans_status_idx").on(t.status)],

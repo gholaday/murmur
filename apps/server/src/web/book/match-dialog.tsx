@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- provider cover thumbnails are remote */
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { apiPaths, storageKeys, type BookDetail, duration, type MatchCandidate, type MatchField, type MatchPreview, type MatchSearchResult, type MatchValues, plural, reviewLabel, seriesLabel } from "@murmur/shared/client";
+import { apiPaths, storageKeys, type BookDetail, duration, type MatchCandidate, type MatchField, type MatchPreview, type MatchSearchResult, type MatchValues, reviewLabel, seriesLabel } from "@murmur/shared/client";
 import { api } from "../api";
 import { BackIcon } from "../icons";
 

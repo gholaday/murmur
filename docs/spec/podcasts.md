@@ -23,11 +23,13 @@ A second service in the same stack, `murmur-adscan` (source in `addons/adscan`).
 
 1. **Take the next episode.** The add-on asks Murmur for work (`POST /api/addon/ads/next`) and gets an episode, its file path under `/cache` and its length. The job is leased for 30 minutes. Murmur picks in this order: something being played right now, then episodes in anyone's queue, then prefetched episodes, newest first.
 2. **Transcribe.** The cached file is read read-only, 30 minutes at a time. Each piece goes to Groq (hosted Whisper large-v3-turbo, as a 32 kbps mp3). When Groq is not set up, is down, or its audio allowance would mean waiting more than 15 minutes, that piece is transcribed locally by Vosk (small English model) instead. Each piece's transcript is saved to the add-on's own `/state` volume, so a restart or a Gemini outage never redoes finished pieces.
-3. **Find the ads.** Each piece goes to Gemini as text (eight-word lines with start and end times) as soon as it is transcribed, running 2 minutes into the next piece so an ad break on a cut is seen whole. Copies of an ad found in two pieces are merged.
-4. **Check the answer.** Spans with the end before the start, outside the episode, or longer than 5 minutes are dropped, and spans running past the end are cut to it.
-5. **Report.** Spans are posted per piece (`POST /api/addon/ads/:fileId`), so the first marks appear minutes after a scan starts, not after the whole episode.
+3. **Find the ads and the topics.** Each piece goes to Gemini as text (eight-word lines with start and end times) as soon as it is transcribed, running 2 minutes into the next piece so an ad break on a cut is seen whole. Copies of an ad found in two pieces are merged. The same call also splits the piece into topic chapters, the way a long video is split into sections; it's told the previous piece's last topic, so a topic running across a cut isn't started twice. The transcript is sent once for both, so chapters only add a few lines to each answer.
+4. **Check the answer.** Spans with the end before the start, outside the episode, or longer than 5 minutes are dropped, and spans running past the end are cut to it. A chapter that starts inside an ad moves to the ad's end, two starts less than 90 seconds apart are one, the first starts at 0:00, and fewer than two chapters is none.
+5. **Report.** Spans and chapters are posted per piece (`POST /api/addon/ads/:fileId`), so the first marks appear minutes after a scan starts, not after the whole episode.
 
-Each span has a start, an end, a kind (`inserted`, `host_read` or `promo`), the advertiser if named, and its first words.
+Each span has a start, an end, a kind (`inserted`, `host_read` or `promo`), the advertiser if named, and its first words. Each chapter has a start and a short title.
+
+**Chapters from the transcript** are only used when the publisher gives none (the feed's Podlove chapters, its Podcasting 2.0 chapters file, or the MP3's ID3 chapters always win). They're stored with the scan in `ad_scans.chapters` because, like ad times, they're timed to that copy of the audio, and they go when it leaves the cache. `GET /api/episodes/:id/chapters` serves them like any other chapters, so the chapter list, the seek bar and the lock screen need nothing new; they look the same as a publisher's. A scan that finishes while the episode plays makes the player ask for its chapters again. Episodes scanned before this have none (their transcripts are gone), and an older add-on that sends no chapters leaves them as they were.
 
 **Why this approach** (benchmarked on a 70-minute episode with 20 ads)
 
@@ -106,7 +108,7 @@ The same on the web and the app; the rules they share are in `packages/shared/sr
 - **No surprise skips.** Seeking into an ad never skips it; the Skip ad button shows instead.
 - **Skipping covers the whole break:** ads less than 3 seconds apart count as one break, for both Skip ad and Auto-skip ("Skipped 3 ads").
 - **Fetching ads.** The player asks `GET /api/episodes/:id/ads` for the current episode and asks again every minute while its scan runs. Asking also marks the episode as playing, which moves its scan to the front. Without the add-on the answer is `enabled: false`, and the ad setting is hidden. `/api/health` also reports `adDetection`, so the app knows before playing anything.
-- **Checked badge.** Episode rows show a small accent shield once the episode has been checked for ads.
+- **Enhanced badge.** Episode rows show small accent sparkles once the episode's scan is done: its ads are found, and it has chapters from the transcript if the publisher gave none. The tooltip and label say "Checked for ads and chapters".
 - **Bookmarks.** The ad setting moved off the player's tiles to give Bookmarks that spot (see [Bookmarks](features.md#bookmarks)). A bookmark is a time, so if a feed changes an episode's ads it can land in a slightly different spot.
 - **Private feeds aren't scanned.** A paid, members-only or personal feed's audio shouldn't leave the server for Groq or Gemini, so Murmur keeps such shows away from the add-on on its own, with no setting. A feed counts as private when its URL carries a key (a username and password, a query like `auth=` or `token=`, Substack's `/private/` path) or is on a members-only host (Patreon, Supercast, Supporting Cast, Memberful and the like), or when the feed says `<itunes:block>Yes</itunes:block>` (`podcasts/private-feed.ts`). It's worked out on every feed check and kept in `podcasts.private_feed`. Such a show's episodes are never queued or handed out; when a show turns out to be private, scans not yet done are dropped (a report for one in progress then finds no scan and is refused), and ads already found stay. The show page says Private in a pill beside the episode count. A private feed with a plain URL and no `itunes:block` still gets scanned; that's rare.
 - **Fewer ads for Murmur.** Hosts that insert ads per download (Simplecast, for one) may insert fewer for apps they don't recognise, and Murmur identifies itself honestly. Its copy can have fewer ads than the same episode in a major podcast app.
@@ -119,7 +121,7 @@ The same on the web and the app; the rules they share are in `packages/shared/sr
 | --- | --- |
 | `episode_files` | Episode, path under `/cache`, size, status (downloading, ready, failed), attempts, downloaded at, last played at |
 | `episode_ads` | Cached file, start, end, kind, advertiser, first words |
-| `ad_scans` | Cached file, status, pieces done, attempts, last error, lease expiry, not before, wanted at |
+| `ad_scans` | Cached file, status, pieces done, attempts, last error, lease expiry, not before, wanted at, chapters from the transcript |
 | `podcast_not_interested` | Person, feed link and when: shows kept out of Browse |
 | `podcasts.podroll` | The feed links a show recommends (`podcast:podroll`), as JSON, for More like |
 

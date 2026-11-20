@@ -4,6 +4,7 @@ import { router, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LIBRARY_SECTION_LABELS, type LibrarySection, librarySections } from "@murmur/shared/client";
 import { useTabPrefs } from "@/lib/data";
+import { selectHaptic } from "@/lib/haptics";
 import { jumpToSection } from "@/lib/library";
 import { usePlayerSelect } from "@/player/engine";
 import { useVideoSelect } from "@/player/video";
@@ -150,7 +151,11 @@ export function LibraryTitle({ current, right }: { current: LibrarySection; righ
             accessibilityRole="tab"
             accessibilityState={{ selected: s === current }}
             disabled={sections.length < 2}
-            onPress={() => s !== current && jumpToSection(s)}
+            onPress={() => {
+              if (s === current) return;
+              selectHaptic();
+              jumpToSection(s);
+            }}
             // The open one is kept in view.
             onLayout={(e) => {
               const { x, width: w } = e.nativeEvent.layout;

@@ -128,9 +128,7 @@ it("keeps a song's place on the device, not on the server, and puts it back paus
   expect(media.isPlaying).toBe(true);
 });
 
-it("saves a book's place on pause, but not a pause right at its end", () => {
-  const { core, saved, playOn } = setup();
-  const book: Playable = {
+const book: Playable = {
     type: "book",
     id: "bk",
     title: "Book",
@@ -146,6 +144,9 @@ it("saves a book's place on pause, but not a pause right at its end", () => {
     startAt: 0,
     speed: 1,
   };
+
+it("saves a book's place on pause, and a stop at its end as finished, once", () => {
+  const { core, saved, playOn } = setup();
   core.play(book);
   core.playingChanged(true);
   playOn(10, 3);
@@ -153,7 +154,30 @@ it("saves a book's place on pause, but not a pause right at its end", () => {
   expect(saved.at(-1)).toMatchObject({ itemId: "bk", positionSec: 13, finished: false });
   core.playingChanged(true);
   playOn(99, 0);
-  const before = saved.length;
   core.playingChanged(false);
+  expect(saved.at(-1)).toMatchObject({ itemId: "bk", positionSec: 100, finished: true });
+  // The end event that follows doesn't send it again.
+  const before = saved.length;
+  core.ended();
   expect(saved.length).toBe(before);
+});
+
+it("finishes a book when it plays to the end", () => {
+  const { core, saved, playOn } = setup();
+  core.play(book);
+  core.playingChanged(true);
+  playOn(98, 2);
+  core.ended();
+  expect(saved.at(-1)).toMatchObject({ itemId: "bk", positionSec: 100, finished: true });
+});
+
+it("finishes a book when the sleep timer's End of book stops it", () => {
+  const { core, media, saved, playOn } = setup();
+  core.play(book);
+  core.playingChanged(true);
+  core.setSleep({ mode: "chapter", endSec: 100 });
+  playOn(97, 3);
+  expect(media.isPlaying).toBe(false);
+  core.playingChanged(false);
+  expect(saved.at(-1)).toMatchObject({ itemId: "bk", finished: true });
 });

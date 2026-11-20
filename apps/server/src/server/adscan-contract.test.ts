@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, it } from "vitest";
-import { ADDON_SECRET_MIN_LENGTH, ADSCAN_LIMITS } from "@murmur/shared";
+import { ADDON_SECRET_MIN_LENGTH, ADSCAN_LIMITS, addonReportSchema } from "@murmur/shared";
 
 // The ad detection add-on is Python, so it can't import Murmur's rules. It keeps its copy in one
 // block at the top of adscan.py; this checks that copy against Murmur's.
@@ -33,4 +33,17 @@ it("keeps Murmur's limits", () => {
   expect(constant("MAX_ADS")).toBe(ADSCAN_LIMITS.maxAds);
   expect(constant("MAX_RETRY_AFTER_SEC")).toBe(ADSCAN_LIMITS.maxRetryAfterSec);
   expect(constant("MAX_TEXT")).toBe(ADSCAN_LIMITS.maxText);
+  expect(constant("MAX_CHAPTERS")).toBe(ADSCAN_LIMITS.maxChapters);
+  expect(constant("MAX_CHAPTER_TITLE")).toBe(ADSCAN_LIMITS.maxChapterTitle);
+});
+
+it("takes chapters with the ads, and a bad chapter list costs only the chapters", () => {
+  const ads = [{ startSec: 10, endSec: 70, kind: "inserted" }];
+  const chapters = [{ startSec: 0, title: "Intro" }, { startSec: 600, title: "Space news" }];
+  expect(addonReportSchema.parse({ status: "done", piecesDone: 1, ads, chapters })).toMatchObject({ ads, chapters });
+  const bad = addonReportSchema.parse({ status: "progress", piecesDone: 1, ads, chapters: [{ startSec: -5, title: "" }] });
+  expect(bad).toMatchObject({ ads });
+  expect(bad.status === "progress" && bad.chapters).toBeUndefined();
+  // An older add-on sends none.
+  expect(addonReportSchema.parse({ status: "done", piecesDone: 1, ads })).toMatchObject({ ads });
 });

@@ -13,6 +13,20 @@ export const MAX_SPEED = 2;
 /** The − and + buttons jump by this. */
 export const SPEED_STEP = 0.25;
 
+/**
+ * A title too long for its line scrolls at a steady reading speed, so a long one takes longer
+ * rather than going faster. It waits `firstRestMs` before its first lap, then rests `restMs` at its
+ * start between laps.
+ */
+export const TITLE_SCROLL = { pxPerSec: 25, firstRestMs: 5000, restMs: 18_000 };
+
+/** One lap of a scrolling title that moves `distance` px: its length, and the share spent resting. */
+export function titleScrollLap(distance: number): { durationMs: number; restShare: number } {
+  const moveMs = (distance / TITLE_SCROLL.pxPerSec) * 1000;
+  const durationMs = TITLE_SCROLL.restMs + moveMs;
+  return { durationMs, restShare: TITLE_SCROLL.restMs / durationMs };
+}
+
 /** Within the limits, to two decimals. Also brings speeds saved under an older, higher limit back in range. */
 export const clampSpeed = (v: number) => Math.round(Math.min(MAX_SPEED, Math.max(MIN_SPEED, v)) * 100) / 100;
 

@@ -8,7 +8,7 @@ import { api } from "../api";
 import { BookmarkRows } from "../bookmark-rows";
 import { useBookmarks } from "../bookmarks";
 import { Cover } from "../cover";
-import { AdsCheckedIcon, BookmarkIcon, PauseIcon, PlayedIcon, PlayIcon, QueueAddIcon } from "../icons";
+import { BookmarkIcon, EnhancedIcon, PauseIcon, PlayedIcon, PlayIcon, QueueAddIcon } from "../icons";
 import { episodeToPlayable, usePlayerControls, usePlayerSelect, usePosition } from "../player/engine";
 import { setFinished } from "../progress";
 
@@ -124,8 +124,8 @@ export function EpisodeRow({
             ) : null}
             <span className="episode-date">{shortDate(episode.publishedAt)}</span>
             {episode.adsChecked ? (
-              <span className="ads-checked" data-tip="Checked for ads" aria-label="Checked for ads">
-                <AdsCheckedIcon size={14} />
+              <span className="ads-checked" data-tip="Checked for ads and chapters" aria-label="Checked for ads and chapters">
+                <EnhancedIcon size={14} />
               </span>
             ) : null}
             {bookmarks.length ? (

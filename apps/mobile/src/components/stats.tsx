@@ -432,7 +432,10 @@ function Legend({ split, kinds, picked, onPick }: { split: StatsDto["split"]; ki
           key={k}
           accessibilityRole="button"
           accessibilityState={{ selected: picked === k }}
-          onPress={() => onPick(k)}
+          onPress={() => {
+            selectHaptic();
+            onPick(k);
+          }}
           style={{
             flexDirection: "row",
             alignItems: "center",

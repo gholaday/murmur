@@ -266,7 +266,29 @@ export function createChapterFinder(deps: Deps) {
     return found;
   }
 
-  /** An episode's chapters, looked up the first time they're wanted. Never throws: no chapters is a fine answer. */
+  /**
+   * Topic chapters the ad detection add-on made from the cached copy's transcript. They're timed to
+   * that copy, so they only count while it's the one being played.
+   */
+  function fromTranscript(episodeId: string): RawChapter[] {
+    const scan = sqlite
+      .prepare(
+        `SELECT s.chapters FROM ad_scans s JOIN episode_files f ON f.id = s.file_id
+         WHERE f.episode_id = ? AND f.status = 'ready' AND s.chapters IS NOT NULL`,
+      )
+      .get(episodeId) as { chapters: string } | undefined;
+    if (!scan) return [];
+    try {
+      return (JSON.parse(scan.chapters) as RawChapter[]).map((c) => ({ startSec: c.startSec, title: c.title }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * An episode's chapters, looked up the first time they're wanted: the publisher's, else ones made
+   * from the transcript. Never throws: no chapters is a fine answer.
+   */
   async function get(episodeId: string): Promise<ChapterDto[]> {
     const ep = row(episodeId);
     if (!ep) return [];
@@ -279,7 +301,8 @@ export function createChapterFinder(deps: Deps) {
       }
       raw = (await pending) ?? [];
     }
-    return toChapterDtos(raw, ep.duration_sec);
+    const published = toChapterDtos(raw, ep.duration_sec);
+    return published.length ? published : toChapterDtos(fromTranscript(episodeId), ep.duration_sec);
   }
 
   /** Looks up the newest episodes' chapters ahead of time, a few at once, so they're there when played. */

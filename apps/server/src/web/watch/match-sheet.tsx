@@ -29,10 +29,15 @@ export function WatchMatchPanel({
   const [yearText, setYearText] = useState(year ?? "");
   const [results, setResults] = useState<WatchMatchResult[] | null>(null);
   const [busy, setBusy] = useState(false);
+  // Tapping a result only picks it; Use this match applies it. The current match has nothing to apply.
+  const [picked, setPicked] = useState<WatchMatchResult | null>(null);
+  const pickable = picked && picked.tmdbId !== tmdbId ? picked : null;
 
   const search = useCallback(
     async (q: string, y: string) => {
       setBusy(true);
+      // A pick belongs to the results it was made in; a new search may not list it.
+      setPicked(null);
       try {
         setResults(await api<WatchMatchResult[]>(apiPaths.watchMatchSearch({ kind, q, year: /^\d{4}$/.test(y) ? y : undefined })));
       } catch (err) {
@@ -48,10 +53,6 @@ export function WatchMatchPanel({
   useEffect(() => {
     void search(title, year ?? "");
   }, [search, title, year]);
-
-  // Tapping a result only picks it; Use this match applies it. The current match has nothing to apply.
-  const [picked, setPicked] = useState<WatchMatchResult | null>(null);
-  const pickable = picked && picked.tmdbId !== tmdbId ? picked : null;
 
   const apply = async (r: WatchMatchResult) => {
     setBusy(true);

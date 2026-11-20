@@ -171,6 +171,10 @@ export function applyReport(sqlite: Sqlite, fileId: number, report: AddonReport)
         "INSERT INTO episode_ads (file_id, start_sec, end_sec, kind, advertiser, first_words) VALUES (?, ?, ?, ?, ?, ?)",
       );
       for (const a of ads) insert.run(fileId, a.startSec, a.endSec, a.kind, a.advertiser ?? null, a.firstWords ?? null);
+      // An older add-on sends no chapters; what's stored then stays as it was.
+      if (report.chapters) {
+        sqlite.prepare("UPDATE ad_scans SET chapters = ? WHERE file_id = ?").run(report.chapters.length ? JSON.stringify(report.chapters) : null, fileId);
+      }
       if (report.status === "progress") {
         sqlite
           .prepare("UPDATE ad_scans SET status = 'scanning', pieces_done = ?, lease_until = ?, updated_at = ? WHERE file_id = ?")

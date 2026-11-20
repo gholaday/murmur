@@ -45,10 +45,11 @@ export const HeartIcon = ({ filled, ...p }: IconProps & { filled?: boolean }) =>
     />
   </Icon>
 );
-export const AdsCheckedIcon = (p: IconProps) => (
+/** An episode the ad add-on has been over: ads checked and, where it had none, chapters made. */
+export const EnhancedIcon = (p: IconProps) => (
   <Icon {...p}>
-    <Path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z" />
-    <Path d="M9 12l2 2 4-4" />
+    <Path d="M10 5c.7 4 2.6 5.9 6.5 6.5-3.9.6-5.8 2.5-6.5 6.5-.7-4-2.6-5.9-6.5-6.5C7.4 10.9 9.3 9 10 5z" fill={p.color} stroke="none" />
+    <Path d="M18 2.5c.3 1.9 1 2.6 2.8 2.9-1.8.3-2.5 1-2.8 2.9-.3-1.9-1-2.6-2.8-2.9 1.8-.3 2.5-1 2.8-2.9z" fill={p.color} stroke="none" />
   </Icon>
 );
 export const PodcastIcon = (p: IconProps) => (

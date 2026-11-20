@@ -126,7 +126,7 @@ Feeds are checked every 30 minutes, and the newest 3 episodes of each podcast ar
 
 ## 6. Optional: ad detection
 
-The `murmur-adscan` add-on finds the ads in podcast episodes, so the players can mark them on the seek bar or skip them. It needs a free Gemini API key, and works best with a free Groq key too.
+The `murmur-adscan` add-on finds the ads in podcast episodes, so the players can mark them on the seek bar or skip them. It also gives chapters by topic to episodes that don't come with any. It needs a free Gemini API key, and works best with a free Groq key too.
 
 1. Set `ADDON_SECRET` in `murmur.env` to a long random value: run `openssl rand -hex 32` and paste what it prints. It must be **at least 32 characters**. With a shorter one Murmur keeps the add-ons off (its log says why), and the add-ons refuse to start.
 2. Put your Gemini key (`GEMINI_API_KEY`), and a Groq key (`GROQ_API_KEY`) if you have one, in `murmur.env` too. Uncomment the `murmur-adscan` service in `docker-compose.yml`; it reads the same `murmur.env`, and it needs the **same** cache folder as Murmur.
