@@ -117,6 +117,7 @@ export function BookMenuItems({
   remove,
   choose,
   after,
+  selectable = true,
 }: {
   book: BookSummary;
   edit: (bookId: string, tab: EditTab) => void;
@@ -125,6 +126,8 @@ export function BookMenuItems({
   choose: (fn: () => unknown) => () => void;
   /** Runs once the book is hidden: its own page goes back. */
   after?: () => void;
+  /** Off on Continue listening, whose cards can't be picked. */
+  selectable?: boolean;
 }) {
   const router = useRouter();
   const player = usePlayerControls();
@@ -141,7 +144,7 @@ export function BookMenuItems({
       </MenuItem>
       {canPlayNext ? <MenuItem onClick={choose(togglePlayNext)}>{onPlayNext ? "Remove from Play next" : "Add to Play next"}</MenuItem> : null}
       <MenuItem onClick={choose(() => markFinished(!finished))}>{finished ? "Mark as not finished" : "Mark as finished"}</MenuItem>
-      {selection ? <MenuItem onClick={choose(() => selection.start(book.id))}>Select</MenuItem> : null}
+      {selection && selectable ? <MenuItem onClick={choose(() => selection.start(book.id))}>Select</MenuItem> : null}
       <HideMenuItem change={{ kind: "book", id: book.id }} title={book.title} choose={choose} after={after} divider={false} />
       {isAdmin ? (
         <>

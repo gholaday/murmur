@@ -18,6 +18,7 @@ import {
 import { api } from "../api";
 import { scoreClass } from "../book/match-dialog";
 import { Cover } from "../cover";
+import { ScoreReasons } from "../library/bulk-match";
 import { DownIcon } from "../icons";
 import { Sheet } from "../sheet";
 import { Chip, Chips, EmptyState } from "../ui";
@@ -191,6 +192,8 @@ export function AlbumMatchAll({
     <>
       {head(null)}
       <div className="bulk">
+        {/* The summary with Discard and Apply, and the tabs, stay at the top while the results scroll. */}
+        <div className="bulk-sticky">
         {job.running ? (
           <div className="card-box bulk-progress">
             <div className="bulk-progress-head">
@@ -213,30 +216,28 @@ export function AlbumMatchAll({
           // Discarding drops the results only; matches already applied stay.
           <div className="bulk-progress-head">
             <strong>Matched {plural(job.total, "album")}</strong>
-            <button type="button" className="link-btn" disabled={busy} onClick={() => void run(() => api(PATH, { method: "DELETE" }), "Results discarded")}>
-              Discard
-            </button>
+            <div className="bulk-head-actions">
+              <button type="button" className="link-btn danger" disabled={busy} onClick={() => void run(() => api(PATH, { method: "DELETE" }), "Results discarded")}>
+                Discard
+              </button>
+              {filter === "review" && by("review").length ? (
+                <button type="button" className="link-btn" disabled={busy || pickedReview.length === 0} onClick={() => apply(pickedReview.map((i) => i.albumId))}>
+                  {pickedReview.length ? `Apply ${pickedReview.length}` : "Apply"}
+                </button>
+              ) : null}
+            </div>
           </div>
         )}
-  
+
         <div className="subtabs bulk-tabs" role="tablist">
           {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
             <button key={f} type="button" role="tab" className="subtab" aria-selected={filter === f} onClick={() => setFilter(f)}>
               {FILTER_LABEL[f]}
             </button>
           ))}
-          {filter === "review" && by("review").length ? (
-            <button
-              type="button"
-              className="btn btn-primary btn-small"
-              disabled={busy || pickedReview.length === 0}
-              onClick={() => apply(pickedReview.map((i) => i.albumId))}
-            >
-              {pickedReview.length ? `Apply ${pickedReview.length}` : "Pick some"}
-            </button>
-          ) : null}
         </div>
-  
+        </div>
+
         {shown.length === 0 ? (
           <EmptyState>{job.running ? "Nothing here yet." : `No albums under ${FILTER_LABEL[filter].toLowerCase()}.`}</EmptyState>
         ) : (
@@ -358,9 +359,10 @@ function MatchAllRow({
 
 /** Each field the result changes, from what the album has now to what it would get. */
 function MatchAllChanges({ item }: { item: AlbumMatchAllItem }) {
-  if (item.changes.length === 0) return <div className="bulk-changes muted small">Nothing would change.</div>;
   return (
     <dl className="bulk-changes">
+      <ScoreReasons reasons={item.candidate?.reasons ?? []} />
+      {item.changes.length === 0 ? <div className="muted">Nothing would change.</div> : null}
       {item.changes.map((x) => (
         <div key={x.field}>
           <dt>{ALBUM_FIELDS.find((f) => f.field === x.field)?.label}</dt>

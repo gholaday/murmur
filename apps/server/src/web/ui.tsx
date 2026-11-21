@@ -147,7 +147,8 @@ export function HeroBar({ fallback, onMore }: { fallback?: string; onMore?: () =
 /**
  * A nested screen's head, on one row like the pages with a hero: the back arrow, the title (with
  * an optional sub line under it) and the actions on the right. A long title stays on one line and
- * ends in "…"; hovering shows all of it.
+ * ends in "…"; hovering shows all of it. Screens opened from a tab use this; ones with
+ * a hero use HeroBar or BackRow above the art.
  */
 export function NestedHead({
   title,
@@ -206,7 +207,10 @@ export function EmptyState({ title, children, style }: { title?: React.ReactNode
   );
 }
 
-/** The grey badge counting what's in a list, read out as "12 books". */
+/**
+ * The grey badge counting what's in a list, read out as "12 books". Grey counts, accent flags
+ * something new; never inside a chip or next to a page title.
+ */
 export function CountPill({ count, noun }: { count: number; noun?: string }) {
   return (
     <span className="count-pill" aria-label={noun ? plural(count, noun) : undefined}>
@@ -277,6 +281,12 @@ export function StickyHead({ children }: { children: React.ReactNode }) {
 type ChipsKind = "tabs" | "radio" | "toggle";
 const ChipsKindContext = createContext<ChipsKind>("toggle");
 
+/**
+ * A row of chips, or of text tabs. Switching between views of one page (To review / Applied,
+ * Home / Shows) is always `kind="tabs"`, which draws underlined text tabs, never pills. Pill chips
+ * are only for turning things on and off (`toggle`) or picking one value inside a sheet (`radio`).
+ * See Text tabs and Chip in docs/DESIGN.md.
+ */
 export function Chips({
   kind = "toggle",
   label,
@@ -368,6 +378,7 @@ function TabInk() {
   return <span ref={ink} className="tab-ink" aria-hidden="true" />;
 }
 
+/** One chip or text tab; how it looks comes from the `Chips` row around it, so pick its `kind` there. */
 export function Chip({
   selected,
   onClick,

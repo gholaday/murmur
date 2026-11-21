@@ -27,6 +27,12 @@ Murmur is a self-hosted audiobook, podcast and music server with a web player an
 ## UI
 
 - Follow the existing designs unless told otherwise. New screens reuse the patterns, components and tokens already in the app. The design system is [docs/DESIGN.md](docs/DESIGN.md).
+- Before building a screen, find the component for the job and read its doc comment. These keep going wrong:
+  - Switching views (To review / Applied, Home / Shows) is text tabs: `Chips kind="tabs"` on the web, `TextTabs` in the app. Never pill chips. Pills only turn things on and off, or pick one value inside a sheet.
+  - Every menu, form and dialog is a `Sheet` (or `useSheetDialog` on the web for a big one), never a hand-made modal.
+  - A setting with a few choices is a row that shows its value and opens a sheet, not chips or a dropdown.
+  - Counts are a grey `CountPill`; accent only flags something new.
+  - On phones, the bottom tab bar shows only on the tabs' own pages.
 - Never say "NAS" in the UI. Say "server", or just "Downloaded".
 - The music screens never mention the server.
 - No " · " dot separators. Use a count pill, a second line, or left and right placement instead.

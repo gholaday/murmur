@@ -131,7 +131,8 @@ const CLOSE_DISTANCE = 120;
 const CLOSE_VELOCITY = 900;
 
 /**
- * A bottom sheet for menus and pickers. Tapping outside, Back, or dragging it down closes it.
+ * A bottom sheet. Every menu, form and dialog uses it, so they all drag and look alike; never a
+ * hand-made Modal. Tapping outside, Back, or dragging it down closes it.
  * The drag works anywhere on the sheet: while its list is scrolled down, pulling scrolls the
  * list back first, and the sheet follows once it's at the top.
  */

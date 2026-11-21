@@ -122,11 +122,11 @@ export function Input({ style, onFocus, onBlur, ...rest }: TextInputProps) {
 }
 
 /** A small accent text button beside a field's label, such as Undo or Reset. */
-export function LinkButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
+export function LinkButton({ label, onPress, disabled, danger }: { label: string; onPress: () => void; disabled?: boolean; danger?: boolean }) {
   const t = useTheme();
   return (
     <Pressable accessibilityRole="button" hitSlop={8} disabled={disabled} onPress={onPress} style={({ pressed }) => ({ opacity: disabled ? 0.45 : pressed ? 0.6 : 1 })}>
-      <RNText style={{ fontFamily: fonts.bold, fontSize: 13, color: t.accent }}>{label}</RNText>
+      <RNText style={{ fontFamily: fonts.bold, fontSize: 13, color: danger ? t.danger : t.accent }}>{label}</RNText>
     </Pressable>
   );
 }
@@ -250,11 +250,19 @@ export function NumberBadge({ value, tone = "count", style }: { value: number | 
   );
 }
 
-/** Small rounded count next to a heading, used instead of "4 books · ..." strings. */
+/**
+ * The grey badge counting what's in a list. Grey counts, accent only flags something new; never
+ * inside a chip or next to a screen title.
+ */
 export function CountPill({ count }: { count: number }) {
   return <NumberBadge value={count} />;
 }
 
+/**
+ * A pill chip, only for turning things on and off or picking one value inside a sheet. Switching
+ * between views of one screen is always TextTabs, never pills. See Text tabs and Chip in
+ * docs/DESIGN.md.
+ */
 export function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   const t = useTheme();
   return (
@@ -279,14 +287,16 @@ export function Chip({ label, selected, onPress }: { label: string; selected: bo
 }
 
 /**
- * A row of chips where one is picked: "tabs" switch what a screen shows, "radio" picks a
- * setting. `onPick` runs even for the chip already picked, as a lone Chip's onPress does.
+ * A row of chips where one is picked: picking one value inside a sheet (`radio`, read out as a
+ * radio group) or turning a thing on and off (`toggle`). Switching between views of one screen
+ * (To review / Applied, Home / Authors) is always TextTabs, never pills. See Text tabs and Chip in
+ * docs/DESIGN.md. `onPick` runs even for the chip already picked, as a lone Chip's onPress does.
  */
 export function Chips<T extends string | number | boolean | null>({
   options,
   value,
   onPick,
-  kind = "tabs",
+  kind = "radio",
   label,
   gap = 6,
   wrap,
@@ -295,7 +305,7 @@ export function Chips<T extends string | number | boolean | null>({
   options: readonly { id: T; label: string }[];
   value: T;
   onPick: (id: T) => void;
-  kind?: "tabs" | "radio";
+  kind?: "toggle" | "radio";
   /** Read out for the group, e.g. "Ads for this podcast". */
   label?: string;
   gap?: number;

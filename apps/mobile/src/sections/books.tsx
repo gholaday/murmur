@@ -514,7 +514,7 @@ function ContinueCard({ book, width }: { book: BookSummary; width: number }) {
       onLongPress={selecting ? undefined : withLongPressHaptic(menu.show)}
       style={({ pressed }) => ({ width, gap: 8, opacity: pressed ? 0.75 : 1 })}
     >
-      {menu.shown ? <BookActions book={book} open={menu.open} onClose={menu.close} onIdle={menu.idle} /> : null}
+      {menu.shown ? <BookActions book={book} open={menu.open} onClose={menu.close} onIdle={menu.idle} selectable={false} /> : null}
       <View>
         <Cover path={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, PixelRatio.getPixelSizeForLayoutSize(width) > 300 ? 600 : 200) : null} title={book.title} color={book.coverColor} radius={12} />
         {now ? <Mixer playing={now === "playing"} /> : null}

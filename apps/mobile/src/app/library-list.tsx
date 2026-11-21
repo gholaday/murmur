@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FlatList, View } from "react-native";
+import { Animated, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { type AlbumSummary, type BookSummary, bookIssues, LIBRARY_LIST_TEXT, LIBRARY_LISTS, type LibraryList } from "@murmur/shared/client";
 import { BookCard } from "@/components/book-card";
@@ -12,6 +12,7 @@ import { AlbumCard } from "@/components/music";
 import { BackRow, Empty, useBottomPad, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, FadeIn, Skeleton, useJustLoaded } from "@/components/skeleton";
+import { StickyHeading, useStickyHeading } from "@/components/sticky-heading";
 import { useAlbums, useBooks } from "@/lib/data";
 import { useTheme } from "@/theme";
 
@@ -133,6 +134,7 @@ function ListScreen({
   const bottom = useBottomPad();
   const pull = usePullRefresh(refresh);
   const fade = useJustLoaded(!loading);
+  const sticky = useStickyHeading();
   const { title, sub, empty: emptyText } = LIBRARY_LIST_TEXT[list];
   const data: Cell[] = loading
     ? [{ key: "loading", node: <Skeleton><CoverGridBones count={6} /></Skeleton> }]
@@ -141,16 +143,17 @@ function ListScreen({
       : [...(bar ? [{ key: "bar", node: bar }] : []), ...cells];
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <FlatList
+      <Animated.FlatList
         keyboardShouldPersistTaps="handled"
         data={data}
         keyExtractor={(c) => c.key}
-        contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }}
+        contentContainerStyle={{ paddingTop: top, paddingBottom: bottom }}
         refreshControl={pull}
+        {...sticky.scrollProps}
         // Index 0 is the header.
         stickyHeaderIndices={bar && !loading ? [1] : undefined}
         ListHeaderComponent={
-          <View>
+          <View {...sticky.topProps} style={{ paddingHorizontal: PAD }}>
             <View style={{ marginBottom: 12 }}>
               <BackRow title={title} sub={sub} right={loading ? null : right} />
             </View>
@@ -159,7 +162,17 @@ function ListScreen({
         }
         windowSize={7}
         maxToRenderPerBatch={8}
-        renderItem={({ item }) => (item.key === "bar" ? <>{item.node}</> : <FadeIn when={fade}>{item.node}</FadeIn>)}
+        // Android's default clipping drops the cells beside a sticky one, leaving Match all's results blank.
+        removeClippedSubviews={false}
+        renderItem={({ item }) =>
+          item.key === "bar" ? (
+            <StickyHeading sticky={sticky.sticky}>{item.node}</StickyHeading>
+          ) : (
+            <FadeIn when={fade} style={{ paddingHorizontal: PAD }}>
+              {item.node}
+            </FadeIn>
+          )
+        }
       />
       <BottomMiniPlayer />
       {after}

@@ -23,6 +23,7 @@ import {
   togglePick,
 } from "@murmur/shared/client";
 import { useAdmin } from "../admin";
+import { MenuSep } from "../card-menu";
 import { api } from "../api";
 import { SeriesInput } from "../book/edit-dialog";
 import { Cover } from "../cover";
@@ -238,6 +239,7 @@ function SelectBar({ books, picked, onAll, onStop }: { books: BookSummary[]; pic
         </SheetItem>
         {isAdmin ? (
           <>
+            <MenuSep />
             <SheetItem
               onClick={() => {
                 setMore(false);

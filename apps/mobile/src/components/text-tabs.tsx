@@ -22,10 +22,11 @@ const lastLine = new Map<string, { value: unknown; x: number; width: number; at:
 const now = () => Date.now();
 
 /**
- * Text tabs that switch what a screen shows: muted words, the picked one in the text colour, with
- * one accent underline over a hairline that slides to whichever is picked. They run to the edge
- * and scroll sideways when they don't fit, bringing the picked one into view. Chips stay for
- * filters and settings.
+ * The one way to switch views of a screen (Home / Authors / Series, To review / Applied / No match);
+ * never pill chips. Muted words, the picked one in the text colour, with one accent underline over
+ * a hairline that slides to whichever is picked. They run to the edge and scroll sideways when they
+ * don't fit, bringing the picked one into view. Chips stay for turning things on and off and for
+ * picking a value inside a sheet.
  */
 export function TextTabs<T extends string | number>({
   options,
@@ -37,6 +38,7 @@ export function TextTabs<T extends string | number>({
   memoryKey,
   trailing,
   gap = 24,
+  fade = true,
 }: {
   options: readonly { id: T; label: string }[];
   value: T;
@@ -52,6 +54,11 @@ export function TextTabs<T extends string | number>({
   trailing?: React.ReactNode;
   /** Space between the tabs; a row sharing its width with icons uses less. */
   gap?: number;
+  /**
+   * False for a few tabs that always fit, in a list's sticky cell: there Android's mask swallows
+   * the taps.
+   */
+  fade?: boolean;
 }) {
   const t = useTheme();
   const reduced = useReducedMotion();
@@ -132,6 +139,7 @@ export function TextTabs<T extends string | number>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, inset, reduced]);
 
+  const Fader = fade ? MaskedView : View;
   const line = useAnimatedStyle(() => ({ width: lineWidth.value, transform: [{ translateX: lineX.value }] }));
 
   return (
@@ -143,7 +151,7 @@ export function TextTabs<T extends string | number>({
       {/* The hairline stays put under tabs that scroll. */}
       <View pointerEvents="none" style={{ position: "absolute", left: inset, right: inset, bottom: 0, height: 1, backgroundColor: t.line }} />
       {/* Fades out over EDGE_FADE at an edge with more to scroll to. */}
-      <MaskedView
+      <Fader
         style={trailing ? { flex: 1 } : null}
         maskElement={
           <LinearGradient
@@ -206,7 +214,7 @@ export function TextTabs<T extends string | number>({
         })}
         <Animated.View pointerEvents="none" style={[{ position: "absolute", left: 0, bottom: 0, height: 2, borderRadius: 1, backgroundColor: t.accent }, line]} />
       </ScrollView>
-      </MaskedView>
+      </Fader>
       {trailing ? <View style={{ flexDirection: "row", marginRight: inset - 10 }}>{trailing}</View> : null}
     </View>
   );

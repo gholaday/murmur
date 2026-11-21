@@ -177,6 +177,8 @@ export function BulkMatch({
     <>
       {head(null)}
       <div className="bulk">
+        {/* The summary with Discard and Apply, and the tabs, stay at the top while the results scroll. */}
+        <div className="bulk-sticky">
         {job.running ? (
           <div className="card-box bulk-progress">
             <div className="bulk-progress-head">
@@ -199,30 +201,28 @@ export function BulkMatch({
           // Discarding drops the results only; matches already applied stay.
           <div className="bulk-progress-head">
             <strong>Matched {plural(job.total, "book")}</strong>
-            <button type="button" className="link-btn" disabled={busy} onClick={() => void run(() => api(PATH, { method: "DELETE" }), "Results discarded")}>
-              Discard
-            </button>
+            <div className="bulk-head-actions">
+              <button type="button" className="link-btn danger" disabled={busy} onClick={() => void run(() => api(PATH, { method: "DELETE" }), "Results discarded")}>
+                Discard
+              </button>
+              {filter === "review" && by("review").length ? (
+                <button type="button" className="link-btn" disabled={busy || pickedReview.length === 0} onClick={() => apply(pickedReview.map((i) => i.bookId))}>
+                  {pickedReview.length ? `Apply ${pickedReview.length}` : "Apply"}
+                </button>
+              ) : null}
+            </div>
           </div>
         )}
-  
+
         <div className="subtabs bulk-tabs" role="tablist">
           {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
             <button key={f} type="button" role="tab" className="subtab" aria-selected={filter === f} onClick={() => setFilter(f)}>
               {FILTER_LABEL[f]}
             </button>
           ))}
-          {filter === "review" && by("review").length ? (
-            <button
-              type="button"
-              className="btn btn-primary btn-small"
-              disabled={busy || pickedReview.length === 0}
-              onClick={() => apply(pickedReview.map((i) => i.bookId))}
-            >
-              {pickedReview.length ? `Apply ${pickedReview.length}` : "Pick some"}
-            </button>
-          ) : null}
         </div>
-  
+        </div>
+
         {shown.length === 0 ? (
           <EmptyState>{job.running ? "Nothing here yet." : `No books under ${FILTER_LABEL[filter].toLowerCase()}.`}</EmptyState>
         ) : (
@@ -346,11 +346,29 @@ function BulkRow({
   );
 }
 
+/** Why a result got its score, first in a Match all row's details. */
+export function ScoreReasons({ reasons }: { reasons: string[] }) {
+  if (reasons.length === 0) return null;
+  return (
+    <div>
+      <dt>Score</dt>
+      <dd>
+        <ul className="reasons">
+          {reasons.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
+        </ul>
+      </dd>
+    </div>
+  );
+}
+
 /** Each field the result changes, from what the book has now to what it would get. */
 function BulkChanges({ item }: { item: BulkMatchItem }) {
-  if (item.changes.length === 0) return <div className="bulk-changes muted small">Nothing would change.</div>;
   return (
     <dl className="bulk-changes">
+      <ScoreReasons reasons={item.candidate?.reasons ?? []} />
+      {item.changes.length === 0 ? <div className="muted">Nothing would change.</div> : null}
       {item.changes.map((x) => (
         <div key={x.field} className={x.edited ? "edited" : undefined}>
           <dt>{FIELDS.find((f) => f.field === x.field)?.label}</dt>

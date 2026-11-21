@@ -25,6 +25,11 @@
   padding-right: 4px;
 }
 .tabs-brand { display: none; }
+/* Phones: a page opened from a tab has no bottom bar, as in the app; the mini player drops to the bottom. */
+@media (max-width: 899px) {
+  .shell.nested { --tab-h: 0px; }
+  .shell.nested .tabs { display: none; }
+}
 .tab {
   position: relative;
   flex: 1 1 0;

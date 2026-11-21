@@ -52,7 +52,7 @@ export function ContinueCard({ book: b }: { book: BookSummary }) {
           <div className="card-sub">{timeLeft(b.durationSec, b.progress!.positionSec)}</div>
         </div>
       </Link>
-      {actions && !selecting ? <CardMenu label={b.title} items={(choose) => <BookMenuItems book={b} edit={actions.edit} choose={choose} />} /> : null}
+      {actions && !selecting ? <CardMenu label={b.title} items={(choose) => <BookMenuItems book={b} edit={actions.edit} choose={choose} selectable={false} />} /> : null}
     </div>
   );
 }

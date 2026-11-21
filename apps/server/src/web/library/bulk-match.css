@@ -3,7 +3,11 @@
 .bulk { display: flex; flex-direction: column; gap: 12px; }
 .bulk-item { border-bottom: 1px solid var(--line); }
 .bulk-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
-@media (max-width: 600px) { .bulk-row-actions { flex-direction: column; } }
+/* Phones: the buttons take their own line under the row, so the title keeps its width, as in the app. */
+@media (max-width: 600px) {
+  .bulk-row { flex-wrap: wrap; row-gap: 8px; }
+  .bulk-row-actions { flex-basis: 100%; justify-content: flex-end; }
+}
 .bulk-item .bulk-row { border-bottom: 0; }
 .bulk-toggle { display: flex; flex-direction: column; align-items: flex-start; text-align: left; position: relative; padding-right: 22px; min-width: 0; flex: 1; overflow: hidden; }
 .bulk-toggle > span { max-width: 100%; }
@@ -14,11 +18,16 @@
 .bulk-changes dt { color: var(--muted); font-weight: 600; }
 .bulk-changes dd { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 6px; min-width: 0; }
 .bulk-changes dd > span { overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.bulk-changes .reasons { margin: 0; font-size: 13px; }
 .bulk-from { color: var(--muted); text-decoration: line-through; }
 /* The tabs and Apply stick to the top while a long list scrolls under them. */
-.bulk-tabs { gap: 18px; margin: 0 -20px; padding: 0 20px; position: sticky; top: 0; z-index: 4; background: var(--bg); }
+.bulk-sticky { display: flex; flex-direction: column; gap: inherit; position: sticky; top: 0; z-index: 4; background: var(--bg); box-shadow: 0 0 0 20px var(--bg); clip-path: inset(0 -20px); }
+.bulk-tabs { gap: 18px; margin: 0 -20px; padding: 0 20px; }
 .bulk-tabs .subtab { white-space: nowrap; }
-.bulk-tabs .btn { margin-left: auto; }
+.bulk-head-actions { display: flex; align-items: center; gap: 16px; }
+.bulk-head-actions .link-btn { margin-left: 0; font-size: 14px; }
+.link-btn.danger { color: var(--danger); }
+.link-btn:disabled { opacity: 0.4; cursor: default; }
 .bulk-progress { display: flex; flex-direction: column; gap: 10px; padding-block: 14px; }
 .bulk-progress-head, .bulk-progress-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .bulk-progress-foot > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -28,4 +37,3 @@
 .bulk-covers .cover, .bulk-covers img, .bulk-nocover { width: 44px; border-radius: 6px; flex-shrink: 0; }
 .bulk-covers img, .bulk-nocover { aspect-ratio: 1; object-fit: cover; }
 .bulk-nocover { background: var(--chip); }
-@media (max-width: 600px) { .bulk-covers > :first-child, .bulk-covers > span { display: none; } }

@@ -23,7 +23,8 @@ import { ALBUM_FIELDS, BOOK_FIELDS, lastAlbumFields, lastBookFields, ScorePill }
 import { SmallButton } from "./settings";
 import { Sheet } from "./sheet";
 import { toast } from "./toast";
-import { Bar, Button, Chip, Chips, LinkButton, Text } from "./ui";
+import { TextTabs } from "./text-tabs";
+import { Bar, Button, Chip, LinkButton, Text } from "./ui";
 
 // Match all, like the web's: a button over the unmatched books or albums, a sheet to pick the
 // fields, the run's progress, and its results to review and apply. The run itself is on the
@@ -53,6 +54,8 @@ interface Item {
   found: string | null;
   sub: string | null;
   score: number | null;
+  /** Why it scored what it did, as the single Match lists them. */
+  reasons: string[];
   applied: string[];
   changes: { label: string; from: string | null; to: string | null; edited: boolean }[];
   message: string | null;
@@ -103,6 +106,7 @@ const BOOKS: Kind = {
         found: c?.title ?? null,
         sub: c ? [BOOK_PROVIDER_NAME[c.provider], c.narrator ? `read by ${c.narrator}` : null, c.durationSec ? duration(c.durationSec) : null].filter(Boolean).join(", ") : null,
         score: c?.score ?? null,
+        reasons: c?.reasons ?? [],
         applied: i.applied.map((f) => label(BOOK_FIELDS, f).toLowerCase()),
         changes: i.changes.map((x) => ({ label: label(BOOK_FIELDS, x.field), from: x.from, to: x.to, edited: x.edited })),
         message: i.message,
@@ -137,6 +141,7 @@ const ALBUMS: Kind = {
         found: c?.title ?? null,
         sub: c ? [ALBUM_PROVIDER_NAME[c.provider], c.artist, c.trackCount ? plural(c.trackCount, "song") : null].filter(Boolean).join(", ") : null,
         score: c?.score ?? null,
+        reasons: c?.reasons ?? [],
         applied: i.applied.map((f) => label(ALBUM_FIELDS, f).toLowerCase()),
         changes: i.changes.map((x) => ({ label: label(ALBUM_FIELDS, x.field), from: x.from, to: x.to, edited: false })),
         message: i.message,
@@ -292,14 +297,8 @@ export function MatchAllProgress({ m }: { m: MatchAll }) {
   const t = useTheme();
   const { job, kind } = m;
   if (!job) return null;
-  if (!job.running) {
-    return (
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
-        <Text variant="bodyStrong">{`Matched ${plural(job.total, kind.noun)}`}</Text>
-        <LinkButton label="Discard" disabled={m.busy} onPress={m.discard} />
-      </View>
-    );
-  }
+  // Once it's done, its line sits in the bar, which sticks.
+  if (!job.running) return null;
   return (
     <View style={{ backgroundColor: t.surface, borderRadius: 14, padding: 16, gap: 10, marginBottom: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -317,24 +316,32 @@ export function MatchAllProgress({ m }: { m: MatchAll }) {
   );
 }
 
-/** The filter chips and Apply, kept at the top while the results scroll. */
+/**
+ * Kept at the top while the results scroll: once the run is done, how many it matched with Discard
+ * and Apply, then the tabs.
+ */
 export function MatchAllBar({ m }: { m: MatchAll }) {
   const t = useTheme();
-  const { job } = m;
+  const { job, kind } = m;
   if (!job) return null;
   const review = job.items.filter((i) => i.status === "review");
   const picked = review.filter((i) => m.picked.has(i.id));
   return (
-    <View style={{ backgroundColor: t.bg, paddingVertical: 8, flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-      <Chips options={FILTERS} value={m.filter} onPick={m.setFilter} label="Results" />
-      {m.filter === "review" && review.length ? (
-        <SmallButton
-          label={picked.length ? `Apply ${picked.length}` : "Pick some"}
-          primary
-          disabled={m.busy || picked.length === 0}
-          onPress={() => m.apply(picked.map((i) => i.id))}
-        />
-      ) : null}
+    <View style={{ backgroundColor: t.bg, marginBottom: 8 }}>
+      {job.running ? null : (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 20, paddingBottom: 4 }}>
+          <Text variant="bodyStrong" style={{ flex: 1 }}>{`Matched ${plural(job.total, kind.noun)}`}</Text>
+          <LinkButton label="Discard" danger disabled={m.busy} onPress={m.discard} />
+          {m.filter === "review" && review.length ? (
+            <LinkButton
+              label={picked.length ? `Apply ${picked.length}` : "Apply"}
+              disabled={m.busy || picked.length === 0}
+              onPress={() => m.apply(picked.map((i) => i.id))}
+            />
+          ) : null}
+        </View>
+      )}
+      <TextTabs options={FILTERS} value={m.filter} onPick={m.setFilter} label="Results" gap={20} fade={false} />
     </View>
   );
 }
@@ -486,18 +493,26 @@ function MatchAllRow({
   );
 }
 
-/** Each field the result changes, from what it has now to what it would get. */
+/** Why the result scored what it did, then each field it changes, from what it has now to what it would get. */
 function Changes({ item, indent }: { item: Item; indent: boolean }) {
   const t = useTheme();
-  if (item.changes.length === 0) {
-    return (
-      <Text variant="small" style={{ paddingLeft: indent ? 32 : 0 }}>
-        Nothing would change.
-      </Text>
-    );
-  }
   return (
     <View style={{ gap: 6, paddingLeft: indent ? 32 : 0 }}>
+      {item.reasons.length ? (
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <Text variant="small" style={{ width: 84, fontFamily: fonts.bold }}>
+            Score
+          </Text>
+          <View style={{ flex: 1 }}>
+            {item.reasons.map((r) => (
+              <Text key={r} variant="small" style={{ color: t.text }}>
+                {r}
+              </Text>
+            ))}
+          </View>
+        </View>
+      ) : null}
+      {item.changes.length === 0 ? <Text variant="small">Nothing would change.</Text> : null}
       {item.changes.map((x) => (
         <View key={x.label} style={{ flexDirection: "row", gap: 10 }}>
           <Text variant="small" style={{ width: 84, fontFamily: fonts.bold }}>

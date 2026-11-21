@@ -5,7 +5,8 @@ import { CountPill } from "./ui";
 
 /**
  * A bottom sheet on phones and a centred dialog on wide screens, built on <dialog>
- * so focus trapping, Escape and the backdrop come from the browser.
+ * so focus trapping, Escape and the backdrop come from the browser. Every menu, form and dialog
+ * uses this, or useSheetDialog for a bigger one (Edit, Match), so they all drag, sink and look alike.
  */
 export function Sheet({
   open,

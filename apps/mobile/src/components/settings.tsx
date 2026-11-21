@@ -224,9 +224,10 @@ export function SetRow({
 export function Value({ text }: { text?: string | null }) {
   const t = useTheme();
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0, maxWidth: "50%" }}>
+    // Its full width, always: the title beside it wraps first.
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
       {text ? (
-        <Text numberOfLines={1} style={{ fontFamily: fonts.medium, fontSize: 14, color: t.muted, flexShrink: 1 }}>
+        <Text numberOfLines={1} style={{ fontFamily: fonts.medium, fontSize: 14, color: t.muted }}>
           {text}
         </Text>
       ) : null}
@@ -330,7 +331,7 @@ export function OnOffRow({ title, sub, value, onChange }: { title: string; sub?:
 function LinkRow({ title, value, badge, href }: { title: string; value?: string | null; badge?: number; href: Href }) {
   return (
     <SetRow title={title} a11y={badge ? `${title}, ${badge}` : value ? `${title}, ${value}` : title} onPress={() => router.push(href)}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 0 }}>
         {badge ? <NumberBadge tone="new" value={badge} /> : null}
         <Value text={value} />
       </View>

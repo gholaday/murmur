@@ -26,7 +26,14 @@ function sectionOf(pathname: string): LibrarySection | null {
   return null;
 }
 
-const TabsContext = createContext<UserPrefs["tabs"]>({ podcasts: false });
+/** A tab's own page, where phones show the bottom bar; pages opened from one hide it, as in the app. */
+function isTabRoot(pathname: string): boolean {
+  if (["/", "/music", "/watch", "/podcasts", "/search", "/you"].includes(pathname)) return true;
+  // You's settings tabs are You itself; /you/hidden is opened from it.
+  return /^\/you\/[^/]+$/.test(pathname) && pathname !== "/you/hidden" && pathname !== "/you/stats";
+}
+
+const TabsContext =createContext<UserPrefs["tabs"]>({ podcasts: false });
 
 /** What's switched on in You > Tabs. */
 export const useTabPrefs = () => useContext(TabsContext);
@@ -79,7 +86,7 @@ export function Shell({ tabs, children }: { tabs: UserPrefs["tabs"]; children: R
   const miniVideo = !!video.item && !watching;
   return (
     <TabsContext.Provider value={tabs}>
-      <div className={`shell ${item || miniVideo ? "has-player" : ""}`}>
+      <div className={`shell ${item || miniVideo ? "has-player" : ""} ${isTabRoot(pathname) ? "" : "nested"}`}>
         <nav className="tabs" aria-label="Main">
           <div className="tabs-brand">
             <AppIcon />

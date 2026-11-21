@@ -49,7 +49,7 @@ export function errorText(err: unknown, fallback = "Something went wrong."): str
 }
 
 export function plural(n: number, word: string): string {
-  return `${n} ${word}${n === 1 ? "" : "s"}`;
+  return `${n.toLocaleString("en-US")} ${word}${n === 1 ? "" : "s"}`;
 }
 
 /** How many of an edit form's fields differ from what's saved. */

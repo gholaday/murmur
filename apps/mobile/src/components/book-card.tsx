@@ -123,11 +123,14 @@ export function BookActions({
   onIdle,
   onHidden,
   onRemoved,
+  selectable = true,
 }: {
   book: BookSummary;
   open: boolean;
   onClose: () => void;
   onIdle?: () => void;
+  /** False for a card that can't be picked, like Continue listening's: no Select. */
+  selectable?: boolean;
   /** On the book's own page: goes back once it's hidden. */
   onHidden?: () => void;
   /** On the book's own page: leaves it once the book is removed from the library. */
@@ -171,7 +174,7 @@ export function BookActions({
         />
         {canPlayNext ? <SheetItem label={onPlayNext ? "Remove from Play next" : "Add to Play next"} onPress={run(togglePlayNext)} /> : null}
         <SheetItem label={finished ? "Mark as not finished" : "Mark as finished"} onPress={run(() => markFinished(!finished))} />
-        {selection ? <SheetItem label="Select" onPress={run(() => selection.start(book.id))} /> : null}
+        {selection && selectable ? <SheetItem label="Select" onPress={run(() => selection.start(book.id))} /> : null}
         <HideItem kind="book" id={book.id} title={book.title} onClose={onClose} onHidden={onHidden} divider={false} />
         {admin ? (
           <>

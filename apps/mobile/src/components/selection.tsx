@@ -26,7 +26,7 @@ import { currentMarkTarget, isCurrent, markProgress, usePlayerSelect } from "@/p
 import { fonts, useTheme } from "@/theme";
 import { useSeriesSuggest } from "./book-edit";
 import { CheckIcon, CloseIcon, DownloadIcon, MoreIcon } from "./icons";
-import { BookCoverStack, RemoveBooksSheet, Sheet, SheetItem } from "./sheet";
+import { BookCoverStack, RemoveBooksSheet, Sheet, SheetDivider, SheetItem } from "./sheet";
 import { toast } from "./toast";
 import { Caption, EditFoot, Input, LinkButton, Text } from "./ui";
 
@@ -289,6 +289,7 @@ function MoreSheet({
       {canHide ? <SheetItem label="Hide" onPress={() => onPick(() => hideBooks(books.map((b) => b.id)))} /> : null}
       {admin ? (
         <>
+          {canHide ? <SheetDivider /> : null}
           <SheetItem label="Edit…" onPress={() => onPick("edit")} />
           <SheetItem label="Remove from library…" danger onPress={() => onPick("remove")} />
         </>
