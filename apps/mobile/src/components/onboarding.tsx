@@ -8,6 +8,7 @@ import {
   ONBOARDING_TITLES,
   onboardingSteps,
   plural,
+  type ScanKind,
   type ScanStatusDto,
   scanStatusText,
   stepLabel,
@@ -18,7 +19,7 @@ import { useMovies, useShows, useWatchHome } from "@/lib/watch";
 import { fonts, useTheme } from "@/theme";
 import { Logo, UploadIcon } from "./icons";
 import { PAD } from "./library";
-import { Group, OnOffRow, RowAction, SetRow, Sub, useFolders, useLibraryAdmin, Value } from "./settings";
+import { Group, OnOffRow, RowAction, ScanBar, SetRow, Sub, useFolders, useLibraryAdmin, Value } from "./settings";
 import { FadeIn } from "./skeleton";
 import { toast } from "./toast";
 import { Button, Caption, Text } from "./ui";
@@ -100,35 +101,38 @@ function LibraryStep() {
   const watchCount = [a.watch.movies ? plural(a.watch.movies, "movie") : null, a.watch.shows ? plural(a.watch.shows, "show") : null].filter(Boolean).join(" and ") || "None yet";
   return (
     <Group>
-      <KindRow title="Books" list={books} scan={a.books.scan} count={plural(a.books.total, "book")} empty="Mount your audiobooks at /audiobooks." />
-      <KindRow title="Music" list={music} scan={a.music.scan} count={plural(a.music.albums, "album")} empty="Mount your music at /music." />
-      <KindRow title="Movies and shows" list={video} scan={a.watch.scan} count={watchCount} empty="Mount your movies at /movies and shows at /shows." />
+      <KindRow kind="books" title="Books" list={books} scan={a.books.scan} count={plural(a.books.total, "book")} empty="Mount your audiobooks at /audiobooks." />
+      <KindRow kind="music" title="Music" list={music} scan={a.music.scan} count={plural(a.music.albums, "album")} empty="Mount your music at /music." />
+      <KindRow kind="watch" title="Movies and shows" list={video} scan={a.watch.scan} count={watchCount} empty="Mount your movies at /movies and shows at /shows." />
     </Group>
   );
 }
 
-function KindRow({ title, list, scan, count, empty }: { title: string; list: LibraryFolderDto[]; scan: ScanStatusDto; count: string; empty: string }) {
+function KindRow({ kind, title, list, scan, count, empty }: { kind: ScanKind; title: string; list: LibraryFolderDto[]; scan: ScanStatusDto; count: string; empty: string }) {
   const t = useTheme();
   return (
-    <SetRow
-      title={title}
-      sub={
-        list.length ? (
-          <>
-            {list.map((f) => (
-              <Text key={f.id} numberOfLines={1} style={{ fontFamily: fonts.medium, fontSize: 12, color: t.muted }}>
-                {f.path}
-              </Text>
-            ))}
-            <Sub danger={!scan.running && !!scan.lastError}>{scan.running ? "Scanning now" : scanStatusText(scan)}</Sub>
-          </>
-        ) : (
-          <Sub>{empty}</Sub>
-        )
-      }
-    >
-      {list.length ? <Text style={{ fontFamily: fonts.medium, fontSize: 14, color: t.muted }}>{count}</Text> : null}
-    </SetRow>
+    <View>
+      <SetRow
+        title={title}
+        sub={
+          list.length ? (
+            <>
+              {list.map((f) => (
+                <Text key={f.id} numberOfLines={1} style={{ fontFamily: fonts.medium, fontSize: 12, color: t.muted }}>
+                  {f.path}
+                </Text>
+              ))}
+              <Sub danger={!scan.running && !!scan.lastError}>{scanStatusText(scan, kind)}</Sub>
+            </>
+          ) : (
+            <Sub>{empty}</Sub>
+          )
+        }
+      >
+        {list.length ? <Text style={{ fontFamily: fonts.medium, fontSize: 14, color: t.muted }}>{count}</Text> : null}
+      </SetRow>
+      {list.length ? <ScanBar scan={scan} /> : null}
+    </View>
   );
 }
 

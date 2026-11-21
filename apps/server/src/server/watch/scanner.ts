@@ -7,7 +7,7 @@ import type { LibraryFolder } from "../library/folders";
 import { IMAGE_EXTENSIONS, extname, stem } from "../library/parse";
 import { HttpError } from "../http";
 import { createLimiter, createUnreadable } from "../library/probe";
-import { emptyStats, type FileRow, fileDetails, fileRows, type FoundFile, runScan, type ScanState, walkTree } from "../library/scan-loop";
+import { addToScan, counted, emptyStats, type FileRow, fileDetails, fileRows, type FoundFile, runScan, type ScanState, walkTree } from "../library/scan-loop";
 import { storeArt } from "./art";
 import { grabStill, probeVideo, videoProblem } from "./video-addon";
 import { bumpChanges } from "../changes";
@@ -384,11 +384,12 @@ export function createWatchScanner(deps: WatchScannerDeps) {
       }
       extrasByFolder.set(folder.id, walked.extras);
       stats.found += walked.videos.length;
+      addToScan(state, walked.videos.length);
       const existing = rows.inFolder(folder.id);
       const versions = new Map<string, number>();
       for (const v of walked.videos) versions.set(movieKey(v.relPath), (versions.get(movieKey(v.relPath)) ?? 0) + 1);
       await Promise.all(
-        walked.videos.map(async (file) => {
+        walked.videos.map(counted(state, async (file: FoundFile) => {
           const row = existing.get(file.relPath);
           existing.delete(file.relPath);
           // A movie alone in its own folder; a loose file is its own key, in a folder it may share.
@@ -410,7 +411,7 @@ export function createWatchScanner(deps: WatchScannerDeps) {
             stats[row ? "updated" : "added"]++;
             bumpChanges("watch");
           } else if (result === "failed") stats.failed++;
-        }),
+        })),
       );
       stats.missing += rows.markMissing(existing.values(), now);
     }

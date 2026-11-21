@@ -17,6 +17,8 @@ export interface ScanState {
   lastDurationMs: number | null;
   lastError: string | null;
   lastStats: ScanStats | null;
+  /** How far the running pass is: items done of those found so far. Null until it has found some, and when idle. */
+  progress: { done: number; total: number } | null;
 }
 
 export interface ScanStats {
@@ -32,7 +34,7 @@ export interface ScanStats {
 }
 
 export function createScanState(): ScanState {
-  return { running: false, rerunRequested: false, lastFinishedAt: null, lastDurationMs: null, lastError: null, lastStats: null };
+  return { running: false, rerunRequested: false, lastFinishedAt: null, lastDurationMs: null, lastError: null, lastStats: null, progress: null };
 }
 
 export const emptyStats = (): ScanStats => ({ found: 0, added: 0, updated: 0, unchanged: 0, missing: 0, removed: 0, failed: 0 });
@@ -58,6 +60,7 @@ export async function runScan(opts: { state: ScanState; log: Logger; name: strin
   try {
     do {
       state.rerunRequested = false;
+      state.progress = null;
       const started = Date.now();
       let finishedAt = 0;
       try {
@@ -84,6 +87,7 @@ export async function runScan(opts: { state: ScanState; log: Logger; name: strin
     } while (state.rerunRequested);
   } finally {
     state.running = false;
+    state.progress = null;
   }
 }
 
@@ -171,5 +175,21 @@ export function fileRows<R extends FileRow>(sqlite: Sqlite, table: "tracks" | "v
     },
     /** Deletes rows gone long enough or whose folder was removed, returning how many. */
     removeExpired: (now: number, graceMs: number) => expired.run(now - graceMs).changes,
+  };
+}
+
+/** Adds what a pass just found to its progress, so the total grows as each folder is walked. */
+export function addToScan(state: ScanState, found: number): void {
+  state.progress = { done: state.progress?.done ?? 0, total: (state.progress?.total ?? 0) + found };
+}
+
+/** Wraps one item's import so it counts as done however it ends. */
+export function counted<T>(state: ScanState, fn: (item: T) => Promise<void>): (item: T) => Promise<void> {
+  return async (item) => {
+    try {
+      await fn(item);
+    } finally {
+      if (state.progress) state.progress.done++;
+    }
   };
 }

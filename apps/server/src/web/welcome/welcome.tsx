@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ScanBar } from "../scan-status";
 import { toast } from "../toast";
 import {
   androidAppUrl,
@@ -18,6 +19,7 @@ import {
   stepLabel,
   type UserPrefs,
   type WatchSummaryDto,
+  type ScanKind,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { AppIcon, ChevronIcon, CopyIcon, DownloadIcon, UploadIcon } from "../icons";
@@ -25,7 +27,7 @@ import { useOpmlImport } from "../podcasts/browse";
 import { Setting, SettingsGroup, SettingSub, SwitchRow } from "../ui";
 
 /** How often the library step checks on a scan that's running. */
-const SCAN_POLL_MS = 2000;
+const SCAN_POLL_MS = 1000;
 
 /**
  * The first-run steps, once per person, each with Skip: what's on the server (admins), which
@@ -144,7 +146,7 @@ function LibraryStep({
     return () => clearInterval(timer);
   }, [scanning, router]);
 
-  const row = (title: string, list: LibraryFolderDto[], scan: ScanStatusDto, count: string, empty: string) => (
+  const row = (title: string, kind: ScanKind, list: LibraryFolderDto[], scan: ScanStatusDto, count: string, empty: string) => (
     <Setting
       key={title}
       title={title}
@@ -156,7 +158,7 @@ function LibraryStep({
                 {f.path}
               </span>
             ))}
-            <SettingSub error={!!scan.lastError}>{scan.running ? "Scanning now" : scanStatusText(scan)}</SettingSub>
+            <SettingSub error={!scan.running && !!scan.lastError}>{scanStatusText(scan, kind)}</SettingSub>
           </>
         ) : (
           <SettingSub>{empty}</SettingSub>
@@ -164,15 +166,17 @@ function LibraryStep({
       }
     >
       {list.length ? <span className="setting-value set-plain">{count}</span> : null}
+      <ScanBar scan={scan} />
     </Setting>
   );
 
   return (
     <SettingsGroup>
-      {row("Books", folders, admin.books.scan, plural(admin.books.total, "book"), "Mount your audiobooks at /audiobooks.")}
-      {row("Music", musicFolders, admin.music.scan, plural(admin.music.albums, "album"), "Mount your music at /music.")}
+      {row("Books", "books", folders, admin.books.scan, plural(admin.books.total, "book"), "Mount your audiobooks at /audiobooks.")}
+      {row("Music", "music", musicFolders, admin.music.scan, plural(admin.music.albums, "album"), "Mount your music at /music.")}
       {row(
         "Movies and shows",
+        "watch",
         videoFolders,
         admin.watch.scan,
         [admin.watch.movies ? plural(admin.watch.movies, "movie") : null, admin.watch.shows ? plural(admin.watch.shows, "show") : null].filter(Boolean).join(" and ") || "None yet",

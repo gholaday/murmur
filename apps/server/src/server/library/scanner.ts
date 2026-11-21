@@ -10,7 +10,7 @@ import { pickCoverImage, storeCover } from "./covers";
 import type { LibraryFolder } from "./folders";
 import { AUDIO_EXTENSIONS, DISC_FOLDER, IMAGE_EXTENSIONS, buildBookMetadata, extname, naturalCompare, type ScannedAudioFile } from "./parse";
 import { createLimiter, createUnreadable, extractEmbeddedCover, probeFile } from "./probe";
-import { fileDetails, type FoundFile, runScan, type ScanState, type ScanStats, walkTree } from "./scan-loop";
+import { addToScan, counted, fileDetails, type FoundFile, runScan, type ScanState, type ScanStats, walkTree } from "./scan-loop";
 import { bumpChanges } from "../changes";
 
 interface ScannerDeps {
@@ -334,7 +334,8 @@ export function createScanner(deps: ScannerDeps) {
     const isOrphan = (folderId: number | null) => folderId === null || !folderIds.has(folderId);
     const isUnavailable = (folderId: number | null) => folderId !== null && unavailable.has(folderId);
 
-    const tasks = foundBooks.map(async (found) => {
+    addToScan(state, foundBooks.length);
+    const tasks = foundBooks.map(counted(state, async (found: FoundBook) => {
       const current = byPath.get(keyOf(found.folderId, found.relDir));
       if (current) {
         seen.add(current.id);
@@ -371,7 +372,7 @@ export function createScanner(deps: ScannerDeps) {
         stats.added++;
         bumpChanges("books");
       } else stats.failed++;
-    });
+    }));
     await Promise.all(tasks);
 
     // Books from a folder that was removed in Settings, and not found elsewhere, leave now.

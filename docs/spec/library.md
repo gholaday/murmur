@@ -25,7 +25,7 @@ Author/Series/Book 3 - Title/...
 
 **Identity:** a book is keyed by its folder path plus a hash of its file list, so progress survives a rescan and renaming a file inside a book doesn't lose it. Moving a book folder is detected by matching the file hash.
 
-**Scans:** a full scan on startup and on demand from Settings; between scans, a file watcher picks up changes after 30 s of quiet. Network mounts that don't report changes can use polling (`WATCH_POLLING`), and a periodic rescan is the safety net.
+**Scans:** a full scan on startup and on demand from Settings, where a running scan shows how many of what it found it has done (books by folder, songs and videos by file; `progress` in the scan status, polled every second while it runs). Between scans, a file watcher picks up changes after 30 s of quiet. Network mounts that don't report changes can use polling (`WATCH_POLLING`), and a periodic rescan is the safety net.
 
 **Missing files:** a book whose files are gone shows "Files missing" and is listed under Needs attention. It stays until an admin removes it, so a drive that's away for a while loses nothing.
 

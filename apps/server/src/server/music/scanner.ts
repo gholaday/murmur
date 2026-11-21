@@ -7,7 +7,7 @@ import { pickCoverImage, storeCover } from "../library/covers";
 import type { LibraryFolder } from "../library/folders";
 import { AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, extname, mimeTypeFor } from "../library/parse";
 import { createLimiter, createUnreadable, extractEmbeddedCover, probeFile } from "../library/probe";
-import { emptyStats, fileDetails, fileRows, type FoundFile, runScan, type ScanState, walkTree } from "../library/scan-loop";
+import { addToScan, counted, emptyStats, fileDetails, fileRows, type FoundFile, runScan, type ScanState, walkTree } from "../library/scan-loop";
 import { nameKey, sortName, trackInfo } from "./parse";
 import { bumpChanges } from "../changes";
 
@@ -182,9 +182,10 @@ export function createMusicScanner(deps: MusicScannerDeps) {
       }
       images.set(folder.id, walked.images);
       stats.found += walked.audio.length;
+      addToScan(state, walked.audio.length);
       const existing = rows.inFolder(folder.id);
       await Promise.all(
-        walked.audio.map(async (file) => {
+        walked.audio.map(counted(state, async (file: FoundFile) => {
           const row = existing.get(file.relPath);
           existing.delete(file.relPath);
           if (rows.unchanged(row, file)) {
@@ -195,7 +196,7 @@ export function createMusicScanner(deps: MusicScannerDeps) {
             stats[row ? "updated" : "added"]++;
             bumpChanges("music");
           } else stats.failed++;
-        }),
+        })),
       );
       stats.missing += rows.markMissing(existing.values(), now);
     }

@@ -24,6 +24,8 @@ import {
   outOfDate,
   plural,
   QUALITY_LABEL,
+  type ScanKind,
+  scanShare,
   type ScanStatusDto,
   scanStatusText,
   SHORT_NEW_PASSWORD,
@@ -653,17 +655,36 @@ function PasswordSheet({ open, onClose }: { open: boolean; onClose: () => void }
 
 export const useFolders = (kind: FolderKind) => useQuery({ queryKey: keys.libraryFolders(kind), queryFn: () => api<LibraryFolderDto[]>(apiPaths.folders[kind]) });
 
-const SCAN_POLL_MS = 2000;
-const SCAN_KINDS = ["books", "music", "watch"] as const;
-type ScanKind = (typeof SCAN_KINDS)[number];
+const SCAN_POLL_MS = 1000;
+const SCAN_KINDS: ScanKind[] = ["books", "music", "watch"];
 
 export const useLibraryAdmin = () =>
   useQuery({
     queryKey: keys.libraryAdmin,
     queryFn: () => api<LibraryAdminDto>(apiPaths.libraryAdmin),
-    // While any kind scans, so its row spins and then shows the new counts.
+    // Every second while any kind scans (started here or anywhere else), so its count and bar move.
     refetchInterval: (q) => (q.state.data && SCAN_KINDS.some((k) => q.state.data![k].scan.running) ? SCAN_POLL_MS : false),
   });
+
+/** A thin accent bar under a scan's row, filling as it goes; nothing until it knows how much there is. */
+export function ScanBar({ scan }: { scan: ScanStatusDto }) {
+  const share = scanShare(scan);
+  return share === null ? null : <ScanFill share={share} />;
+}
+
+function ScanFill({ share }: { share: number }) {
+  const t = useTheme();
+  const width = useSharedValue(share);
+  useEffect(() => {
+    width.value = withTiming(share, { duration: 400, easing: Easing.out(Easing.quad) });
+  }, [share, width]);
+  const fill = useAnimatedStyle(() => ({ width: `${width.value * 100}%` }));
+  return (
+    <View style={{ height: 3, borderRadius: 2, backgroundColor: t.track, overflow: "hidden", marginBottom: 12 }} importantForAccessibility="no-hide-descendants">
+      <Animated.View style={[{ height: "100%", backgroundColor: t.accent }, fill]} />
+    </View>
+  );
+}
 
 /** Books, Music, and Movies and shows: each with its count and Rescan, what needs a look, and its folders. */
 function LibraryTab() {
@@ -734,16 +755,17 @@ function folderRows(kind: FolderKind, list: LibraryFolderDto[] | undefined) {
 }
 
 /** A kind's count and scan status, with Rescan; its icon spins until the scan is done. */
-function ScanRow({ kind, title, scan }: { kind: ScanKind; title: string; scan: ScanStatusDto }) {
+function ScanRow({ kind, title, scan: live }: { kind: ScanKind; title: string; scan: ScanStatusDto }) {
   const t = useTheme();
   const [asked, setAsked] = useState(false);
-  const running = asked || scan.running;
+  // Until the first answer after Rescan, it counts as running with nothing found yet.
+  const scan = asked && !live.running ? { ...live, running: true, progress: null } : live;
   // When a scan finishes, everything it could have changed is fetched again.
-  const was = useRef(scan.running);
+  const was = useRef(live.running);
   useEffect(() => {
-    if (was.current && !scan.running) void queryClient.invalidateQueries();
-    was.current = scan.running;
-  }, [scan.running]);
+    if (was.current && !live.running) void queryClient.invalidateQueries();
+    was.current = live.running;
+  }, [live.running]);
 
   const rescan = async () => {
     setAsked(true);
@@ -760,9 +782,12 @@ function ScanRow({ kind, title, scan }: { kind: ScanKind; title: string; scan: S
   };
 
   return (
-    <SetRow title={title} sub={<Sub danger={!running && !!scan.lastError}>{running ? "Scanning now" : scanStatusText(scan)}</Sub>}>
-      <RowAction label="Rescan" icon={<RefreshIcon size={18} color={t.accent} />} spinning={running} onPress={() => void rescan()} />
-    </SetRow>
+    <View>
+      <SetRow title={title} sub={<Sub danger={!scan.running && !!scan.lastError}>{scanStatusText(scan, kind)}</Sub>}>
+        <RowAction label="Rescan" icon={<RefreshIcon size={18} color={t.accent} />} spinning={scan.running} onPress={() => void rescan()} />
+      </SetRow>
+      <ScanBar scan={scan} />
+    </View>
   );
 }
 

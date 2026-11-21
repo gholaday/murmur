@@ -39,6 +39,19 @@ export interface ScanStatusDto {
   running: boolean;
   lastFinishedAt: number | null;
   lastError: string | null;
+  /** While running, once it has found what to scan: items done of the total (1.7.1 on; absent before). */
+  progress?: { done: number; total: number } | null;
+}
+
+export type ScanKind = "books" | "music" | "watch";
+
+/** What a scan counts, one per kind: a book's folder, a song file, a video file. */
+const SCAN_NOUN: Record<ScanKind, [string, string]> = { books: ["book", "books"], music: ["song", "songs"], watch: ["video", "videos"] };
+
+/** How far a running scan is, 0 to 1, or null when there's nothing to show yet. */
+export function scanShare(scan: ScanStatusDto): number | null {
+  const p = scan.running ? scan.progress : null;
+  return p && p.total > 0 ? Math.min(1, p.done / p.total) : null;
 }
 
 /** You > Library for admins: each kind's counts, scan and what needs a look. */
@@ -49,8 +62,13 @@ export interface LibraryAdminDto {
 }
 
 /** Under a kind's count in You > Library: whether it's scanning, failed, or when it last scanned. */
-export function scanStatusText(scan: ScanStatusDto, now = Date.now()): string {
-  if (scan.running) return "Scanning now";
+export function scanStatusText(scan: ScanStatusDto, kind?: ScanKind, now = Date.now()): string {
+  if (scan.running) {
+    const p = scan.progress;
+    if (!p?.total || !kind) return "Scanning now";
+    const [one, many] = SCAN_NOUN[kind];
+    return `Scanning, ${p.done.toLocaleString("en-US")} of ${p.total.toLocaleString("en-US")} ${p.total === 1 ? one : many}`;
+  }
   if (scan.lastError) return scan.lastError;
   if (!scan.lastFinishedAt) return "Not scanned yet";
   const mins = Math.round((now - scan.lastFinishedAt) / 60_000);

@@ -5,7 +5,12 @@ import { albumCounts } from "./music/queries";
 import type { ScanState } from "./library/scan-loop";
 import { watchSummary } from "./watch/queries";
 
-const scanOf = (s: ScanState): ScanStatusDto => ({ running: s.running, lastFinishedAt: s.lastFinishedAt, lastError: s.lastError });
+const scanOf = (s: ScanState): ScanStatusDto => ({
+  running: s.running,
+  lastFinishedAt: s.lastFinishedAt,
+  lastError: s.lastError,
+  progress: s.progress && { ...s.progress },
+});
 
 /** You > Library for admins, the same on the web and in the app. Counts only, nothing per person. */
 export function libraryAdmin(ctx: AppContext): LibraryAdminDto {

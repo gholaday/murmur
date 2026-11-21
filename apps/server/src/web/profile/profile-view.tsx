@@ -37,12 +37,14 @@ import {
   MIN_PASSWORD,
   SHORT_NEW_PASSWORD,
   SHORT_PASSWORD,
+  type ScanKind,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { CopyIcon, DownloadIcon, PlusIcon, RefreshIcon } from "../icons";
 import { AD_MODES, adPrefsStore, useAdPrefs } from "../player/ad-prefs";
 import { usePlayerControls, usePlayerSelect } from "../player/engine";
 import { forgetBookmarks } from "../bookmarks";
+import { ScanBar, useLiveScan } from "../scan-status";
 import { ConfirmSheet, Sheet } from "../sheet";
 import { applyTheme, currentTheme } from "../theme";
 import { useQualityPref } from "../watch/quality-pref";
@@ -475,33 +477,15 @@ function TmdbCredit() {
   );
 }
 
-const SCAN_POLL_MS = 2000;
-
-/** A kind's count and scan status, with Rescan; spins until the scan is done, then refreshes. */
-function ScanRow({ title, scan, kind }: { title: string; scan: ScanStatusDto; kind: keyof typeof apiPaths.scan }) {
-  const router = useRouter();
-  const [scanning, setScanning] = useState(false);
-  const running = scanning || scan.running;
-  const rescan = async () => {
-    setScanning(true);
-    try {
-      await api(apiPaths.scan[kind], { method: "POST" });
-      for (;;) {
-        await new Promise((r) => setTimeout(r, SCAN_POLL_MS));
-        if (!(await api<LibraryAdminDto>(apiPaths.libraryAdmin))[kind].scan.running) break;
-      }
-      router.refresh();
-    } catch (err) {
-      toast.error(errorText(err));
-    } finally {
-      setScanning(false);
-    }
-  };
+/** A kind's count and scan status, with Rescan; while it scans, how far it is and a bar. */
+function ScanRow({ title, scan: initial, kind }: { title: string; scan: ScanStatusDto; kind: ScanKind }) {
+  const { scan, running, rescan } = useLiveScan(kind, initial);
   return (
-    <Setting title={title} sub={<SettingSub error={!!scan.lastError}>{running ? "Scanning now" : scanStatusText(scan)}</SettingSub>}>
+    <Setting title={title} sub={<SettingSub error={!running && !!scan.lastError}>{scanStatusText(scan, kind)}</SettingSub>}>
       <button type="button" className={`btn ${running ? "spinning" : ""}`} disabled={running} onClick={() => void rescan()}>
         <RefreshIcon size={16} /> Rescan
       </button>
+      <ScanBar scan={scan} />
     </Setting>
   );
 }
