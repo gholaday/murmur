@@ -3,7 +3,7 @@ import { useLocalSearchParams } from "expo-router";
 import Animated from "react-native-reanimated";
 import { PODCAST_GENRES } from "@murmur/shared/client";
 import { DirectoryError, DirectoryProvider, DirectoryRow, DirectoryRowBones } from "@/components/browse";
-import { Empty, NestedScreen, PageTitle } from "@/components/page";
+import { Empty, NestedScreen } from "@/components/page";
 import { TextTabs, useTabFade } from "@/components/text-tabs";
 import { useChart } from "@/lib/directory";
 
@@ -17,8 +17,7 @@ export default function TopShowsScreen() {
   const fade = useTabFade(genre);
 
   return (
-    <NestedScreen>
-      <PageTitle title="Top shows" />
+    <NestedScreen title="Top shows">
       <TextTabs label="Category" options={CATEGORIES} value={genre ? String(genre) : "all"} onPick={(id) => setGenre(id === "all" ? null : Number(id))} />
       <DirectoryProvider>
         <Animated.View style={[{ marginTop: 12 }, fade]}>

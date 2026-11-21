@@ -26,11 +26,15 @@ import {
   type UserPrefs,
   type UserPrefsPatch,
   type VideoQuality,
+  type BulkEditForm,
   EPISODE_PAGE,
   errorText,
+  type OpmlImportResult,
+  plural,
 } from "@murmur/shared/client";
+import { File } from "expo-file-system";
 import { toast } from "@/components/toast";
-import { api, HttpError } from "./api";
+import { absolute, api, authHeaders, HttpError } from "./api";
 import { queryClient } from "./query";
 import { keys } from "./query-keys";
 
@@ -52,6 +56,46 @@ export function useBookSections(): BookSection[] {
 export function useTabPrefs(): Required<UserPrefs["tabs"]> {
   const tabs = usePrefs().data?.tabs;
   return { books: tabs?.books ?? true, podcasts: tabs?.podcasts ?? true, music: tabs?.music ?? false, watch: tabs?.watch ?? false };
+}
+
+/**
+ * Whether the first-run steps show: only once prefs say this account hasn't been through them.
+ * Older accounts and servers count as done. `waiting` holds the tabs back until prefs are known,
+ * unless the request is paused offline.
+ */
+export function useOnboarding(): { show: boolean; waiting: boolean } {
+  const prefs = usePrefs();
+  return { show: prefs.data?.onboarded === false, waiting: prefs.isPending && prefs.fetchStatus === "fetching" };
+}
+
+/** Marks the first-run steps done, so they don't come back. Throws what went wrong. */
+export async function finishOnboarding() {
+  const saved = await api<UserPrefs>(apiPaths.prefs, { method: "PUT", body: { onboarded: true } });
+  queryClient.setQueryData(keys.prefs, saved);
+}
+
+/** Picks an OPML file (another podcast app's export) and follows its shows, saying how it went. */
+export async function importOpml() {
+  // OPML files rarely say what they are, so any file can be picked.
+  const picked = await File.pickFileAsync({ mimeTypes: "*/*" });
+  if (picked.canceled) return;
+  toast.show("Importing. Large lists can take a minute.", { duration: 60_000 });
+  try {
+    const res = await fetch(absolute(apiPaths.podcastsOpml), {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "text/xml" },
+      body: await picked.result.text(),
+    });
+    const data = (await res.json().catch(() => ({ error: `Import failed (${res.status}).` }))) as OpmlImportResult | { error: string };
+    if (!res.ok || "error" in data) throw new Error("error" in data ? data.error : "Import failed.");
+    const failed = data.failed.length ? ` ${data.failed.length} couldn't be loaded.` : "";
+    const text = `Added ${plural(data.added, "podcast")}, ${data.alreadySubscribed} already followed.${failed}`;
+    if (data.failed.length) toast.error(text);
+    else toast.show(text);
+    if (data.added) void queryClient.invalidateQueries({ queryKey: keys.podcasts });
+  } catch (err) {
+    toast.error(errorText(err, "Import failed."));
+  }
 }
 
 /** Saves a change, showing it at once; puts the old prefs back if the server says no. */
@@ -419,6 +463,24 @@ async function changePlayNext(order: string[], send: () => Promise<unknown>) {
   } finally {
     void queryClient.invalidateQueries({ queryKey: keys.books });
   }
+}
+
+/**
+ * Takes books out of the library; their files stay where they are. One goes through its own
+ * route, which older servers have too. Throws what went wrong.
+ */
+export async function removeBooks(books: { id: string; title: string }[]) {
+  if (books.length === 1) await api(apiPaths.book(books[0]!.id), { method: "DELETE" });
+  else await api(apiPaths.booksBulk, { method: "POST", body: { action: "remove", ids: books.map((b) => b.id) } });
+  void queryClient.invalidateQueries();
+  toast.show(`Removed ${books.length === 1 ? books[0]!.title : plural(books.length, "book")} from the library`);
+}
+
+/** Sets Author, Narrator or Series on several books at once, each keeping its own series number. */
+export async function editBooks(ids: string[], fields: Partial<BulkEditForm>) {
+  await api(apiPaths.booksBulk, { method: "POST", body: { action: "edit", ids, fields } });
+  void queryClient.invalidateQueries();
+  toast.show(`Saved ${plural(ids.length, "book")}`);
 }
 
 /** Sets the shelf's order, e.g. after a drag. */

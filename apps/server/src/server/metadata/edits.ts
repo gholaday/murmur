@@ -145,6 +145,42 @@ export function saveDetails(ctx: AppContext, bookId: string, input: BookEditInpu
   });
 }
 
+/**
+ * Edit on several books at once: sets only the fields given, the same way the details form does.
+ * Series keeps each book's own number, so picking a whole series and renaming it works.
+ */
+export function saveBulkDetails(ctx: AppContext, bookIds: string[], fields: Partial<Record<"author" | "narrator" | "series", string>>) {
+  ctx.sqlite.transaction(() => {
+    for (const id of bookIds) {
+      const s = scannedRow(ctx, id);
+      const patch: Partial<OverrideRow> = {};
+      const pick = (value: string, scanned: string | null) => {
+        const v = value.trim();
+        return v === (scanned ?? "") ? null : v;
+      };
+      if (fields.author !== undefined) patch.author = pick(fields.author, s.author);
+      if (fields.narrator !== undefined) patch.narrator = pick(fields.narrator, s.narrator);
+      if (fields.series !== undefined) {
+        const o = overrideRow(ctx, id);
+        const series = fields.series.trim();
+        const position = series ? (o && o.series !== null ? o.series_position : s.series_position) : null;
+        const same = series === (s.series ?? "") && position === s.series_position;
+        patch.series = same ? null : series;
+        patch.series_position = same ? null : position;
+      }
+      writeOverride(ctx, id, patch);
+    }
+  })();
+  bumpChanges("books");
+}
+
+/** Removes several books from the library at once (never their files). */
+export function removeBooks(ctx: AppContext, bookIds: string[]) {
+  const del = ctx.sqlite.prepare("DELETE FROM books WHERE id = ?");
+  ctx.sqlite.transaction(() => bookIds.forEach((id) => del.run(id)))();
+  bumpChanges("books");
+}
+
 /** Saves hand-edited chapters, or goes back to the files' chapters when given null. */
 export async function saveChapters(ctx: AppContext, bookId: string, input: ChaptersEditInput) {
   const book = await getBook(ctx, bookId, null);

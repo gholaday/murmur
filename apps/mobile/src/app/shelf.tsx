@@ -8,7 +8,8 @@ import { Cover } from "@/components/cover";
 import { DragIcon, MoreIcon } from "@/components/icons";
 import { Grid, PAD, safeShelf, safeShelfTitle, todayKey, useGridWidth } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { BackRow, Empty, NestedScreen, PageTitle, useBottomPad, useTopInset } from "@/components/page";
+import { SelectionProvider } from "@/components/selection";
+import { BackRow, Empty, NestedScreen, useBottomPad, useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { toast } from "@/components/toast";
 import { DragHandle, SortableList, SortableScrollView } from "@/components/sortable-list";
@@ -30,20 +31,21 @@ function ShelfList({ id }: { id: ShelfId }) {
   const list = safeShelf(id, books.data ?? [], todayKey());
 
   return (
-    <NestedScreen>
-      <PageTitle title={safeShelfTitle(id, books.data ?? [])} />
-      {list.length === 0 ? (
-        books.isPending ? null : <Empty>Nothing here right now.</Empty>
-      ) : (
-        <View style={{ marginTop: 12 }}>
-          <Grid>
-            {list.map((b) => (
-              <BookCard key={b.id} book={b} width={width} sub={shelfSub(id, b)} />
-            ))}
-          </Grid>
-        </View>
-      )}
-    </NestedScreen>
+    <SelectionProvider books={list}>
+      <NestedScreen title={safeShelfTitle(id, books.data ?? [])}>
+        {list.length === 0 ? (
+          books.isPending ? null : <Empty>Nothing here right now.</Empty>
+        ) : (
+          <View style={{ marginTop: 12 }}>
+            <Grid>
+              {list.map((b) => (
+                <BookCard key={b.id} book={b} width={width} sub={shelfSub(id, b)} />
+              ))}
+            </Grid>
+          </View>
+        )}
+      </NestedScreen>
+    </SelectionProvider>
   );
 }
 
@@ -59,8 +61,7 @@ function PlayNextList() {
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <SortableScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }}>
-        <BackRow />
-        <PageTitle title={SHELF_TITLES.playnext} />
+        <BackRow title={SHELF_TITLES.playnext} />
         {list.length === 0 ? (
           books.isPending ? null : <Empty title="Nothing lined up">Add books from their menu, with Add to Play next.</Empty>
         ) : (

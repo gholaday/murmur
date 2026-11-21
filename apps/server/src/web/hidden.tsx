@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { toast } from "./toast";
 import { apiPaths, errorText, type HiddenChange } from "@murmur/shared/client";
 import { api } from "./api";
 import { MenuItem, MenuSep } from "./card-menu";

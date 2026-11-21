@@ -27,6 +27,15 @@ select.input { appearance: none; }
 }
 .btn-primary { background: var(--accent); color: var(--on-accent); }
 .btn-danger { color: var(--danger); }
+/* A confirm's action when it removes something: solid red, so it can't be mistaken for Cancel. */
+.btn-danger-fill { background: var(--danger); color: var(--bg); }
+/* An action said in accent text with its icon, no pill: a select bar's actions, Rescan, Copy. */
+.text-btn { height: 40px; padding: 0 10px; border-radius: 20px; display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-size: 14px; font-weight: 700; white-space: nowrap; }
+.text-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.text-btn:disabled { opacity: 0.4; cursor: default; }
+.text-btn.danger { color: var(--danger); }
+.text-btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.text-btn .i { width: 18px; height: 18px; }
 .btn-big { height: 50px; border-radius: 25px; gap: 10px; font-size: 15px; font-weight: 800; }
 /* Action with quieter detail beside it, e.g. "Continue  6h 2m left". */
 .btn-round { width: 50px; height: 50px; border-radius: 25px; padding: 0; background: var(--surface-2); display: inline-flex; align-items: center; justify-content: center; }
@@ -46,6 +55,8 @@ select.input { appearance: none; }
 .icon-btn.accent { background: var(--accent); color: var(--on-accent); }
 .icon-btn:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
 .icon-btn.accent:hover { background: var(--accent); filter: brightness(1.08); }
+/* A page's add action (Add podcast): the icon in accent, no fill, as in the app. */
+.icon-btn.accent-icon { color: var(--accent); }
 
 .chip {
   height: 34px;
@@ -115,7 +126,14 @@ select.input { appearance: none; }
 :where(input[type="checkbox"]):not(.switch input):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 :where(input[type="checkbox"]):not(.switch input):disabled { opacity: 0.35; cursor: default; }
 .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; }
-.switch input { width: 44px; height: 26px; appearance: none; border-radius: 13px; background: var(--track); position: relative; cursor: pointer; flex-shrink: 0; transition: background 0.15s; }
-.switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 10px; background: #fff; transition: transform 0.15s; }
-.switch input:checked { background: var(--accent); }
-.switch input:checked::after { transform: translateX(18px); }
+/* On/off is said in text, "On" in accent or "Off" in muted, where other rows show their value; the
+   checkbox stays for the keyboard, screen readers and forms, out of sight. */
+.switch { cursor: pointer; }
+.switch input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.switch-state { flex-shrink: 0; margin-right: 24px; font-size: 14px; font-weight: 700; }
+.switch-state .on { display: none; color: var(--accent); }
+.switch-state .off { color: var(--muted); font-weight: 600; }
+.switch:has(input:checked) .switch-state .on { display: inline; }
+.switch:has(input:checked) .switch-state .off { display: none; }
+.switch:has(input:focus-visible) .switch-state { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+.switch:hover .setting-title { color: var(--accent); }

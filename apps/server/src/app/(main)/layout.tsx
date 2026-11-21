@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getContext } from "@/server/context";
 import { AdminProvider } from "@/web/admin";
 import { getPrefs } from "@/server/prefs";
@@ -12,6 +13,8 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   const user = await requirePageUser();
   const ctx = await getContext();
   const prefs = getPrefs(ctx, user.id);
+  // A new account sees the first-run steps once before anything else.
+  if (!prefs.onboarded) redirect("/welcome");
   return (
     <AdminProvider isAdmin={user.isAdmin} tmdb={!!ctx.watch.tmdb}>
       <QualityPrefProvider initial={prefs.videoQuality}>

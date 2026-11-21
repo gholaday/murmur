@@ -32,12 +32,13 @@ import { useBookSort } from "@/components/book-sort";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, FadeIn, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { useCardMenu } from "@/components/sheet";
+import { SelectionProvider, useSelection } from "@/components/selection";
 import { DragHandle, SortableList, SortableScrollProvider, useSortableScroll } from "@/components/sortable-list";
 import { GAP, gridRows, Group, openAllBooks, openGroup, openShelf, PAD, safeShelf, safeShelfTitle, Shelf, todayKey, useGridWidth, useShelfWidth } from "@/components/library";
 import { TextTabs, useTabFade } from "@/components/text-tabs";
 import { Bar, Button, CountPill, IconButton, Text } from "@/components/ui";
 import { saveBookSections, useBookSections, useBooks } from "@/lib/data";
-import { useSectionJumps } from "@/lib/library";
+import { librarySection, useSectionJumps } from "@/lib/library";
 import { withLongPressHaptic } from "@/lib/haptics";
 import { isCurrent } from "@/player/engine";
 import { useTheme } from "@/theme";
@@ -61,6 +62,8 @@ export function BooksSection() {
   const shelfWidth = useShelfWidth();
   const books = useBooks();
   const [tab, setTab] = useState<Tab>("books");
+  // Music or Watch in the title row leaves select mode, like another tab.
+  const open = librarySection.useValue() === "books";
   // The All books shelf follows the sort picked on the All books page.
   const sort = useBookSort();
   const refresh = usePullRefresh(books.refetch);
@@ -101,11 +104,38 @@ export function BooksSection() {
     return [];
   }, [list, tab]);
 
-  const finishedRows = useMemo(() => {
-    if (tab !== "finished") return [];
-    return gridRows(list.filter((b) => b.progress?.finished).sort((a, b) => b.progress!.updatedAt - a.progress!.updatedAt));
-  }, [list, tab]);
+  const finished = useMemo(
+    () => (tab === "finished" ? list.filter((b) => b.progress?.finished).sort((a, b) => b.progress!.updatedAt - a.progress!.updatedAt) : []),
+    [list, tab],
+  );
+  const finishedRows = useMemo(() => gridRows(finished), [finished]);
 
+  const sections = useBookSections();
+  const day = todayKey();
+  const shelves = useMemo(
+    () => ({
+      playnext: shelfBooks("playnext", list, day),
+      next: shelfBooks("next", list, day),
+      like: safeShelf("like", list, day),
+      short: safeShelf("short", list, day),
+      added: shelfBooks("added", list, day),
+      unstarted: shelfBooks("unstarted", list, day),
+    }),
+    [list, day],
+  );
+
+  // The books this tab shows as cards, top to bottom and each once, for selecting several.
+  // Continue listening's cards can't be picked.
+  const shown = useMemo(() => {
+    const lists =
+      tab === "books"
+        ? sections.filter((s) => !s.hidden).map((s) => (s.id === "all" ? sorted : s.id === "continue" ? [] : shelves[s.id]).slice(0, SHELF_SIZE))
+        : tab === "finished"
+          ? [finished]
+          : groups.map((g) => g.books);
+    const seen = new Set<string>();
+    return lists.flat().filter((b) => !seen.has(b.id) && !!seen.add(b.id));
+  }, [tab, sections, sorted, shelves, finished, groups]);
 
   // The title row and tabs stay put above whatever scrolls.
   const header = (
@@ -165,6 +195,8 @@ export function BooksSection() {
       <BooksTab
         books={list}
         sorted={sorted}
+        sections={sections}
+        shelves={shelves}
         fade={fade}
         tabFade={tabFade}
         refresh={refresh}
@@ -214,12 +246,16 @@ export function BooksSection() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      {header}
-      {content}
-    </View>
+    <SelectionProvider books={shown} view={open ? tab : "closed"}>
+      <View style={{ flex: 1, backgroundColor: t.bg }}>
+        {header}
+        {content}
+      </View>
+    </SelectionProvider>
   );
 }
+
+type Shelves = Record<Exclude<BookSectionId, "continue" | "all">, BookSummary[]>;
 
 type TabFade = ReturnType<typeof useTabFade>;
 
@@ -287,6 +323,8 @@ function VirtualList<T>({
 function BooksTab({
   books,
   sorted,
+  sections,
+  shelves,
   fade,
   tabFade,
   refresh,
@@ -295,6 +333,8 @@ function BooksTab({
 }: {
   books: BookSummary[];
   sorted: BookSummary[];
+  sections: BookSection[];
+  shelves: Shelves;
   fade: boolean;
   tabFade: TabFade;
   refresh: React.ReactElement<React.ComponentProps<typeof RefreshControl>>;
@@ -303,21 +343,8 @@ function BooksTab({
 }) {
   const t = useTheme();
   const cardWidth = useShelfWidth();
-  const sections = useBookSections();
   const { scroll, props: scrollProps } = useSortableScroll<Animated.ScrollView>();
-  const day = todayKey();
   const continuing = useMemo(() => continueListening(books), [books]);
-  const shelves = useMemo(
-    () => ({
-      playnext: shelfBooks("playnext", books, day),
-      next: shelfBooks("next", books, day),
-      like: safeShelf("like", books, day),
-      short: safeShelf("short", books, day),
-      added: shelfBooks("added", books, day),
-      unstarted: shelfBooks("unstarted", books, day),
-    }),
-    [books, day],
-  );
   const likeTitle = useMemo(() => safeShelfTitle("like", books), [books]);
   const counts: Record<BookSectionId, number> = {
     continue: continuing.length,
@@ -475,14 +502,16 @@ function ContinueCard({ book, width }: { book: BookSummary; width: number }) {
   const t = useTheme();
   const now = useNowPlaying((s) => isCurrent(s, "book", book.id));
   const menu = useCardMenu();
+  // Can't be picked: while selecting, a tap does nothing.
+  const selecting = !!useSelection()?.selecting;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={book.title}
       accessibilityActions={[{ name: "longpress", label: "Options" }]}
       onAccessibilityAction={menu.show}
-      onPress={() => router.push(`/book/${book.id}`)}
-      onLongPress={withLongPressHaptic(menu.show)}
+      onPress={selecting ? undefined : () => router.push(`/book/${book.id}`)}
+      onLongPress={selecting ? undefined : withLongPressHaptic(menu.show)}
       style={({ pressed }) => ({ width, gap: 8, opacity: pressed ? 0.75 : 1 })}
     >
       {menu.shown ? <BookActions book={book} open={menu.open} onClose={menu.close} onIdle={menu.idle} /> : null}

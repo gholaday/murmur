@@ -11,7 +11,7 @@ import { CloseIcon, PlayIcon } from "./icons";
 import { PAD } from "./library";
 import { ListMeta } from "./listening";
 import { BottomMiniPlayer } from "./mini-player";
-import { Empty, NestedHead, SectionTitle, useBottomPad, useTopInset } from "./page";
+import { BackRow, Empty, SectionTitle, useBottomPad, useTopInset } from "./page";
 import { ConfirmSheet, RemoveDownloadSheet } from "./sheet";
 import { IconButton, Text } from "./ui";
 
@@ -41,7 +41,7 @@ export function DownloadsView() {
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }}>
-        <NestedHead title="Downloads" />
+        <BackRow title="Downloads" />
         {all.length ? (
           <ListMeta
             text={bytes > 0 ? `${formatBytes(bytes)} on this phone` : ""}

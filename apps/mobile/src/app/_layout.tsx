@@ -73,15 +73,7 @@ function App({ signedIn }: { signedIn: boolean }) {
           <Stack.Screen name="podcast-list" />
           <Stack.Screen name="preview" />
           <Stack.Screen name="top-shows" />
-          <Stack.Screen name="account" />
-          <Stack.Screen name="appearance" />
-          <Stack.Screen name="playback" />
-          <Stack.Screen name="server" />
-          <Stack.Screen name="library" />
           <Stack.Screen name="library-list" />
-          <Stack.Screen name="episode-cache" />
-          <Stack.Screen name="users" />
-          <Stack.Screen name="tab-settings" />
           <Stack.Screen name="hidden" />
           <Stack.Screen name="downloads" />
           <Stack.Screen name="stats" />

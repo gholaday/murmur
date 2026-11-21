@@ -1,8 +1,7 @@
 import { useRef, useState } from "react";
 import { KeyboardAvoidingView, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Rect } from "react-native-svg";
-import { EyeIcon, EyeOffIcon } from "@/components/icons";
+import { EyeIcon, EyeOffIcon, Logo } from "@/components/icons";
 import { Button, Field, IconButton, Text, type TextInputRef } from "@/components/ui";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/theme";
@@ -109,17 +108,5 @@ export default function Login() {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
-  );
-}
-
-/** The app icon's five-bar waveform. */
-function Logo({ color }: { color: string }) {
-  const bars = [10, 22, 34, 22, 14];
-  return (
-    <Svg width={64} height={44} viewBox="0 0 64 44">
-      {bars.map((h, i) => (
-        <Rect key={i} x={4 + i * 12} y={(44 - h) / 2} width={8} height={h} rx={4} fill={color} />
-      ))}
-    </Svg>
   );
 }

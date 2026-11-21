@@ -126,15 +126,18 @@ export function StatsCard() {
       onPress={() => router.push("/stats")}
       style={({ pressed }) => ({ padding: CARD_PAD, borderRadius: 16, backgroundColor: t.surface, gap: 16, opacity: pressed ? 0.85 : 1 })}
     >
-      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Caption>{statsTotalLabel(null, "week")}</Caption>
-          <FadeIn when={fade} key={s ? "loaded" : "loading"} style={{ gap: 2 }}>
-            <Total>{s ? duration(statsSum(s.split, kinds)) || "0m" : " "}</Total>
-            <Text variant="small">{(s && statsCompared(s, kinds)) ?? " "}</Text>
-          </FadeIn>
+      <View style={{ gap: 2 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+          <Text accessibilityRole="header" style={{ fontFamily: fonts.extrabold, fontSize: 22, lineHeight: 30, letterSpacing: -0.3, color: t.text }}>
+            Stats
+          </Text>
+          <ChevronIcon size={20} color={t.muted} />
         </View>
-        <ChevronIcon size={20} color={t.muted} />
+        <Caption>{statsTotalLabel(null, "week")}</Caption>
+        <FadeIn when={fade} key={s ? "loaded" : "loading"} style={{ gap: 2 }}>
+          <Total>{s ? duration(statsSum(s.split, kinds)) || "0m" : " "}</Total>
+          <Text variant="small">{(s && statsCompared(s, kinds)) ?? " "}</Text>
+        </FadeIn>
       </View>
       {s ? (
         <FadeIn when={fade}>

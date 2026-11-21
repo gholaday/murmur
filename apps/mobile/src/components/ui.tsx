@@ -87,7 +87,7 @@ export function Button({
         <>
           {icon}
           {/* Without Android's font padding the label centres on the icon beside it. */}
-          <RNText style={{ fontFamily: fonts.bold, fontSize: small ? 13 : 16, lineHeight: small ? 17 : 21, includeFontPadding: false, color: primary ? t.onAccent : t.text }}>
+          <RNText style={{ fontFamily: fonts.bold, fontSize: small ? 13 : 16, lineHeight: small ? 17 : 21, includeFontPadding: false, color: kind === "danger" ? t.bg : primary ? t.onAccent : t.text }}>
             {label}
           </RNText>
           {trail}

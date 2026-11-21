@@ -17,7 +17,7 @@ import {
   THEME_CHOICES,
   type EpisodeCacheStatusDto,
   type LibraryFolderDto,
-  type BackupStatusDto,
+  androidAppUrl,
   backupLine,
   type ServerVersionDto,
   type ThemeChoice,
@@ -28,19 +28,22 @@ import {
   type MusicSummaryDto,
   type WatchSummaryDto,
   statsKindsShown,
+  SETTINGS_TABS,
+  type SettingsTab,
+  settingsTabs,
   plural,
 } from "@murmur/shared/client";
 import { api } from "../api";
-import { RefreshIcon } from "../icons";
+import { CopyIcon, DownloadIcon, PlusIcon, RefreshIcon } from "../icons";
 import { AD_MODES, adPrefsStore, useAdPrefs } from "../player/ad-prefs";
 import { usePlayerControls, usePlayerSelect } from "../player/engine";
 import { forgetBookmarks } from "../bookmarks";
 import { ConfirmSheet, Sheet } from "../sheet";
 import { applyTheme, currentTheme } from "../theme";
 import { useQualityPref } from "../watch/quality-pref";
-import { BackRow, Chip, Chips, Setting, SettingLink, SettingsCard, SettingSub, SwitchRow } from "../ui";
+import { Chip, Chips, ChoiceRow, NestedHead, Setting, SettingLink, SettingsGroup, SettingSub, SwitchRow } from "../ui";
 import { HiddenList } from "./hidden-list";
-import { SECTIONS, type SettingsSection } from "./sections";
+
 import { StatsCard } from "./stats";
 
 interface ServerInfo extends ServerVersionDto {
@@ -48,7 +51,7 @@ interface ServerInfo extends ServerVersionDto {
 }
 
 export function ProfileView({
-  section,
+  tab: initialTab = "playback",
   user,
   users,
   folders,
@@ -67,8 +70,8 @@ export function ProfileView({
   watch,
   video,
 }: {
-  /** One settings group on its own page; none is You itself. */
-  section?: SettingsSection;
+  /** The settings tab shown under the stats, or Hidden on its own page. */
+  tab?: SettingsTab | "hidden";
   /** How many books are on the server. */
   books: number;
   musicFolders: LibraryFolderDto[];
@@ -93,66 +96,24 @@ export function ProfileView({
 }) {
   const router = useRouter();
   const player = usePlayerControls();
-  const [theme, setTheme] = useState<ThemeChoice>("system");
-  useEffect(() => setTheme(currentTheme()), []);
+  const shown = settingsTabs(user.isAdmin, tabs);
+  const [tab, setTab] = useState<SettingsTab>(initialTab !== "hidden" && shown.includes(initialTab) ? initialTab : "playback");
+  const refresh = () => router.refresh();
 
-  if (section) {
-    const refresh = () => router.refresh();
+  // What you hid is a list of covers, so it gets its own page under Account.
+  if (initialTab === "hidden") {
     return (
       <>
-        <BackRow fallback="/you" />
-        <div className="page-head">
-          <h1 className="page-title">{SECTIONS.find((s) => s.id === section)!.title}</h1>
-        </div>
-        <div className="settings-page">
-          {section === "account" ? (
-            <>
-              <PasswordForm username={user.username} isAdmin={user.isAdmin} />
-              <SignOut onSignOut={player.stop} />
-            </>
-          ) : section === "appearance" ? (
-            <ThemePicker />
-          ) : section === "playback" ? (
-            <PlaybackCard adsEnabled={adsEnabled} watch={watch.enabled} autoplayNext={autoplayNext} />
-          ) : section === "server" ? (
-            <>
-              <VersionCard version={server.version} devBuild={server.devBuild} updates={server.updates} />
-              {server.backup ? <BackupCard backup={server.backup} /> : null}
-              {watch.enabled ? <TmdbCredit /> : null}
-            </>
-          ) : section === "library" ? (
-            <>
-              {libraryAdmin ? <LibraryAdmin libraryAdmin={libraryAdmin} folders={folders} musicFolders={musicFolders} movieFolders={movieFolders} showFolders={showFolders} video={video} /> : null}
-            </>
-          ) : section === "podcasts" ? (
-            <>
-              {cache ? <EpisodeCacheCard cache={cache} onChanged={refresh} /> : null}
-              <SettingsCard>
-                <ExplicitSwitch initial={explicitShows} />
-                <Setting title="Export subscriptions">
-                  <a className="btn" href={apiPaths.podcastsOpml} download="murmur-podcasts.opml">
-                    Export
-                  </a>
-                </Setting>
-              </SettingsCard>
-            </>
-          ) : section === "users" ? (
-            <UsersCard me={user} users={users} onChanged={refresh} />
-          ) : section === "hidden" ? (
-            <HiddenList />
-          ) : (
-            <TabsCard tabs={tabs} books={books} music={music} watch={watch} onSaved={refresh} />
-          )}
-        </div>
+        <NestedHead title="Hidden" fallback="/you/account" />
+        <HiddenList />
       </>
     );
   }
 
-  const values: Partial<Record<SettingsSection, string | null>> = {
-    account: user.username,
-    appearance: THEME_CHOICES.find((t) => t.id === theme)?.label,
-    server: `Murmur ${server.version}`,
-    users: String(users.length),
+  // Switching tabs stays on the page; the address follows so a tab can be linked and reloaded.
+  const pick = (next: SettingsTab) => {
+    setTab(next);
+    window.history.replaceState(null, "", next === "playback" ? "/you" : `/you/${next}`);
   };
 
   return (
@@ -166,15 +127,92 @@ export function ProfileView({
       </section>
 
       <section className="section">
-        <h2 className="section-title">Settings</h2>
-        <SettingsCard>
-          {/* Podcasts' settings matter to everyone else only while that tab shows; admins keep it for the server-wide ones. */}
-          {SECTIONS.filter((s) => (user.isAdmin || !s.admin) && (s.id !== "podcasts" || tabs.podcasts || user.isAdmin)).map((s) => (
-            <SettingLink key={s.id} title={s.title} value={values[s.id]} href={`/you/${s.id}`} />
-          ))}
-        </SettingsCard>
+        <h2 className="you-heading">Settings</h2>
+        <div className="set-tabs">
+          <Chips kind="tabs" label="Settings">
+            {shown.map((id) => (
+              <Chip key={id} selected={tab === id} onClick={() => pick(id)}>
+                {SETTINGS_TABS.find((t) => t.id === id)!.label}
+              </Chip>
+            ))}
+          </Chips>
+        </div>
       </section>
+
+      <div key={tab} className="set-tabs-body view-fade" role="tabpanel">
+        {tab === "playback" ? (
+          <PlaybackCard adsEnabled={adsEnabled} watch={watch.enabled} autoplayNext={autoplayNext} />
+        ) : tab === "appearance" ? (
+          <>
+            <ThemePicker />
+            <TabsCard tabs={tabs} books={books} music={music} watch={watch} onSaved={refresh} />
+          </>
+        ) : tab === "podcasts" ? (
+          <>
+            {cache ? <EpisodeCacheCard cache={cache} onChanged={refresh} /> : null}
+            <SettingsGroup label="Browse and export">
+              <ExplicitSwitch initial={explicitShows} />
+              <Setting title="Your subscriptions" sub={<SettingSub>An OPML file other podcast apps can import</SettingSub>}>
+                <a className="btn" href={apiPaths.podcastsOpml} download="murmur-podcasts.opml">
+                  <DownloadIcon size={18} />
+                  Export
+                </a>
+              </Setting>
+            </SettingsGroup>
+          </>
+        ) : tab === "account" ? (
+          <>
+            <PasswordForm username={user.username} isAdmin={user.isAdmin} />
+            <SettingsGroup label="Your lists">
+              <SettingLink title="Hidden" href="/you/hidden" />
+            </SettingsGroup>
+            <SignOut onSignOut={player.stop} />
+          </>
+        ) : tab === "library" && libraryAdmin ? (
+          <LibraryAdmin libraryAdmin={libraryAdmin} folders={folders} musicFolders={musicFolders} movieFolders={movieFolders} showFolders={showFolders} video={video} />
+        ) : tab === "users" ? (
+          <UsersCard me={user} users={users} onChanged={refresh} />
+        ) : tab === "server" ? (
+          <>
+            <VersionCard version={server.version} devBuild={server.devBuild} updates={server.updates} backup={server.backup} />
+            <AppCard version={server.version} devBuild={server.devBuild} />
+            {watch.enabled ? <TmdbCredit /> : null}
+          </>
+        ) : null}
+      </div>
     </>
+  );
+}
+
+/** Server: the Android app for this version, and the address to sign in with. */
+function AppCard({ version, devBuild }: { version: string; devBuild: boolean }) {
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
+  return (
+    <SettingsGroup label="Android app">
+      <Setting title="Murmur for Android" sub={<SettingSub>{devBuild ? "The latest release on GitHub" : `Version ${version}, from GitHub`}</SettingSub>}>
+        <a className="btn" href={androidAppUrl(version, devBuild)} target="_blank" rel="noreferrer">
+          <DownloadIcon size={18} />
+          Download
+        </a>
+      </Setting>
+      <Setting title="Server address" sub={<SettingSub>{origin || " "}</SettingSub>}>
+        <button
+          type="button"
+          className="btn"
+          disabled={!origin}
+          onClick={() =>
+            void navigator.clipboard.writeText(origin).then(
+              () => toast("Copied the server address"),
+              () => toast.error("Couldn't copy it. Select the address instead."),
+            )
+          }
+        >
+          <CopyIcon size={18} />
+          Copy
+        </button>
+      </Setting>
+    </SettingsGroup>
   );
 }
 
@@ -214,50 +252,43 @@ function PlaybackCard({
     });
   };
   return (
-    <SettingsCard>
-      <Setting title="Skip back" wrap>
-        <Chips kind="radio" label="Skip back">
-          {SKIP_BACK_OPTIONS.map((s) => (
-            <Chip key={s} selected={skip.back === s} onClick={() => setSkip({ ...skip, back: s })}>
-              {s}s
-            </Chip>
-          ))}
-        </Chips>
-      </Setting>
-      <Setting title="Skip forward" wrap>
-        <Chips kind="radio" label="Skip forward">
-          {SKIP_FORWARD_OPTIONS.map((s) => (
-            <Chip key={s} selected={skip.forward === s} onClick={() => setSkip({ ...skip, forward: s })}>
-              {s}s
-            </Chip>
-          ))}
-        </Chips>
-      </Setting>
+    <>
+      <SettingsGroup label="Skipping">
+        <ChoiceRow title="Skip back" value={skip.back} choices={SKIP_BACK_OPTIONS.map((s) => ({ id: s, label: `${s} seconds` }))} onPick={(s) => setSkip({ ...skip, back: s })} />
+        <ChoiceRow
+          title="Skip forward"
+          value={skip.forward}
+          choices={SKIP_FORWARD_OPTIONS.map((s) => ({ id: s, label: `${s} seconds` }))}
+          onPick={(s) => setSkip({ ...skip, forward: s })}
+        />
+      </SettingsGroup>
       {watch ? (
-        <Setting title="Converted video" sub={<SettingSub>When the server has to convert a video. 720p is easier on a small server</SettingSub>} wrap>
-          <Chips kind="radio" label="Converted video">
-            <Chip selected={quality === "full"} onClick={() => pickQuality("full")}>
-              1080p
-            </Chip>
-            <Chip selected={quality === "light"} onClick={() => pickQuality("light")}>
-              720p
-            </Chip>
-          </Chips>
-        </Setting>
+        <SettingsGroup label="Video">
+          <ChoiceRow
+            title="Converted video"
+            sub={<SettingSub>When the server has to convert a video. 720p is easier on a small server</SettingSub>}
+            value={quality}
+            choices={[
+              { id: "full", label: "1080p" },
+              { id: "light", label: "720p" },
+            ]}
+            onPick={pickQuality}
+          />
+          <SwitchRow title="Play next episode" label="Play next episode" checked={nextOn} onChange={toggleNext} />
+        </SettingsGroup>
       ) : null}
-      {watch ? <SwitchRow title="Play next episode" label="Play next episode" checked={nextOn} onChange={toggleNext} /> : null}
       {adsEnabled ? (
-        <Setting title="Ads" sub={<SettingSub>{`This device only. ${AD_MODES.find((m) => m.id === adPrefs.mode)?.hint}.`}</SettingSub>} wrap>
-          <Chips kind="radio" label="Ads">
-            {AD_MODES.map((m) => (
-              <Chip key={m.id} selected={adPrefs.mode === m.id} onClick={() => adPrefsStore.set({ ...adPrefs, mode: m.id })}>
-                {m.label}
-              </Chip>
-            ))}
-          </Chips>
-        </Setting>
+        <SettingsGroup label="Podcasts">
+          <ChoiceRow
+            title="Ads"
+            sub={<SettingSub>{`This device only. ${AD_MODES.find((m) => m.id === adPrefs.mode)?.hint}.`}</SettingSub>}
+            value={adPrefs.mode}
+            choices={AD_MODES}
+            onPick={(mode) => adPrefsStore.set({ ...adPrefs, mode })}
+          />
+        </SettingsGroup>
       ) : null}
-    </SettingsCard>
+    </>
   );
 }
 
@@ -285,17 +316,17 @@ function TabsCard({
     });
   };
   return (
-    <SettingsCard>
+    <SettingsGroup label="Choose what you see">
       <SwitchRow
         title="Books in Library"
-        sub={books ? `${plural(books, "book")} on your server` : undefined}
+        sub={books ? plural(books, "book") : undefined}
         label="Books in Library"
         checked={shown.books !== false}
         onChange={(on) => toggle("books", on)}
       />
       <SwitchRow
         title="Music in Library"
-        sub={music.enabled ? `${plural(music.albums, "album")} on your server` : undefined}
+        sub={music.enabled ? plural(music.albums, "album") : undefined}
         label="Music in Library"
         checked={!!shown.music}
         onChange={(on) => toggle("music", on)}
@@ -312,7 +343,7 @@ function TabsCard({
         onChange={(on) => toggle("watch", on)}
       />
       <SwitchRow title="Podcasts" label="Podcasts tab" checked={shown.podcasts} onChange={(on) => toggle("podcasts", on)} />
-    </SettingsCard>
+    </SettingsGroup>
   );
 }
 
@@ -320,24 +351,17 @@ function ThemePicker() {
   const [theme, setTheme] = useState<ThemeChoice>("system");
   useEffect(() => setTheme(currentTheme()), []);
   return (
-    <SettingsCard>
-      <Setting title="Theme" wrap>
-        <Chips kind="radio" label="Theme">
-          {THEME_CHOICES.map((t) => (
-            <Chip
-              key={t.id}
-              selected={theme === t.id}
-              onClick={() => {
-                applyTheme(t.id);
-                setTheme(t.id);
-              }}
-            >
-              {t.label}
-            </Chip>
-          ))}
-        </Chips>
-      </Setting>
-    </SettingsCard>
+    <SettingsGroup label="Look">
+      <ChoiceRow
+        title="Theme"
+        value={theme}
+        choices={THEME_CHOICES}
+        onPick={(t) => {
+          applyTheme(t);
+          setTheme(t);
+        }}
+      />
+    </SettingsGroup>
   );
 }
 
@@ -346,9 +370,9 @@ function PasswordForm({ username, isAdmin }: { username: string; isAdmin: boolea
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   return (
-    <SettingsCard>
-      <Setting title={username}>
-        <span className={`role-pill ${isAdmin ? "admin" : ""}`}>{isAdmin ? "Admin" : "Listener"}</span>
+    <SettingsGroup label="Account">
+      <Setting title="User" sub={<SettingSub>{isAdmin ? "Admin" : "Listener"}</SettingSub>}>
+        <span className="setting-value set-plain">{username}</span>
       </Setting>
       <Setting title="Password">
         <button
@@ -405,40 +429,33 @@ function PasswordForm({ username, isAdmin }: { username: string; isAdmin: boolea
           ) : null}
         </form>
       </Sheet>
-    </SettingsCard>
+    </SettingsGroup>
   );
 }
 
-function VersionCard({ version, devBuild, updates }: Omit<ServerVersionDto, "backup">) {
+/** The server's version, with What's new when there's a newer one, and the nightly database backup. */
+function VersionCard({ version, devBuild, updates, backup }: ServerVersionDto) {
   const update = updates?.update;
-  const { sub, dot } = versionStatus({ devBuild, updates });
+  const { sub } = versionStatus({ devBuild, updates });
   return (
-    <SettingsCard>
-      <Setting title={`Murmur ${version}`} dot={dot ? (dot === "warn" ? "warn" : "ok") : undefined} sub={sub ? <SettingSub>{sub}</SettingSub> : null}>
+    <SettingsGroup label="Server">
+      <Setting title={`Murmur ${version}`} sub={sub ? <SettingSub>{sub}</SettingSub> : null}>
         {update ? (
           <a className="btn" href={update.url} target="_blank" rel="noreferrer">
             What&apos;s new
           </a>
         ) : null}
       </Setting>
-    </SettingsCard>
-  );
-}
-
-/** The nightly database backup, for admins. Getting started explains restoring one. */
-function BackupCard({ backup }: { backup: BackupStatusDto }) {
-  const { sub, dot } = backupLine(backup);
-  return (
-    <SettingsCard>
-      <Setting title="Backups" dot={dot} sub={<SettingSub error={backup.failed}>{sub}</SettingSub>} />
-    </SettingsCard>
+      {/* Getting started explains restoring one. */}
+      {backup ? <Setting title="Backups" sub={<SettingSub error={backup.failed}>{backupLine(backup).sub}</SettingSub>} /> : null}
+    </SettingsGroup>
   );
 }
 
 /** TMDB's terms ask for their logo and this notice wherever their data shows. */
 function TmdbCredit() {
   return (
-    <SettingsCard>
+    <SettingsGroup>
       <Setting
         title={
           <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer" aria-label="TMDB">
@@ -448,7 +465,7 @@ function TmdbCredit() {
         }
         sub={<SettingSub>This product uses the TMDB API but is not endorsed or certified by TMDB.</SettingSub>}
       />
-    </SettingsCard>
+    </SettingsGroup>
   );
 }
 
@@ -475,11 +492,7 @@ function ScanRow({ title, scan, kind }: { title: string; scan: ScanStatusDto; ki
     }
   };
   return (
-    <Setting
-      title={title}
-      dot={scan.lastError ? "warn" : undefined}
-      sub={<SettingSub error={!!scan.lastError}>{running ? "Scanning now" : scanStatusText(scan)}</SettingSub>}
-    >
+    <Setting title={title} sub={<SettingSub error={!!scan.lastError}>{running ? "Scanning now" : scanStatusText(scan)}</SettingSub>}>
       <button type="button" className={`btn ${running ? "spinning" : ""}`} disabled={running} onClick={() => void rescan()}>
         <RefreshIcon size={16} /> Rescan
       </button>
@@ -493,39 +506,28 @@ function EpisodeCacheCard({ cache, onChanged }: { cache: EpisodeCacheStatusDto; 
   const scan = adScanStatus(ads, Date.now());
 
   return (
-    <SettingsCard>
-      <Setting
+    <SettingsGroup label="Kept on the server">
+      <ChoiceRow
         title="Episodes kept ready per podcast"
         sub={<SettingSub error={!cache.available}>{cache.available ? `${gigabytes(cache.usedBytes)} of ${gigabytes(cache.maxBytes)} used` : cache.error}</SettingSub>}
-        wrap
-      >
-        <Chips kind="radio" label="Episodes kept ready per podcast">
-          {KEEP_PER_SHOW_OPTIONS.map((n) => (
-            <Chip
-              key={n}
-              disabled={busy}
-              selected={cache.settings.episodesPerShow === n}
-              onClick={async () => {
-                setBusy(true);
-                try {
-                  await api(apiPaths.episodeCache, { method: "PUT", body: { episodesPerShow: n } });
-                  onChanged();
-                } catch (err) {
-                  toast.error(errorText(err));
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              {n === 0 ? "Off" : n}
-            </Chip>
-          ))}
-        </Chips>
-      </Setting>
+        value={cache.settings.episodesPerShow}
+        choices={KEEP_PER_SHOW_OPTIONS.map((n) => ({ id: n, label: n === 0 ? "Off" : String(n) }))}
+        disabled={busy}
+        onPick={async (n) => {
+          setBusy(true);
+          try {
+            await api(apiPaths.episodeCache, { method: "PUT", body: { episodesPerShow: n } });
+            onChanged();
+          } catch (err) {
+            toast.error(errorText(err));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
       {ads.enabled ? (
         <Setting
           title="Ad detection"
-          dot={scan.state === "ok" ? "ok" : "warn"}
           sub={
             <>
               <SettingSub error={scan.state === "error"}>{scan.text}</SettingSub>
@@ -552,12 +554,13 @@ function EpisodeCacheCard({ cache, onChanged }: { cache: EpisodeCacheStatusDto; 
                 }
               }}
             >
+              <RefreshIcon size={18} />
               Retry
             </button>
           ) : null}
         </Setting>
       ) : null}
-    </SettingsCard>
+    </SettingsGroup>
   );
 }
 
@@ -577,45 +580,34 @@ function LibraryAdmin({
   showFolders: LibraryFolderDto[];
   video: VideoStatus | null;
 }) {
+  const b = libraryAdmin.books;
   return (
     <>
-      <h2 className="section-title">Books</h2>
-      <SettingsCard>
-        <ScanRow title={plural(libraryAdmin.books.total, "book")} scan={libraryAdmin.books.scan} kind="books" />
-        <SettingLink title="Needs attention" dot={libraryAdmin.books.attention ? "warn" : undefined} value={plural(libraryAdmin.books.attention, "book")} href="/you/library/attention" />
-        <SettingLink title="Not matched" value={plural(libraryAdmin.books.unmatched, "book")} href="/you/library/unmatched" />
-      </SettingsCard>
-      <FoldersCard folders={folders} />
-      <h2 className="section-title">Music</h2>
-      <SettingsCard>
+      <SettingsGroup label="Books">
+        <ScanRow title={plural(b.total, "book")} scan={b.scan} kind="books" />
+        {/* Empty lists aren't worth a row (audit WB43); one waiting for a look gets an accent count. */}
+        {b.attention ? <SettingLink title="Needs attention" badge={b.attention} href="/you/library/attention" /> : null}
+        {b.unmatched ? <SettingLink title="Not matched" value={plural(b.unmatched, "book")} href="/you/library/unmatched" /> : null}
+        <FolderRows folders={folders} />
+      </SettingsGroup>
+      <SettingsGroup label="Music">
         <ScanRow title={plural(libraryAdmin.music.albums, "album")} scan={libraryAdmin.music.scan} kind="music" />
-        <SettingLink title="Not matched" value={plural(libraryAdmin.music.unmatched, "album")} href="/you/library/albums" />
-      </SettingsCard>
-      {musicFolders.length === 0 ? (
-        <p className="muted small" style={{ margin: 0 }}>
-          Mount your music at /music.
-        </p>
-      ) : (
-        <FoldersCard kind="music" folders={musicFolders} />
-      )}
-      <h2 className="section-title">Movies and shows</h2>
-      <SettingsCard>
+        {libraryAdmin.music.unmatched ? <SettingLink title="Not matched" value={plural(libraryAdmin.music.unmatched, "album")} href="/you/library/albums" /> : null}
+        {musicFolders.length === 0 ? <Setting title="Folders" sub={<SettingSub>Mount your music at /music.</SettingSub>} /> : <FolderRows kind="music" folders={musicFolders} />}
+      </SettingsGroup>
+      <SettingsGroup label="Movies and shows">
         <ScanRow
           title={`${plural(libraryAdmin.watch.movies, "movie")} and ${plural(libraryAdmin.watch.shows, "show")}`}
           scan={libraryAdmin.watch.scan}
           kind="watch"
         />
-        {video ? (
-          <Setting title="Video" dot={video.problem ? "warn" : "ok"} sub={<SettingSub error={!!video.problem}>{video.problem ?? video.working}</SettingSub>} />
+        {video ? <Setting title="Video" sub={<SettingSub error={!!video.problem}>{video.problem ?? video.working}</SettingSub>} /> : null}
+        {movieFolders.length + showFolders.length === 0 ? (
+          <Setting title="Folders" sub={<SettingSub>Mount your movies at /movies and shows at /shows.</SettingSub>} />
         ) : null}
-      </SettingsCard>
-      {movieFolders.length + showFolders.length === 0 ? (
-        <p className="muted small" style={{ margin: 0 }}>
-          Mount your movies at /movies and shows at /shows.
-        </p>
-      ) : null}
-      {movieFolders.length ? <FoldersCard kind="movies" folders={movieFolders} /> : null}
-      {showFolders.length ? <FoldersCard kind="shows" folders={showFolders} /> : null}
+        <FolderRows kind="movies" folders={movieFolders} />
+        <FolderRows kind="shows" folders={showFolders} />
+      </SettingsGroup>
     </>
   );
 }
@@ -628,22 +620,16 @@ const FOLDER_KINDS = {
 };
 
 /** A kind's folders with their counts. They come from what's mounted, so there's nothing to edit here. */
-function FoldersCard({ kind = "books", folders }: { kind?: keyof typeof FOLDER_KINDS; folders: LibraryFolderDto[] }) {
+function FolderRows({ kind = "books", folders }: { kind?: keyof typeof FOLDER_KINDS; folders: LibraryFolderDto[] }) {
   const k = FOLDER_KINDS[kind];
-  return (
-    <SettingsCard>
-      {folders.map((f) => (
-        <div key={f.id} className="setting" style={{ paddingBlock: 8 }}>
-          <span className="setting-text">
-            <span className="folder-path">{f.path}</span>
-            <SettingSub error={!f.reachable}>
-              {f.reachable ? `${f.books} ${f.books === 1 ? k.item : k.things}` : "The server can't open this folder."}
-            </SettingSub>
-          </span>
-        </div>
-      ))}
-    </SettingsCard>
-  );
+  return folders.map((f) => (
+    <div key={f.id} className="setting">
+      <span className="setting-text">
+        <span className="folder-path">{f.path}</span>
+        <SettingSub error={!f.reachable}>{f.reachable ? `${f.books} ${f.books === 1 ? k.item : k.things}` : "The server can't open this folder."}</SettingSub>
+      </span>
+    </div>
+  ));
 }
 
 /** Sign out, after asking, as in the app. */
@@ -651,13 +637,12 @@ function SignOut({ onSignOut }: { onSignOut: () => Promise<void> }) {
   const [asking, setAsking] = useState(false);
   return (
     <>
-      <SettingsCard>
-        <Setting title="Sign out">
-          <button type="button" className="btn btn-danger" onClick={() => setAsking(true)}>
-            Sign out
-          </button>
-        </Setting>
-      </SettingsCard>
+      <SettingsGroup>
+        {/* One "Sign out" on the row, not two (audit AB33). */}
+        <button type="button" className="setting setting-link set-danger" onClick={() => setAsking(true)}>
+          <span className="setting-title">Sign out</span>
+        </button>
+      </SettingsGroup>
       <ConfirmSheet
         open={asking}
         title="Sign out?"
@@ -698,7 +683,7 @@ function UsersCard({ me, users, onChanged }: { me: UserDto; users: UserDto[]; on
   };
 
   return (
-    <SettingsCard>
+    <SettingsGroup label="People">
       {users.map((u) => (
         <Setting key={u.id} title={`${u.username}${u.id === me.id ? " (you)" : ""}`} sub={<SettingSub>{u.isAdmin ? "Admin" : "Listener"}</SettingSub>}>
           {u.id !== me.id ? (
@@ -710,6 +695,7 @@ function UsersCard({ me, users, onChanged }: { me: UserDto; users: UserDto[]; on
       ))}
       <Setting title="Add a user">
         <button type="button" className="btn" onClick={() => setAdding(true)}>
+          <PlusIcon size={18} />
           Add
         </button>
       </Setting>
@@ -766,6 +752,6 @@ function UsersCard({ me, users, onChanged }: { me: UserDto; users: UserDto[]; on
           {error ? <p className="error small" style={{ margin: 0 }}>{error}</p> : null}
         </form>
       </Sheet>
-    </SettingsCard>
+    </SettingsGroup>
   );
 }

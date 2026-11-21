@@ -84,12 +84,7 @@ export default function AddSongsScreen() {
 
   const header = (
     <View style={{ paddingTop: top, gap: 12, marginBottom: 8 }}>
-      <View>
-        <BackRow />
-        <Text variant="title" numberOfLines={1} style={{ paddingVertical: 8 }}>
-          {name ? `Add to ${name}` : " "}
-        </Text>
-      </View>
+      <BackRow title={name ? `Add to ${name}` : " "} />
       <SearchBox value={query} onChange={setQuery} placeholder="Search songs, albums or artists" />
       {/* A server from before likes has only Recently played, so no chips. */}
       {query.trim() || !canLike ? null : <TextTabs options={VIEWS} value={view} onPick={setView} />}

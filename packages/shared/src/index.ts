@@ -271,6 +271,8 @@ const userPrefsSchema = z.object({
   autoplayNext: z.boolean(),
   /** Browse's charts and suggestions include shows the directory marks explicit. */
   explicitShows: z.boolean(),
+  /** Done with (or skipped) the first-run steps. New accounts start false; older ones count as done. */
+  onboarded: z.boolean(),
 });
 export type UserPrefs = z.infer<typeof userPrefsSchema>;
 export const userPrefsPatchSchema = userPrefsSchema.partial();
@@ -384,6 +386,24 @@ export type BulkMatchStartInput = z.input<typeof bulkMatchStartSchema>;
 
 export const bulkMatchApplySchema = z.object({ bookIds: z.array(z.string().min(1).max(64)).min(1).max(5000) });
 export const bulkMatchUndoSchema = z.object({ bookId: z.string().min(1).max(64) });
+
+/**
+ * Acting on several picked books at once. Hide is anyone's; edit and remove are for admins.
+ * Edit sets only the fields given, keeping each book's own series number.
+ */
+export const bookBulkSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("hide"), ids: z.array(z.string().min(1).max(64)).min(1).max(5000) }),
+  z.object({ action: z.literal("remove"), ids: z.array(z.string().min(1).max(64)).min(1).max(5000) }),
+  z.object({
+    action: z.literal("edit"),
+    ids: z.array(z.string().min(1).max(64)).min(1).max(5000),
+    fields: z
+      .object({ author: z.string().max(500), narrator: z.string().max(500), series: z.string().max(500) })
+      .partial()
+      .refine((f) => Object.keys(f).length > 0, "Change at least one field."),
+  }),
+]);
+export type BookBulkInput = z.input<typeof bookBulkSchema>;
 
 /**
  * A book's details as edited by an admin. Every field is sent; a value equal to what the
@@ -855,6 +875,7 @@ export interface EpisodeCacheStatusDto {
 export * from "./ads";
 export * from "./api-paths";
 export * from "./bookmarks";
+export * from "./bulk";
 export * from "./cast";
 export * from "./changes";
 export * from "./format";

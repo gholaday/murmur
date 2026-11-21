@@ -182,7 +182,7 @@ export function PodcastsView({
                 <FilterIcon />
               </button>
             ) : null}
-            <button type="button" className="icon-btn accent" aria-label="Add podcast" onClick={addPodcast}>
+            <button type="button" className="icon-btn accent-icon" aria-label="Add podcast" onClick={addPodcast}>
               <PlusIcon />
             </button>
           </div>

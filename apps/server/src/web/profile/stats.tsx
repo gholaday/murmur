@@ -72,12 +72,13 @@ export function StatsCard({ kinds }: { kinds: StatsKind[] }) {
   return (
     <Link href="/you/stats" className="card-box stats-card stats-entry">
       <div className="stats-head">
-        <div className="stats-head-text">
-          <span className="eyebrow">{statsTotalLabel(null, "week")}</span>
-          <span className="stats-total">{stats ? duration(statsSum(stats.split, kinds)) || "0m" : " "}</span>
-          <span className="muted small">{compared ?? " "}</span>
-        </div>
+        <h2 className="you-heading">Stats</h2>
         <ChevronIcon />
+      </div>
+      <div className="stats-head-text">
+        <span className="eyebrow">{statsTotalLabel(null, "week")}</span>
+        <span className="stats-total">{stats ? duration(statsSum(stats.split, kinds)) || "0m" : " "}</span>
+        <span className="muted small">{compared ?? " "}</span>
       </div>
       {stats ? (
         <Spark stats={stats} kinds={kinds} today={today} />
@@ -99,12 +100,15 @@ function Spark({ stats, kinds, today }: { stats: StatsDto; kinds: StatsKind[]; t
   const { line, area, x, y } = sparkPaths(values, slots, SPARK.width, SPARK.height);
   return (
     <div>
-      <svg className="stats-spark" viewBox={`0 0 ${SPARK.width} ${SPARK.height}`} role="img" aria-label={`Time per day ${statsTotalLabel(null, stats.period).toLowerCase()}`}>
-        {x < SPARK.width - 8 ? <line className="stats-spark-track" x1={x} y1={SPARK.height - 2} x2={SPARK.width - 4} y2={SPARK.height - 2} /> : null}
-        <path className="stats-spark-area" d={area} />
-        <path className="stats-spark-line" d={line} />
-        <circle className="stats-spark-dot" cx={x} cy={y} r={4.5} />
-      </svg>
+      <div className="stats-spark-wrap">
+        <svg className="stats-spark" viewBox={`0 0 ${SPARK.width} ${SPARK.height}`} role="img" aria-label={`Time per day ${statsTotalLabel(null, stats.period).toLowerCase()}`}>
+          {x < SPARK.width - 8 ? <line className="stats-spark-track" x1={x} y1={SPARK.height - 2} x2={SPARK.width - 4} y2={SPARK.height - 2} /> : null}
+          <path className="stats-spark-area" d={area} />
+          <path className="stats-spark-line" d={line} />
+        </svg>
+        {/* Outside the SVG, so it stays the same size however wide the chart gets. */}
+        <span className="stats-spark-dot" style={{ left: `${(x / SPARK.width) * 100}%`, top: `${(y / SPARK.height) * 100}%` }} />
+      </div>
       <div className="stats-axis" aria-hidden="true">
         {statsSparkAxis(stats, today).map((l) => (
           <span key={l.text} className={l.today ? "today" : undefined} style={{ left: `${l.at * 100}%`, transform: `translateX(${-l.at * 100}%)` }}>

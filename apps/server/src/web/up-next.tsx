@@ -1,6 +1,6 @@
 "use client";
 
-import { toast } from "sonner";
+import { toast } from "./toast";
 import { useEffect, useRef } from "react";
 import { chapterAt, queueEntryView, timeLeft, type UpNextEntry } from "@murmur/shared/client";
 import { Cover } from "./cover";

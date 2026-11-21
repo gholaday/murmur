@@ -17,7 +17,7 @@
 
 - Hide, at the end of the ⋮ menu of a book, album, artist, movie or show, takes it out of your lists, home shelves (Continue listening and Continue watching too), search and Android Auto, with Undo. Hiding an artist hides their albums. Podcasts aren't hidden this way: you unfollow them
 - Hidden things stay in Downloads and in your stats, and their pages still open from a link
-- You > Hidden lists them under Books, Music and Watch, each with a grey count and an Unhide button per row; empty sections don't show, and with nothing hidden it says "Nothing hidden"
+- You > Account > Hidden lists them under Books, Music and Watch, each with a grey count and an Unhide button per row; empty sections don't show, and with nothing hidden it says "Nothing hidden"
 - Per person (`hidden_items`: kind, id, time), with no foreign key so it outlives a rescan. Books, albums, movies and shows keep their ids while their files are there; artists are kept by name key, like `artist_photos`, since a rescan can recreate the artist. `GET /api/hidden` lists them by section, `PUT` hides and `DELETE` unhides (`{ kind, id }`)
 
 ## Audiobooks

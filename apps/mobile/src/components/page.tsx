@@ -8,7 +8,7 @@ import { selectHaptic } from "@/lib/haptics";
 import { jumpToSection } from "@/lib/library";
 import { usePlayerSelect } from "@/player/engine";
 import { useVideoSelect } from "@/player/video";
-import { useTheme } from "@/theme";
+import { fonts, useTheme } from "@/theme";
 import { BackIcon } from "./icons";
 import { PAD } from "./library";
 import { BottomMiniPlayer } from "./mini-player";
@@ -28,40 +28,50 @@ export function useBackIfFocused() {
   }, [navigation]);
 }
 
-/** Nested screens: the back arrow sits alone on the top row, the title goes below it. */
-export function BackRow({ right }: { right?: React.ReactNode }) {
+/**
+ * Nested screens' head: the back arrow, the title and the action icons share one row. The title is
+ * one line ending in "…" when long, with an optional sub line under it. Hero pages (a book, a show,
+ * an album) leave the title out and show it in their hero.
+ */
+export function BackRow({ title, sub, right }: { title?: string; sub?: string | null; right?: React.ReactNode }) {
   const t = useTheme();
   return (
-    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginLeft: -10 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginLeft: -10, minHeight: 52 }}>
       <IconButton label="Back" onPress={goBack}>
         <BackIcon size={24} color={t.text} />
       </IconButton>
-      {right}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        {title ? (
+          <Text accessibilityRole="header" numberOfLines={1} style={{ fontFamily: fonts.extrabold, fontSize: 22, letterSpacing: -0.3, color: t.text }}>
+            {title}
+          </Text>
+        ) : null}
+        {title && sub ? (
+          <Text variant="small" numberOfLines={1}>
+            {sub}
+          </Text>
+        ) : null}
+      </View>
+      {right ? <View style={{ flexDirection: "row", alignItems: "center" }}>{right}</View> : null}
     </View>
   );
 }
 
-/** A nested screen's head: the back row, then the page title (with its sub line and actions). */
-export function NestedHead(props: React.ComponentProps<typeof PageTitle>) {
-  return (
-    <>
-      <BackRow />
-      <PageTitle {...props} />
-    </>
-  );
-}
-
 /**
- * A nested screen that scrolls: the back row (with `right` beside it), the content, and the mini
+ * A nested screen that scrolls: the head row (back, `title` and `right`), the content, and the mini
  * player under it. `after` sits outside the scroll, for the screen's sheets.
  */
 export function NestedScreen({
+  title,
+  sub,
   right,
   refreshControl,
   after,
   backdrop,
   children,
 }: {
+  title?: string;
+  sub?: string | null;
   right?: React.ReactNode;
   refreshControl?: React.ComponentProps<typeof ScrollView>["refreshControl"];
   after?: React.ReactNode;
@@ -76,7 +86,7 @@ export function NestedScreen({
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }} refreshControl={refreshControl} keyboardShouldPersistTaps="handled">
         {backdrop}
-        <BackRow right={right} />
+        <BackRow title={title} sub={sub} right={right} />
         {children}
       </ScrollView>
       <BottomMiniPlayer />

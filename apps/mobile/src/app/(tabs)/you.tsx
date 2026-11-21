@@ -1,28 +1,34 @@
+import { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { router } from "expo-router";
-import { THEME_CHOICES } from "@murmur/shared/client";
+import { SETTINGS_TABS, type SettingsTab, settingsTabs } from "@murmur/shared/client";
 import { DownloadIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
-import { PageTitle, SectionTitle, useTopInset } from "@/components/page";
-import { Card, useServerVersion, useUsers, VersionNotice } from "@/components/settings";
-import { NavRow } from "@/components/settings-page";
+import { PageTitle, useTopInset } from "@/components/page";
+import { SettingsTabBody, VersionNotice } from "@/components/settings";
 import { StatsBoundary, StatsCard } from "@/components/stats";
-import { CardLink } from "@/components/ui";
-import { useExplicitShows, useTabPrefs } from "@/lib/data";
+import { TextTabs } from "@/components/text-tabs";
+import { CardLink, Text } from "@/components/ui";
+import { useTabPrefs } from "@/lib/data";
 import { formatBytes, useDownloads } from "@/lib/downloads";
-import { useCanHideAndLike } from "@/lib/hidden";
 import { useSession } from "@/lib/session";
-import { useTheme, useThemeMode } from "@/theme";
+import { fonts, useTheme } from "@/theme";
 
-/** Any version problem, then Downloads, this week's stats card and Settings (a row for each group). */
+/** Any version problem, then Downloads, this week's stats, and Settings as text tabs, like the web's. */
 export default function You() {
   const t = useTheme();
   const top = useTopInset();
-  const user = useSession().user;
+  const admin = !!useSession().user?.isAdmin;
+  const shown = settingsTabs(admin, useTabPrefs());
+  const [picked, setPicked] = useState<SettingsTab>("playback");
+  // A tab that went away (Podcasts turned off) falls back to the first.
+  const tab = shown.includes(picked) ? picked : shown[0]!;
+  const options = SETTINGS_TABS.filter((s) => shown.includes(s.id));
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: 32 }}>
+      {/* 16 plus the last row's own 8 makes the 24 other screens leave at the bottom. */}
+      <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: 16 }}>
         <PageTitle title="You" />
 
         <VersionNotice />
@@ -37,8 +43,12 @@ export default function You() {
           </StatsBoundary>
         </View>
 
-        <SectionTitle title="Settings" />
-        <SettingsRows admin={!!user?.isAdmin} username={user?.username} />
+        {/* The same size as the stats card's Stats, with a section's space above. */}
+        <Text accessibilityRole="header" style={{ marginTop: 28, marginBottom: 8, fontFamily: fonts.extrabold, fontSize: 22, lineHeight: 30, letterSpacing: -0.3, color: t.text }}>
+          Settings
+        </Text>
+        <TextTabs label="Settings" options={options} value={tab} onPick={setPicked} />
+        <SettingsTabBody key={tab} tab={tab} />
       </ScrollView>
     </View>
   );
@@ -56,30 +66,5 @@ function DownloadsRow() {
       sub={all.length ? `${all.length} on this phone, ${formatBytes(bytes)}` : "Nothing downloaded"}
       onPress={() => router.push("/downloads")}
     />
-  );
-}
-
-function SettingsRows({ admin, username }: { admin: boolean; username?: string }) {
-  const mode = useThemeMode();
-  const version = useServerVersion().data;
-  // Admin-only; listeners can't read it.
-  const users = useUsers(admin).data;
-  const canHide = useCanHideAndLike();
-  const tabs = useTabPrefs();
-  const explicit = useExplicitShows();
-
-  return (
-    <Card>
-      <NavRow title="Account" value={username} href="/account" />
-      <NavRow title="Appearance" value={THEME_CHOICES.find((x) => x.id === mode)?.label} href="/appearance" />
-      <NavRow title="Playback" href="/playback" />
-      <NavRow title="Server" value={version ? `Murmur ${version.version}` : null} href="/server" />
-      {admin ? <NavRow title="Library" href="/library" /> : null}
-      {/* Everyone has Explicit shows in Browse while Podcasts is on; admins have the episode settings too. */}
-      {admin || (tabs.podcasts && explicit !== undefined) ? <NavRow title="Podcasts" href="/episode-cache" /> : null}
-      {admin ? <NavRow title="Users" value={users ? String(users.length) : null} href="/users" /> : null}
-      <NavRow title="Tabs" href="/tab-settings" last={!canHide} />
-      {canHide ? <NavRow title="Hidden" href="/hidden" last /> : null}
-    </Card>
   );
 }

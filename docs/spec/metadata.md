@@ -58,7 +58,7 @@ The same book always gets the same answer, and a weak answer is shown as weak in
 _Admin only, web._
 
 Every card has an options menu, the same way for books, albums, movies and shows: a long press in the app, the ⋮ or a right-click on the web. The ⋮ on the item's own page opens the same items, for everyone, with admin items last:
-- **Book:** Play, Add to Play next (books not yet started), Mark as finished; for admins Edit…, Match…, Mark as matched. Rescanning is You > Library's Rescan, or one book from Edit's Files tab.
+- **Book:** Play, Add to Play next (books not yet started), Mark as finished, Select (in a full grid), Hide; for admins Edit…, Match…, Mark as matched, and Remove from library… last. Select picks several books for Edit (Author, Narrator, Series), Mark as finished, Hide and Remove (`POST /api/books/bulk`). Rescanning is You > Library's Rescan, or one book from Edit's Files tab.
 - **Album:** Play, Add to queue, Add to playlist…, Go to the artist; for admins Match…. An artist's page has a ⋮ with Change photo… for admins.
 - **Every menu** ends with Hide after a divider (podcasts excepted), with Undo; see [Hiding](features.md#hiding).
 - **Movie or show:** Play or Resume, Mark as watched; for admins Edit… and Match… (with TMDB). The edit dialog has five tabs:
@@ -73,7 +73,7 @@ Every card has an options menu, the same way for books, albums, movies and shows
 
 Edits are stored in the same override row as a match, so a rescan keeps them and the files are never touched.
 
-**You > Library** (admins only) holds the library's upkeep, so the tabs stay clean for everyone. A section per kind (Books, Music, Movies and shows) shows its count and last scan with a Rescan button, then its lists and folders: **Needs attention** (books with no cover, no author or missing files), **Not matched** for books and for albums, each with Match all. `GET /api/library/admin` gives the web and the app the same counts. **You > Podcasts** is its own row: the episode cache for admins, Explicit shows in Browse, and on the web, OPML export for everyone (import is at the bottom of the Podcasts tab's Browse). On the web it's hidden with the Podcasts tab for anyone who isn't an admin; in the app, which has no OPML export, it's for admins only.
+**You > Library** (admins only) holds the library's upkeep, so the tabs stay clean for everyone. A section per kind (Books, Music, Movies and shows) shows its count and last scan with a Rescan button, then its lists and folders: **Needs attention** (books with no cover, no author or missing files), **Not matched** for books and for albums, each with Match all. `GET /api/library/admin` gives the web and the app the same counts. **You > Podcasts** is its own tab: the episode cache for admins, Explicit shows in Browse, and on the web, OPML export for everyone (import is at the bottom of the Podcasts tab's Browse). On the web it's hidden with the Podcasts tab for anyone who isn't an admin; in the app, which has no OPML export, it's for admins only.
 
 **Podcasts:** show and episode titles, artwork, descriptions and durations come from the RSS feed itself.
 

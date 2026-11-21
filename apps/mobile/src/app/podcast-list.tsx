@@ -3,7 +3,7 @@ import { View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { NEW_EPISODES_PAGE, PODCAST_LIST_IDS, PODCAST_LIST_TITLES, type PodcastListId } from "@murmur/shared/client";
 import { EpisodeRow } from "@/components/episode-row";
-import { Empty, NestedScreen, PageTitle } from "@/components/page";
+import { Empty, NestedScreen } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { Button } from "@/components/ui";
 import { useContinueEpisodes, useNewEpisodes } from "@/lib/data";
@@ -39,8 +39,7 @@ export default function PodcastListScreen() {
   }
 
   return (
-    <NestedScreen refreshControl={refresh}>
-      <PageTitle title={PODCAST_LIST_TITLES[id]} />
+    <NestedScreen title={PODCAST_LIST_TITLES[id]} refreshControl={refresh}>
       {body}
     </NestedScreen>
   );

@@ -39,6 +39,7 @@ import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SectionTitle, useSavedC
 import { BookCard } from "./book-card";
 import { LibraryTitle } from "./library-title";
 import { PlayNextList } from "./play-next-list";
+import { SelectionProvider } from "./selection";
 
 type Tab = "books" | "authors" | "series" | "finished";
 
@@ -76,9 +77,14 @@ export function GroupGrid({
       <div className="section-head">
         <div className="group-head">
           <SectionTitle title={title} count={count} noun={noun} onOpen={onOpen} />
-          {sub ? <span className="muted small">{sub}</span> : null}
+          {/* The author at the left, a note like "1 finished" at the right of the same line. */}
+          {sub || side ? (
+            <div className="group-sub muted small">
+              <span className="group-sub-text">{sub}</span>
+              {side ? <span className="group-side">{side}</span> : null}
+            </div>
+          ) : null}
         </div>
-        {side ? <span className="muted small">{side}</span> : null}
       </div>
       <ScrollRow>{children}</ScrollRow>
     </section>
@@ -207,7 +213,7 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
   // other tabs group books their own way, and the All books shelf on Home follows it.
   if (allBooks) {
     return (
-      <>
+      <SelectionProvider key="all" books={sorted}>
         <NestedHead
           title={BOOK_SECTION_TITLES.all}
           actions={
@@ -222,7 +228,7 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
           ))}
         </div>
         {sortSheet}
-      </>
+      </SelectionProvider>
     );
   }
 
@@ -231,7 +237,7 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
   if (shelf) {
     const list = shelves[shelf];
     return (
-      <>
+      <SelectionProvider key={shelf} books={list}>
         <NestedHead title={titleOf(shelf)} />
         {list.length ? (
           <div className="grid">
@@ -242,7 +248,7 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
         ) : (
           <EmptyState>Nothing here right now.</EmptyState>
         )}
-      </>
+      </SelectionProvider>
     );
   }
 
@@ -251,12 +257,16 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
     const list = books.filter((b) => (author ? b.author === author : b.series === series));
     const groups = author ? groupBy(list, (b) => b.series ?? "") : [];
     const standalone = author ? list.filter((b) => !b.series) : [];
+    // In the order they show, for shift-click runs.
+    const shown = series
+      ? [...list].sort(bySeriesOrder)
+      : [...groups.flatMap(([, items]) => [...items].sort(bySeriesOrder)), ...sortBooks(standalone, "title")];
     return (
-      <>
+      <SelectionProvider key={`${author}:${series}`} books={shown}>
         <NestedHead title={author ?? series ?? ""} sub={series ? list[0]?.author : null} />
         {series ? (
           <div className="grid">
-            {[...list].sort(bySeriesOrder).map((b) => (
+            {shown.map((b) => (
               <BookCard key={b.id} book={b} sub={b.seriesPosition !== null ? `Book ${b.seriesPosition}` : b.author} />
             ))}
           </div>
@@ -286,7 +296,7 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
             ) : null}
           </>
         )}
-      </>
+      </SelectionProvider>
     );
   }
 
@@ -311,8 +321,22 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
     ) : null;
   };
 
+  // The books this tab shows as cards, top to bottom and each once, for selecting several.
+  const shown: BookSummary[] = (() => {
+    const lists =
+      tab === "books"
+        ? sections.filter((s) => !s.hidden && s.id !== "continue").map((s) => (s.id === "all" ? sorted : shelves[s.id]).slice(0, SHELF_SIZE))
+        : tab === "authors"
+          ? byAuthor.map((a) => a.items)
+          : tab === "series"
+            ? bySeries.map((s) => s.ordered)
+            : [books.filter((b) => b.progress?.finished).sort((a, b) => b.progress!.updatedAt - a.progress!.updatedAt)];
+    const seen = new Set<string>();
+    return lists.flat().filter((b) => !seen.has(b.id) && !!seen.add(b.id));
+  })();
+
   return (
-    <>
+    <SelectionProvider books={shown} view={tab}>
       <div className="library-head">
       <div className="page-head">
         <LibraryTitle current="books" />
@@ -347,8 +371,7 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
           </Chips>
       </div>
 
-      <>
-          <div key={tab} className="view-fade">
+      <div key={tab} className="view-fade">
           {tab === "books" ? (
             <>
               <BookSections
@@ -406,9 +429,8 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
           {tab === "finished" ? (
             <FinishedList books={books.filter((b) => b.progress?.finished)} />
           ) : null}
-          </div>
-        </>
-    </>
+      </div>
+    </SelectionProvider>
   );
 }
 

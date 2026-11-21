@@ -334,8 +334,11 @@ function ArtTab({
       aspectRatio={poster ? 2 / 3 : 16 / 9}
       source={item.chosenArt[which] ? "Your own picture" : hash ? "From TMDB" : "No picture yet"}
       // Takes off the chosen picture; TMDB's, or the files' after a rescan, comes back.
-      removeLabel={item.chosenArt[which] ? "Remove" : null}
-      onRemove={() => void act(() => api(`${base}/${which}`, { method: "DELETE" }), "Removed")}
+      reset={
+        item.chosenArt[which]
+          ? { label: "Use TMDB's picture", onPress: () => void act(() => api(`${base}/${which}`, { method: "DELETE" }), "Using TMDB's picture") }
+          : undefined
+      }
       busy={busy}
       onUpload={upload}
       onLink={(u) => act(() => api(`${base}/${which}`, { method: "POST", body: { url: u } }))}
@@ -344,7 +347,7 @@ function ArtTab({
           ? options?.map((o) => ({
               key: o.tmdbPath,
               thumb: o.thumbUrl,
-              label: "Use this picture",
+              label: "Pick this picture",
               apply: () => act(() => api(`${base}/${which}`, { method: "POST", body: { tmdbPath: o.tmdbPath } })),
             })) ?? null
           : undefined

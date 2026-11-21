@@ -1,7 +1,7 @@
 import { View } from "react-native";
 import { type HiddenItem, LIBRARY_SECTION_LABELS, type LibrarySection } from "@murmur/shared/client";
 import { Cover } from "@/components/cover";
-import { Empty, NestedScreen, PageTitle, SectionTitle } from "@/components/page";
+import { Empty, NestedScreen, SectionTitle } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { SmallButton } from "@/components/settings";
 import { FadeIn, ListRowBone, Skeleton, useJustLoaded } from "@/components/skeleton";
@@ -51,8 +51,7 @@ export default function HiddenScreen() {
   }
 
   return (
-    <NestedScreen refreshControl={refresh}>
-      <PageTitle title="Hidden" />
+    <NestedScreen title="Hidden" refreshControl={refresh}>
       {body}
     </NestedScreen>
   );

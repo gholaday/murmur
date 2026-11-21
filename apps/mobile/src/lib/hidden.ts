@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiPaths, type HiddenChange, type HiddenDto } from "@murmur/shared/client";
+import { apiPaths, type HiddenChange, type HiddenDto, plural } from "@murmur/shared/client";
 import { toast } from "@/components/toast";
 import { api } from "./api";
 import { nullIfMissing } from "./data";
@@ -35,6 +35,16 @@ export function hide(change: HiddenChange, title: string, onHidden?: () => void)
     },
     (err: unknown) => toast.error(err instanceof Error ? err.message : "Couldn't hide that."),
   );
+}
+
+/** Hides several books at once, from a selection, with one Undo for all of them. */
+export async function hideBooks(ids: string[]) {
+  await api(apiPaths.booksBulk, { method: "POST", body: { action: "hide", ids } });
+  refreshLists();
+  toast.show(`Hid ${plural(ids.length, "book")}`, {
+    duration: 5000,
+    action: { label: "Undo", onPress: () => void Promise.all(ids.map((id) => unhide({ kind: "book", id }))) },
+  });
 }
 
 /** Puts it back in your lists. */

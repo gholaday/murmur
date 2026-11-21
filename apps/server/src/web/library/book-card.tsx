@@ -10,17 +10,33 @@ import { Cover } from "../cover";
 import { CheckIcon } from "../icons";
 import { Mixer } from "../mixer";
 import { useNowPlaying } from "../player/engine";
+import { PickDisc, useSelection } from "./selection";
 
 /** Memoized: a library has hundreds of cards, and typing in search re-renders the grid. */
 export const BookCard = memo(function BookCard({ book, sub }: { book: BookSummary; sub?: string | null }) {
   const actions = useContext(BookActionsContext);
+  const sel = useSelection();
+  const selecting = !!sel?.selecting;
+  const on = selecting && sel.picked.has(book.id);
   const { isAdmin } = useAdmin();
   const pct = progressPct(book);
   const started = !!book.progress && !book.progress.finished && pct > 0;
   const { current, playing } = useNowPlaying((n) => n.type === "book" && n.id === book.id);
   return (
-    <div className={`card${current ? " playing" : ""}`}>
-      <Link href={`/book/${book.id}`} className="card-link">
+    <div
+      className={`card${current ? " playing" : ""}${selecting ? " selecting" : ""}${on ? " picked" : ""}`}
+      // While selecting, a click picks the card instead of opening it; shift picks a run.
+      onClickCapture={
+        selecting
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              sel.pick(book.id, e.shiftKey);
+            }
+          : undefined
+      }
+    >
+      <Link href={`/book/${book.id}`} className="card-link" aria-pressed={selecting ? on : undefined}>
         <div className="card-cover">
           <Cover
             src={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 200) : null}
@@ -40,12 +56,18 @@ export const BookCard = memo(function BookCard({ book, sub }: { book: BookSummar
         <div className="card-title">{book.title}</div>
         <div className="card-sub">{sub === undefined ? (book.author ?? "Unknown author") : sub}</div>
       </Link>
-      {book.progress?.finished ? (
-        <span className="card-done" aria-label="Finished">
-          <CheckIcon size={14} />
-        </span>
-      ) : null}
-      {actions ? <CardMenu label={book.title} items={(choose) => <BookMenuItems book={book} edit={actions.edit} choose={choose} />} /> : null}
+      {selecting ? (
+        <PickDisc on={on} />
+      ) : (
+        <>
+          {book.progress?.finished ? (
+            <span className="card-done" aria-label="Finished">
+              <CheckIcon size={14} />
+            </span>
+          ) : null}
+          {actions ? <CardMenu label={book.title} items={(choose) => <BookMenuItems book={book} edit={actions.edit} choose={choose} />} /> : null}
+        </>
+      )}
     </div>
   );
 });

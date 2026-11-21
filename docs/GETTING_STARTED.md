@@ -71,7 +71,7 @@ docker compose up -d
 
 **Using Portainer instead:** go to **Stacks > Add stack**, name it `murmur`, paste the contents of `docker-compose.yml` into the web editor, and change the paths. A stack made in the editor has no file beside it, so put the keys from `murmur.env.example` under **Environment variables** below the editor, and change each `./murmur.env` in the compose file to `stack.env`, which is where Portainer saves them. Then press **Deploy the stack**. To update later, open the stack, tick **Re-pull image**, and press **Update the stack**. Portainer shows the container as healthy once Murmur's health check passes.
 
-Open `http://<server>:3333` and create an account. The first account becomes the admin, and a library scan starts right away; a large library takes a few minutes the first time.
+Open `http://<server>:3333` and create an account. The first account becomes the admin, and a library scan starts right away; a large library takes a few minutes the first time. A few first-run steps follow, once: what the server found, which tabs to show, bringing over podcasts, and the Android app. Skip any of them; it all stays in **You** later.
 
 Other users can be added in **You > Users**. Each has their own progress, podcasts, music and queue.
 
@@ -85,7 +85,7 @@ Point the proxy or tunnel at Murmur only, never at an add-on. The add-ons have n
 
 ## 4. Put Murmur on your phone
 
-The app isn't on the Play Store. Each [release on GitHub](https://github.com/gholaday/murmur/releases) has the signed Android app attached as `murmur-<version>.apk`.
+The app isn't on the Play Store. Each [release on GitHub](https://github.com/gholaday/murmur/releases) has the signed Android app attached as `murmur-<version>.apk`, and **You > Server** in the web player links the one for your server's version.
 
 **With automatic updates (recommended):** install [Obtainium](https://github.com/ImranR98/Obtainium), which installs apps straight from their GitHub releases and keeps them updated.
 

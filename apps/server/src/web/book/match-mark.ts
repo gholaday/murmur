@@ -1,5 +1,5 @@
 import { apiPaths, errorText } from "@murmur/shared/client";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { api } from "../api";
 
 /**

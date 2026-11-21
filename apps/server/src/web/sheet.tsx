@@ -14,11 +14,17 @@ export function Sheet({
   count,
   sub,
   action,
+  className,
+  art,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** Extra classes on the dialog, like `confirm`. */
+  className?: string;
+  /** Pictures above the title, like the covers a confirm is about. */
+  art?: React.ReactNode;
   /** A grey count beside the title. */
   count?: number;
   /** A muted line under the title. */
@@ -39,9 +45,10 @@ export function Sheet({
     if (!open && el.open) el.close();
   }, [open]);
   return (
-    <dialog ref={ref} className="sheet" aria-label={title} onClose={() => openRef.current && onClose()} {...backdropClose}>
+    <dialog ref={ref} className={`sheet ${className ?? ""}`} aria-label={title} onClose={() => openRef.current && onClose()} {...backdropClose}>
       <div className="sheet-body">
         <div className="sheet-head">
+          {art}
           <div>
             <div className="sheet-title">
               {title}
@@ -108,7 +115,11 @@ export function ChoiceSheet<T extends string>({
   );
 }
 
-/** Asks before something can't be undone: a title, a line on what happens if it isn't plain, then Cancel and the action, as in the app. */
+/**
+ * Asks before something can't be undone: a title, a line on what happens if it isn't plain, then
+ * the action and Cancel, as in the app. On a phone it's centred with the action full width over
+ * Cancel; on a wide screen it's a small dialog with Cancel and the action on the right.
+ */
 export function ConfirmSheet({
   open,
   title,
@@ -116,6 +127,7 @@ export function ConfirmSheet({
   confirmLabel,
   danger = true,
   busy,
+  art,
   onConfirm,
   onClose,
 }: {
@@ -125,22 +137,20 @@ export function ConfirmSheet({
   confirmLabel: string;
   danger?: boolean;
   busy?: boolean;
+  /** Covers stacked above the title, for what's being removed. */
+  art?: React.ReactNode;
   onConfirm: () => void;
   onClose: () => void;
 }) {
   return (
-    <Sheet open={open} onClose={onClose} title={title}>
-      {message ? (
-        <p className="muted" style={{ margin: 0 }}>
-          {message}
-        </p>
-      ) : null}
-      <div className="form-row">
-        <button type="button" className="btn" style={{ flex: 1 }} onClick={onClose}>
-          Cancel
-        </button>
-        <button type="button" className={`btn ${danger ? "btn-danger" : "btn-primary"}`} style={{ flex: 1 }} disabled={busy} onClick={onConfirm}>
+    <Sheet open={open} onClose={onClose} title={title} className="confirm" art={art ? <div className="confirm-art">{art}</div> : null}>
+      {message ? <p className="muted confirm-line">{message}</p> : null}
+      <div className="confirm-actions">
+        <button type="button" className={`btn btn-big ${danger ? "btn-danger-fill" : "btn-primary"}`} disabled={busy} onClick={onConfirm}>
           {confirmLabel}
+        </button>
+        <button type="button" className="btn btn-big confirm-cancel" onClick={onClose}>
+          Cancel
         </button>
       </div>
     </Sheet>

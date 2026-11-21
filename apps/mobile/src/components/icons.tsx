@@ -264,6 +264,28 @@ export const DragIcon = (p: IconProps) => (
     <Path d="M5 9h14M5 15h14" />
   </Icon>
 );
+/** The app icon's five-bar waveform, 64 wide unless `width` says otherwise. */
+export function Logo({ color, width = 64 }: { color: string; width?: number }) {
+  const bars = [10, 22, 34, 22, 14];
+  return (
+    <Svg width={width} height={(width * 44) / 64} viewBox="0 0 64 44">
+      {bars.map((h, i) => (
+        <Rect key={i} x={4 + i * 12} y={(44 - h) / 2} width={8} height={h} rx={4} fill={color} />
+      ))}
+    </Svg>
+  );
+}
+export const UploadIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Path d="M12 16V4M7 9l5-5 5 5M4 20h16" />
+  </Icon>
+);
+export const LinkIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <Path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+    <Path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+  </Icon>
+);
 export const RefreshIcon = (p: IconProps) => (
   <Icon {...p}>
     <Path d="M20 12a8 8 0 1 1-2.3-5.6" />

@@ -22,6 +22,31 @@
 .sheet-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 10px; padding: 0 20px; }
 .sheet-title { font-size: 17px; font-weight: 800; padding-bottom: 4px; }
 .sheet-head .sheet-title { padding: 0; }
+
+/* ConfirmSheet: centred on a phone, the action full width over Cancel; a small dialog on wide screens. */
+.sheet.confirm .sheet-head { flex-direction: column; align-items: center; text-align: center; gap: 16px; }
+.sheet.confirm .sheet-title { font-size: 22px; }
+.confirm-line { margin: 0; text-align: center; line-height: 1.45; }
+.confirm-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.confirm-cancel { background: transparent; }
+.confirm-art { display: flex; }
+.confirm-art > * { width: 56px; height: 56px; flex-shrink: 0; border-radius: 8px; box-shadow: 0 0 0 3px var(--surface); }
+.confirm-art > * + * { margin-left: -30px; }
+/* Bulk edit's head: the picked books' covers stacked, then "Edit 3 books", like an edit sheet's head. */
+.sheet.bulk-edit .sheet-head { justify-content: flex-start; align-items: center; gap: 14px; }
+.sheet.bulk-edit .confirm-art > * { width: 44px; height: 44px; }
+.sheet.bulk-edit .confirm-art > * + * { margin-left: -26px; }
+.sheet.bulk-edit .btn-big { margin-top: 8px; }
+@media (min-width: 700px) {
+  .sheet.confirm { max-width: 420px; }
+  .sheet.confirm .sheet-head { flex-direction: row; justify-content: flex-start; text-align: left; }
+  .sheet.confirm .sheet-title { font-size: 20px; }
+  .confirm-line { text-align: left; }
+  .confirm-art > * { width: 48px; height: 48px; }
+  .confirm-art > * + * { margin-left: -28px; }
+  .confirm-actions { flex-direction: row-reverse; justify-content: flex-start; gap: 8px; margin-top: 18px; }
+  .confirm-actions .btn-big { height: 44px; padding: 0 20px; font-size: 14px; }
+}
 .sheet-item {
   display: flex;
   align-items: center;

@@ -9,7 +9,7 @@ import { AlbumMatchSheet } from "@/components/match";
 import { MatchAllBar, MatchAllProgress, MatchAllRows, MatchAllStart, useMatchAll } from "@/components/match-all";
 import { BottomMiniPlayer } from "@/components/mini-player";
 import { AlbumCard } from "@/components/music";
-import { BackRow, Empty, PageTitle, useBottomPad, useTopInset } from "@/components/page";
+import { BackRow, Empty, useBottomPad, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
 import { CoverGridBones, FadeIn, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { useAlbums, useBooks } from "@/lib/data";
@@ -158,8 +158,7 @@ function ListScreen({
         ListHeaderComponent={
           <View>
             <View style={{ marginBottom: 12 }}>
-              <BackRow />
-              <PageTitle title={title} sub={sub} />
+              <BackRow title={title} sub={sub} />
             </View>
             {loading ? null : head}
           </View>

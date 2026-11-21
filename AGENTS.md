@@ -30,7 +30,7 @@ Murmur is a self-hosted audiobook, podcast and music server with a web player an
 - Never say "NAS" in the UI. Say "server", or just "Downloaded".
 - The music screens never mention the server.
 - No " · " dot separators. Use a count pill, a second line, or left and right placement instead.
-- On nested screens, the back arrow sits alone on the top row, with the title below it.
+- On nested screens, the back arrow, the title and the action icons share one row. A long title ends in "…".
 - Keep the web player and the app matching: wording, chip order, empty states and hidden tabs. A change on one goes to the other too.
 - Keep UI text minimal. Cut helper text that states the obvious, and write errors that say plainly what went wrong.
 - Put the same control in the same place on every screen (search and filter at the top right).
@@ -38,7 +38,7 @@ Murmur is a self-hosted audiobook, podcast and music server with a web player an
 - Keep things compact: put related details on one line in a smaller font rather than adding rows, and scroll long text sideways in tight spots instead of wrapping.
 - Center icons in their buttons, and align icons with the text beside them.
 - Number badges: grey counts what's in a list, accent flags something new. No counts inside chips, and none next to page titles.
-- Settings are one row per group that opens its own screen.
+- Settings live on You as text tabs (Playback, Appearance, Podcasts, Account, then Library, Users and Server for admins): flat rows under eyebrow labels, a choice shows its value and opens a sheet, on/off says On or Off.
 - Content fades in as it loads. Use a skeleton only where it matches the real layout; no spinners for page loads.
 - Motion is smooth and nothing jumps: modes like Customize fade their controls in place without reloading, and dragged rows follow the pointer while the others move aside.
 - Sheets drag down to close, their backdrop fades in place, and dialogs don't close when a text-selection drag ends outside them. Ask before deleting anything the person saved.

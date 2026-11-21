@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import {
   type AdSpan,
   type AlbumDetail,

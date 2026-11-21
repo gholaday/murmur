@@ -344,7 +344,9 @@ function VideoTimeLeft({ dur }: { dur: number }) {
   );
 }
 
-/** The mini player at the bottom of screens outside the tabs (book, show, author). */
+/**
+ * The mini player at the bottom of screens outside the tabs (book, show, author).
+ */
 export function BottomMiniPlayer() {
   const insets = useSafeAreaInsets();
   const item = usePlayerSelect((s) => !!s.item);

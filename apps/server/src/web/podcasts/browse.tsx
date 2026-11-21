@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, memo, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import {
   apiPaths,
   BROWSE_TOP_SIZE,
@@ -418,8 +418,8 @@ function TopShowsTitle() {
   return <SectionTitle title="Top shows" onOpen={() => router.push("/podcasts/top")} />;
 }
 
-/** Import a list of shows from another app, or export yours. */
-const OpmlButtons = memo(function OpmlButtons() {
+/** Imports an OPML list of shows from another app, with toasts on how it went; first-run's podcasts step uses it too. */
+export function useOpmlImport() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const importOpml = async (file: File) => {
@@ -442,6 +442,12 @@ const OpmlButtons = memo(function OpmlButtons() {
       setBusy(false);
     }
   };
+  return { busy, importOpml };
+}
+
+/** Import a list of shows from another app, or export yours. */
+const OpmlButtons = memo(function OpmlButtons() {
+  const { busy, importOpml } = useOpmlImport();
   return (
     <div className="dir-opml">
       <label className="btn" aria-disabled={busy || undefined}>

@@ -1,5 +1,7 @@
 /* Toasts (sonner) */
 [data-sonner-toast].toast { font-family: inherit; font-size: 14px; font-weight: 600; box-shadow: var(--shadow); }
+/* A toast's action (Undo, Open) is our own text button (web/toast.tsx), at the right. */
+.toast .toast-action { flex-shrink: 0; height: 32px; margin: 0 -4px 0 auto; padding: 0 8px; }
 
 /* The toaster's popover (see toaster.tsx): an empty, click-through box in the top layer, so
    toasts show above open dialogs. The toasts themselves position as usual. */

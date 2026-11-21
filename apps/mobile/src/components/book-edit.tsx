@@ -10,18 +10,20 @@ import {
   type ChapterDto,
   duration,
   errorText,
+  type KnownSeries,
   type MatchSearchResult,
   plural,
   suggestSeries,
 } from "@murmur/shared/client";
 import { absolute, api, authHeaders } from "@/lib/api";
+import { removeBooks } from "@/lib/data";
 import { queryClient } from "@/lib/query";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
-import { MinusIcon, PlusIcon } from "./icons";
+import { MinusIcon, PlusIcon, RefreshIcon } from "./icons";
 import { PROVIDER_NAME, SheetHead, useBookMatch } from "./match";
 import { PictureEdit, type PictureOption, usePicturePick } from "./picture-edit";
-import { Sheet } from "./sheet";
+import { RemoveBooksSheet, Sheet } from "./sheet";
 import { Bone, Skeleton } from "./skeleton";
 import { toast } from "./toast";
 import { TextTabs } from "./text-tabs";
@@ -209,11 +211,10 @@ function BookEdit({
 
   // Takes the book out of the library; its files stay where they are.
   const remove = async () => {
+    if (!info) return;
     setBusy(true);
     try {
-      await api(apiPaths.book(bookId), { method: "DELETE" });
-      toast.show("Removed from the library");
-      void queryClient.invalidateQueries();
+      await removeBooks([info.book]);
       onClose();
       onRemoved?.();
     } catch (err) {
@@ -295,7 +296,11 @@ function BookEdit({
   );
 }
 
-function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; setForm: (f: Form) => void }) {
+/**
+ * The library's series under a Series field as you type, so books land in the same one. Give the
+ * field `inputProps`, call `onType` as it changes, and put `list` under it.
+ */
+export function useSeriesSuggest(known: KnownSeries[], value: string, onPick: (name: string) => void) {
   const t = useTheme();
   const [suggesting, setSuggesting] = useState(false);
   // A tap on a suggestion can blur the field before the press registers (with a hardware keyboard
@@ -312,7 +317,41 @@ function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; s
     setSuggesting(true);
   };
   useEffect(() => () => clearTimeout(closing.current), []);
-  const field = (f: keyof Form, opts: { multiline?: boolean; placeholder?: string; numeric?: boolean } = {}) => {
+  const hits = suggesting ? suggestSeries(known, value).filter((s) => s.name !== value) : [];
+  const list = hits.length ? (
+    <View style={{ marginTop: -6, borderRadius: 12, backgroundColor: t.surface2, overflow: "hidden" }}>
+      {hits.map((s) => (
+        <Pressable
+          key={s.name}
+          accessibilityRole="button"
+          onPressIn={() => (picking.current = true)}
+          onPressOut={() => {
+            picking.current = false;
+            closeSoon();
+          }}
+          onPress={() => {
+            picking.current = false;
+            clearTimeout(closing.current);
+            setSuggesting(false);
+            onPick(s.name);
+          }}
+          style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, minHeight: 44, backgroundColor: pressed ? t.chip : "transparent" })}
+        >
+          <Text numberOfLines={1} style={{ flex: 1, fontFamily: fonts.medium, fontSize: 14, color: t.text }}>
+            {s.name}
+          </Text>
+          <Text variant="small">{plural(s.books, "book")}</Text>
+        </Pressable>
+      ))}
+    </View>
+  ) : null;
+  return { inputProps: { onFocus: open, onBlur: closeSoon }, onType: open, list };
+}
+
+function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; setForm: (f: Form) => void }) {
+  const t = useTheme();
+  const series = useSeriesSuggest(info.knownSeries, form.series, (name) => setForm({ ...form, series: name }));
+  const field =(f: keyof Form, opts: { multiline?: boolean; placeholder?: string; numeric?: boolean } = {}) => {
     const scanned = scannedText(info.scanned, f);
     const saved = formOf(info)[f];
     const changed = form[f].trim() !== scanned;
@@ -336,12 +375,11 @@ function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; s
           placeholder={opts.placeholder}
           onChangeText={(text) => {
             setForm({ ...form, [f]: text });
-            if (f === "series") open();
+            if (f === "series") series.onType();
           }}
           keyboardType={opts.numeric ? "decimal-pad" : undefined}
           multiline={opts.multiline}
-          onFocus={f === "series" ? open : undefined}
-          onBlur={f === "series" ? closeSoon : undefined}
+          {...(f === "series" ? series.inputProps : null)}
           style={opts.multiline ? { height: 160, paddingTop: 12, textAlignVertical: "top" } : undefined}
         />
         {changed && !opts.multiline ? (
@@ -352,41 +390,13 @@ function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; s
       </View>
     );
   };
-  // The library's series as you type, so books land in the same one.
-  const hits = suggesting ? suggestSeries(info.knownSeries, form.series).filter((s) => s.name !== form.series) : [];
   return (
     <>
       {field("title")}
       {field("author")}
       {field("narrator")}
       {field("series", { placeholder: "None" })}
-      {hits.length ? (
-        <View style={{ marginTop: -6, borderRadius: 12, backgroundColor: t.surface2, overflow: "hidden" }}>
-          {hits.map((s) => (
-            <Pressable
-              key={s.name}
-              accessibilityRole="button"
-              onPressIn={() => (picking.current = true)}
-              onPressOut={() => {
-                picking.current = false;
-                closeSoon();
-              }}
-              onPress={() => {
-                picking.current = false;
-                clearTimeout(closing.current);
-                setSuggesting(false);
-                setForm({ ...form, series: s.name });
-              }}
-              style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, minHeight: 44, backgroundColor: pressed ? t.chip : "transparent" })}
-            >
-              <Text numberOfLines={1} style={{ flex: 1, fontFamily: fonts.medium, fontSize: 14, color: t.text }}>
-                {s.name}
-              </Text>
-              <Text variant="small">{plural(s.books, "book")}</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
+      {series.list}
       <View style={{ flexDirection: "row", gap: 10 }}>
         <View style={{ flex: 1 }}>{field("seriesPosition", { placeholder: "1", numeric: true })}</View>
         <View style={{ flex: 1 }}>{field("year", { numeric: true })}</View>
@@ -443,8 +453,14 @@ function CoverTab({
       title={book.title}
       color={book.coverColor}
       source={info.coverSource === "custom" ? "Custom cover" : info.coverSource === "files" ? "From the files" : "No cover yet"}
-      removeLabel={info.coverSource === "custom" ? "Remove" : null}
-      onRemove={() => void act(() => api<BookEditInfo>(apiPaths.bookCover(book.id), { method: "DELETE" }), "Using the files' cover")}
+      reset={
+        info.coverSource === "custom"
+          ? {
+              label: info.scannedCoverHash ? "Use the files' cover" : "Remove this cover",
+              onPress: () => void act(() => api<BookEditInfo>(apiPaths.bookCover(book.id), { method: "DELETE" }), "Using the files' cover"),
+            }
+          : undefined
+      }
       busy={busy}
       onUpload={upload}
       onLink={fromUrl}
@@ -452,7 +468,7 @@ function CoverTab({
         covers?.map((c) => ({
           key: `${c.provider}:${c.providerId}`,
           thumb: c.coverUrl!,
-          label: `Use the ${PROVIDER_NAME[c.provider]} cover of ${c.title}`,
+          label: `Pick the ${PROVIDER_NAME[c.provider]} cover of ${c.title}`,
           caption: PROVIDER_NAME[c.provider],
           apply: () => fromUrl(c.coverUrl!),
         })) ?? null
@@ -523,7 +539,8 @@ function ChaptersTab({ info, rows, setRows, busy, act }: { info: BookEditInfo; r
 
 function FilesTab({ info, busy, act, onRemove }: { info: BookEditInfo; busy: boolean; act: Act; onRemove: () => void }) {
   const t = useTheme();
-  const [confirm, setConfirm] = useState<null | "undo" | "remove">(null);
+  const [confirm, setConfirm] = useState<null | "undo">(null);
+  const [asking, setAsking] = useState(false);
   const missing = info.book.missingSince !== null;
   const hasEdits = info.edited.length > 0 || info.chaptersEdited || info.coverSource === "custom" || !!info.book.match;
   const mono = { fontFamily: fonts.medium, fontSize: 13, color: t.text } as const;
@@ -553,15 +570,8 @@ function FilesTab({ info, busy, act, onRemove }: { info: BookEditInfo; busy: boo
           </View>
         ))}
       </View>
-      {confirm === "remove" ? (
-        <View style={{ gap: 10 }}>
-          {!missing ? <Text variant="small">The next scan adds it back unless you move or fix its folder.</Text> : null}
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Button label="Keep it" kind="secondary" onPress={() => setConfirm(null)} style={{ flex: 1, paddingHorizontal: 12 }} />
-            <Button label="Remove now" disabled={busy} onPress={onRemove} style={{ flex: 1, paddingHorizontal: 12, backgroundColor: t.danger }} />
-          </View>
-        </View>
-      ) : confirm === "undo" ? (
+      <RemoveBooksSheet open={asking} books={[info.book]} onConfirm={onRemove} onClose={() => setAsking(false)} />
+      {confirm === "undo" ? (
         <View style={{ flexDirection: "row", gap: 8 }}>
           <Button label="Keep edits" kind="secondary" onPress={() => setConfirm(null)} style={{ flex: 1, paddingHorizontal: 12 }} />
           <Button
@@ -581,6 +591,7 @@ function FilesTab({ info, busy, act, onRemove }: { info: BookEditInfo; busy: boo
           <Button
             label="Rescan files"
             kind="secondary"
+            icon={<RefreshIcon size={18} color={t.text} />}
             disabled={busy}
             onPress={() =>
               void act(async () => {
@@ -590,7 +601,7 @@ function FilesTab({ info, busy, act, onRemove }: { info: BookEditInfo; busy: boo
           />
           <View style={{ flexDirection: "row", justifyContent: "center", gap: 28 }}>
             {hasEdits && !missing ? dangerLink("Undo all edits", () => setConfirm("undo")) : null}
-            {dangerLink("Remove from library", () => setConfirm("remove"))}
+            {dangerLink("Remove from library…", () => setAsking(true))}
           </View>
         </>
       )}

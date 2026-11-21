@@ -6,9 +6,10 @@ import { Tabs, type BottomTabBarProps } from "expo-router/js-tabs";
 import { firstTab, librarySections } from "@murmur/shared/client";
 import { LibraryIcon, PodcastIcon, ProfileIcon, SearchIcon } from "@/components/icons";
 import { MiniPlayer } from "@/components/mini-player";
+import { Onboarding } from "@/components/onboarding";
 import { Text } from "@/components/ui";
 import "@/lib/changes";
-import { useTabPrefs } from "@/lib/data";
+import { useOnboarding, useTabPrefs } from "@/lib/data";
 import { selectHaptic } from "@/lib/haptics";
 import { restorePlayer } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
@@ -18,9 +19,13 @@ const ICONS = { search: SearchIcon, index: LibraryIcon, podcasts: PodcastIcon, y
 export default function TabsLayout() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const onboarding = useOnboarding();
   useEffect(() => {
     void restorePlayer();
   }, []);
+  // A new account goes through the first-run steps once, before the tabs.
+  if (onboarding.show) return <Onboarding />;
+  if (onboarding.waiting) return <View style={{ flex: 1, backgroundColor: t.bg }} />;
   return (
     <View style={{ flex: 1 }}>
       <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <Dock {...props} />}>

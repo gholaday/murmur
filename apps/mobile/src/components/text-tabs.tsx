@@ -1,5 +1,7 @@
-import { useEffect, useRef } from "react";
-import { Pressable, ScrollView, type ScrollViewInstance, View, type StyleProp, type ViewStyle } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Pressable, ScrollView, type ScrollViewInstance, View, type StyleProp, type ViewProps, type ViewStyle } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import MaskedViewClass from "@react-native-masked-view/masked-view";
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
 import { selectHaptic } from "@/lib/haptics";
 import { fonts, useTheme } from "@/theme";
@@ -9,6 +11,10 @@ import { Text } from "./ui";
 const SLIDE_MS = 280;
 const FADE_MS = 220;
 const EASE = Easing.bezier(0.2, 0.8, 0.2, 1);
+/** How far the row fades at an edge with more to scroll to, like the web's. */
+const EDGE_FADE = 48;
+
+const MaskedView = MaskedViewClass as unknown as React.ComponentType<ViewProps & { maskElement: React.ReactElement }>;
 
 /** Where each remembered tab row's line last was, and when. */
 const lastLine = new Map<string, { value: unknown; x: number; width: number; at: number }>();
@@ -81,19 +87,39 @@ export function TextTabs<T extends string | number>({
     placed.current = true;
   };
 
-  // Keeps the picked tab on screen.
+  // How far the row is scrolled and how long it is, for the fades and bringing a tab into view.
+  const scrollX = useRef(0);
+  const content = useRef(0);
+  const [edges, setEdges] = useState({ left: false, right: false, width: 0 });
+  const updateEdges = () => {
+    const width = box.current;
+    const left = scrollX.current > 1;
+    const right = content.current - width - scrollX.current > 1;
+    setEdges((e) => (e.left === left && e.right === right && e.width === width ? e : { left, right, width }));
+  };
+
+  // Keeps the picked tab on screen, clear of the fades.
   const bringIntoView = (animated: boolean) => {
     const spot = spots.current.get(value);
     if (!spot || !box.current) return;
-    const right = spot.x + spot.width + inset;
-    if (right > box.current) scroll.current?.scrollTo({ x: right - box.current, animated });
-    else if (spot.x - inset < 0) scroll.current?.scrollTo({ x: 0, animated });
+    const max = Math.max(0, content.current - box.current);
+    const right = spot.x + spot.width + EDGE_FADE;
+    const left = spot.x - EDGE_FADE;
+    let x: number | null = null;
+    if (right > scrollX.current + box.current) x = Math.min(max, right - box.current);
+    else if (left < scrollX.current) x = Math.max(0, left);
+    if (x === null) return;
+    scroll.current?.scrollTo({ x, animated });
+    if (!animated) {
+      scrollX.current = x;
+      updateEdges();
+    }
   };
   // Until the row and the picked tab are both measured, the tab can't be brought into view; the
   // first time they are, it's put there without scrolling, as when a screen opens on a far tab.
   const shown = useRef(false);
   const firstView = () => {
-    if (shown.current || !spots.current.has(value) || !box.current) return;
+    if (shown.current || !spots.current.has(value) || !box.current || !content.current) return;
     shown.current = true;
     bringIntoView(false);
   };
@@ -116,13 +142,36 @@ export function TextTabs<T extends string | number>({
     >
       {/* The hairline stays put under tabs that scroll. */}
       <View pointerEvents="none" style={{ position: "absolute", left: inset, right: inset, bottom: 0, height: 1, backgroundColor: t.line }} />
+      {/* Fades out over EDGE_FADE at an edge with more to scroll to. */}
+      <MaskedView
+        style={trailing ? { flex: 1 } : null}
+        maskElement={
+          <LinearGradient
+            colors={[edges.left ? "transparent" : "#000", "#000", "#000", edges.right ? "transparent" : "#000"]}
+            locations={edges.width ? [0, EDGE_FADE / edges.width, 1 - EDGE_FADE / edges.width, 1] : [0, 0, 1, 1]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{ flex: 1 }}
+          />
+        }
+      >
       <ScrollView
         ref={scroll}
         horizontal
-        style={trailing ? { flex: 1 } : null}
         showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={32}
+        onScroll={(e) => {
+          scrollX.current = e.nativeEvent.contentOffset.x;
+          updateEdges();
+        }}
+        onContentSizeChange={(w) => {
+          content.current = w;
+          updateEdges();
+          firstView();
+        }}
         onLayout={(e) => {
           box.current = e.nativeEvent.layout.width;
+          updateEdges();
           firstView();
         }}
         contentContainerStyle={{ paddingHorizontal: inset, gap }}
@@ -157,6 +206,7 @@ export function TextTabs<T extends string | number>({
         })}
         <Animated.View pointerEvents="none" style={[{ position: "absolute", left: 0, bottom: 0, height: 2, borderRadius: 1, backgroundColor: t.accent }, line]} />
       </ScrollView>
+      </MaskedView>
       {trailing ? <View style={{ flexDirection: "row", marginRight: inset - 10 }}>{trailing}</View> : null}
     </View>
   );

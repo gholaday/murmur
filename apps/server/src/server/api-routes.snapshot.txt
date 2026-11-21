@@ -17,6 +17,7 @@
 /api/books/[id]/match/preview GET
 /api/books/[id]/play-next DELETE POST
 /api/books/[id]/rescan POST
+/api/books/bulk POST
 /api/cast POST
 /api/changes GET
 /api/episodes/[id] GET

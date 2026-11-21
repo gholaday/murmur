@@ -18,7 +18,8 @@ export const POST = route(async (req) => {
     if (userCount(ctx) > 0) throw new HttpError(409, "Setup is already done. Sign in instead.");
     return tx
       .insert(users)
-      .values({ username: input.username, passwordHash, isAdmin: true, createdAt: Date.now() })
+      // A new account sees the first-run steps once.
+      .values({ username: input.username, passwordHash, isAdmin: true, createdAt: Date.now(), prefs: JSON.stringify({ onboarded: false }) })
       .returning()
       .get();
   });

@@ -3,8 +3,10 @@
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { bookListening, bookStarted, type BookSummary, errorText } from "@murmur/shared/client";
+import { apiPaths, bookListening, bookStarted, type BookSummary, errorText } from "@murmur/shared/client";
 import { useAdmin } from "../admin";
+import { api } from "../api";
+import { RemoveBooksSheet, useSelection } from "../library/selection";
 import { MenuItem, MenuSep } from "../card-menu";
 import { HideMenuItem } from "../hidden";
 import { useNowPlaying, usePlayerControls } from "../player/engine";
@@ -45,14 +47,39 @@ export function useBookActions(book: BookSummary) {
 }
 
 /** Lets cards offer the options menu; BookActions provides it, with one shared edit dialog. */
-export const BookActionsContext = createContext<{ edit: (bookId: string, tab: EditTab) => void } | null>(null);
+export const BookActionsContext = createContext<{ edit: (bookId: string, tab: EditTab) => void; remove: (book: BookSummary) => void } | null>(null);
 
-/** Book cards' menu actions, with the Edit dialog they open for admins. */
+/** Removes a book from the library after its confirm; `after` runs once it's gone. */
+export function useRemoveBook(after: () => void) {
+  const [busy, setBusy] = useState(false);
+  return {
+    busy,
+    remove: async (book: BookSummary) => {
+      setBusy(true);
+      try {
+        await api(apiPaths.book(book.id), { method: "DELETE" });
+        toast(`Removed ${book.title} from the library`);
+        after();
+      } catch (err) {
+        toast.error(errorText(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+  };
+}
+
+/** Book cards' menu actions, with the Edit dialog and the Remove confirm they open for admins. */
 export function BookActions({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { isAdmin } = useAdmin();
   const [editing, setEditing] = useState<{ id: string; tab: EditTab } | null>(null);
-  const actions = useMemo(() => ({ edit: (id: string, tab: EditTab) => setEditing({ id, tab }) }), []);
+  const [removing, setRemoving] = useState<BookSummary | null>(null);
+  const { busy, remove } = useRemoveBook(() => {
+    setRemoving(null);
+    router.refresh();
+  });
+  const actions = useMemo(() => ({ edit: (id: string, tab: EditTab) => setEditing({ id, tab }), remove: setRemoving }), []);
   return (
     <BookActionsContext.Provider value={actions}>
       {children}
@@ -66,22 +93,35 @@ export function BookActions({ children }: { children: React.ReactNode }) {
           onChanged={() => router.refresh()}
         />
       ) : null}
+      {isAdmin ? (
+        <RemoveBooksSheet
+          open={!!removing}
+          books={removing ? [removing] : []}
+          busy={busy}
+          onConfirm={() => removing && void remove(removing)}
+          onClose={() => setRemoving(null)}
+        />
+      ) : null}
     </BookActionsContext.Provider>
   );
 }
 
 /**
- * A book's menu, the same on its card and its page: playing it, then for admins Edit, Match and
- * Mark as matched, then Hide. Mounted only while open, so it follows the player cheaply.
+ * A book's menu, the same on its card and its page: playing it, Select (in a grid that can pick
+ * several), Hide, then for admins Edit, Match, Mark as matched and Remove from library last.
+ * Mounted only while open, so it follows the player cheaply.
  */
 export function BookMenuItems({
   book,
   edit,
+  remove,
   choose,
   after,
 }: {
   book: BookSummary;
   edit: (bookId: string, tab: EditTab) => void;
+  /** Opens Remove from library's confirm; the card's comes from BookActions. */
+  remove?: (book: BookSummary) => void;
   choose: (fn: () => unknown) => () => void;
   /** Runs once the book is hidden: its own page goes back. */
   after?: () => void;
@@ -89,6 +129,9 @@ export function BookMenuItems({
   const router = useRouter();
   const player = usePlayerControls();
   const { isAdmin } = useAdmin();
+  const selection = useSelection();
+  const actions = useContext(BookActionsContext);
+  const onRemove = remove ?? actions?.remove;
   const { current, playing, finished, canPlayNext, onPlayNext, markFinished, togglePlayNext } = useBookActions(book);
 
   return (
@@ -98,6 +141,8 @@ export function BookMenuItems({
       </MenuItem>
       {canPlayNext ? <MenuItem onClick={choose(togglePlayNext)}>{onPlayNext ? "Remove from Play next" : "Add to Play next"}</MenuItem> : null}
       <MenuItem onClick={choose(() => markFinished(!finished))}>{finished ? "Mark as not finished" : "Mark as finished"}</MenuItem>
+      {selection ? <MenuItem onClick={choose(() => selection.start(book.id))}>Select</MenuItem> : null}
+      <HideMenuItem change={{ kind: "book", id: book.id }} title={book.title} choose={choose} after={after} divider={false} />
       {isAdmin ? (
         <>
           <MenuSep />
@@ -109,9 +154,13 @@ export function BookMenuItems({
               {book.markedMatched ? "Mark as not matched" : "Mark as matched"}
             </MenuItem>
           ) : null}
+          {onRemove ? (
+            <MenuItem danger onClick={choose(() => onRemove(book))}>
+              Remove from library…
+            </MenuItem>
+          ) : null}
         </>
       ) : null}
-      <HideMenuItem change={{ kind: "book", id: book.id }} title={book.title} choose={choose} after={after} />
     </>
   );
 }

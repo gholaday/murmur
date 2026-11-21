@@ -8,11 +8,24 @@
 .section { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; }
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .section-title { font-size: 17px; font-weight: 700; }
-.group-title { text-align: left; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A long group name ends in … and keeps its count pill. */
+.group-title { display: flex; align-items: center; text-align: left; min-width: 0; white-space: nowrap; }
+.group-title .section-title-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.group-title .count-pill { flex-shrink: 0; vertical-align: 0; }
 .group-title:hover { color: var(--accent); }
 /* Nested pages: the back arrow sits on its own row above the title. */
 .back-row { margin: -12px 0 4px -8px; }
+/* A nested screen's head: back arrow, title and actions on one row. A long title ends in "…". */
+.nested-head { display: flex; align-items: center; gap: 6px; min-height: 48px; margin: -12px 0 14px -8px; }
+.nested-text { flex: 1; min-width: 0; }
+.nested-title { font-size: 22px; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nested-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0; }
 .group-head { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* A group's second line: the author at the left, a note ("1 finished") at the right. */
+.section-head > .group-head { flex: 1; }
+.group-sub { display: flex; justify-content: space-between; gap: 12px; }
+.group-sub-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-side { flex-shrink: 0; white-space: nowrap; }
 /*
  * Number badges share one shape and come in two colours: grey (.count-pill) counts what's in
  * a list; solid accent (.badge-count, .episode-more) flags something new or waiting.
@@ -99,7 +112,7 @@ img.cover.pending { opacity: 0; }
 /* Library's title row: Books, Music and Watch at title size; scrolls sideways if it doesn't fit. */
 /* A Library section's title row and tabs stay at the top while what's under them scrolls. */
 /* Podcasts and Search keep theirs up the same way (`StickyHead`). */
-.library-head, .sticky-head { position: sticky; top: -16px; z-index: 5; margin: -28px -20px 0; padding: 28px 20px 0; background: var(--bg); }
+.library-head, .sticky-head { position: sticky; top: 0; z-index: 5; margin: -28px -20px 0; padding: 28px 20px 0; background: var(--bg); }
 .library-title { display: flex; align-items: baseline; gap: 14px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .library-title::-webkit-scrollbar { display: none; }
 @media (max-width: 420px) { .library-title { gap: 12px; } .library-title .page-title { font-size: 28px; } }

@@ -19,12 +19,34 @@
 .status-dot.warn { background: #f0b45a; }
 /* You: settings rows that open their own page, like the app. */
 .setting-link:hover .setting-title { color: var(--accent); }
-.setting-value { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 14px; }
+/* A value keeps its width, up to half the row, and the sub line wraps instead. */
+.setting-value { display: flex; align-items: center; gap: 6px; flex-shrink: 0; max-width: 50%; min-width: 0; color: var(--muted); font-size: 14px; }
 .setting-value span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .setting-value .i { flex-shrink: 0; }
 .settings-page { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
 .settings-page .section-title { margin-top: 16px; }
 .settings-page > .btn { align-self: flex-start; }
+/* Settings on You: flat rows split by hairlines, under eyebrow labels, like Stats. No panels, no pills. */
+.set-tabs { margin: 8px 0 4px; }
+.set-group + .set-group { margin-top: 36px; }
+/* A group with no label, like Sign out, has no label to make room for. */
+.set-group + .set-group:not(:has(> .set-label)) { margin-top: 16px; }
+.set-danger .setting-title { color: var(--danger); }
+.set-label { margin: 0 0 4px; }
+.set-group > .setting, .set-group > .switch, .set-group > .set-row { border-bottom: 1px solid var(--line); min-height: 56px; }
+.set-group > :is(.setting, .switch, .set-row):last-child { border-bottom: 0; }
+.set-group .switch { padding-block: 6px; }
+button.setting-link { width: 100%; text-align: left; color: inherit; font: inherit; }
+button.setting-link:disabled { opacity: 0.5; cursor: default; }
+/* A row's action is accent text with its icon, not a pill: Rescan, Change, Export. */
+.set-group .setting > .btn { background: transparent; color: var(--accent); padding: 0 10px; margin-right: -10px; height: 40px; }
+.set-group .setting > .btn:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.set-group .setting > .btn.btn-danger { color: var(--danger); }
+.set-group .setting > .btn .i { width: 18px; height: 18px; }
+.set-group .setting-sub + .setting-sub { margin-top: 2px; }
+.set-group .setting { padding-block: 8px; }
+/* The last row's own padding counts toward the page's space at the bottom. */
+.set-tabs-body { margin-top: 20px; margin-bottom: -16px; }
 .folder-path { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 
 .login { max-width: 360px; margin: 14vh auto; padding: 0 20px; display: flex; flex-direction: column; gap: 12px; }

@@ -2,7 +2,9 @@
 
 .stats-card { display: flex; flex-direction: column; gap: 16px; padding: 18px; }
 .stats-total { font-size: 34px; font-weight: 800; letter-spacing: -0.8px; }
-.stats-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.stats-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* You's two headings: Stats in its card, Settings over the tabs. */
+.you-heading { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
 .stats-head-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .stats-entry { color: var(--text); text-decoration: none; }
 .stats-entry .stats-head > svg { flex-shrink: 0; color: var(--muted); }
@@ -13,11 +15,14 @@
 .stats-sentence { margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.8px; line-height: 1.2; }
 .stats-sentence-sub { margin: 0; font-size: 15px; color: var(--muted); }
 .stats-spark { display: block; width: 100%; aspect-ratio: 358 / 64; overflow: visible; }
+/* The chart stretches with the card; its lines keep their width. */
+.stats-spark-track, .stats-spark-line { vector-effect: non-scaling-stroke; }
+.stats-spark-wrap { position: relative; }
 .stats-spark-track { stroke: var(--track); stroke-width: 2; stroke-linecap: round; }
 .stats-spark-area { fill: var(--accent); fill-opacity: 0.12; }
 .stats-spark-line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
-.stats-spark-dot { fill: var(--accent); stroke: var(--bg); stroke-width: 2; }
-.stats-entry .stats-spark-dot { stroke: var(--surface); }
+.stats-spark-dot { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--bg); transform: translate(-50%, -50%); pointer-events: none; }
+.stats-entry .stats-spark-dot { box-shadow: 0 0 0 2px var(--surface); }
 .stats-axis { position: relative; height: 14px; margin-top: 6px; font-size: 11px; font-weight: 600; color: var(--muted); }
 .stats-axis span { position: absolute; top: 0; white-space: nowrap; }
 .stats-axis .today { color: var(--text); }

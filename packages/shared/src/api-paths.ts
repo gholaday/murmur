@@ -168,6 +168,8 @@ export const apiPaths = {
 
   /** BookSummary[]. */
   books: "/api/books",
+  /** POST BookBulkInput: hide, edit or remove several books at once. */
+  booksBulk: "/api/books/bulk",
   /** BookEditInfo. */
   bookEdit: (bookId: string) => `/api/books/${bookId}/edit`,
   /** PUT the edited details: BookEditInfo. */

@@ -14,7 +14,7 @@ import { watchSummary } from "./watch/queries";
 import { videoHealth, videoStatus } from "./watch/video-addon";
 
 /** Everything the You page and its settings pages show; admin-only parts are empty for others. */
-export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<React.ComponentProps<typeof ProfileView>, "section">> {
+export async function youProps(ctx: AppContext, user: UserDto): Promise<Omit<React.ComponentProps<typeof ProfileView>, "tab">> {
   const users: UserDto[] = user.isAdmin
     ? (ctx.sqlite.prepare("SELECT id, username, is_admin FROM users ORDER BY username").all() as Array<{
         id: number;

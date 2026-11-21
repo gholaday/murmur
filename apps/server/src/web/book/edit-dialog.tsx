@@ -20,7 +20,9 @@ import {
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { CloseIcon, MinusIcon, PlusIcon } from "../icons";
+import { MinusIcon, PlusIcon, RefreshIcon } from "../icons";
+import { RemoveBooksSheet } from "../library/selection";
+import { PicturePicker } from "../picture-picker";
 import { useBackdropClose } from "../sheet";
 import { MatchPanel } from "./match-dialog";
 
@@ -224,9 +226,6 @@ export function EditBookDialog({
                 </div>
               ) : null}
             </div>
-            <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
-              <CloseIcon />
-            </button>
           </div>
 
           <div className="subtabs edit-tabs" role="tablist">
@@ -355,7 +354,7 @@ function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; s
 }
 
 /** The series field, offering the library's existing series as you type so books land in the same one. */
-function SeriesInput({
+export function SeriesInput({
   id,
   value,
   placeholder,
@@ -440,12 +439,7 @@ function SeriesInput({
 }
 
 function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act: Act }) {
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [url, setUrl] = useState("");
-  const [dragging, setDragging] = useState(false);
   const [suggestions, setSuggestions] = useState<MatchSearchResult | null>(null);
-  // Tapping a suggestion only picks it; Use this picture applies it.
-  const [picked, setPicked] = useState<string | null>(null);
   const book = info.book;
 
   useEffect(() => {
@@ -475,110 +469,27 @@ function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
   const covers = (suggestions?.candidates ?? []).filter((c) => c.coverUrl).slice(0, 8);
 
   return (
-    <div className="cover-tab">
-      {picked ? (
-        <div className="match-bar">
-          <button type="button" className="btn btn-primary wide" disabled={busy} onClick={() => void fromUrl(picked).then((ok) => ok && setPicked(null))}>
-            {busy ? "Saving…" : "Use this picture"}
-          </button>
-        </div>
-      ) : null}
-      <div className="cover-current">
-        <Cover
-          src={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 600) : null}
-          color={book.coverColor}
-          title={book.title}
-          subtitle={book.author}
-          large
-        />
-        <span className="muted small">
-          {info.coverSource === "custom" ? "Custom cover" : info.coverSource === "files" ? "From the files" : "No cover yet"}
-        </span>
-        {info.coverSource === "custom" ? (
-          <button
-            type="button"
-            className="btn"
-            disabled={busy}
-            onClick={() => void act(() => api<BookEditInfo>(apiPaths.bookCover(book.id), { method: "DELETE" }), "Using the files' cover")}
-          >
-            Remove
-          </button>
-        ) : null}
-      </div>
-      <div className="cover-options">
-        <button
-          type="button"
-          className={`cover-drop ${dragging ? "over" : ""}`}
-          disabled={busy}
-          onClick={() => fileInput.current?.click()}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            const file = e.dataTransfer.files[0];
-            if (file) void upload(file);
-          }}
-        >
-          <strong>Upload an image</strong>
-          <span className="muted small">Drop a JPG, PNG or WebP here, or click to choose one</span>
-        </button>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          hidden
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = "";
-            if (file) void upload(file);
-          }}
-        />
-        <form
-          className="form-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (url.trim()) void fromUrl(url.trim()).then(() => setUrl(""));
-          }}
-        >
-          <input className="input" type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Or paste an image link" aria-label="Image link" />
-          <button type="submit" className="btn" disabled={busy || !url.trim()}>
-            Use link
-          </button>
-        </form>
-        <div className="edit-label">Suggestions</div>
-        {suggestions === null ? (
-          <div className="cover-suggest" aria-busy="true" aria-label="Looking for covers">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="skel skel-cover" />
-            ))}
-          </div>
-        ) : covers.length === 0 ? (
-          <p className="muted small" style={{ margin: 0 }}>
-            No covers found online.
-          </p>
-        ) : (
-          <div className="cover-suggest">
-            {covers.map((c) => (
-              <button
-                key={`${c.provider}:${c.providerId}`}
-                type="button"
-                disabled={busy}
-                aria-pressed={picked === c.coverUrl}
-                onClick={() => setPicked(picked === c.coverUrl ? null : c.coverUrl!)}
-                aria-label={`Pick the ${PROVIDER_NAME[c.provider]} cover of ${c.title}`}
-              >
-                <img src={c.coverUrl!} alt="" loading="lazy" />
-                <span className="small">{PROVIDER_NAME[c.provider]}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+    <PicturePicker
+      shape="square"
+      current={
+        <Cover src={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 600) : null} color={book.coverColor} title={book.title} subtitle={book.author} large />
+      }
+      source={info.coverSource === "custom" ? "Custom cover" : info.coverSource === "files" ? "From the files" : "No cover yet"}
+      reset={
+        info.coverSource === "custom"
+          ? {
+              label: info.scannedCoverHash ? "Use the files' cover" : "Remove this cover",
+              onClick: () => void act(() => api<BookEditInfo>(apiPaths.bookCover(book.id), { method: "DELETE" }), "Using the files' cover"),
+            }
+          : undefined
+      }
+      suggestions={suggestions === null ? null : covers.map((c) => ({ key: c.coverUrl!, src: c.coverUrl!, label: PROVIDER_NAME[c.provider] }))}
+      emptyText="No covers found online."
+      busy={busy}
+      onUpload={upload}
+      onLink={fromUrl}
+      onPick={fromUrl}
+    />
   );
 }
 
@@ -654,7 +565,8 @@ function ChaptersTab({
 }
 
 function FilesTab({ info, busy, act, onRemoved }: { info: BookEditInfo; busy: boolean; act: Act; onRemoved: () => void }) {
-  const [confirm, setConfirm] = useState<"undo" | "remove" | null>(null);
+  const [confirm, setConfirm] = useState<"undo" | null>(null);
+  const [asking, setAsking] = useState(false);
   const [removing, setRemoving] = useState(false);
   const hasEdits = info.edited.length > 0 || info.chaptersEdited || info.coverSource === "custom" || !!info.book.match;
   const remove = async () => {
@@ -687,18 +599,9 @@ function FilesTab({ info, busy, act, onRemoved }: { info: BookEditInfo; busy: bo
           </li>
         ))}
       </ul>
-      {confirm === "remove" && !missing ? <p className="muted small">The next scan adds it back unless you move or fix its folder.</p> : null}
+      <RemoveBooksSheet open={asking} books={[info.book]} busy={removing} onConfirm={() => void remove()} onClose={() => setAsking(false)} />
       <div className="chapter-tools">
-        {confirm === "remove" ? (
-          <>
-            <button type="button" className="btn" onClick={() => setConfirm(null)}>
-              Keep it
-            </button>
-            <button type="button" className="btn btn-danger" disabled={removing} onClick={() => void remove()}>
-              Remove now
-            </button>
-          </>
-        ) : confirm === "undo" ? (
+        {confirm === "undo" ? (
           <>
             <button type="button" className="btn" onClick={() => setConfirm(null)}>
               Keep edits
@@ -729,6 +632,7 @@ function FilesTab({ info, busy, act, onRemoved }: { info: BookEditInfo; busy: bo
                 }, "Rescanning. Changes show in a moment.")
               }
             >
+              <RefreshIcon size={18} />
               Rescan files
             </button>
             {hasEdits && !missing ? (
@@ -736,8 +640,8 @@ function FilesTab({ info, busy, act, onRemoved }: { info: BookEditInfo; busy: bo
                 Undo all edits
               </button>
             ) : null}
-            <button type="button" className="btn btn-danger" onClick={() => setConfirm("remove")}>
-              Remove from library
+            <button type="button" className="btn btn-danger" onClick={() => setAsking(true)}>
+              Remove from library…
             </button>
           </>
         )}

@@ -37,27 +37,52 @@
 .suggest-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .suggest li > .muted { flex-shrink: 0; white-space: nowrap; font-weight: 500; }
 @media (max-width: 600px) { .edit-grid { grid-template-columns: minmax(0, 1fr); } }
-.cover-tab { display: flex; gap: 24px; flex-wrap: wrap; }
-.cover-current { display: flex; flex-direction: column; gap: 10px; width: 220px; align-items: flex-start; }
-.cover-current .cover { width: 220px; height: 220px; border-radius: 12px; }
-/* A movie's or show's poster is 2:3 and its background 16:9, at the same width as a book's cover. */
-.cover-current .cover.poster, .cover-current .cover.still { height: auto; }
 .edit-thumb.poster { width: 32px; height: 48px; }
-.cover-options { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
-.cover-drop { min-height: 100px; border-radius: 12px; border: 1.5px dashed var(--line-strong, var(--line)); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 12px; text-align: center; }
-.cover-drop:hover, .cover-drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
-.cover-suggest { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.cover-suggest button { display: flex; flex-direction: column; gap: 4px; text-align: left; color: var(--text-2); }
-.cover-suggest img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; outline: 2px solid transparent; outline-offset: 2px; }
-.cover-suggest button:hover img { outline-color: var(--accent); }
-.art-suggest { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
-.art-suggest.backdrop { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
-.art-suggest img, .art-suggest .skel { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; outline: 2px solid transparent; outline-offset: 2px; }
-.art-suggest.backdrop img, .art-suggest.backdrop .skel { aspect-ratio: 16 / 9; }
-.art-suggest button:hover img, .art-suggest button[aria-pressed="true"] img,
-.cover-suggest button[aria-pressed="true"] img { outline-color: var(--accent); }
-/* A picture tab's Use this picture bar spans the tab, above both columns. */
-.cover-tab > .match-bar { flex-basis: 100%; }
+
+/* A picture tab (PicturePicker): the current picture, then Choose another. On a phone the current one
+   sits on top beside its text with 3 columns below; wider, it's on the left with 4 columns on the right. */
+.pic-tab { display: flex; flex-direction: column; gap: 24px; min-height: 100%; }
+.pic-current { display: flex; align-items: flex-end; gap: 16px; }
+.pic-current .cover { width: 132px; height: 132px; border-radius: 12px; flex-shrink: 0; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35); }
+.pic-tab.poster .pic-current .cover { height: auto; aspect-ratio: 2 / 3; }
+.pic-tab.still .pic-current .cover { width: 220px; height: auto; aspect-ratio: 16 / 9; }
+.pic-current-text { display: flex; flex-direction: column; gap: 2px; padding-bottom: 4px; min-width: 0; }
+.pic-current-title { font-size: 15px; font-weight: 700; }
+.pic-reset { margin: 6px 0 0 -10px; align-self: flex-start; }
+.pic-choose { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.pic-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 12px; }
+.pic-tab.still .pic-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pic-option { display: flex; flex-direction: column; gap: 6px; min-width: 0; text-align: left; color: var(--muted); font-size: 12px; font-weight: 600; }
+.pic-thumb { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+.pic-tab.poster .pic-thumb { aspect-ratio: 2 / 3; }
+.pic-tab.still .pic-thumb { aspect-ratio: 16 / 9; }
+.pic-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.pic-option:hover:not(:disabled) .pic-thumb, .pic-option.on .pic-thumb { box-shadow: inset 0 0 0 3px var(--accent); }
+.pic-option:hover:not(:disabled) .pic-thumb img, .pic-option.on .pic-thumb img { border-radius: 8px; outline: 3px solid var(--accent); outline-offset: -3px; }
+.pic-option.on { color: var(--accent); font-weight: 700; }
+.pic-check { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 12px; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center; }
+.pic-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pic-label.strong { color: var(--text); font-weight: 700; }
+.pic-upload .pic-thumb { color: var(--accent); border: 1.5px dashed var(--track); }
+.pic-upload.over .pic-thumb { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.pic-drop-hint { display: none; font-size: 11px; color: var(--muted); }
+.pic-empty { margin: 0; }
+.pic-link { display: flex; align-items: center; gap: 10px; height: 44px; margin-top: 8px; border-bottom: 1px solid var(--line); color: var(--muted); }
+.pic-link input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 14px; outline: none; }
+.pic-link:focus-within { border-bottom-color: var(--accent); }
+/* Use this picture stays at the foot of the sheet while the grid scrolls. */
+.pic-foot { position: sticky; bottom: -20px; margin: auto -20px -20px; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--line); display: flex; }
+.pic-foot .btn { flex: 1; }
+@media (min-width: 700px) {
+  .pic-tab { display: grid; grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 0 28px; }
+  .pic-current { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .pic-current .cover, .pic-tab.still .pic-current .cover { width: 220px; }
+  .pic-current .cover { height: 220px; }
+  .pic-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pic-tab.still .pic-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pic-drop-hint { display: block; }
+  .pic-foot { grid-column: 1 / -1; align-self: end; }
+}
 .match-panel { display: flex; flex-direction: column; gap: 12px; }
 /* Review and Apply stay at the top of the dialog while the results or fields scroll under them.
    The negative margins reach the dialog's edges; top matches .edit-body's top padding. */

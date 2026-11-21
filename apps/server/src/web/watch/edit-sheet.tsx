@@ -7,8 +7,9 @@ import { toast } from "sonner";
 import { apiPaths, changedFields, errorText, saveLabel, type WatchArtOption } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
-import { CloseIcon } from "../icons";
+
 import { useBackdropClose } from "../sheet";
+import { PicturePicker } from "../picture-picker";
 import { WatchMatchPanel } from "./match-sheet";
 
 export type WatchEditTab = "details" | "poster" | "backdrop" | "match";
@@ -116,9 +117,6 @@ export function WatchEditDialog({
             </div>
             <div className="muted small edit-sub">{[item.title, item.year].filter(Boolean).join(", ")}</div>
           </div>
-          <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
-            <CloseIcon />
-          </button>
         </div>
 
         <div className="subtabs edit-tabs" role="tablist">
@@ -213,12 +211,7 @@ function ArtworkTab({
 }) {
   const router = useRouter();
   const [options, setOptions] = useState<WatchArtOption[] | null>(null);
-  const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  // Tapping a suggestion only picks it; Use this picture applies it.
-  const [picked, setPicked] = useState<string | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
   const hash = which === "poster" ? item.posterHash : item.backdropHash;
   const artUrl = kind === "movie" ? apiPaths.movieArtUrl : apiPaths.showArtUrl;
 
@@ -258,112 +251,23 @@ function ArtworkTab({
     });
 
   return (
-    <div className="cover-tab">
-      {picked ? (
-        <div className="match-bar">
-          <button
-            type="button"
-            className="btn btn-primary wide"
-            disabled={busy}
-            onClick={() =>
-              void act(() => api(`${base}/${which}`, { method: "POST", body: { tmdbPath: picked } })).then((ok) => ok && setPicked(null))
-            }
-          >
-            {busy ? "Saving…" : "Use this picture"}
-          </button>
-        </div>
-      ) : null}
-      <div className="cover-current">
-        <Cover
-          src={hash ? artUrl(item.id, which, hash, "large") : null}
-          color={item.color}
-          title={item.title}
-          className={which === "poster" ? "poster" : "still"}
-        />
-        <span className="muted small">{item.chosenArt[which] ? "Your own picture" : hash ? "From TMDB" : "No picture yet"}</span>
-        {item.chosenArt[which] ? (
-          <button type="button" className="btn" disabled={busy} onClick={() => void act(() => api(`${base}/${which}`, { method: "DELETE" }), "Removed")}>
-            Remove
-          </button>
-        ) : null}
-      </div>
-      <div className="cover-options">
-      <button
-        type="button"
-        className={`cover-drop ${dragging ? "over" : ""}`}
-        disabled={busy}
-        onClick={() => fileInput.current?.click()}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          const file = e.dataTransfer.files[0];
-          if (file) void upload(file);
-        }}
-      >
-        <strong>Upload an image</strong>
-        <span className="muted small">Drop a JPG, PNG or WebP here, or click to choose one</span>
-      </button>
-      <input
-        ref={fileInput}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        hidden
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = "";
-          if (file) void upload(file);
-        }}
-      />
-      <form
-        className="form-row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const link = url.trim();
-          if (link) void act(() => api(`${base}/${which}`, { method: "POST", body: { url: link } })).then((ok) => ok && setUrl(""));
-        }}
-      >
-        <input className="input" type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Or paste an image link" aria-label="Image link" />
-        <button type="submit" className="btn" disabled={busy || !url.trim()}>
-          Use link
-        </button>
-      </form>
-      {canSuggest ? (
-        <>
-          <div className="edit-label">Suggestions</div>
-          {options === null ? (
-            <div className={`art-suggest ${which}`} aria-busy="true" aria-label="Looking for pictures">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="skel" />
-              ))}
-            </div>
-          ) : options.length === 0 ? (
-            <p className="muted small" style={{ margin: 0 }}>
-              TMDB has no other pictures for this.
-            </p>
-          ) : (
-            <div className={`art-suggest ${which}`}>
-              {options.map((o) => (
-                <button
-                  key={o.tmdbPath}
-                  type="button"
-                  disabled={busy}
-                  aria-label="Pick this picture"
-                  aria-pressed={picked === o.tmdbPath}
-                  onClick={() => setPicked(picked === o.tmdbPath ? null : o.tmdbPath)}
-                >
-                  <img src={o.thumbUrl} alt="" loading="lazy" />
-                </button>
-              ))}
-            </div>
-          )}
-        </>
-      ) : null}
-      </div>
-    </div>
+    <PicturePicker
+      shape={which === "poster" ? "poster" : "still"}
+      current={
+        <Cover src={hash ? artUrl(item.id, which, hash, "large") : null} color={item.color} title={item.title} className={which === "poster" ? "poster" : "still"} />
+      }
+      source={item.chosenArt[which] ? "Your own picture" : hash ? "From TMDB" : "No picture yet"}
+      reset={
+        item.chosenArt[which]
+          ? { label: "Use TMDB's picture", onClick: () => void act(() => api(`${base}/${which}`, { method: "DELETE" }), "Using TMDB's picture") }
+          : undefined
+      }
+      suggestions={canSuggest ? (options === null ? null : options.map((o) => ({ key: o.tmdbPath, src: o.thumbUrl }))) : undefined}
+      emptyText="TMDB has no other pictures for this."
+      busy={busy}
+      onUpload={upload}
+      onLink={(link) => act(() => api(`${base}/${which}`, { method: "POST", body: { url: link } }))}
+      onPick={(tmdbPath) => act(() => api(`${base}/${which}`, { method: "POST", body: { tmdbPath } }))}
+    />
   );
 }

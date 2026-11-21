@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { apiPaths, errorText, type PlaylistDetail, type PlaylistSummary, plural, type TrackDto } from "@murmur/shared/client";
 import { api } from "../api";
 import { MoreIcon } from "../icons";

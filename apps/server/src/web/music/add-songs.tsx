@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { albumCover, apiPaths, errorText, type LikedMusicDto, type PlaylistDetail, songSub, type TrackDto } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 import { AddCircleIcon } from "../icons";
-import { BackRow, Chip, Chips, EmptyState, SearchBox } from "../ui";
+import { Chip, Chips, EmptyState, NestedHead, SearchBox } from "../ui";
 
 type Source = "recent" | "liked";
 const SOURCES: { id: Source; label: string }[] = [
@@ -80,12 +80,7 @@ export function AddSongsView({ playlist: initial }: { playlist: PlaylistDetail }
 
   return (
     <>
-      <BackRow fallback={`/music/playlist/${playlist.id}`} />
-      <div className="page-head">
-        <h1 className="page-title" style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          Add to {playlist.name}
-        </h1>
-      </div>
+      <NestedHead title={`Add to ${playlist.name}`} fallback={`/music/playlist/${playlist.id}`} />
       <SearchBox value={query} onChange={setQuery} placeholder="Search songs, albums or artists" label="Search songs" />
       {q ? null : (
         <Chips kind="tabs" label="Songs to add">

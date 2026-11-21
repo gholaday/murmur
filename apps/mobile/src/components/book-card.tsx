@@ -3,9 +3,9 @@ import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { apiPaths, bookListening, bookStarted, type BookSummary, errorText, progressPct } from "@murmur/shared/client";
 import { api } from "@/lib/api";
-import { fetchBook, setPlayNext } from "@/lib/data";
+import { fetchBook, removeBooks, setPlayNext } from "@/lib/data";
 import { useDownload } from "@/lib/downloads";
-import { withLongPressHaptic } from "@/lib/haptics";
+import { selectHaptic, withLongPressHaptic } from "@/lib/haptics";
 import { queryClient } from "@/lib/query";
 import { useIsAdmin } from "@/lib/session";
 import { bookToPlayable, isCurrent, markCurrent, play, setFinished, toggle, usePlayerSelect } from "@/player/engine";
@@ -14,7 +14,8 @@ import { BookEditSheet, type BookEditTab } from "./book-edit";
 import { Cover } from "./cover";
 import { CheckIcon, DownloadIcon } from "./icons";
 import { Mixer, useNowPlaying } from "./mixer";
-import { HideItem, Sheet, SheetDivider, SheetItem, useCardMenu, useMenuIdle } from "./sheet";
+import { PickDisc, useSelection } from "./selection";
+import { HideItem, RemoveBooksSheet, Sheet, SheetDivider, SheetItem, useCardMenu, useMenuIdle } from "./sheet";
 import { toast } from "./toast";
 import { Bar, Text } from "./ui";
 
@@ -29,20 +30,32 @@ export const BookCard = memo(function BookCard({ book, sub, width }: { book: Boo
   const started = !!book.progress && !book.progress.finished && pct > 0;
   const menu = useCardMenu();
   const now = useNowPlaying((s) => isCurrent(s, "book", book.id));
+  const sel = useSelection();
+  const selecting = !!sel?.selecting;
+  const on = selecting && sel.picked.has(book.id);
+  // While selecting, a tap (or a long press) picks the card instead of opening it.
+  const pick = () => {
+    selectHaptic();
+    sel?.pick(book.id);
+  };
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole={selecting ? "checkbox" : "button"}
       accessibilityLabel={book.title}
-      accessibilityActions={[{ name: "longpress", label: "Options" }]}
+      accessibilityState={selecting ? { checked: on } : undefined}
+      accessibilityActions={selecting ? undefined : [{ name: "longpress", label: "Options" }]}
       onAccessibilityAction={menu.show}
-      onPress={() => router.push(`/book/${book.id}`)}
-      onLongPress={withLongPressHaptic(menu.show)}
+      onPress={selecting ? pick : () => router.push(`/book/${book.id}`)}
+      onLongPress={selecting ? pick : withLongPressHaptic(menu.show)}
       style={({ pressed }) => ({ width, gap: 6, opacity: pressed ? 0.75 : 1 })}
     >
       {menu.shown ? <BookActions book={book} open={menu.open} onClose={menu.close} onIdle={menu.idle} /> : null}
       <View>
         <Cover path={book.coverHash ? apiPaths.coverUrl(book.id, book.coverHash, 200) : null} title={book.title} color={book.coverColor} />
-        {book.progress?.finished ? (
+        {on ? <View pointerEvents="none" style={{ position: "absolute", inset: 0, borderRadius: 10, borderWidth: 3, borderColor: t.accent }} /> : null}
+        {selecting ? (
+          <PickDisc on={on} />
+        ) : book.progress?.finished ? (
           <Badge>
             <CheckIcon size={14} color={t.onAccent} />
           </Badge>
@@ -97,7 +110,8 @@ export function useBookActions(book: BookSummary) {
 
 /**
  * A book's menu, the same from a card's long press and the book page's ⋯ (like the web's): play,
- * Play next and finished, then for admins Edit, Match and Mark as matched.
+ * Play next and finished, Select (in a grid that can pick several) and Hide, then for admins Edit,
+ * Match, Mark as matched and Remove from library last.
  */
 export function BookActions({
   book,
@@ -119,7 +133,9 @@ export function BookActions({
   const playing = usePlayerSelect((s) => s.playing);
   const admin = useIsAdmin();
   const [editing, setEditing] = useState<BookEditTab | null>(null);
-  useMenuIdle(open || editing !== null, onIdle);
+  const [removing, setRemoving] = useState(false);
+  const selection = useSelection();
+  useMenuIdle(open || editing !== null || removing, onIdle);
   const { current, finished, onPlayNext, canPlayNext, markFinished, togglePlayNext } = useBookActions(book);
 
   const run = (fn: () => Promise<unknown> | void, done?: string) => async () => {
@@ -152,6 +168,8 @@ export function BookActions({
         />
         {canPlayNext ? <SheetItem label={onPlayNext ? "Remove from Play next" : "Add to Play next"} onPress={run(togglePlayNext)} /> : null}
         <SheetItem label={finished ? "Mark as not finished" : "Mark as finished"} onPress={run(() => markFinished(!finished))} />
+        {selection ? <SheetItem label="Select" onPress={run(() => selection.start(book.id))} /> : null}
+        <HideItem kind="book" id={book.id} title={book.title} onClose={onClose} onHidden={onHidden} divider={false} />
         {admin ? (
           <>
             <SheetDivider />
@@ -164,11 +182,28 @@ export function BookActions({
                 onPress={run(() => markMatched(!book.markedMatched), book.markedMatched ? "Marked as not matched" : "Marked as matched")}
               />
             ) : null}
+            <SheetItem
+              label="Remove from library…"
+              danger
+              onPress={() => {
+                onClose();
+                setRemoving(true);
+              }}
+            />
           </>
         ) : null}
-        <HideItem kind="book" id={book.id} title={book.title} onClose={onClose} onHidden={onHidden} />
       </Sheet>
-      {admin ? <BookEditSheet bookId={book.id} title={book.title} tab={editing} onClose={() => setEditing(null)} onRemoved={onRemoved} /> : null}
+      {admin ? (
+        <>
+          <BookEditSheet bookId={book.id} title={book.title} tab={editing} onClose={() => setEditing(null)} onRemoved={onRemoved} />
+          <RemoveBooksSheet
+            open={removing}
+            books={[book]}
+            onConfirm={() => void removeBooks([book]).then(onRemoved, (err: unknown) => toast.error(errorText(err)))}
+            onClose={() => setRemoving(false)}
+          />
+        </>
+      ) : null}
     </>
   );
 }

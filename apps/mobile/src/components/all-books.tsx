@@ -8,8 +8,9 @@ import { BookSortSheet, useBookSort } from "./book-sort";
 import { FilterIcon } from "./icons";
 import { GAP, PAD, useGridWidth } from "./library";
 import { BottomMiniPlayer } from "./mini-player";
-import { Empty, NestedHead, useBottomPad, useTopInset } from "./page";
+import { BackRow, Empty, useBottomPad, useTopInset } from "./page";
 import { usePullRefresh } from "./pull-refresh";
+import { SelectionProvider } from "./selection";
 import { IconButton } from "./ui";
 
 // Defined once: an inline component here would be a new type each render, remounting every gap.
@@ -37,40 +38,42 @@ export function AllBooks() {
   }, [sorted]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <FlatList
-        keyboardShouldPersistTaps="handled"
-        data={rows}
-        keyExtractor={(r) => r[0]!.id}
-        contentContainerStyle={{ paddingTop: top, paddingHorizontal: PAD, paddingBottom: bottomPad }}
-        refreshControl={refresh}
-        ListHeaderComponent={
-          <View style={{ marginBottom: 12 }}>
-            <NestedHead
-              title={BOOK_SECTION_TITLES.all}
-              right={
-                <IconButton label="Sort" onPress={() => setSortOpen(true)}>
-                  <FilterIcon color={t.text} />
-                </IconButton>
-              }
-            />
-          </View>
-        }
-        ListEmptyComponent={books.isPending ? undefined : <Empty>No books yet.</Empty>}
-        ItemSeparatorComponent={RowGap}
-        // Fewer offscreen rows kept than the default 10 screens each way; covers are cached anyway.
-        windowSize={7}
-        maxToRenderPerBatch={6}
-        renderItem={({ item }) => (
-          <View style={{ flexDirection: "row", columnGap: GAP }}>
-            {item.map((b) => (
-              <BookCard key={b.id} book={b} width={width} />
-            ))}
-          </View>
-        )}
-      />
-      <BottomMiniPlayer />
-      <BookSortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
-    </View>
+    <SelectionProvider books={sorted}>
+      <View style={{ flex: 1, backgroundColor: t.bg }}>
+        <FlatList
+          keyboardShouldPersistTaps="handled"
+          data={rows}
+          keyExtractor={(r) => r[0]!.id}
+          contentContainerStyle={{ paddingTop: top, paddingHorizontal: PAD, paddingBottom: bottomPad }}
+          refreshControl={refresh}
+          ListHeaderComponent={
+            <View style={{ marginBottom: 12 }}>
+              <BackRow
+                title={BOOK_SECTION_TITLES.all}
+                right={
+                  <IconButton label="Sort" onPress={() => setSortOpen(true)}>
+                    <FilterIcon color={t.text} />
+                  </IconButton>
+                }
+              />
+            </View>
+          }
+          ListEmptyComponent={books.isPending ? undefined : <Empty>No books yet.</Empty>}
+          ItemSeparatorComponent={RowGap}
+          // Fewer offscreen rows kept than the default 10 screens each way; covers are cached anyway.
+          windowSize={7}
+          maxToRenderPerBatch={6}
+          renderItem={({ item }) => (
+            <View style={{ flexDirection: "row", columnGap: GAP }}>
+              {item.map((b) => (
+                <BookCard key={b.id} book={b} width={width} />
+              ))}
+            </View>
+          )}
+        />
+        <BottomMiniPlayer />
+        <BookSortSheet open={sortOpen} onClose={() => setSortOpen(false)} />
+      </View>
+    </SelectionProvider>
   );
 }

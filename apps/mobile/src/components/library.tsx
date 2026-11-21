@@ -118,7 +118,11 @@ export function Group({
   );
 }
 
-/** A section heading, with its count if it has one, that opens the section's full list. */
+/**
+ * A section heading that opens the section's full list. The name ends in "…" before its count pill
+ * is cut; the sub line (an author) and the note ("1 finished") share the line under it, the note
+ * keeping its width.
+ */
 export function SectionHead({
   title,
   count,
@@ -134,17 +138,29 @@ export function SectionHead({
 }) {
   const t = useTheme();
   return (
-    <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
-      <Pressable accessibilityRole="link" onPress={onOpen} style={{ flexShrink: 1, gap: 2 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Text variant="heading" numberOfLines={1} style={{ flexShrink: 1 }}>
-            {title}
+    <Pressable accessibilityRole="link" onPress={onOpen} style={{ gap: 2, marginBottom: 12 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Text variant="heading" numberOfLines={1} style={{ flexShrink: 1 }}>
+          {title}
+        </Text>
+        {count !== undefined ? (
+          <View style={{ flexShrink: 0 }}>
+            <NumberBadge value={count} />
+          </View>
+        ) : null}
+      </View>
+      {sub || side ? (
+        <View style={{ flexDirection: "row", alignItems: "baseline", gap: 12 }}>
+          <Text variant="small" numberOfLines={1} style={{ flex: 1, minWidth: 0 }}>
+            {sub ?? ""}
           </Text>
-          {count !== undefined ? <NumberBadge value={count} /> : null}
+          {side ? (
+            <Text variant="small" numberOfLines={1} style={{ flexShrink: 0, color: t.muted }}>
+              {side}
+            </Text>
+          ) : null}
         </View>
-        {sub ? <Text variant="small">{sub}</Text> : null}
-      </Pressable>
-      {side ? <Text variant="small" style={{ color: t.muted }}>{side}</Text> : null}
-    </View>
+      ) : null}
+    </Pressable>
   );
 }

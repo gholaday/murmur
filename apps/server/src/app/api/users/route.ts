@@ -26,6 +26,8 @@ export const POST = route(async (req) => {
       passwordHash: await hashPassword(input.password),
       isAdmin: input.isAdmin,
       createdAt: Date.now(),
+      // A new account sees the first-run steps once.
+      prefs: JSON.stringify({ onboarded: false }),
     })
     .returning()
     .get();

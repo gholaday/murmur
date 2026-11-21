@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
-import { toast } from "sonner";
+import { toast } from "./toast";
 import { type BookmarkDto, clock, createBookmarkStore, type PlayType } from "@murmur/shared/client";
 import { api, refused } from "./api";
 import { getJson, removeKey, setJson } from "./storage";

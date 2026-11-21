@@ -22,6 +22,60 @@ export function firstTab(tabs: UserPrefs["tabs"]): LibrarySection | "podcasts" |
   return librarySections(tabs)[0] ?? (tabs.podcasts ? "podcasts" : "you");
 }
 
+/** Settings' tabs on You, in order. Library, Users and Server are for admins. */
+export type SettingsTab = "playback" | "appearance" | "podcasts" | "account" | "library" | "users" | "server";
+
+export const SETTINGS_TABS: ReadonlyArray<{ id: SettingsTab; label: string; admin?: boolean }> = [
+  { id: "playback", label: "Playback" },
+  { id: "appearance", label: "Appearance" },
+  { id: "podcasts", label: "Podcasts" },
+  { id: "account", label: "Account" },
+  { id: "library", label: "Library", admin: true },
+  { id: "users", label: "Users", admin: true },
+  { id: "server", label: "Server", admin: true },
+];
+
+/** The tabs this person sees. Podcasts' settings only matter while its tab shows, except to admins. */
+export function settingsTabs(isAdmin: boolean, tabs: UserPrefs["tabs"]): SettingsTab[] {
+  return SETTINGS_TABS.filter((t) => (isAdmin || !t.admin) && (t.id !== "podcasts" || isAdmin || tabs.podcasts)).map((t) => t.id);
+}
+
+/** The settings tab a /you/<id> address names; the old /you/tabs is now on Appearance. */
+export function settingsTabFor(id: string): SettingsTab | null {
+  if (id === "tabs") return "appearance";
+  return SETTINGS_TABS.some((t) => t.id === id) ? (id as SettingsTab) : null;
+}
+
+const RELEASES = "https://github.com/gholaday/murmur/releases";
+
+/** The Android app for this server's version, from its GitHub release; a dev build gets the releases page. */
+export function androidAppUrl(version: string, devBuild: boolean): string {
+  return devBuild ? `${RELEASES}/latest` : `${RELEASES}/download/v${version}/murmur-${version}.apk`;
+}
+
+/**
+ * First-run steps, shown once per person, each with Skip: what's on the server (admins only),
+ * which tabs to show, podcasts, and the app (on the web only; the app is already there).
+ */
+export type OnboardingStep = "library" | "tabs" | "podcasts" | "app";
+
+export const ONBOARDING_TITLES: Record<OnboardingStep, { title: string; sub: string }> = {
+  library: { title: "Your library", sub: "Murmur found these folders on the server. Scanning carries on while you set up." },
+  tabs: { title: "Choose what you see", sub: "Turn on what you'll use. You can change this later in You." },
+  podcasts: { title: "Your podcasts", sub: "Bring them over from another app, or find new ones." },
+  app: { title: "Listen on your phone", sub: "The Android app plays offline and in the car. On iPhone, use this page." },
+};
+
+export function onboardingSteps(isAdmin: boolean, surface: "web" | "app"): OnboardingStep[] {
+  const steps: OnboardingStep[] = isAdmin ? ["library", "tabs", "podcasts"] : ["tabs", "podcasts"];
+  return surface === "web" ? [...steps, "app"] : steps;
+}
+
+/** The step's place: "2 of 4". */
+export function stepLabel(step: OnboardingStep, steps: readonly OnboardingStep[]): string {
+  return `${steps.indexOf(step) + 1} of ${steps.length}`;
+}
+
 export type ThemeChoice = "system" | "dark" | "light";
 
 export const THEME_CHOICES: { id: ThemeChoice; label: string }[] = [

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ScrollView, View } from "react-native";
 import Animated from "react-native-reanimated";
+import { useLocalSearchParams } from "expo-router";
 import { newByShow, PODCAST_LIST_TITLES, PODCAST_SECTION_SIZE, PODCAST_TABS, type PodcastTab, sortShows } from "@murmur/shared/client";
 import { BrowseBody } from "@/components/browse";
 import { EpisodeRow } from "@/components/episode-row";
@@ -22,8 +23,9 @@ export default function Podcasts() {
   const top = useTopInset();
   const gridWidth = useGridWidth();
   const continueWidth = useContinueWidth();
-  // Kept while the tab stays mounted, like Music's.
-  const [tab, setTab] = useState<PodcastTab>("home");
+  // Kept while the tab stays mounted, like Music's. Onboarding's Find shows opens it on Browse.
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState<PodcastTab>(params.tab === "browse" ? "browse" : "home");
   const tabFade = useTabFade(tab);
   // Browse's box, kept across a show's preview and back.
   const [query, setQuery] = useState("");

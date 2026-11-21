@@ -14,7 +14,8 @@ import { Cover } from "../cover";
 import { CheckIcon, PauseIcon, PlayIcon, QueueAddIcon } from "../icons";
 import { bookToPlayable, usePlayerControls, usePlayerSelect, usePosition } from "../player/engine";
 import { Description, HeroBar, SectionTitle } from "../ui";
-import { BookMenuItems, useBookActions } from "./book-actions";
+import { RemoveBooksSheet } from "../library/selection";
+import { BookMenuItems, useBookActions, useRemoveBook } from "./book-actions";
 import { EditBookDialog, type EditTab } from "./edit-dialog";
 
 export function BookView({ book, bookmarks: firstBookmarks }: { book: BookDetail; bookmarks: BookmarkDto[] }) {
@@ -25,6 +26,8 @@ export function BookView({ book, bookmarks: firstBookmarks }: { book: BookDetail
   const bookmarks = useBookmarks("book", book.id, firstBookmarks);
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState<EditTab | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const remover = useRemoveBook(() => router.replace("/"));
   const { current, playing, finished, canPlayNext, onPlayNext, markFinished, togglePlayNext } = useBookActions(book);
   const loading = usePlayerSelect((p) => current && p.loading);
 
@@ -166,8 +169,14 @@ export function BookView({ book, bookmarks: firstBookmarks }: { book: BookDetail
         open={menu}
         onClose={() => setMenu(false)}
         title={book.title}
-        items={(choose) => <BookMenuItems book={book} edit={(_, tab) => setEditing(tab)} choose={choose} after={leave("/")} />}
+        items={(choose) => (
+          <BookMenuItems book={book} edit={(_, tab) => setEditing(tab)} remove={() => setRemoving(true)} choose={choose} after={leave("/")} />
+        )}
       />
+
+      {isAdmin ? (
+        <RemoveBooksSheet open={removing} books={[book]} busy={remover.busy} onConfirm={() => void remover.remove(book)} onClose={() => setRemoving(false)} />
+      ) : null}
 
       {isAdmin && editing ? (
         <EditBookDialog

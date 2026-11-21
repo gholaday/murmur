@@ -4,22 +4,27 @@ import { GestureDetector, GestureHandlerRootView, ScrollView, usePanGesture } fr
 import Animated, { Easing, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
-import type { HiddenChange } from "@murmur/shared/client";
+import { apiPaths, type HiddenChange, removeConfirm } from "@murmur/shared/client";
 import { selectHaptic } from "@/lib/haptics";
 import { hide, useCanHideAndLike } from "@/lib/hidden";
 import { fonts, useTheme } from "@/theme";
-import { CheckIcon, ChevronIcon, EyeOffIcon } from "./icons";
+import { Cover } from "./cover";
+import { CheckIcon, ChevronIcon } from "./icons";
 import { type SortableScroll, SortableScrollProvider } from "./sortable-list";
 import { Toaster, useToastLayer } from "./toast";
 import { Button, InSheet, Text } from "./ui";
 
-/** "Are you sure?" for actions that delete something: an optional message, then Cancel and the action. */
+/**
+ * "Are you sure?" for actions that delete something, centred like the web's on a phone: optional
+ * pictures of what it's about, the title, a muted line, then the action full width over Cancel.
+ */
 export function ConfirmSheet({
   open,
   title,
   message,
   confirmLabel,
   danger,
+  art,
   onConfirm,
   onClose,
 }: {
@@ -29,27 +34,79 @@ export function ConfirmSheet({
   confirmLabel: string;
   /** The confirm button in the danger colour, for deleting something saved on the server. */
   danger?: boolean;
+  /** Above the title, e.g. the covers of the books being removed. */
+  art?: React.ReactNode;
   onConfirm: () => void;
   onClose: () => void;
 }) {
+  const t = useTheme();
   return (
-    <Sheet open={open} onClose={onClose} title={title}>
-      <View style={{ paddingHorizontal: 12, gap: 14, paddingBottom: 8 }}>
-        {message ? <Text>{message}</Text> : null}
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          <Button label="Cancel" kind="secondary" onPress={onClose} style={{ flex: 1 }} />
-          <Button
-            label={confirmLabel}
-            kind={danger ? "danger" : "primary"}
-            onPress={() => {
-              onClose();
-              onConfirm();
-            }}
-            style={{ flex: 1 }}
-          />
-        </View>
+    <Sheet open={open} onClose={onClose}>
+      <View accessibilityRole="alert" style={{ alignItems: "center", paddingHorizontal: 12, paddingTop: 12 }}>
+        {art ? <View style={{ marginBottom: 16 }}>{art}</View> : null}
+        <Text style={{ fontFamily: fonts.extrabold, fontSize: 22, color: t.text, textAlign: "center" }}>{title}</Text>
+        {message ? (
+          <Text style={{ marginTop: 6, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, color: t.muted, textAlign: "center", maxWidth: 320 }}>{message}</Text>
+        ) : null}
+        <Button
+          label={confirmLabel}
+          kind={danger ? "danger" : "primary"}
+          onPress={() => {
+            onClose();
+            onConfirm();
+          }}
+          style={{ alignSelf: "stretch", marginTop: 22 }}
+        />
+        <Pressable
+          accessibilityRole="button"
+          onPress={onClose}
+          style={({ pressed }) => ({ alignSelf: "stretch", height: 48, marginTop: 6, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.6 : 1 })}
+        >
+          <Text style={{ fontFamily: fonts.bold, fontSize: 15, color: t.text }}>Cancel</Text>
+        </Pressable>
       </View>
     </Sheet>
+  );
+}
+
+type BookLike = { id: string; title: string; coverHash: string | null; coverColor?: string | null };
+
+/** The covers of up to three books, overlapping. */
+export const BookCoverStack = ({ books, size }: { books: BookLike[]; size?: number }) => (
+  <CoverStack
+    size={size}
+    covers={books.map((b) => ({ key: b.id, path: b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 200) : null, title: b.title, color: b.coverColor }))}
+  />
+);
+
+/** Remove from library's confirm, for one book or several; `onConfirm` runs once it's closed. */
+export function RemoveBooksSheet({ open, books, onConfirm, onClose }: { open: boolean; books: BookLike[]; onConfirm: () => void; onClose: () => void }) {
+  const c = removeConfirm(books.length, "book", books.length === 1 ? books[0]!.title : undefined);
+  return (
+    <ConfirmSheet
+      open={open}
+      title={c.title}
+      message={c.message}
+      confirmLabel={c.action}
+      danger
+      art={books.length ? <BookCoverStack books={books} /> : null}
+      onConfirm={onConfirm}
+      onClose={onClose}
+    />
+  );
+}
+
+/** Up to three covers overlapping, for a confirm or edit about several books. */
+function CoverStack({ covers, size = 56 }: { covers: { key: string; path: string | null; title: string; color?: string | null }[]; size?: number }) {
+  const t = useTheme();
+  return (
+    <View style={{ flexDirection: "row" }}>
+      {covers.slice(0, 3).map((c, i) => (
+        <View key={c.key} style={{ marginLeft: i ? -Math.round(size * 0.54) : 0, borderRadius: 10, borderWidth: 3, borderColor: t.surface }}>
+          <Cover path={c.path} title={c.title} color={c.color} size={size} radius={8} />
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -353,14 +410,12 @@ export function HideItem({
   onHidden,
   divider = true,
 }: HiddenChange & { title: string; onClose: () => void; onHidden?: () => void; divider?: boolean }) {
-  const t = useTheme();
   if (!useCanHideAndLike()) return null;
   return (
     <>
       {divider ? <SheetDivider /> : null}
       <SheetItem
         label="Hide"
-        icon={<EyeOffIcon size={20} color={t.text} />}
         onPress={() => {
           onClose();
           hide({ kind, id }, title, onHidden);
@@ -382,12 +437,9 @@ export function SheetItem({
   hint,
   value,
   chevron,
-  icon,
 }: {
   label: string;
   onPress: () => void;
-  /** Drawn before the label, e.g. Hide's eye. */
-  icon?: React.ReactNode;
   active?: boolean;
   danger?: boolean;
   disabled?: boolean;
@@ -422,14 +474,11 @@ export function SheetItem({
         opacity: disabled ? 0.4 : 1,
       })}
     >
-      <View style={{ flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 12 }}>
-        {icon}
-        <View style={{ flexShrink: 1, gap: 2 }}>
-          <Text style={{ fontFamily: active ? fonts.bold : fonts.medium, fontSize: 16, color: danger ? t.danger : active ? t.accent : t.text }}>
-            {label}
-          </Text>
-          {hint ? <Text variant="small">{hint}</Text> : null}
-        </View>
+      <View style={{ flexShrink: 1, gap: 2 }}>
+        <Text style={{ fontFamily: active ? fonts.bold : fonts.medium, fontSize: 16, color: danger ? t.danger : active ? t.accent : t.text }}>
+          {label}
+        </Text>
+        {hint ? <Text variant="small">{hint}</Text> : null}
       </View>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 0 }}>
         {value ? <Text variant="small">{value}</Text> : null}
