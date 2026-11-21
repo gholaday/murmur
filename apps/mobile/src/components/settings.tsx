@@ -339,14 +339,14 @@ function LinkRow({ title, value, badge, href }: { title: string; value?: string 
   );
 }
 
-/** Rows' placeholders while a group loads. */
+/** Rows' placeholders while a group loads: the title on the left, its value on the right, like SetRow. */
 function GroupBones({ label, rows }: { label: string; rows: number }) {
   return (
     <Group label={label}>
       {Array.from({ length: rows }, (_, i) => (
-        <Skeleton key={i} style={{ minHeight: 56, justifyContent: "center", gap: 8 }}>
-          <Bone width="45%" height={15} />
-          <Bone width="30%" height={12} />
+        <Skeleton key={i} style={{ minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <Bone width={i % 2 ? "35%" : "45%"} height={15} />
+          <Bone width={70} height={13} />
         </Skeleton>
       ))}
     </Group>

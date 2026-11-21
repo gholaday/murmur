@@ -10,7 +10,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
-import { Grid, useGridWidth } from "./library";
+import { GAP, Grid, PAD, useGridWidth, useShelfWidth } from "./library";
 import { useTheme } from "@/theme";
 
 // Loading placeholders in the shape of the real screen, like the web's skeletons.tsx, and
@@ -76,14 +76,14 @@ export function SectionBone({ width = 140 }: { width?: number }) {
   return <Bone width={width} height={18} style={{ marginTop: 28, marginBottom: 14 }} />;
 }
 
-/** Covers three across, each with two lines under it, like the book and podcast grids. */
-export function CoverGridBones({ count = 9 }: { count?: number }) {
+/** Covers three across, each with two lines under it, like the book and podcast grids; 1.5 `aspect` for posters. */
+export function CoverGridBones({ count = 9, aspect = 1 }: { count?: number; aspect?: number }) {
   const width = useGridWidth();
   return (
     <Grid>
       {Array.from({ length: count }, (_, i) => (
         <View key={i} style={{ width, gap: 6 }}>
-          <Bone width={width} height={width} radius={10} />
+          <Bone width={width} height={Math.round(width * aspect)} radius={10} />
           <Bone width="85%" height={13} style={{ marginTop: 2 }} />
           <Bone width="60%" height={11} />
         </View>
@@ -92,12 +92,52 @@ export function CoverGridBones({ count = 9 }: { count?: number }) {
   );
 }
 
-/** A row with a square thumbnail and lines beside it, for episodes and the queue. */
+/**
+ * A row of text tabs while it loads: short bars spaced like TextTabs, on its hairline. Never pills,
+ * like the web's.
+ */
+export function TabBones({ widths, gap = 24, style }: { widths: number[]; gap?: number; style?: StyleProp<ViewStyle> }) {
+  const t = useTheme();
+  return (
+    <View style={[{ flexDirection: "row", gap, paddingTop: 10, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: t.line }, style]}>
+      {widths.map((w, i) => (
+        <View key={i} style={{ height: 20, justifyContent: "center" }}>
+          <Bone width={w} height={14} radius={4} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * A section heading, then a sideways shelf of covers running off the edge, each with two lines
+ * under it. `aspect` is a cover's height over its width: 1.5 for posters, 9 / 16 for stills.
+ */
+export function ShelfBones({ titleWidth = 140, cardWidth, aspect = 1 }: { titleWidth?: number; cardWidth?: number; aspect?: number }) {
+  const shelfWidth = useShelfWidth();
+  const width = cardWidth ?? shelfWidth;
+  return (
+    <View>
+      <SectionBone width={titleWidth} />
+      <View style={{ flexDirection: "row", columnGap: GAP, marginRight: -PAD, overflow: "hidden" }}>
+        {[0, 1, 2].map((i) => (
+          <View key={i} style={{ width, gap: 6 }}>
+            <Bone width={width} height={Math.round(width * aspect)} radius={10} />
+            <Bone width="85%" height={13} style={{ marginTop: 2 }} />
+            <Bone width="60%" height={11} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** A row with a square thumbnail (none at 0) and lines beside it, for episodes and the queue. */
 export function ListRowBone({ thumb = 52, lines = 2, buttons = 0 }: { thumb?: number; lines?: number; buttons?: number }) {
   const widths = ["40%", "80%", "30%"] as const;
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 }}>
-      <Bone width={thumb} height={thumb} radius={8} />
+      {thumb ? <Bone width={thumb} height={thumb} radius={8} /> : null}
       <View style={{ flex: 1, gap: 8 }}>
         {Array.from({ length: lines }, (_, i) => (
           <Bone key={i} width={widths[i % widths.length]} height={i === 1 ? 14 : 11} />

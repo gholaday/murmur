@@ -20,9 +20,9 @@ import { CloseIcon, FilterIcon, MoreIcon, SearchIcon } from "@/components/icons"
 import { PAD } from "@/components/library";
 import { BackRow, Empty, NestedFallback, useBottomPad, useTopInset } from "@/components/page";
 import { Sheet, SheetItem } from "@/components/sheet";
-import { FadeIn } from "@/components/skeleton";
+import { FadeIn, Skeleton } from "@/components/skeleton";
 import { usePullRefresh } from "@/components/pull-refresh";
-import { ShowActions, ShowHero, ShowHeroBones, UnsubscribeSheet } from "@/components/podcasts";
+import { EpisodeRowBones, ShowActions, ShowHero, ShowHeroBones, UnsubscribeSheet } from "@/components/podcasts";
 import { StickyHeading, useStickyHeading } from "@/components/sticky-heading";
 import { TextTabs, useTabFade } from "@/components/text-tabs";
 import { Button, IconButton, Text } from "@/components/ui";
@@ -31,7 +31,7 @@ import { useEpisodes, useFirstEpisodes, usePodcast } from "@/lib/data";
 import { useHasDirectory } from "@/lib/directory";
 import { fonts, useTheme } from "@/theme";
 
-type Item = "top" | "heading" | "empty" | "bookmarks" | "morelike" | EpisodeWithShow;
+type Item = "top" | "heading" | "loading" | "empty" | "bookmarks" | "morelike" | EpisodeWithShow;
 
 /** A podcast's bookmarks by episode, the most recently bookmarked first. */
 function byEpisode(bookmarks: BookmarkDto[]): BookmarkDto[][] {
@@ -128,8 +128,8 @@ export default function ShowScreen() {
     if (shownTab === "morelike") return ["top", "heading", "morelike"];
     // Unplayed waits for the full list, so it never shows the first page's unplayed as all of them.
     // Offline the fetch pauses rather than runs, and whatever is cached shows.
-    if (shownTab === "unplayed" && !complete && full.isFetching) return ["top", "heading"];
-    if (!data && (first.isFetching || full.isFetching)) return ["top", "heading"];
+    if (shownTab === "unplayed" && !complete && full.isFetching) return ["top", "heading", "loading"];
+    if (!data && (first.isFetching || full.isFetching)) return ["top", "heading", "loading"];
     return visible.length ? ["top", "heading", ...visible] : ["top", "heading", "empty"];
   }, [data, first.isFetching, full.isFetching, visible, shownTab, complete]);
 
@@ -262,6 +262,10 @@ export default function ShowScreen() {
               topBlock
             ) : item === "heading" ? (
               heading
+            ) : item === "loading" ? (
+              <Skeleton style={{ paddingHorizontal: PAD }}>
+                <EpisodeRowBones />
+              </Skeleton>
             ) : item === "empty" ? (
               <Reanimated.View style={tabFade}>
                 {q ? (

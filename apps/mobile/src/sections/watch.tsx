@@ -5,11 +5,11 @@ import { FilterIcon } from "@/components/icons";
 import { GAP, gridRows, PAD, Shelf, useGridWidth, useShelfWidth } from "@/components/library";
 import { Empty, LibraryTitle, SectionTitle, useTopInset } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
-import { CoverGridBones, Skeleton } from "@/components/skeleton";
+import { CoverGridBones, ShelfBones, Skeleton } from "@/components/skeleton";
 import Animated from "react-native-reanimated";
 import { TextTabs, useTabFade } from "@/components/text-tabs";
 import { IconButton } from "@/components/ui";
-import { type PosterItem, PosterCard, StillCard, useWatchSort, WatchSortSheet } from "@/components/watch";
+import { type PosterItem, PosterCard, STILL_CARD_WIDTH, StillCard, useWatchSort, WatchSortSheet } from "@/components/watch";
 import { useDownloads } from "@/lib/downloads";
 import { useSectionJumps } from "@/lib/library";
 import { useOnline } from "@/lib/query";
@@ -119,6 +119,7 @@ export function WatchSection() {
   const noFolder = home.data?.enabled === false;
   const loading = movies.isPending || shows.isPending || (tab === "home" && home.isPending);
   const failed = movies.error ?? shows.error ?? (tab === "home" ? home.error : null);
+  const gridView = tab !== "home" || !online;
 
   // The title row and tabs stay put above the list.
   const header = (
@@ -144,7 +145,14 @@ export function WatchSection() {
     </Empty>
   ) : loading ? (
     <Skeleton>
-      <CoverGridBones count={6} />
+      {gridView ? (
+        <CoverGridBones count={6} aspect={1.5} />
+      ) : (
+        <View style={{ marginTop: -28 }}>
+          <ShelfBones titleWidth={170} cardWidth={STILL_CARD_WIDTH} aspect={9 / 16} />
+          <ShelfBones titleWidth={190} aspect={1.5} />
+        </View>
+      )}
     </Skeleton>
   ) : failed ? (
     <Empty title="Couldn't load Watch">{failed.message}</Empty>
@@ -160,7 +168,6 @@ export function WatchSection() {
     <Empty title={tab === "movies" ? "No movies yet" : "No shows yet"}>They show up here once the scan finds them.</Empty>
   );
 
-  const gridView = tab !== "home" || !online;
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       {header}

@@ -1,23 +1,41 @@
 /**
  * Placeholders shown while a page loads on the server (see each route's loading.tsx).
- * They follow the real layouts so nothing jumps when the content fades in.
+ * They follow the real layouts so nothing jumps when the content fades in. Text tabs load as
+ * short bars on a hairline (Tabs), never as pills.
  */
+
+import { LibraryTitle } from "./library/library-title";
 
 const Line = ({ width, height }: { width: number | string; height?: number }) => (
   <div className="skel skel-line" style={{ width, height }} />
 );
 
-function CardGrid({ count }: { count: number }) {
+/** A row of text tabs while it loads. */
+function Tabs({ widths }: { widths: number[] }) {
   return (
-    <div className="grid">
-      {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="card">
-          <div className="skel skel-cover" />
-          <Line width="80%" />
-          <Line width="55%" height={10} />
-        </div>
+    <div className="skel-tabs">
+      {widths.map((w, i) => (
+        <Line key={i} width={w} height={14} />
       ))}
     </div>
+  );
+}
+
+/** A section's title, then one sideways row of cards. */
+function Shelf({ title }: { title: number }) {
+  return (
+    <section className="section">
+      <Line width={title} height={16} />
+      <div className="shelf" style={{ overflow: "hidden" }}>
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className="card">
+            <div className="skel skel-cover" />
+            <Line width="80%" />
+            <Line width="55%" height={10} />
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -68,19 +86,20 @@ export function QueueRowsSkeleton({ count = 5 }: { count?: number }) {
   );
 }
 
+/** Books home: the section titles, the tabs, then shelves of cards. */
 export function LibrarySkeleton() {
   return (
     <div className="skeleton" aria-busy="true" aria-label="Loading library">
-      <Head title="Books" />
-      <div className="chips">
-        {[76, 84, 72, 84].map((w, i) => (
-          <div key={i} className="skel skel-pill" style={{ width: w }} />
-        ))}
+      <div className="library-head">
+        <div className="page-head">
+          <LibraryTitle current="books" />
+        </div>
+        <Tabs widths={[44, 56, 46, 60]} />
       </div>
-      <section className="section">
-        <Line width={140} height={16} />
-        <CardGrid count={12} />
-      </section>
+      <div style={{ marginTop: 16 }}>
+        <Shelf title={150} />
+        <Shelf title={110} />
+      </div>
     </div>
   );
 }
@@ -88,11 +107,9 @@ export function LibrarySkeleton() {
 export function PodcastsSkeleton() {
   return (
     <div className="skeleton" aria-busy="true" aria-label="Loading podcasts">
-      <Head title="Podcasts" />
-      <div className="chips">
-        {[64, 64].map((w, i) => (
-          <div key={i} className="skel skel-pill" style={{ width: w }} />
-        ))}
+      <div className="sticky-head">
+        <Head title="Podcasts" />
+        <Tabs widths={[44, 50, 52]} />
       </div>
       <section className="section">
         <Line width={170} height={16} />
@@ -120,11 +137,7 @@ export function SettingsSkeleton() {
       </section>
       <section className="section">
         <Line width={110} height={22} />
-        <div style={{ display: "flex", gap: 24, height: 44, alignItems: "center", marginTop: 8 }}>
-          {[64, 92, 72, 68].map((w) => (
-            <Line key={w} width={w} height={14} />
-          ))}
-        </div>
+        <Tabs widths={[64, 92, 72, 68]} />
       </section>
       {[2, 2].map((rows, s) => (
         <div key={s} className="set-group" style={{ marginTop: s ? 36 : 20 }}>
@@ -141,18 +154,22 @@ export function SettingsSkeleton() {
   );
 }
 
+/** Music home: the section titles, the tabs, a shelf, a few song rows, another shelf. */
 export function MusicSkeleton() {
   return (
     <div className="skeleton" aria-busy="true" aria-label="Loading music">
-      <Head title="Music" />
-      <div className="skel" style={{ height: 72, marginBottom: 14, borderRadius: "var(--radius)" }} />
-      <div className="chips">
-        {[76, 72, 68, 86].map((w, i) => (
-          <div key={i} className="skel skel-pill" style={{ width: w }} />
-        ))}
+      <div className="library-head">
+        <div className="page-head">
+          <LibraryTitle current="music" />
+        </div>
+        <Tabs widths={[44, 40, 64, 52, 48]} />
       </div>
       <div style={{ marginTop: 16 }}>
-        <CardGrid count={12} />
+        <Shelf title={120} />
+        <section className="section">
+          <Line width={100} height={16} />
+          <Rows count={3} />
+        </section>
       </div>
     </div>
   );
@@ -160,7 +177,8 @@ export function MusicSkeleton() {
 
 /**
  * A detail page while it loads: back row, then the cover beside its title (album, playlist, podcast)
- * or above it (book), or a round photo (artist), the Play button, and rows.
+ * or above it on phones, or a round photo (artist), then the Play button, or a podcast's
+ * description and tabs, and rows.
  */
 export function DetailSkeleton({ kind }: { kind: "book" | "album" | "video" | "artist" | "podcast" }) {
   const back = (
@@ -187,18 +205,22 @@ export function DetailSkeleton({ kind }: { kind: "book" | "album" | "video" | "a
       ) : (
         <div className="book-hero">
           <div
-            className="skel"
-            style={kind === "video" ? { width: 150, aspectRatio: "2 / 3", borderRadius: 12 } : { width: 196, aspectRatio: "1 / 1", borderRadius: 12 }}
+            className={kind === "video" ? "skel cover poster" : "skel cover"}
+            style={{ aspectRatio: kind === "video" ? "2 / 3" : "1 / 1" }}
           />
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>{lines}</div>
+          <div className="skel-hero-text">{lines}</div>
         </div>
       )}
       {kind === "podcast" ? (
-        <div className="chips" style={{ marginTop: 28 }}>
-          {[76, 76, 86].map((w, i) => (
-            <div key={i} className="skel skel-pill" style={{ width: w }} />
-          ))}
-        </div>
+        <>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
+            <Line width="90%" />
+            <Line width="60%" />
+          </div>
+          <div style={{ marginTop: 20 }}>
+            <Tabs widths={[66, 64, 62]} />
+          </div>
+        </>
       ) : kind === "artist" ? null : (
         <div className="actions">
           <div className="skel btn-big" />

@@ -96,6 +96,7 @@ Use tabular figures wherever numbers sit in a column or tick over.
 
 - Short and functional: pages, and views switched by text tabs, fade in over 220ms, sheets and the player rise 24px over about 200ms (and a sheet sinks away again as it closes, its backdrop fading with it), covers fade in once loaded, dragged rows slide out of the way. All of it stops under `prefers-reduced-motion`.
 - On the app and the web at phone width, the full player minimises like a sheet: a pull down that starts on its top bar or cover moves it with the finger, showing the screen below, and closes it past a quarter of the screen (120 points on the app) or on a quick flick; otherwise it springs back. A tap on the bar's buttons still works. Below the cover, drags stay with the slider and controls.
+- While a page loads, its skeleton (`web/skeletons.tsx`) draws the real layout in shimmering `surface-2` shapes: the same title row, text tabs as short bars on their hairline (never pills), then the shelves, rows or hero the page shows first. No spinners for page loads.
 - Focus is a 2px `accent` outline, offset 2px. Disabled is 45% opacity. Hover on icon buttons is a 7% `text` wash.
 - Selected chips switch to `accent` with `on-accent` text; a selected text tab turns `text` over an `accent` underline. The playing row's title turns `accent`.
 

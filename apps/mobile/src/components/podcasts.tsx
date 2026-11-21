@@ -30,7 +30,7 @@ import { PAD } from "./library";
 import { Mixer, useNowPlaying } from "./mixer";
 import { ActionButton } from "./music";
 import { ConfirmSheet, Sheet, SheetItem, useCardMenu, useMenuIdle } from "./sheet";
-import { Bone, Skeleton } from "./skeleton";
+import { Bone, ListRowBone, Skeleton, TabBones } from "./skeleton";
 import { ACTION_HEIGHT, NumberBadge, Text } from "./ui";
 
 // The Shows tab's sort, kept for the whole session.
@@ -152,15 +152,28 @@ export function SubscribeButton({ busy, onPress }: { busy: boolean; onPress: () 
   );
 }
 
-/** ShowHero's shape while the show loads; a preview has the Subscribe button, then the tab or heading row. */
+/**
+ * A podcast page while the show loads: the hero (and a preview's Subscribe button), two lines of
+ * description, the tabs, then episode rows.
+ */
 export function ShowHeroBones({ preview }: { preview?: boolean }) {
   return (
     <Skeleton>
       <HeroBones />
       {preview ? <Bone height={ACTION_HEIGHT} radius={ACTION_HEIGHT / 2} style={{ marginTop: 22 }} /> : null}
-      <Bone width="70%" height={18} style={{ marginTop: 32 }} />
+      <View style={{ marginTop: 18, gap: 8 }}>
+        <Bone width="90%" height={14} />
+        <Bone width="60%" height={14} />
+      </View>
+      <TabBones widths={preview ? [66, 62] : [66, 64, 62]} gap={20} style={{ marginTop: 14 }} />
+      <EpisodeRowBones />
     </Skeleton>
   );
+}
+
+/** Episode rows while a podcast's episodes load. */
+export function EpisodeRowBones({ count = 4 }: { count?: number }) {
+  return Array.from({ length: count }, (_, i) => <ListRowBone key={i} thumb={0} lines={3} />);
 }
 
 /** Width of a Continue listening card: wide, with the next one peeking in at the edge. */

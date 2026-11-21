@@ -30,7 +30,7 @@ import { Empty, LibraryTitle, useTopInset } from "@/components/page";
 import { SmallButton, useHealth } from "@/components/settings";
 import { useBookSort } from "@/components/book-sort";
 import { usePullRefresh } from "@/components/pull-refresh";
-import { CoverGridBones, FadeIn, SectionBone, Skeleton, useJustLoaded } from "@/components/skeleton";
+import { FadeIn, ShelfBones, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { useCardMenu } from "@/components/sheet";
 import { SelectionProvider, useSelection } from "@/components/selection";
 import { DragHandle, SortableList, SortableScrollProvider, useSortableScroll } from "@/components/sortable-list";
@@ -180,9 +180,9 @@ export function BooksSection() {
   if (books.isPending) {
     content = (
       <View style={{ flex: 1, paddingHorizontal: PAD }}>
-        <Skeleton>
-          <SectionBone />
-          <CoverGridBones />
+        <Skeleton style={{ marginTop: -4 }}>
+          <ShelfBones titleWidth={150} />
+          <ShelfBones titleWidth={110} />
         </Skeleton>
       </View>
     );

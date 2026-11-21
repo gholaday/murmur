@@ -20,7 +20,7 @@ import { AlbumCard, AlbumSortSheet, ArtistCard, openArtist, PlayButton, ShuffleB
 import { Empty, LibraryTitle, SectionTitle, useTopInset } from "@/components/page";
 import { NamePlaylistSheet, NewPlaylistTile, openPlaylist, PlaylistCard } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
-import { Bone, CoverGridBones, ListRowBone, SectionBone, Skeleton } from "@/components/skeleton";
+import { CoverGridBones, ListRowBone, SectionBone, ShelfBones, Skeleton } from "@/components/skeleton";
 import { TextTabs, useTabFade } from "@/components/text-tabs";
 import { IconButton, Text } from "@/components/ui";
 import { createPlaylist, useAlbums, useArtists, useLikedMusic, useMusicHome, useMusicSummary, usePlaylists } from "@/lib/data";
@@ -180,13 +180,8 @@ export function MusicSection() {
     <Skeleton>
       {view === "home" || view === "liked" ? (
         <View style={{ marginTop: -28 }}>
-          <SectionBone />
-          <View style={{ flexDirection: "row", columnGap: GAP }}>
-            {[0, 1, 2].map((i) => (
-              <Bone key={i} width={shelfWidth} height={shelfWidth} radius={10} />
-            ))}
-          </View>
-          <SectionBone />
+          <ShelfBones titleWidth={120} />
+          <SectionBone width={100} />
           {[0, 1, 2].map((i) => (
             <ListRowBone key={i} thumb={44} />
           ))}
