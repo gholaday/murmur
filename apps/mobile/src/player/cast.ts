@@ -14,7 +14,7 @@ import {
   type MediaTrack,
   type RemoteMediaClient,
 } from "react-native-google-cast";
-import { apiPaths, type CastLinkDto, castContentType, castPrefix } from "@murmur/shared/client";
+import { apiPaths, CAST_FAILED, type CastLinkDto, castContentType, castPrefix } from "@murmur/shared/client";
 import { toast } from "@/components/toast";
 import { absolute, api } from "@/lib/api";
 import { createStore } from "@/lib/store";
@@ -346,7 +346,7 @@ export class CastPlayer {
   private failed() {
     this.active = false;
     this.playing = false;
-    toast.error("The Chromecast couldn't play this from this address.");
+    toast.error(CAST_FAILED);
     endSession();
   }
 }

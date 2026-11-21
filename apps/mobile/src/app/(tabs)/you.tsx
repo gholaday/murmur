@@ -62,7 +62,7 @@ function DownloadsRow() {
   return (
     <CardLink
       icon={<DownloadIcon size={22} color={t.accent} />}
-      title="Downloads"
+      title="Downloaded"
       sub={all.length ? `${all.length} on this phone, ${formatBytes(bytes)}` : "Nothing downloaded"}
       onPress={() => router.push("/downloads")}
     />

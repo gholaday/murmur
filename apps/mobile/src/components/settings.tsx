@@ -12,17 +12,22 @@ import {
   backupLine,
   type EpisodeCacheStatusDto,
   errorText,
+  FOLDER_KINDS,
+  type FolderKind,
   gigabytes,
   type HealthDto,
   isNewer,
   KEEP_PER_SHOW_OPTIONS,
   type LibraryAdminDto,
   type LibraryFolderDto,
+  MIN_PASSWORD,
   outOfDate,
   plural,
   QUALITY_LABEL,
   type ScanStatusDto,
   scanStatusText,
+  SHORT_NEW_PASSWORD,
+  SHORT_PASSWORD,
   type ServerVersionDto,
   type SettingsTab,
   SKIP_BACK_OPTIONS,
@@ -56,7 +61,7 @@ import { useMovies, useShows, useWatchHome } from "@/lib/watch";
 import { AD_MODES, adPrefsStore, useAdDetection, useAdPrefs } from "@/player/ad-prefs";
 import { setSkip, usePlayerSelect } from "@/player/engine";
 import { fonts, setThemeMode, useTheme, useThemeMode } from "@/theme";
-import { CheckIcon, ChevronIcon, DownloadIcon, PlusIcon, RefreshIcon } from "./icons";
+import { ChevronIcon, DownloadIcon, PlusIcon, RefreshIcon } from "./icons";
 import { ConfirmSheet, Sheet, SheetItem } from "./sheet";
 import { Bone, FadeIn, Skeleton } from "./skeleton";
 import { toast } from "./toast";
@@ -392,12 +397,12 @@ function PlaybackTab() {
         <Group label="Video">
           <ChoiceRow
             title="Converted video"
-            sub="When the server has to convert a video. 720p is easier on a small server"
+            sub="When the server has to convert a video. 720p is easier on a small server."
             value={quality}
             choices={QUALITIES}
             onPick={(q: VideoQuality) => saveVideoQuality(q)}
           />
-          <OnOffRow title="Play next episode" value={autoplayNext} onChange={saveAutoplayNext} />
+          <OnOffRow title="Play next TV episode" value={autoplayNext} onChange={saveAutoplayNext} />
         </Group>
       ) : null}
       {adDetection ? (
@@ -446,7 +451,7 @@ function AppearanceTab() {
           value={tabs.watch}
           onChange={(on) => saveTabPrefs({ ...tabs, watch: on })}
         />
-        <OnOffRow title="Podcasts" value={tabs.podcasts} onChange={(podcasts) => saveTabPrefs({ ...tabs, podcasts })} />
+        <OnOffRow title="Podcasts" sub="Follow shows by name or RSS" value={tabs.podcasts} onChange={(podcasts) => saveTabPrefs({ ...tabs, podcasts })} />
       </Group>
     </>
   );
@@ -612,7 +617,7 @@ function PasswordSheet({ open, onClose }: { open: boolean; onClose: () => void }
   };
 
   const submit = async () => {
-    if (next.length < 8) return setError("The new password needs at least 8 characters.");
+    if (next.length < MIN_PASSWORD) return setError(SHORT_NEW_PASSWORD);
     if (next !== repeat) return setError("The new passwords don't match.");
     setBusy(true);
     setError(null);
@@ -631,7 +636,7 @@ function PasswordSheet({ open, onClose }: { open: boolean; onClose: () => void }
     <Sheet open={open} onClose={close} title="Change password">
       <View style={{ paddingHorizontal: 12, gap: 12, paddingBottom: 8 }}>
         <Field label="Current password" value={current} onChangeText={setCurrent} autoComplete="current-password" {...passwordProps} />
-        <Field label="New password" placeholder="8 or more characters" value={next} onChangeText={setNext} autoComplete="new-password" {...passwordProps} />
+        <Field label="New password" placeholder={`${MIN_PASSWORD} or more characters`} value={next} onChangeText={setNext} autoComplete="new-password" {...passwordProps} />
         <Field label="Repeat new password" value={repeat} onChangeText={setRepeat} autoComplete="new-password" {...passwordProps} />
         {error ? (
           <Text variant="small" style={{ color: t.danger }} accessibilityLiveRegion="polite">
@@ -645,15 +650,6 @@ function PasswordSheet({ open, onClose }: { open: boolean; onClose: () => void }
 }
 
 // ---------- Admin: library ----------
-
-/** The kinds of folder the server reads, as the web lists them. */
-const FOLDER_KINDS = {
-  books: { item: "book", things: "books" },
-  music: { item: "album", things: "albums" },
-  movies: { item: "movie", things: "movies" },
-  shows: { item: "show", things: "shows" },
-} as const;
-type FolderKind = keyof typeof FOLDER_KINDS;
 
 export const useFolders = (kind: FolderKind) => useQuery({ queryKey: keys.libraryFolders(kind), queryFn: () => api<LibraryFolderDto[]>(apiPaths.folders[kind]) });
 
@@ -786,7 +782,7 @@ function UsersTab() {
       toast.show(`Removed ${u.username}`);
       refresh();
     } catch (err) {
-      toast.error(errorText(err));
+      toast.error(errorText(err, `Couldn't remove ${u.username}.`));
     }
   };
 
@@ -843,7 +839,7 @@ function AddUserSheet({ open, onClose, onAdded }: { open: boolean; onClose: () =
   };
 
   const add = async () => {
-    if (password.length < 8) return setError("The password needs at least 8 characters.");
+    if (password.length < MIN_PASSWORD) return setError(SHORT_PASSWORD);
     setBusy(true);
     setError(null);
     try {
@@ -862,8 +858,8 @@ function AddUserSheet({ open, onClose, onAdded }: { open: boolean; onClose: () =
     <Sheet open={open} onClose={close} title="Add a user">
       <View style={{ paddingHorizontal: 12, gap: 12, paddingBottom: 8 }}>
         <Field label="Username" value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} spellCheck={false} autoComplete="off" />
-        <Field label="Password" placeholder="8 or more characters" value={password} onChangeText={setPassword} autoComplete="new-password" {...passwordProps} />
-        <Checkbox label="Admin" checked={isAdmin} onChange={setIsAdmin} />
+        <Field label="Password" placeholder={`${MIN_PASSWORD} or more characters`} value={password} onChangeText={setPassword} autoComplete="new-password" {...passwordProps} />
+        <OnOffRow title="Admin" value={isAdmin} onChange={setIsAdmin} />
         {error ? (
           <Text variant="small" style={{ color: t.danger }} accessibilityLiveRegion="polite">
             {error}
@@ -872,40 +868,6 @@ function AddUserSheet({ open, onClose, onAdded }: { open: boolean; onClose: () =
         <Button label="Add user" onPress={() => void add()} busy={busy} disabled={!username.trim() || !password} />
       </View>
     </Sheet>
-  );
-}
-
-/** App-styled checkbox: a rounded square that fills with the accent colour when ticked. */
-function Checkbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
-  const t = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
-      onPress={() => {
-        selectHaptic();
-        onChange(!checked);
-      }}
-      style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 6 }}
-    >
-      <View
-        style={{
-          width: 20,
-          height: 20,
-          borderRadius: 6,
-          borderWidth: checked ? 0 : 1.5,
-          borderColor: t.muted,
-          backgroundColor: checked ? t.accent : "transparent",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        {checked ? <CheckIcon size={14} color={t.onAccent} /> : null}
-      </View>
-      <Text variant="bodyStrong" style={{ fontSize: 15, flexShrink: 1 }}>
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 

@@ -32,7 +32,7 @@ export function ConfirmSheet({
   title: string;
   message?: string;
   confirmLabel: string;
-  /** The confirm button in the danger colour, for deleting something saved on the server. */
+  /** The confirm button in the danger colour, for removing something. */
   danger?: boolean;
   /** Above the title, e.g. the covers of the books being removed. */
   art?: React.ReactNode;
@@ -118,6 +118,7 @@ export function RemoveDownloadSheet({ open, title, onConfirm, onClose }: { open:
       title="Remove download?"
       message={`${title} will be deleted from this phone. It stays on the server, so you can download it again.`}
       confirmLabel="Remove"
+      danger
       onConfirm={onConfirm}
       onClose={onClose}
     />

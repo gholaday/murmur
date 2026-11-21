@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import {
   androidAppUrl,
   apiPaths,
@@ -45,10 +45,7 @@ export function Welcome({
   videoFolders,
   version,
   devBuild,
-  preview,
 }: {
-  /** TEMPORARY, for testing (/welcome?preview): finishing saves nothing. Remove before release. */
-  preview?: boolean;
   isAdmin: boolean;
   tabs: UserPrefs["tabs"];
   books: number;
@@ -74,7 +71,7 @@ export function Welcome({
   const finish = async (to = "/") => {
     setLeaving(true);
     try {
-      if (!preview) await api(apiPaths.prefs, { method: "PUT", body: { onboarded: true } });
+      await api(apiPaths.prefs, { method: "PUT", body: { onboarded: true } });
       router.replace(to);
     } catch (err) {
       toast.error(errorText(err));

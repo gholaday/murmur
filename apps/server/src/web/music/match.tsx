@@ -1,8 +1,8 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- source cover thumbnails are remote */
-import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "../toast";
 import {
   ALBUM_PROVIDER_NAME,
   type AlbumCandidate,
@@ -23,8 +23,9 @@ import {
 import { api } from "../api";
 import { scoreClass, usePreviewAhead } from "../book/match-dialog";
 import { Cover } from "../cover";
-import { BackIcon, CloseIcon } from "../icons";
-import { useBackdropClose } from "../sheet";
+import { BackIcon } from "../icons";
+import { useSheetDialog } from "../sheet";
+import { ResultsSkeleton } from "../skeletons";
 
 // Album Match, built like books': the same dialog, search, results, side-by-side review and
 // classes, with an album's fields.
@@ -92,17 +93,13 @@ function canApply(preview: AlbumMatchPreview, field: AlbumMatchField): boolean {
 
 /** The admin's Match dialog for one album, like the Match tab of a book's edit dialog. */
 export function AlbumMatchDialog({ album, onClose, onApplied }: { album: AlbumSummary; onClose: () => void; onApplied: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const backdropClose = useBackdropClose(onClose);
-  useEffect(() => {
-    const el = ref.current;
-    if (el && !el.open) el.showModal();
-  }, []);
+  const { dialogProps, drag } = useSheetDialog({ onClose });
 
   return (
-    <dialog ref={ref} className="sheet wide" aria-label="Match album" onClose={onClose} {...backdropClose}>
+    <dialog className="sheet wide" aria-label="Match album" {...dialogProps}>
       <div className="edit">
-        <div className="edit-head">
+        <div className="sheet-grab" aria-hidden="true" {...drag} />
+        <div className="edit-head" {...drag}>
           <Cover className="edit-thumb" src={albumCover(album.id, album.coverHash)} color={album.coverColor} title={album.title} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="sheet-title" style={{ padding: 0 }}>
@@ -111,9 +108,6 @@ export function AlbumMatchDialog({ album, onClose, onApplied }: { album: AlbumSu
             <div className="muted small edit-sub">{`${album.title}, ${album.artist}`}</div>
             <div className="muted small edit-sub">Your files: {plural(album.trackCount, "song")}</div>
           </div>
-          <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
-            <CloseIcon />
-          </button>
         </div>
         <div className="edit-body">
           <AlbumMatchPanel albumId={album.id} onApplied={onApplied} />
@@ -207,14 +201,9 @@ function AlbumMatchPanel({ albumId, onApplied }: { albumId: string; onApplied: (
     <div className="match-panel">
       {preview ? (
         <>
-          <div className="match-bar">
-            <button type="button" className="btn" onClick={() => setPreview(null)}>
-              <BackIcon size={18} /> Results
-            </button>
-            <button type="button" className="btn btn-primary" disabled={busy || fields.length === 0} onClick={() => void apply()}>
-              {busy ? "Applying…" : fields.length ? `Apply ${fields.length} ${fields.length === 1 ? "field" : "fields"}` : "Pick a field"}
-            </button>
-          </div>
+          <button type="button" className="btn match-back" onClick={() => setPreview(null)}>
+            <BackIcon size={18} /> Results
+          </button>
           <div style={{ overflowX: "auto" }}>
             <table className="compare">
               <thead>
@@ -262,6 +251,11 @@ function AlbumMatchPanel({ albumId, onApplied }: { albumId: string; onApplied: (
               </tbody>
             </table>
           </div>
+          <div className="match-bar">
+            <button type="button" className="btn btn-primary" disabled={busy || fields.length === 0} onClick={() => void apply()}>
+              {busy ? "Applying…" : fields.length ? `Apply ${fields.length} ${fields.length === 1 ? "field" : "fields"}` : "Pick a field"}
+            </button>
+          </div>
         </>
       ) : (
         <>
@@ -276,7 +270,7 @@ function AlbumMatchPanel({ albumId, onApplied }: { albumId: string; onApplied: (
               <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Album" aria-label="Search album" />
               <input className="input" value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Artist" aria-label="Search artist" />
             </div>
-            <button type="submit" className="btn btn-primary" disabled={busy || !title.trim()}>
+            <button type="submit" className="btn" disabled={busy || !title.trim()}>
               {busy && !result ? "Searching…" : "Search"}
             </button>
           </form>
@@ -286,13 +280,6 @@ function AlbumMatchPanel({ albumId, onApplied }: { albumId: string; onApplied: (
               <p className="muted">No results.</p>
             ) : (
               <>
-                {selected ? (
-                  <div className="match-bar">
-                    <button type="button" className="btn btn-primary wide" disabled={busy || changes === 0} onClick={() => void review()}>
-                      {busy ? "Loading…" : reviewLabel(changes)}
-                    </button>
-                  </div>
-                ) : null}
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {result.candidates.map((c) => {
                     const k = keyOf(c);
@@ -323,12 +310,17 @@ function AlbumMatchPanel({ albumId, onApplied }: { albumId: string; onApplied: (
                     );
                   })}
                 </div>
+                {selected ? (
+                  <div className="match-bar">
+                    <button type="button" className="btn btn-primary" disabled={busy || changes === 0} onClick={() => void review()}>
+                      {busy ? "Loading…" : reviewLabel(changes)}
+                    </button>
+                  </div>
+                ) : null}
               </>
             )
           ) : busy ? (
-            <div className="loading-center" aria-busy="true" aria-label="Searching">
-              <div className="spinner" />
-            </div>
+            <ResultsSkeleton />
           ) : null}
         </>
       )}
@@ -338,8 +330,7 @@ function AlbumMatchPanel({ albumId, onApplied }: { albumId: string; onApplied: (
 
 /** Pick an artist's photo from Deezer's, or use the newest album's cover. */
 export function ArtistPhotoDialog({ artist, onClose, onChanged }: { artist: ArtistDetail; onClose: () => void; onChanged: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const backdropClose = useBackdropClose(onClose);
+  const { dialogProps, drag, dismiss } = useSheetDialog({ onClose });
   const [options, setOptions] = useState<ArtistPhotoOption[] | null>(null);
   const [query, setQuery] = useState(artist.name);
   const [busy, setBusy] = useState(false);
@@ -360,8 +351,6 @@ export function ArtistPhotoDialog({ artist, onClose, onChanged }: { artist: Arti
   );
 
   useEffect(() => {
-    const el = ref.current;
-    if (el && !el.open) el.showModal();
     void search();
   }, [search]);
 
@@ -371,7 +360,8 @@ export function ArtistPhotoDialog({ artist, onClose, onChanged }: { artist: Arti
       await api(apiPaths.artistPhoto(artist.id), { method: "PUT", body: { providerId } });
       toast(providerId ? "Photo changed" : "Using the album cover");
       onChanged();
-      onClose();
+      // Sinks away, then onClose.
+      dismiss();
     } catch (err) {
       toast.error(errorText(err));
       setBusy(false);
@@ -379,18 +369,16 @@ export function ArtistPhotoDialog({ artist, onClose, onChanged }: { artist: Arti
   };
 
   return (
-    <dialog ref={ref} className="sheet wide" aria-label="Change photo" onClose={onClose} {...backdropClose}>
+    <dialog className="sheet wide" aria-label="Change photo" {...dialogProps}>
       <div className="edit">
-        <div className="edit-head">
+        <div className="sheet-grab" aria-hidden="true" {...drag} />
+        <div className="edit-head" {...drag}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="sheet-title" style={{ padding: 0 }}>
               Change photo
             </div>
             <div className="muted small edit-sub">{artist.name}</div>
           </div>
-          <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
-            <CloseIcon />
-          </button>
         </div>
         <div className="edit-body">
           <div className="match-panel">
@@ -403,15 +391,13 @@ export function ArtistPhotoDialog({ artist, onClose, onChanged }: { artist: Arti
             >
               <div className="form-row">
                 <input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Artist" aria-label="Search artist" />
-                <button type="submit" className="btn btn-primary" disabled={busy || !query.trim()}>
+                <button type="submit" className="btn" disabled={busy || !query.trim()}>
                   Search
                 </button>
               </div>
             </form>
             {options === null ? (
-              <div className="loading-center" aria-busy="true" aria-label="Searching">
-                <div className="spinner" />
-              </div>
+              <ResultsSkeleton round />
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {options.map((o) => (

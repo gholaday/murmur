@@ -22,8 +22,7 @@ import { editBooks, fetchBook, removeBooks, useBooks } from "@/lib/data";
 import { downloadBook, getDownload } from "@/lib/downloads";
 import { hideBooks, useCanHideAndLike } from "@/lib/hidden";
 import { useIsAdmin } from "@/lib/session";
-import { isCurrent, markCurrent, usePlayerSelect } from "@/player/engine";
-import { queueProgress } from "@/player/progress";
+import { currentMarkTarget, isCurrent, markProgress, usePlayerSelect } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { useSeriesSuggest } from "./book-edit";
 import { CheckIcon, CloseIcon, DownloadIcon, MoreIcon } from "./icons";
@@ -158,19 +157,18 @@ export function SelectionProvider({ books, view, children }: { books: BookSummar
   );
 }
 
-/** Finished, or back to the start; Undo puts each book back where it was. The loaded one goes through the player. */
+/** Finished, or back to the start; Undo puts each book back where it was. The loaded one is where the player has it. */
 async function markBooks(books: BookSummary[], done: boolean, current: string | null) {
-  const updatedAt = Date.now();
-  const item = (b: BookSummary, positionSec: number, finished: boolean) => ({ itemType: "book" as const, itemId: b.id, durationSec: b.durationSec, positionSec, finished, updatedAt });
-  const before = books.filter((b) => b.id !== current).map((b) => item(b, b.progress?.positionSec ?? 0, !!b.progress?.finished));
-  for (const b of books) {
-    if (b.id === current) await markCurrent(done);
-    else queueProgress(item(b, done ? b.durationSec : 0, done), true);
-  }
-  toast.show(`Marked ${plural(books.length, "book")} as ${done ? "finished" : "not finished"}`, {
-    duration: 5000,
-    action: { label: "Undo", onPress: () => before.forEach((b) => queueProgress({ ...b, updatedAt: Date.now() }, true)) },
-  });
+  const loaded = current ? currentMarkTarget() : null;
+  await markProgress(
+    books.map((b) =>
+      b.id === current && loaded
+        ? loaded
+        : { itemType: "book", itemId: b.id, durationSec: b.durationSec, positionSec: b.progress?.positionSec ?? 0, finished: !!b.progress?.finished },
+    ),
+    done,
+    `Marked ${plural(books.length, "book")} as ${done ? "finished" : "not finished"}`,
+  );
 }
 
 async function downloadBooks(books: BookSummary[]) {

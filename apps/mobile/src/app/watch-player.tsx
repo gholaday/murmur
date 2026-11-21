@@ -29,6 +29,7 @@ import {
   VIDEO_PLAYER,
   type VideoEpisode,
   type VideoQuality,
+  showEpisodes,
 } from "@murmur/shared/client";
 import {
   AudioTrackIcon,
@@ -49,7 +50,6 @@ import {
 import { Empty, NestedFallback, SectionTitle } from "@/components/page";
 import { BufferingRing, CastButton, SeekThumb, SkipButton, Tile } from "@/components/player-controls";
 import { Sheet, SheetItem } from "@/components/sheet";
-import { toast } from "@/components/toast";
 import { Button, Caption, IconButton, Pills, Text } from "@/components/ui";
 import { QualitySheet, Still, SubtitleLine, SubtitleSheet } from "@/components/watch";
 import { absolute, authHeaders } from "@/lib/api";
@@ -63,7 +63,6 @@ import {
   openMovie,
   openTvShow,
   readVideoVersion,
-  showEpisodes,
   subtitleTracks,
   useMovie,
   useShow,
@@ -271,7 +270,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
 
   // The next-episode card shows near the end and counts down while the video plays, then starts
   // the next one. Its count and dismissal belong to the episode, so the next one starts fresh.
-  // With Play next episode off, the card still shows but nothing counts down or starts.
+  // With Play next TV episode off, the card still shows but nothing counts down or starts.
   const autoplay = useAutoplayNext();
   const { position, total } = useVideoTime();
   const shownAt = scrub ?? position;
@@ -332,8 +331,7 @@ function Player({ item, next, show }: { item: VideoItem; next: VideoEpisode[]; s
   };
   const markDone = () => {
     setSheet(null);
-    markWatched([{ id: item.progressId, durationSec: item.durationSec }], true);
-    toast.show("Marked as watched");
+    markWatched([{ id: item.progressId, durationSec: item.durationSec, progress: { positionSec: position, finished: false } }], true, "Marked as watched");
     finishVideo();
     back();
   };

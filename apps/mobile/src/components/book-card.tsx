@@ -8,7 +8,7 @@ import { useDownload } from "@/lib/downloads";
 import { selectHaptic, withLongPressHaptic } from "@/lib/haptics";
 import { queryClient } from "@/lib/query";
 import { useIsAdmin } from "@/lib/session";
-import { bookToPlayable, isCurrent, markCurrent, play, setFinished, toggle, usePlayerSelect } from "@/player/engine";
+import { bookToPlayable, currentMarkTarget, isCurrent, markProgress, play, toggle, usePlayerSelect } from "@/player/engine";
 import { useTheme } from "@/theme";
 import { BookEditSheet, type BookEditTab } from "./book-edit";
 import { Cover } from "./cover";
@@ -95,10 +95,13 @@ export function useBookActions(book: BookSummary) {
     canPlayNext: !current && !bookStarted(book),
     async markFinished(done: boolean) {
       try {
-        // The player saves the one it has loaded.
-        if (current) await markCurrent(done);
-        else setFinished("book", book.id, book.durationSec, done);
-        toast.show(done ? "Marked as finished" : "Marked as not finished");
+        // The loaded one is where the player has it, not where the list last heard.
+        const before = current ? currentMarkTarget() : null;
+        await markProgress(
+          [before ?? { itemType: "book", itemId: book.id, durationSec: book.durationSec, positionSec: book.progress?.positionSec ?? 0, finished: !!book.progress?.finished }],
+          done,
+          done ? "Marked as finished" : "Marked as not finished",
+        );
       } catch (err) {
         toast.error(errorText(err));
       }

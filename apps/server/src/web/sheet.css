@@ -13,9 +13,33 @@
   box-shadow: var(--shadow);
   overflow: hidden;
 }
-.sheet::backdrop { background: rgba(0, 0, 0, 0.5); }
-.sheet[open] { animation: rise 0.18s ease-out; }
-@media (min-width: 700px) { .sheet { margin: auto; border-radius: 20px; } }
+/* The backdrop fades with --sheet-fade: in on opening, out as the sheet is dragged down or closes.
+   ::backdrop inherits the custom property from Chrome 122, Firefox 120 and Safari 17.4; older
+   browsers read it as 1, so there the backdrop just goes when the sheet does. */
+.sheet::backdrop { background: rgba(0, 0, 0, calc(0.5 * var(--sheet-fade, 1))); transition: background 0.18s ease-out; }
+.sheet[open] { animation: rise 0.18s ease-out; transition: transform 0.2s ease-out, opacity 0.18s ease-out; }
+.sheet[open]::backdrop { animation: fade-in 0.18s ease-out; }
+/* Closing: a phone's sheet sinks out of sight; a wide one's dialog drops a little and fades. */
+.sheet.sheet-closing { transform: translateY(100%) !important; --sheet-fade: 0 !important; transition: transform 0.18s ease-in; }
+.sheet-dragging, .sheet-dragging::backdrop { transition: none !important; }
+@media (min-width: 700px) {
+  .sheet { margin: auto; border-radius: 20px; }
+  .sheet.sheet-closing { transform: translateY(24px) !important; opacity: 0; transition: transform 0.18s ease-in, opacity 0.18s ease-in; }
+}
+/* On a phone the page behind an open sheet or dialog stays put: a drag anywhere moves only the sheet. */
+@media (max-width: 699px) { html:has(dialog[open]) { overflow: hidden; } }
+/* A phone's grab bar: drag it, or the title row, down to close. */
+.sheet-grab { display: none; }
+@media (max-width: 699px) {
+  .sheet > .sheet-body { padding-top: 6px; }
+  .sheet-grab { display: block; flex-shrink: 0; height: 18px; touch-action: none; position: relative; }
+  .sheet-grab::after { content: ""; position: absolute; left: 50%; top: 6px; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--faint); }
+  .sheet-head, .edit-head { touch-action: none; }
+  .sheet-grab + .edit-head { padding-top: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet[open], .sheet[open]::backdrop { animation: none; }
+}
 /* The title row stays put and only what's under it scrolls, so a long list keeps its title and actions in view. */
 .sheet-body { max-height: 85dvh; display: flex; flex-direction: column; padding: 18px 0 calc(20px + env(safe-area-inset-bottom)); }
 .sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 0 20px 14px; }

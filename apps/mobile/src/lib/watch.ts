@@ -22,7 +22,7 @@ import { savedMovie, savedShow } from "./downloads";
 import { queryClient } from "./query";
 import { keys } from "./query-keys";
 import { getJson, removeKey, setJson } from "./storage";
-import { queueProgress } from "@/player/progress";
+import { markProgress } from "@/player/engine";
 
 // Watch: movies and TV shows. The lists and pages, marking things watched, and where screens go.
 
@@ -50,17 +50,21 @@ export const useShow = (id: string | undefined) =>
 /** Everything on the Watch tab and pages loads again, after watching or marking something. */
 export const invalidateWatch = () => void queryClient.invalidateQueries({ queryKey: watchKeys.all });
 
-/** Marks movies (by the movie's id) or episodes watched, or back to the start. */
-export function markWatched(items: { id: string; durationSec: number }[], finished: boolean) {
-  // Through the outbox like the player's own saves, so it works offline and syncs later.
-  const updatedAt = Date.now();
-  for (const i of items) {
-    queueProgress({ itemType: "video", itemId: i.id, positionSec: finished ? i.durationSec : 0, durationSec: i.durationSec, finished, updatedAt }, true);
-  }
+/** A movie (by the movie's id) or an episode to mark, with where it is now so Undo can put it back. */
+export interface WatchMark {
+  id: string;
+  durationSec: number;
+  progress: { positionSec: number; finished: boolean } | null;
 }
 
-/** A show's episodes in watching order: seasons in order, Specials last, as the server lists them. */
-export const showEpisodes = (show: ShowDetail): VideoEpisode[] => show.seasonList.flatMap((s) => s.episodes);
+/** Marks movies or episodes watched, or back to the start; the toast says so, with an Undo. */
+export function markWatched(items: WatchMark[], finished: boolean, message: string) {
+  void markProgress(
+    items.map((i) => ({ itemType: "video", itemId: i.id, durationSec: i.durationSec, positionSec: i.progress?.positionSec ?? 0, finished: !!i.progress?.finished })),
+    finished,
+    message,
+  );
+}
 
 /** An episode row's sub line: "S1 E2, 31m", with the time left once started. */
 export function episodeSub(e: VideoEpisode): string {

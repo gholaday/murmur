@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import {
   apiPaths,
   BOOK_SECTION_TITLES,
@@ -22,21 +21,16 @@ import {
   BOOK_SORTS,
   type BookSort as Sort,
   storageKeys,
-  progressPct,
   shelfSub,
   shelfTitle,
-  timeLeft,
 } from "@murmur/shared/client";
 import { api } from "../api";
-import { Cover } from "../cover";
-import { Mixer } from "../mixer";
-import { useNowPlaying } from "../player/engine";
 import { CustomizeIcon, FilterIcon } from "../icons";
 import { BookActions } from "../book/book-actions";
 import { ChoiceSheet } from "../sheet";
 import { DragHandle, reorder, useSortable } from "../sortable";
 import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SectionTitle, useSavedChoice } from "../ui";
-import { BookCard } from "./book-card";
+import { BookCard, ContinueCard } from "./book-card";
 import { LibraryTitle } from "./library-title";
 import { PlayNextList } from "./play-next-list";
 import { SelectionProvider } from "./selection";
@@ -198,12 +192,47 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
 
   const sortSheet = <ChoiceSheet open={sortOpen} onClose={() => setSortOpen(false)} title="Sort books" choices={BOOK_SORTS} value={sort} onPick={setSort} />;
 
+  // The Library title and tabs, drawn even with no books so Music and Watch stay a tap away.
+  const libraryHead = (
+    <div className="library-head">
+      <div className="page-head">
+        <LibraryTitle current="books" />
+        <div className="head-actions">
+          {/* While Customize is hidden, its Done still shows once the empty state's Customize opens it. */}
+          {(SHOW_CUSTOMIZE || customizing) && tab === "books" && books.length > 0 ? (
+            <button
+              type="button"
+              className={`icon-btn ${customizing ? "accent" : ""}`}
+              aria-label={customizing ? "Done customizing" : "Customize"}
+              aria-pressed={customizing}
+              onClick={() => setCustomizing((c) => !c)}
+            >
+              <CustomizeIcon />
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <Chips kind="tabs" label="Library view">
+        {TABS.map((t) => (
+          <Chip
+            key={t.id}
+            selected={tab === t.id}
+            onClick={() => {
+              setCustomizing(false);
+              go({ tab: t.id === "books" ? null : t.id });
+            }}
+          >
+            {t.label}
+          </Chip>
+        ))}
+      </Chips>
+    </div>
+  );
+
   if (books.length === 0) {
     return (
       <>
-        <div className="page-head">
-          <h1 className="page-title">Books</h1>
-        </div>
+        {libraryHead}
         <EmptyState title="No books yet">{emptyReason}</EmptyState>
       </>
     );
@@ -337,39 +366,7 @@ function LibraryView({ books, emptyReason, today: serverToday, sections: savedSe
 
   return (
     <SelectionProvider books={shown} view={tab}>
-      <div className="library-head">
-      <div className="page-head">
-        <LibraryTitle current="books" />
-        <div className="head-actions">
-          {/* While Customize is hidden, its Done still shows once the empty state's Customize opens it. */}
-          {(SHOW_CUSTOMIZE || customizing) && tab === "books" ? (
-            <button
-              type="button"
-              className={`icon-btn ${customizing ? "accent" : ""}`}
-              aria-label={customizing ? "Done customizing" : "Customize"}
-              aria-pressed={customizing}
-              onClick={() => setCustomizing((c) => !c)}
-            >
-              <CustomizeIcon />
-            </button>
-          ) : null}
-        </div>
-      </div>
-          <Chips kind="tabs" label="Library view">
-            {TABS.map((t) => (
-              <Chip
-                key={t.id}
-                selected={tab === t.id}
-                onClick={() => {
-                  setCustomizing(false);
-                  go({ tab: t.id === "books" ? null : t.id });
-                }}
-              >
-                {t.label}
-              </Chip>
-            ))}
-          </Chips>
-      </div>
+      {libraryHead}
 
       <div key={tab} className="view-fade">
           {tab === "books" ? (
@@ -509,32 +506,6 @@ function BookSections({
 }
 
 /** A Continue listening card. Only this card re-renders when its book plays or pauses, not the page. */
-function ContinueCard({ book: b }: { book: BookSummary }) {
-  const { current, playing } = useNowPlaying((n) => n.type === "book" && n.id === b.id);
-  return (
-    <Link href={`/book/${b.id}`} className={`continue-card${current ? " playing" : ""}`}>
-      <div className="card-cover">
-        <Cover
-          src={b.coverHash ? apiPaths.coverUrl(b.id, b.coverHash, 600) : null}
-          color={b.coverColor}
-          title={b.title}
-          subtitle={b.author}
-          large
-        />
-        {current ? <Mixer playing={playing} /> : null}
-      </div>
-      <div className="bar thick">
-        <div style={{ width: `${progressPct(b)}%` }} />
-      </div>
-      <div className="continue-text">
-        <div className="card-title">{b.title}</div>
-        {b.author ? <div className="card-sub">{b.author}</div> : null}
-        <div className="card-sub">{timeLeft(b.durationSec, b.progress!.positionSec)}</div>
-      </div>
-    </Link>
-  );
-}
-
 function FinishedList({ books }: { books: BookSummary[] }) {
   if (books.length === 0) return <EmptyState>No finished books yet.</EmptyState>;
   return (

@@ -2,9 +2,10 @@
 
 /* eslint-disable @next/next/no-img-element -- TMDB poster thumbnails are remote */
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { apiPaths, errorText, type WatchMatchResult } from "@murmur/shared/client";
 import { api } from "../api";
+import { ResultsSkeleton } from "../skeletons";
 
 /**
  * Match for a movie or show, in its Edit, built like an artist's Change photo: the title and year
@@ -86,22 +87,13 @@ export function WatchMatchPanel({
             inputMode="numeric"
             maxLength={4}
           />
-          <button type="submit" className="btn btn-primary" disabled={busy || !query.trim()}>
+          <button type="submit" className="btn" disabled={busy || !query.trim()}>
             Search
           </button>
         </div>
       </form>
-      {pickable ? (
-        <div className="match-bar">
-          <button type="button" className="btn btn-primary wide" disabled={busy} onClick={() => void apply(pickable)}>
-            {busy ? "Matching…" : "Use this match"}
-          </button>
-        </div>
-      ) : null}
       {results === null ? (
-        <div className="loading-center" aria-busy="true" aria-label="Searching">
-          <div className="spinner" />
-        </div>
+        <ResultsSkeleton />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {results.map((r) => (
@@ -127,6 +119,13 @@ export function WatchMatchPanel({
           {results.length === 0 ? <p className="muted">No results.</p> : null}
         </div>
       )}
+      {pickable ? (
+        <div className="match-bar">
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void apply(pickable)}>
+            {busy ? "Matching…" : "Use this match"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

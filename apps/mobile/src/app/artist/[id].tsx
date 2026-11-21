@@ -5,16 +5,12 @@ import { artistImage, artistSub, plural, type TrackDto } from "@murmur/shared/cl
 import { Cover } from "@/components/cover";
 import { MoreIcon, ProfileIcon } from "@/components/icons";
 import { Grid, useGridWidth } from "@/components/library";
-import { ArtistPhotoSheet } from "@/components/match";
-import { AlbumCard, SongRow, SongSheet } from "@/components/music";
+import { AlbumCard, ArtistActions, SongRow, SongSheet, useHasArtistActions } from "@/components/music";
 import { Empty, NestedScreen, PageTitle, SectionTitle, useBackIfFocused } from "@/components/page";
 import { usePullRefresh } from "@/components/pull-refresh";
-import { HideItem, Sheet, SheetItem } from "@/components/sheet";
 import { Bone, CoverGridBones, FadeIn, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { IconButton } from "@/components/ui";
 import { useArtist } from "@/lib/data";
-import { useCanHideAndLike } from "@/lib/hidden";
-import { useIsAdmin } from "@/lib/session";
 import { playMusic } from "@/player/engine";
 import { useTheme } from "@/theme";
 
@@ -32,9 +28,7 @@ export default function ArtistScreen() {
   const photo = a ? artistImage(a, 600) : null;
   const [song, setSong] = useState<TrackDto | null>(null);
   const [menu, setMenu] = useState(false);
-  const [changing, setChanging] = useState(false);
-  const admin = useIsAdmin();
-  const canHide = useCanHideAndLike();
+  const hasMenu = useHasArtistActions();
   const backIfHere = useBackIfFocused();
 
   let body: React.ReactNode;
@@ -99,8 +93,8 @@ export default function ArtistScreen() {
     <NestedScreen
       refreshControl={refresh}
       right={
-        // The menu holds Change photo (admins) and Hide (servers that can).
-        a && (admin || canHide) ? (
+        // The menu holds Change photo (admins) and Hide (servers that can), as the cards do.
+        a && hasMenu ? (
           <IconButton label="Artist options" onPress={() => setMenu(true)}>
             <MoreIcon size={22} color={t.text} />
           </IconButton>
@@ -109,21 +103,7 @@ export default function ArtistScreen() {
       after={
         <>
           <SongSheet track={song} onClose={() => setSong(null)} />
-          {a ? (
-            <Sheet open={menu} onClose={() => setMenu(false)} title={a.name}>
-              {admin ? (
-                <SheetItem
-                  label="Change photo…"
-                  onPress={() => {
-                    setMenu(false);
-                    setChanging(true);
-                  }}
-                />
-              ) : null}
-              <HideItem kind="artist" id={a.id} title={a.name} onClose={() => setMenu(false)} onHidden={backIfHere} divider={admin} />
-            </Sheet>
-          ) : null}
-          {admin && a ? <ArtistPhotoSheet artist={changing ? a : null} onClose={() => setChanging(false)} /> : null}
+          {a ? <ArtistActions artist={a} open={menu} onClose={() => setMenu(false)} onHidden={backIfHere} /> : null}
         </>
       }
     >

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { apiPaths, errorText, type VideoQuality } from "@murmur/shared/client";
 import { api, refused } from "../api";
 

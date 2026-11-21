@@ -9,6 +9,8 @@ import {
   type AlbumSummary,
   albumCover,
   albumsByArtist,
+  apiPaths,
+  type ArtistDetail,
   type ArtistSummary,
   artistImage,
   type LikedMusicDto,
@@ -23,7 +25,11 @@ import {
   storageKeys,
 } from "@murmur/shared/client";
 import { useAdmin } from "../admin";
+import { api } from "../api";
+import { CardMenu, MenuItem } from "../card-menu";
 import { Cover } from "../cover";
+import { HideMenuItem } from "../hidden";
+import { ArtistPhotoDialog } from "./match";
 import { Mixer } from "../mixer";
 import { FilterIcon, MusicIcon, PauseIcon, PlayIcon, ProfileIcon } from "../icons";
 import { ShuffleButton } from "./shuffle-button";
@@ -83,18 +89,35 @@ const ON_REPEAT_ROWS = 5;
 /** A round artist photo (else one of their covers, else a person icon) with the name and album count under it; opens the artist. */
 export function ArtistCard({ artist }: { artist: ArtistSummary }) {
   const src = artistImage(artist);
+  const router = useRouter();
+  const { isAdmin } = useAdmin();
+  // Change photo needs the artist's details, loaded when it's picked.
+  const [photo, setPhoto] = useState<ArtistDetail | null>(null);
   return (
-    <Link href={`/music/artist/${artist.id}`} className="card card-link artist-card">
-      {src ? (
-        <Cover src={src} color={null} title={artist.name} />
-      ) : (
-        <span className="cover artist-card-empty" aria-hidden="true">
-          <ProfileIcon size={40} />
-        </span>
-      )}
-      <div className="card-title">{artist.name}</div>
-      <div className="card-sub">{plural(artist.albumCount, "album")}</div>
-    </Link>
+    <div className="card artist-card">
+      <Link href={`/music/artist/${artist.id}`} className="card-link">
+        {src ? (
+          <Cover src={src} color={null} title={artist.name} />
+        ) : (
+          <span className="cover artist-card-empty" aria-hidden="true">
+            <ProfileIcon size={40} />
+          </span>
+        )}
+        <div className="card-title">{artist.name}</div>
+        <div className="card-sub">{plural(artist.albumCount, "album")}</div>
+      </Link>
+      {/* The same items as the artist page's ⋯. */}
+      <CardMenu
+        label={artist.name}
+        items={(choose) => (
+          <>
+            {isAdmin ? <MenuItem onClick={choose(async () => setPhoto(await api<ArtistDetail>(apiPaths.artist(artist.id))))}>Change photo…</MenuItem> : null}
+            <HideMenuItem change={{ kind: "artist", id: artist.id }} title={artist.name} choose={choose} divider={isAdmin} />
+          </>
+        )}
+      />
+      {photo ? <ArtistPhotoDialog artist={photo} onClose={() => setPhoto(null)} onChanged={() => router.refresh()} /> : null}
+    </div>
   );
 }
 

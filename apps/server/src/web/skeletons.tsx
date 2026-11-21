@@ -110,23 +110,32 @@ export function PodcastsSkeleton() {
   );
 }
 
+/** You as it lays out: the stats card, the Settings heading and tabs, then flat rows under a label. */
 export function SettingsSkeleton() {
   return (
     <div className="skeleton" aria-busy="true" aria-label="Loading settings">
       <Head title="You" />
-      <div className="skel" style={{ height: 48, borderRadius: 12 }} />
-      {[2, 2, 3].map((rows, s) => (
-        <section key={s} className="section">
-          <Line width={110} height={16} />
-          <div className="card-box">
-            {Array.from({ length: rows }, (_, i) => (
-              <div key={i} className="setting">
-                <Line width={i % 2 ? 90 : 120} />
-                <div className="skel skel-pill" style={{ width: 120, height: 32 }} />
-              </div>
-            ))}
-          </div>
-        </section>
+      <section className="section">
+        <div className="skel" style={{ height: 200, borderRadius: 14 }} />
+      </section>
+      <section className="section">
+        <Line width={110} height={22} />
+        <div style={{ display: "flex", gap: 24, height: 44, alignItems: "center", marginTop: 8 }}>
+          {[64, 92, 72, 68].map((w) => (
+            <Line key={w} width={w} height={14} />
+          ))}
+        </div>
+      </section>
+      {[2, 2].map((rows, s) => (
+        <div key={s} className="set-group" style={{ marginTop: s ? 36 : 20 }}>
+          <Line width={70} height={11} />
+          {Array.from({ length: rows }, (_, i) => (
+            <div key={i} className="setting">
+              <Line width={i % 2 ? 90 : 120} />
+              <Line width={70} />
+            </div>
+          ))}
+        </div>
       ))}
     </div>
   );
@@ -198,6 +207,38 @@ export function DetailSkeleton({ kind }: { kind: "book" | "album" | "video" | "a
       <section className="section">
         <Rows count={5} />
       </section>
+    </div>
+  );
+}
+
+/** Match and photo results while a search runs: candidate cards with a cover and three lines. */
+export function ResultsSkeleton({ round }: { round?: boolean }) {
+  return (
+    <div className="skeleton" aria-busy="true" aria-label="Searching" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {Array.from({ length: 4 }, (_, i) => (
+        <div key={i} className="candidate">
+          <div className="skel" style={{ width: 64, height: 64, flexShrink: 0, borderRadius: round ? "50%" : 6 }} />
+          <div className="candidate-main" style={{ gap: 8 }}>
+            <Line width={i % 2 ? "55%" : "70%"} />
+            <Line width="40%" height={10} />
+            <Line width="60%" height={10} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** A sheet's rows while they load, like Add to playlist's playlists. */
+export function SheetRowsSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <div className="skeleton" aria-busy="true" aria-label="Loading" style={{ display: "flex", flexDirection: "column" }}>
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 48 }}>
+          <Line width={i % 2 ? "45%" : "60%"} />
+          <Line width={52} height={10} />
+        </div>
+      ))}
     </div>
   );
 }

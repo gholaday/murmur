@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { apiPaths, type BookSummary, duration, errorText } from "@murmur/shared/client";
 import { api } from "../api";
 import { setPlayNext } from "../book/play-next";

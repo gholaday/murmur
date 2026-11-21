@@ -5,7 +5,7 @@ import { apiPaths, duration, type EpisodeWithShow, pastStart, shortDate, timeLef
 import { useBookmarks } from "@/lib/bookmarks";
 import { useEpisodeNotes } from "@/lib/data";
 import { downloadEpisode, downloadingText, removeDownload, useDownload } from "@/lib/downloads";
-import { addToUpNext, episodeToPlayable, isCurrent, isWaiting, markCurrent, play, removeWaiting, setFinished, toggle, useItemPosition, usePlayerSelect } from "@/player/engine";
+import { addToUpNext, currentMarkTarget, episodeToPlayable, isCurrent, isWaiting, markProgress, play, removeWaiting, toggle, useItemPosition, usePlayerSelect } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 import { BookmarkRows, openBookmark } from "./bookmarks";
 import { Cover } from "./cover";
@@ -118,7 +118,7 @@ export const EpisodeRow = memo(function EpisodeRow({
 /** An episode's buttons: the play pill, then queue, played and download. Rows and Continue listening cards share them. */
 export function EpisodeActions({ episode, play, style }: { episode: EpisodeWithShow; play: ReturnType<typeof useEpisodePlay>; style?: StyleProp<ViewStyle> }) {
   const t = useTheme();
-  const { current, played, finished, dur } = play;
+  const { current, finished, dur } = play;
   const queued = usePlayerSelect((s) => isWaiting(s.upNext, { itemType: "episode", itemId: episode.id }));
   const dl = useDownload("podcast", episode.id);
   const [busy, setBusy] = useState(false);
@@ -143,15 +143,26 @@ export function EpisodeActions({ episode, play, style }: { episode: EpisodeWithS
       ? run(async () => removeWaiting(ref), "Removed from queue")
       : run(() => addToUpNext(ref, "last"), "Added to queue");
 
-  // The player saves the one it has loaded.
-  const togglePlayed = () =>
-    run(
-      async () => {
-        if (current) await markCurrent(!played);
-        else setFinished("episode", episode.id, dur, !finished);
-      },
-      finished ? "Marked as unplayed" : "Marked as played",
-    );
+  // The loaded one is where the player has it, not where the list last heard. The toast, with
+  // its Undo, comes from markProgress.
+  const togglePlayed = async () => {
+    const done = current ? true : !finished;
+    const before = (current ? currentMarkTarget() : null) ?? {
+      itemType: "episode" as const,
+      itemId: episode.id,
+      durationSec: dur,
+      positionSec: episode.progress?.positionSec ?? 0,
+      finished,
+    };
+    setBusy(true);
+    try {
+      await markProgress([before], done, done ? "Marked as played" : "Marked as unplayed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const onDownload = () => {
     if (dl?.status === "done") setConfirmRemove(true);

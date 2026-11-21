@@ -36,3 +36,6 @@ export function castContentType(path: string): string {
   if (path.includes(".m3u8")) return "application/x-mpegurl";
   return path.startsWith("/api/stream/video/") ? "video/mp4" : "audio/mpeg";
 }
+
+/** When the TV can't load an item; the cast ends and the item comes back to this device. */
+export const CAST_FAILED = "The Chromecast couldn't play this from this address.";

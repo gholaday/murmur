@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
+import { toast } from "./toast";
 import { errorText } from "@murmur/shared/client";
 import { MoreIcon } from "./icons";
 import { Sheet, SheetItem } from "./sheet";
@@ -43,6 +43,8 @@ export function CardMenu({ label, items }: { label: string; items: (choose: (fn:
     if (!card) return;
     const onContext = (e: Event) => {
       const m = e as MouseEvent;
+      // A dialog opened from the card (Rename, Change photo) keeps the browser's own menu.
+      if ((m.target as Element).closest("dialog")) return;
       m.preventDefault();
       openAt(m.clientX + MENU_WIDTH, m.clientY, m.clientY);
     };
@@ -120,7 +122,7 @@ export function MenuSheet({
   };
   return (
     <Sheet open={open} onClose={onClose} title={title}>
-      <InSheet.Provider value>{open ? items(choose) : null}</InSheet.Provider>
+      <InSheet.Provider value>{items(choose)}</InSheet.Provider>
     </Sheet>
   );
 }

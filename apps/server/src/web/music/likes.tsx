@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { apiPaths, errorText, type MusicLikeChange } from "@murmur/shared/client";
 import { api } from "../api";
 import { HeartIcon } from "../icons";

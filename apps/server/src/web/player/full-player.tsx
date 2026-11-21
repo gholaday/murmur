@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { Cover } from "../cover";
 import { Marquee } from "../marquee";
 import { ChapterList } from "../chapter-list";

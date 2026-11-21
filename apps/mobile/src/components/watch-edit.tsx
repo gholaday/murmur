@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { apiPaths, changedFields, errorText, pastStart, type WatchArtOption, type WatchMatchResult } from "@murmur/shared/client";
+import { apiPaths, changedFields, errorText, pastStart, showEpisodes, showPlayEpisode, type WatchArtOption, type WatchMatchResult } from "@murmur/shared/client";
 import { absolute, api, authHeaders } from "@/lib/api";
 import { selectHaptic } from "@/lib/haptics";
 import { useIsAdmin } from "@/lib/session";
-import { invalidateWatch, markWatched, openVideoPlayer, showEpisodes, useMovie, useShow } from "@/lib/watch";
+import { invalidateWatch, markWatched, openVideoPlayer, useMovie, useShow, type WatchMark } from "@/lib/watch";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { SearchButton, SearchInput, SheetHead } from "./match";
@@ -71,20 +71,19 @@ export function WatchActions({
   let play: (() => void) | null = null;
   let resume = false;
   let watched = false;
-  let items: { id: string; durationSec: number }[] = [];
+  let items: WatchMark[] = [];
   if (movie) {
     resume = pastStart(movie.progress && !movie.progress.finished ? movie.progress.positionSec : 0);
     watched = !!movie.progress?.finished;
     play = () => openVideoPlayer({ kind: "movie", id });
-    items = [{ id, durationSec: movie.durationSec }];
+    items = [{ id, durationSec: movie.durationSec, progress: movie.progress }];
   } else if (show) {
     const all = showEpisodes(show);
-    // Where Resume goes; once every episode is watched, the first.
-    const next = all.find((e) => e.id === show.upNextId) ?? all[0];
+    const next = showPlayEpisode(show);
     resume = !!next && pastStart(next.progress && !next.progress.finished ? next.progress.positionSec : 0);
     watched = all.length > 0 && all.every((e) => e.progress?.finished);
     if (next) play = () => openVideoPlayer({ kind: "episode", id: next.id, showId: id });
-    items = all.map((e) => ({ id: e.id, durationSec: e.durationSec }));
+    items = all.map((e) => ({ id: e.id, durationSec: e.durationSec, progress: e.progress }));
   }
   const then = (fn: () => void) => () => {
     onClose();
@@ -100,8 +99,7 @@ export function WatchActions({
           label={watched ? "Mark as not watched" : "Mark as watched"}
           disabled={!item}
           onPress={then(() => {
-            markWatched(items, !watched);
-            toast.show(watched ? "Marked as not watched" : "Marked as watched");
+            markWatched(items, !watched, watched ? "Marked as not watched" : "Marked as watched");
           })}
         />
         {extra}

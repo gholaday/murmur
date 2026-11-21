@@ -74,9 +74,6 @@ export function pickCastDevice() {
     .catch(() => undefined);
 }
 
-/** When the TV can't load an item; the cast ends and the item comes back to this device. */
-export const CAST_FAILED = "The Chromecast couldn't play this from this address.";
-
 export function stopCasting() {
   if (state.device) cast.framework.CastContext.getInstance().endCurrentSession(true);
 }

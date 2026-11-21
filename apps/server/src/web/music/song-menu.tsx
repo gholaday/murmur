@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "../toast";
 import { apiPaths, errorText, type PlaylistDetail, type PlaylistSummary, plural, type TrackDto } from "@murmur/shared/client";
 import { api } from "../api";
 import { MoreIcon } from "../icons";
 import { usePlayerControls, usePlayerSelect } from "../player/engine";
 import { Sheet, SheetItem } from "../sheet";
+import { SheetRowsSkeleton } from "../skeletons";
 
 interface SongMenuProps {
   track: TrackDto;
@@ -21,17 +22,29 @@ interface SongMenuProps {
 export function SongMenuButton(props: SongMenuProps) {
   const [open, setOpen] = useState(false);
   const [used, setUsed] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const show = () => {
+    setUsed(true);
+    setOpen(true);
+  };
+  // A right-click on the row opens the same sheet, as on a card.
+  useEffect(() => {
+    const row = button.current?.closest(".list-row, .queue-row");
+    if (!row) return;
+    const onContext = (e: Event) => {
+      // Not on a touch long-press (a held drag handle would open it mid-reorder), and links keep
+      // the browser's own menu.
+      if ((e as PointerEvent).pointerType === "touch" || (e.target as Element).closest("a, .drag-handle, dialog")) return;
+      e.preventDefault();
+      setUsed(true);
+      setOpen(true);
+    };
+    row.addEventListener("contextmenu", onContext);
+    return () => row.removeEventListener("contextmenu", onContext);
+  }, []);
   return (
     <>
-      <button
-        type="button"
-        className="icon-btn dim"
-        aria-label={`More for ${props.track.title}`}
-        onClick={() => {
-          setUsed(true);
-          setOpen(true);
-        }}
-      >
+      <button ref={button} type="button" className="icon-btn dim" aria-label={`More for ${props.track.title}`} onClick={show}>
         <MoreIcon size={18} />
       </button>
       {used ? <SongSheets {...props} open={open} close={() => setOpen(false)} /> : null}
@@ -60,7 +73,7 @@ function SongSheets({ track, hideAlbum, extra, open, close }: SongMenuProps & { 
         {queued ? (
           <SheetItem onClick={() => run(async () => player.removeWaiting(ref), "Removed from queue")}>Remove from queue</SheetItem>
         ) : (
-          <SheetItem onClick={() => run(() => player.addToUpNext(ref, "next"), "Added to queue")}>Add to queue</SheetItem>
+          <SheetItem onClick={() => run(() => player.addToUpNext(ref, "last"), "Added to queue")}>Add to queue</SheetItem>
         )}
         <SheetItem
           onClick={() => {
@@ -152,9 +165,7 @@ export function AddToPlaylistSheet({ open, onClose, title, trackIds }: { open: b
         <>
           <SheetItem onClick={() => setNaming(true)}>New playlist…</SheetItem>
           {lists === null ? (
-            <div className="loading-center" aria-busy="true" aria-label="Loading">
-              <div className="spinner" />
-            </div>
+            <SheetRowsSkeleton />
           ) : (
             lists.map((p) => (
               <SheetItem key={p.id} disabled={busy} onClick={() => void add(p)}>

@@ -185,6 +185,17 @@ export interface ShowDetail extends ShowSummary {
   upNextId: string | null;
 }
 
+/** Every episode of a show, season by season (Specials last). */
+export function showEpisodes(show: Pick<ShowDetail, "seasonList">): VideoEpisode[] {
+  return show.seasonList.flatMap((s) => s.episodes);
+}
+
+/** What Play starts on a show: where Resume goes, or once every episode is watched, the first. */
+export function showPlayEpisode(show: Pick<ShowDetail, "seasonList" | "upNextId">): VideoEpisode | null {
+  const all = showEpisodes(show);
+  return all.find((e) => e.id === show.upNextId) ?? all[0] ?? null;
+}
+
 /** A TMDB search result in the Match sheet. */
 /** One of TMDB's posters or backdrops, offered in Edit. */
 export interface WatchArtOption {

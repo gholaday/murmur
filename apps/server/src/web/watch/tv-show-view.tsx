@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLeave } from "../hidden";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import {
   apiPaths,
   duration,

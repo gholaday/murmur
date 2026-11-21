@@ -1,6 +1,6 @@
 "use client";
 
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -32,6 +32,11 @@ import {
   type SettingsTab,
   settingsTabs,
   plural,
+  FOLDER_KINDS,
+  type FolderKind,
+  MIN_PASSWORD,
+  SHORT_NEW_PASSWORD,
+  SHORT_PASSWORD,
 } from "@murmur/shared/client";
 import { api } from "../api";
 import { CopyIcon, DownloadIcon, PlusIcon, RefreshIcon } from "../icons";
@@ -266,7 +271,7 @@ function PlaybackCard({
         <SettingsGroup label="Video">
           <ChoiceRow
             title="Converted video"
-            sub={<SettingSub>When the server has to convert a video. 720p is easier on a small server</SettingSub>}
+            sub={<SettingSub>When the server has to convert a video. 720p is easier on a small server.</SettingSub>}
             value={quality}
             choices={[
               { id: "full", label: "1080p" },
@@ -274,7 +279,7 @@ function PlaybackCard({
             ]}
             onPick={pickQuality}
           />
-          <SwitchRow title="Play next episode" label="Play next episode" checked={nextOn} onChange={toggleNext} />
+          <SwitchRow title="Play next TV episode" label="Play next TV episode" checked={nextOn} onChange={toggleNext} />
         </SettingsGroup>
       ) : null}
       {adsEnabled ? (
@@ -393,6 +398,7 @@ function PasswordForm({ username, isAdmin }: { username: string; isAdmin: boolea
             e.preventDefault();
             const form = e.currentTarget;
             const data = new FormData(form);
+            if (String(data.get("newPassword")).length < MIN_PASSWORD) return setError(SHORT_NEW_PASSWORD);
             if (data.get("newPassword") !== data.get("confirm")) {
               setError("The new passwords don't match.");
               return;
@@ -417,9 +423,9 @@ function PasswordForm({ username, isAdmin }: { username: string; isAdmin: boolea
           {/* Tells password managers whose password this is, so they don't suggest emails. */}
           <input className="sr-only" type="text" name="username" autoComplete="username" value={username} readOnly tabIndex={-1} aria-hidden="true" />
           <input className="input" name="currentPassword" type="password" autoComplete="current-password" placeholder="Current password" aria-label="Current password" required />
-          <input className="input" name="newPassword" type="password" autoComplete="new-password" placeholder="8 or more characters" aria-label="New password" minLength={8} required />
-          <input className="input" name="confirm" type="password" autoComplete="new-password" placeholder="Repeat new password" aria-label="Repeat new password" minLength={8} required />
-          <button type="submit" className="btn btn-primary" disabled={busy}>
+          <input className="input" name="newPassword" type="password" autoComplete="new-password" placeholder={`${MIN_PASSWORD} or more characters`} aria-label="New password" required />
+          <input className="input" name="confirm" type="password" autoComplete="new-password" placeholder="Repeat new password" aria-label="Repeat new password" required />
+          <button type="submit" className="btn btn-primary btn-big" disabled={busy}>
             Change password
           </button>
           {error ? (
@@ -612,15 +618,8 @@ function LibraryAdmin({
   );
 }
 
-const FOLDER_KINDS = {
-  books: { item: "book", things: "books" },
-  music: { item: "album", things: "albums" },
-  movies: { item: "movie", things: "movies" },
-  shows: { item: "show", things: "shows" },
-};
-
 /** A kind's folders with their counts. They come from what's mounted, so there's nothing to edit here. */
-function FolderRows({ kind = "books", folders }: { kind?: keyof typeof FOLDER_KINDS; folders: LibraryFolderDto[] }) {
+function FolderRows({ kind = "books", folders }: { kind?: FolderKind; folders: LibraryFolderDto[] }) {
   const k = FOLDER_KINDS[kind];
   return folders.map((f) => (
     <div key={f.id} className="setting">
@@ -716,6 +715,7 @@ function UsersCard({ me, users, onChanged }: { me: UserDto; users: UserDto[]; on
             e.preventDefault();
             const form = e.currentTarget;
             const data = new FormData(form);
+            if (String(data.get("password")).length < MIN_PASSWORD) return setError(SHORT_PASSWORD);
             setBusy(true);
             setError(null);
             try {
@@ -739,14 +739,13 @@ function UsersCard({ me, users, onChanged }: { me: UserDto; users: UserDto[]; on
             className="input"
             name="password"
             type="password"
-            placeholder="8 or more characters"
+            placeholder={`${MIN_PASSWORD} or more characters`}
             aria-label="New user's password"
             autoComplete="new-password"
-            minLength={8}
             required
           />
           <SwitchRow title={<span style={{ fontSize: 14 }}>Admin</span>} name="isAdmin" />
-          <button type="submit" className="btn btn-primary" disabled={busy}>
+          <button type="submit" className="btn btn-primary btn-big" disabled={busy}>
             Add user
           </button>
           {error ? <p className="error small" style={{ margin: 0 }}>{error}</p> : null}

@@ -13,11 +13,15 @@
 - Library opens the section you were last in (kept on the device). On the web the sections keep their addresses (`/`, `/music`, `/watch`) and Library is highlighted on all of them
 - A section switched off under Tabs drops out of the title row; with one left it reads as a plain title, and with none the Library tab goes
 
+## Menus
+
+- Every book, album, artist, playlist, podcast, movie and show card opens its item's menu: ⋮ in the corner or a right-click on the web, a long press in the app. Its page's ⋮ has the same items. Podcasts' wide Continue listening cards show their buttons instead
+
 ## Hiding
 
 - Hide, at the end of the ⋮ menu of a book, album, artist, movie or show, takes it out of your lists, home shelves (Continue listening and Continue watching too), search and Android Auto, with Undo. Hiding an artist hides their albums. Podcasts aren't hidden this way: you unfollow them
 - Hidden things stay in Downloads and in your stats, and their pages still open from a link
-- You > Account > Hidden lists them under Books, Music and Watch, each with a grey count and an Unhide button per row; empty sections don't show, and with nothing hidden it says "Nothing hidden"
+- You > Account > Hidden lists them under Books, Music and Watch, each with a grey count and an Unhide button per row, which confirms with Undo; empty sections don't show, and with nothing hidden it says "Nothing hidden"
 - Per person (`hidden_items`: kind, id, time), with no foreign key so it outlives a rescan. Books, albums, movies and shows keep their ids while their files are there; artists are kept by name key, like `artist_photos`, since a rescan can recreate the artist. `GET /api/hidden` lists them by section, `PUT` hides and `DELETE` unhides (`{ kind, id }`)
 
 ## Audiobooks
@@ -31,7 +35,8 @@
 - Single-file `.m4b` and multi-file books, played as one continuous timeline
 - Automatic rescan when files are added, moved or removed
 - One or more library folders, set up in the compose file only: `/audiobooks`, and any mounted beside it as `/audiobooks-<name>`, picked up on every start. You > Library lists them with their counts
-- Mark finished, and Start from the beginning in the player's ⋮
+- Mark finished, and Start from the beginning in the player's ⋮. Marking anything finished or played, here or on a card, confirms with Undo, which puts back the exact place it was at
+- Select several books from Select in a card's menu, wherever book cards are (not Continue listening), and mark them finished, hide them, or for admins edit their shared details or remove them at once, each with Undo where it can be undone
 - Metadata Match and editing for admins (see [Metadata](metadata.md))
 
 ## Podcasts

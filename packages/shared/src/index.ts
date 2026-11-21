@@ -5,6 +5,7 @@ import type { TrackDto } from "./music";
 import type { VideoStatus } from "./video-addon";
 import { SEARCH_KINDS } from "./search";
 import { BOOK_SECTION_IDS } from "./shelves";
+import { MIN_PASSWORD } from "./settings";
 
 // ---------- Request schemas (validated on the server, reused by clients) ----------
 
@@ -23,7 +24,7 @@ export const loginSchema = credentialsSchema.extend({
 });
 
 export const setupSchema = credentialsSchema.extend({
-  password: z.string().min(8).max(256),
+  password: z.string().min(MIN_PASSWORD).max(256),
 });
 
 export const createUserSchema = setupSchema.extend({
@@ -128,7 +129,7 @@ export const podcastSettingsSchema = z.object({
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(256),
-  newPassword: z.string().min(8).max(256),
+  newPassword: z.string().min(MIN_PASSWORD).max(256),
 });
 
 export const albumSortSchema = z.enum(["added", "name", "artist", "year"]).catch("added");
@@ -878,6 +879,7 @@ export * from "./bookmarks";
 export * from "./bulk";
 export * from "./cast";
 export * from "./changes";
+export * from "./edit";
 export * from "./format";
 export * from "./hidden";
 export * from "./languages";

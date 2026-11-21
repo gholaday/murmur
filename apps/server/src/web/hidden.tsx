@@ -31,6 +31,8 @@ export function useHidden() {
   };
   return {
     unhide: (change: HiddenChange) => send(false, change),
+    /** Hides it again with no toast of its own, for an unhide's Undo. */
+    rehide: (change: HiddenChange) => send(true, change),
     /** Hides it, with an Undo toast; `after` runs once it's hidden (a detail page goes back). */
     hide: async (change: HiddenChange, title: string, after?: () => void) => {
       if (!(await send(true, change))) return;

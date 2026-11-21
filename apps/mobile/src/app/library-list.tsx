@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FlatList, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { type AlbumSummary, type BookSummary, bookIssues, LIBRARY_LISTS, type LibraryList } from "@murmur/shared/client";
+import { type AlbumSummary, type BookSummary, bookIssues, LIBRARY_LIST_TEXT, LIBRARY_LISTS, type LibraryList } from "@murmur/shared/client";
 import { BookCard } from "@/components/book-card";
 import { GAP, gridRows, PAD, useGridWidth } from "@/components/library";
 import { BookEditSheet } from "@/components/book-edit";
@@ -15,11 +15,6 @@ import { CoverGridBones, FadeIn, Skeleton, useJustLoaded } from "@/components/sk
 import { useAlbums, useBooks } from "@/lib/data";
 import { useTheme } from "@/theme";
 
-const LIST_TEXT: Record<LibraryList, { title: string; sub: string; empty: string }> = {
-  attention: { title: "Needs attention", sub: "Books with no cover, no author or missing files", empty: "Nothing to fix here." },
-  unmatched: { title: "Not matched", sub: "Books with no online match yet", empty: "Every book is matched." },
-  albums: { title: "Not matched", sub: "Albums with no online match yet", empty: "Every album is matched." },
-};
 
 /** One of You > Library's lists for admins, opened from its row. */
 export default function LibraryListScreen() {
@@ -87,12 +82,8 @@ function UnmatchedList({ kind }: { kind: "books" | "albums" }) {
       refresh={query.refetch}
       loading={query.isPending || !m.loaded}
       empty={!m.job && count === 0}
-      head={
-        <>
-          <MatchAllStart m={m} unmatched={matchable} />
-          <MatchAllProgress m={m} />
-        </>
-      }
+      right={<MatchAllStart m={m} unmatched={matchable} />}
+      head={<MatchAllProgress m={m} />}
       bar={m.job ? <MatchAllBar m={m} /> : null}
       after={
         <>
@@ -120,6 +111,7 @@ function ListScreen({
   refresh,
   loading,
   empty,
+  right,
   head,
   bar,
   after,
@@ -129,6 +121,8 @@ function ListScreen({
   refresh: () => Promise<unknown>;
   loading: boolean;
   empty: boolean;
+  /** Actions in the head row, like Match all. */
+  right?: React.ReactNode;
   head?: React.ReactNode;
   bar?: React.ReactNode;
   after?: React.ReactNode;
@@ -139,7 +133,7 @@ function ListScreen({
   const bottom = useBottomPad();
   const pull = usePullRefresh(refresh);
   const fade = useJustLoaded(!loading);
-  const { title, sub, empty: emptyText } = LIST_TEXT[list];
+  const { title, sub, empty: emptyText } = LIBRARY_LIST_TEXT[list];
   const data: Cell[] = loading
     ? [{ key: "loading", node: <Skeleton><CoverGridBones count={6} /></Skeleton> }]
     : empty
@@ -158,7 +152,7 @@ function ListScreen({
         ListHeaderComponent={
           <View>
             <View style={{ marginBottom: 12 }}>
-              <BackRow title={title} sub={sub} />
+              <BackRow title={title} sub={sub} right={loading ? null : right} />
             </View>
             {loading ? null : head}
           </View>

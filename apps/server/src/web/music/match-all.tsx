@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- source cover thumbnails are remote */
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import {
   ALBUM_PROVIDER_NAME,
   type AlbumMatchAllDto,
@@ -39,7 +39,16 @@ const MATCH_ALL_FIELDS = ALBUM_FIELDS.filter((f): f is (typeof ALBUM_FIELDS)[num
 type Filter = "review" | "applied" | "none";
 const FILTER_LABEL: Record<Filter, string> = { review: "To review", applied: "Applied", none: "No match" };
 
-export function AlbumMatchAll({ albums, children }: { albums: AlbumSummary[]; children: React.ReactNode }) {
+export function AlbumMatchAll({
+  albums,
+  head,
+  children,
+}: {
+  albums: AlbumSummary[];
+  /** Draws the page's head, with Match all among its actions while there's something to match. */
+  head: (action: React.ReactNode) => React.ReactNode;
+  children: React.ReactNode;
+}) {
   const router = useRouter();
   const [job, setJob] = useState<AlbumMatchAllDto | null>(null);
   const [starting, setStarting] = useState(false);
@@ -118,22 +127,26 @@ export function AlbumMatchAll({ albums, children }: { albums: AlbumSummary[]; ch
 
   // Until a run starts, the unmatched albums themselves show below the button.
   if (!job) {
-    if (unmatched === 0) return children;
+    if (unmatched === 0) return (
+      <>
+        {head(null)}
+        {children}
+      </>
+    );
     return (
       <>
-        <div className="bulk-bar">
-          <span className="muted small">{plural(unmatched, "album")} not matched</span>
+        {head(
           <button
             type="button"
-            className="btn btn-primary"
+            className="text-btn"
             onClick={() => {
               setFields(new Set((lastAlbumFields() ?? DEFAULT_FIELDS).filter((f): f is AlbumMatchAllField => f !== "tracks")));
               setStarting(true);
             }}
           >
             Match all
-          </button>
-        </div>
+          </button>,
+        )}
         <Sheet open={starting} onClose={() => setStarting(false)} title={`Match ${plural(unmatched, "album")}`}>
           <p className="sheet-note">Each album is searched and its best result shown for you to check. Nothing changes until you apply.</p>
           <div className="sheet-group">
@@ -175,85 +188,88 @@ export function AlbumMatchAll({ albums, children }: { albums: AlbumSummary[]; ch
     ).then(() => router.refresh());
 
   return (
-    <div className="bulk">
-      {job.running ? (
-        <div className="card-box bulk-progress">
+    <>
+      {head(null)}
+      <div className="bulk">
+        {job.running ? (
+          <div className="card-box bulk-progress">
+            <div className="bulk-progress-head">
+              <strong>Matching {plural(job.total, "album")}</strong>
+              <span className="muted small">
+                {job.done} of {job.total}
+              </span>
+            </div>
+            <div className="bar thick">
+              <div style={{ width: `${job.total ? (job.done / job.total) * 100 : 0}%` }} />
+            </div>
+            <div className="bulk-progress-foot muted small">
+              <span>{job.current ? `Now: ${job.current}` : "Starting…"}</span>
+              <button type="button" className="link-btn" disabled={busy} onClick={() => void run(() => api(PATH, { method: "DELETE" }))}>
+                Stop
+              </button>
+            </div>
+          </div>
+        ) : (
+          // Discarding drops the results only; matches already applied stay.
           <div className="bulk-progress-head">
-            <strong>Matching {plural(job.total, "album")}</strong>
-            <span className="muted small">
-              {job.done} of {job.total}
-            </span>
-          </div>
-          <div className="bar thick">
-            <div style={{ width: `${job.total ? (job.done / job.total) * 100 : 0}%` }} />
-          </div>
-          <div className="bulk-progress-foot muted small">
-            <span>{job.current ? `Now: ${job.current}` : "Starting…"}</span>
-            <button type="button" className="link-btn" disabled={busy} onClick={() => void run(() => api(PATH, { method: "DELETE" }))}>
-              Stop
+            <strong>Matched {plural(job.total, "album")}</strong>
+            <button type="button" className="link-btn" disabled={busy} onClick={() => void run(() => api(PATH, { method: "DELETE" }), "Results discarded")}>
+              Discard
             </button>
           </div>
-        </div>
-      ) : (
-        // Discarding drops the results only; matches already applied stay.
-        <div className="bulk-progress-head">
-          <strong>Matched {plural(job.total, "album")}</strong>
-          <button type="button" className="link-btn" disabled={busy} onClick={() => void run(() => api(PATH, { method: "DELETE" }), "Results discarded")}>
-            Discard
-          </button>
-        </div>
-      )}
-
-      <div className="subtabs bulk-tabs" role="tablist">
-        {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
-          <button key={f} type="button" role="tab" className="subtab" aria-selected={filter === f} onClick={() => setFilter(f)}>
-            {FILTER_LABEL[f]}
-          </button>
-        ))}
-        {filter === "review" && by("review").length ? (
-          <button
-            type="button"
-            className="btn btn-primary btn-small"
-            disabled={busy || pickedReview.length === 0}
-            onClick={() => apply(pickedReview.map((i) => i.albumId))}
-          >
-            {pickedReview.length ? `Apply ${pickedReview.length}` : "Pick some"}
-          </button>
-        ) : null}
-      </div>
-
-      {shown.length === 0 ? (
-        <EmptyState>{job.running ? "Nothing here yet." : `No albums under ${FILTER_LABEL[filter].toLowerCase()}.`}</EmptyState>
-      ) : (
-        <div>
-          {shown.map((item) => (
-            <MatchAllRow
-              key={item.albumId}
-              item={item}
-              picked={picked.has(item.albumId)}
-              busy={busy}
-              onPick={(on) =>
-                setPicked((p) => {
-                  const out = new Set(p);
-                  if (on) out.add(item.albumId);
-                  else out.delete(item.albumId);
-                  return out;
-                })
-              }
-              onUndo={() =>
-                void run(() => api(`${PATH}/undo`, { method: "POST", body: { albumId: item.albumId } }), "Put back").then(() => router.refresh())
-              }
-              onApply={() => apply([item.albumId])}
-              onSearch={() => {
-                const album = albums.find((a) => a.id === item.albumId);
-                if (album) setSearching(album);
-              }}
-            />
+        )}
+  
+        <div className="subtabs bulk-tabs" role="tablist">
+          {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
+            <button key={f} type="button" role="tab" className="subtab" aria-selected={filter === f} onClick={() => setFilter(f)}>
+              {FILTER_LABEL[f]}
+            </button>
           ))}
+          {filter === "review" && by("review").length ? (
+            <button
+              type="button"
+              className="btn btn-primary btn-small"
+              disabled={busy || pickedReview.length === 0}
+              onClick={() => apply(pickedReview.map((i) => i.albumId))}
+            >
+              {pickedReview.length ? `Apply ${pickedReview.length}` : "Pick some"}
+            </button>
+          ) : null}
         </div>
-      )}
-      {dialog}
-    </div>
+  
+        {shown.length === 0 ? (
+          <EmptyState>{job.running ? "Nothing here yet." : `No albums under ${FILTER_LABEL[filter].toLowerCase()}.`}</EmptyState>
+        ) : (
+          <div>
+            {shown.map((item) => (
+              <MatchAllRow
+                key={item.albumId}
+                item={item}
+                picked={picked.has(item.albumId)}
+                busy={busy}
+                onPick={(on) =>
+                  setPicked((p) => {
+                    const out = new Set(p);
+                    if (on) out.add(item.albumId);
+                    else out.delete(item.albumId);
+                    return out;
+                  })
+                }
+                onUndo={() =>
+                  void run(() => api(`${PATH}/undo`, { method: "POST", body: { albumId: item.albumId } }), "Put back").then(() => router.refresh())
+                }
+                onApply={() => apply([item.albumId])}
+                onSearch={() => {
+                  const album = albums.find((a) => a.id === item.albumId);
+                  if (album) setSearching(album);
+                }}
+              />
+            ))}
+          </div>
+        )}
+        {dialog}
+      </div>
+    </>
   );
 }
 

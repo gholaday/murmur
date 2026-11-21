@@ -2,15 +2,25 @@
 
 /* eslint-disable @next/next/no-img-element -- provider cover suggestions are remote */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import {
   apiPaths,
+  BOOK_FIELD_LABELS,
+  BOOK_PROVIDER_NAME,
+  type BookEditForm,
   type BookEditInfo,
-  type BookEditValues,
+  bookFormOf,
   changedFields,
   changedRows,
-  type ChapterDto,
+  type ChapterRow,
+  chapterRowsOf,
+  chapterStartOf,
   duration,
+  formatClock,
+  formatSize,
+  parseClock,
+  sameChapterRow,
+  scannedText,
   saveLabel,
   type KnownSeries,
   type MatchSearchResult,
@@ -23,7 +33,7 @@ import { Cover } from "../cover";
 import { MinusIcon, PlusIcon, RefreshIcon } from "../icons";
 import { RemoveBooksSheet } from "../library/selection";
 import { PicturePicker } from "../picture-picker";
-import { useBackdropClose } from "../sheet";
+import { useSheetDialog } from "../sheet";
 import { MatchPanel } from "./match-dialog";
 
 export type EditTab = "details" | "cover" | "chapters" | "match" | "files";
@@ -35,62 +45,6 @@ const TABS: Array<{ id: EditTab; label: string }> = [
   { id: "match", label: "Match" },
   { id: "files", label: "Files" },
 ];
-
-const PROVIDER_NAME = { audible: "Audible", google: "Google Books", itunes: "Apple Books" } as const;
-
-interface Form {
-  title: string;
-  author: string;
-  narrator: string;
-  series: string;
-  seriesPosition: string;
-  year: string;
-  description: string;
-}
-
-function formOf(info: BookEditInfo): Form {
-  const b = info.book;
-  return {
-    title: b.title,
-    author: b.author ?? "",
-    narrator: b.narrator ?? "",
-    series: b.series ?? "",
-    seriesPosition: b.seriesPosition === null ? "" : String(b.seriesPosition),
-    year: b.year ?? "",
-    description: b.description ?? "",
-  };
-}
-
-function scannedText(s: BookEditValues, f: keyof Form): string {
-  if (f === "seriesPosition") return s.seriesPosition === null ? "" : String(s.seriesPosition);
-  return s[f] ?? "";
-}
-
-/** "1:02:03", "62:03" or "3723" to seconds; null when it can't be read. */
-function parseClock(text: string): number | null {
-  const parts = text.trim().split(":");
-  if (parts.length > 3 || parts.some((p) => !/^\d+(\.\d+)?$/.test(p))) return null;
-  return parts.reduce((sum, p) => sum * 60 + Number(p), 0);
-}
-
-function formatClock(sec: number): string {
-  const s = Math.round(sec);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  return `${h}:${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-}
-
-function formatSize(bytes: number) {
-  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-  if (bytes >= 1024 ** 2) return `${Math.round(bytes / 1024 ** 2)} MB`;
-  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}
-
-/** `sec` is the exact original start, kept when the shown (rounded) time isn't changed. */
-type Row = { title: string; start: string; sec?: number };
-const rowsOf = (chapters: ChapterDto[]): Row[] => chapters.map((c) => ({ title: c.title, start: formatClock(c.startSec), sec: c.startSec }));
-const startOf = (r: Row) => (r.sec !== undefined && r.start === formatClock(r.sec) ? r.sec : parseClock(r.start));
-const sameRow = (a: Row, b: Row) => a.title === b.title && a.start === b.start;
 
 /**
  * The admin's edit dialog for one book: details, cover, chapters, match and files.
@@ -112,19 +66,17 @@ export function EditBookDialog({
   /** After the book is removed from the library; by default the dialog closes and the list refreshes. */
   onRemoved?: () => void;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const backdropClose = useBackdropClose(onClose);
   const [tab, setTab] = useState<EditTab>(initialTab);
   const [info, setInfo] = useState<BookEditInfo | null>(null);
-  const [form, setForm] = useState<Form | null>(null);
-  const [rows, setRows] = useState<Row[]>([]);
+  const [form, setForm] = useState<BookEditForm | null>(null);
+  const [rows, setRows] = useState<ChapterRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const adopt = useCallback((next: BookEditInfo) => {
     setInfo(next);
-    setForm(formOf(next));
-    setRows(rowsOf(next.book.chapters));
+    setForm(bookFormOf(next));
+    setRows(chapterRowsOf(next.book.chapters));
   }, []);
 
   const load = useCallback(async () => {
@@ -135,20 +87,20 @@ export function EditBookDialog({
     }
   }, [bookId, adopt]);
 
+  const { dialogProps, drag, sinking } = useSheetDialog({ open, onClose });
+  // Each time it opens: the asked-for tab, fresh from the server.
+  const wasOpen = useRef(false);
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (open && !el.open) {
-      el.showModal();
+    if (open && !wasOpen.current) {
       setTab(initialTab);
       setError(null);
       void load();
     }
-    if (!open && el.open) el.close();
+    wasOpen.current = open;
   }, [open, initialTab, load]);
 
-  const detailChanges = info && form ? changedFields(form, formOf(info)) : 0;
-  const chapterChanges = info ? changedRows(rows, rowsOf(info.book.chapters), sameRow) : 0;
+  const detailChanges = info && form ? changedFields(form, bookFormOf(info)) : 0;
+  const chapterChanges = info ? changedRows(rows, chapterRowsOf(info.book.chapters), sameChapterRow) : 0;
   const detailsDirty = detailChanges > 0;
   const chaptersDirty = chapterChanges > 0;
 
@@ -183,7 +135,7 @@ export function EditBookDialog({
       }
       if (chaptersDirty) {
         const chapters = rows.map((r, i) => {
-          const startSec = startOf(r);
+          const startSec = chapterStartOf(r);
           if (startSec === null) throw new Error(`Chapter ${i + 1}: start time should look like 1:02:03.`);
           if (!r.title.trim()) throw new Error(`Chapter ${i + 1} needs a name.`);
           return { title: r.title.trim(), startSec };
@@ -194,16 +146,11 @@ export function EditBookDialog({
     }, "Saved");
 
   return (
-    <dialog
-      ref={ref}
-      className="sheet wide"
-      aria-label="Edit book"
-      onClose={onClose}
-      {...backdropClose}
-    >
-      {open ? (
+    <dialog className="sheet wide" aria-label="Edit book" {...dialogProps}>
+      {open || sinking ? (
         <div className="edit">
-          <div className="edit-head">
+          <div className="sheet-grab" aria-hidden="true" {...drag} />
+          <div className="edit-head" {...drag}>
             {info ? (
               <Cover
                 className="edit-thumb"
@@ -244,25 +191,28 @@ export function EditBookDialog({
                 {error}
               </p>
             ) : !info || !form ? (
-              <div className="loading-center" aria-busy="true" aria-label="Loading">
-                <div className="spinner" />
-              </div>
-            ) : tab === "details" ? (
-              <DetailsTab info={info} form={form} setForm={setForm} />
-            ) : tab === "cover" ? (
-              <CoverTab info={info} busy={busy} act={act} />
-            ) : tab === "chapters" ? (
-              <ChaptersTab info={info} rows={rows} setRows={setRows} busy={busy} act={act} />
-            ) : tab === "match" ? (
-              <MatchPanel
-                book={info.book}
-                onApplied={() => {
-                  void act(async () => undefined, "Match applied");
-                  setTab("details");
-                }}
-              />
+              // No spinner: the tab fades in once the book has loaded.
+              <div aria-busy="true" aria-label="Loading" />
             ) : (
-              <FilesTab info={info} busy={busy} act={act} onRemoved={onRemoved ?? (() => (onChanged(), onClose()))} />
+              <div key={tab} className="view-fade edit-tab">
+                {tab === "details" ? (
+                  <DetailsTab info={info} form={form} setForm={setForm} />
+                ) : tab === "cover" ? (
+                  <CoverTab info={info} busy={busy} act={act} />
+                ) : tab === "chapters" ? (
+                  <ChaptersTab info={info} rows={rows} setRows={setRows} busy={busy} act={act} />
+                ) : tab === "match" ? (
+                  <MatchPanel
+                    book={info.book}
+                    onApplied={() => {
+                      void act(async () => undefined, "Match applied");
+                      setTab("details");
+                    }}
+                  />
+                ) : (
+                  <FilesTab info={info} busy={busy} act={act} onRemoved={onRemoved ?? (() => (onChanged(), onClose()))} />
+                )}
+              </div>
             )}
           </div>
 
@@ -282,20 +232,10 @@ export function EditBookDialog({
 
 type Act = (fn: () => Promise<BookEditInfo | void>, done: string) => Promise<boolean>;
 
-const FIELD_LABELS: Record<keyof Form, string> = {
-  title: "Title",
-  author: "Author",
-  narrator: "Narrator",
-  series: "Series",
-  seriesPosition: "Book number",
-  year: "Year",
-  description: "Description",
-};
-
-function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; setForm: (f: Form) => void }) {
-  const field = (f: keyof Form, opts: { wide?: boolean; multiline?: boolean; placeholder?: string } = {}) => {
+function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: BookEditForm; setForm: (f: BookEditForm) => void }) {
+  const field = (f: keyof BookEditForm, opts: { wide?: boolean; multiline?: boolean; placeholder?: string } = {}) => {
     const scanned = scannedText(info.scanned, f);
-    const saved = formOf(info)[f];
+    const saved = bookFormOf(info)[f];
     const changed = form[f].trim() !== scanned;
     // Unsaved typing can be undone; a saved edit can be reset to what the files say.
     const unsaved = form[f] !== saved;
@@ -303,7 +243,7 @@ function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; s
     return (
       <div className={`edit-field ${opts.wide ? "wide" : ""}`}>
         <div className="edit-label">
-          <label htmlFor={id}>{FIELD_LABELS[f]}</label>
+          <label htmlFor={id}>{BOOK_FIELD_LABELS[f]}</label>
           {changed ? (
             <span className="edited-tag">
               <span className="edited-dot" aria-hidden="true" />
@@ -483,7 +423,7 @@ function CoverTab({ info, busy, act }: { info: BookEditInfo; busy: boolean; act:
             }
           : undefined
       }
-      suggestions={suggestions === null ? null : covers.map((c) => ({ key: c.coverUrl!, src: c.coverUrl!, label: PROVIDER_NAME[c.provider] }))}
+      suggestions={suggestions === null ? null : covers.map((c) => ({ key: c.coverUrl!, src: c.coverUrl!, label: BOOK_PROVIDER_NAME[c.provider] }))}
       emptyText="No covers found online."
       busy={busy}
       onUpload={upload}
@@ -501,12 +441,12 @@ function ChaptersTab({
   act,
 }: {
   info: BookEditInfo;
-  rows: Row[];
-  setRows: (r: Row[]) => void;
+  rows: ChapterRow[];
+  setRows: (r: ChapterRow[]) => void;
   busy: boolean;
   act: Act;
 }) {
-  const set = (i: number, patch: Partial<Row>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const set = (i: number, patch: Partial<ChapterRow>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   return (
     <div className="form">
       <div className="chapter-tools">

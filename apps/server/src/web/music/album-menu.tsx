@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { type AlbumDetail, type AlbumSummary, apiPaths } from "@murmur/shared/client";
 import { useAdmin } from "../admin";
 import { api } from "../api";
@@ -51,7 +51,7 @@ export function AlbumMenuItems({
           const a = await loadAlbum(album.id);
           await p.addToUpNext(
             a.tracks.map((t) => ({ itemType: "track", itemId: t.id })),
-            "next",
+            "last",
           );
           toast("Added to queue");
         })}

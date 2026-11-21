@@ -451,12 +451,50 @@ export const {
 /** Takes out the Up Next item at `index`. */
 export const removeAt = core.removeFromUpNext;
 
+/** Something to mark, with its progress as it is now, so Undo can put it back exactly. */
+export interface MarkTarget {
+  itemType: "book" | "episode" | "video";
+  itemId: string;
+  durationSec: number;
+  positionSec: number;
+  finished: boolean;
+}
+
 /**
- * Marks a book or episode finished, or back to the start, from a list or page. It goes through
- * the outbox like the player's own saves, so it works offline and syncs later.
+ * Every "Mark as …": finished (or played, or watched), or back to the start. It goes through the
+ * outbox like the player's own saves, so it works offline and syncs later; the one the player has
+ * loaded goes through the player. The toast's Undo puts each item back where it was, the same as
+ * the web's.
  */
-export function setFinished(itemType: "book" | "episode", itemId: string, durationSec: number, finished: boolean) {
-  queueProgress({ itemType, itemId, positionSec: finished ? durationSec : 0, durationSec, finished, updatedAt: Date.now() }, true);
+export async function markProgress(targets: MarkTarget[], finished: boolean, message: string) {
+  const updatedAt = Date.now();
+  const loaded = (t: MarkTarget) => t.itemType !== "video" && isCurrent(core.getState(), t.itemType, t.itemId);
+  for (const t of targets) {
+    if (loaded(t)) await markCurrent(finished);
+    else queueProgress({ itemType: t.itemType, itemId: t.itemId, positionSec: finished ? t.durationSec : 0, durationSec: t.durationSec, finished, updatedAt }, true);
+  }
+  toast.show(message, {
+    duration: 5000,
+    action: {
+      label: "Undo",
+      onPress: () => {
+        const at = Date.now();
+        for (const t of targets) {
+          // Still loaded (it was only sent back to the start): the player goes back to its place too.
+          if (loaded(t)) seek(t.positionSec);
+          queueProgress({ itemType: t.itemType, itemId: t.itemId, positionSec: t.positionSec, durationSec: t.durationSec, finished: t.finished, updatedAt: at }, true);
+        }
+      },
+    },
+  });
+}
+
+/** A loaded book or episode as a MarkTarget: where the player has it now. */
+export function currentMarkTarget(): MarkTarget | null {
+  const s = core.getState();
+  const item = s.item;
+  if (!item || (item.type !== "book" && item.type !== "episode")) return null;
+  return { itemType: item.type, itemId: item.id, durationSec: item.durationSec, positionSec: core.getPosition(), finished: false };
 }
 
 // ---------- Restore ----------

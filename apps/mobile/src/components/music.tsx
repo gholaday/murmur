@@ -17,6 +17,7 @@ import {
   type TrackDto,
 } from "@murmur/shared/client";
 import { setLiked, useAlbum } from "@/lib/data";
+import { useCanHideAndLike } from "@/lib/hidden";
 import { selectHaptic, withLongPressHaptic } from "@/lib/haptics";
 import { downloadTrack, removeDownload, useDownload, useInAlbumDownload } from "@/lib/downloads";
 import { useIsAdmin } from "@/lib/session";
@@ -25,7 +26,7 @@ import { addToUpNext, playMusic, isCurrent, isPlayingFrom, isWaiting, removeWait
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { DragIcon, HeartIcon, MoreIcon, PauseIcon, PlayIcon, ProfileIcon, ShuffleIcon } from "./icons";
-import { AlbumMatchSheet } from "./match";
+import { AlbumMatchSheet, ArtistPhotoSheet } from "./match";
 import { Mixer, MixerBars, useNowPlaying } from "./mixer";
 import { AddToPlaylistSheet } from "./playlists";
 import { HideItem, Sheet, SheetDivider, SheetItem, useCardMenu, useMenuIdle } from "./sheet";
@@ -38,11 +39,11 @@ import { ACTION_HEIGHT, IconButton, Text } from "./ui";
 
 const openAlbum =(id: string) => router.push(`/album/${id}`);
 
-/** An album's or playlist's songs into Up Next in order, to play next. */
+/** An album's or playlist's songs onto the end of Up Next, in order. */
 export const addSongsToUpNext = (tracks: TrackDto[]) =>
   addToUpNext(
     tracks.map((tr) => ({ itemType: "track", itemId: tr.id })),
-    "next",
+    "last",
   ).then(
     () => toast.show("Added to queue"),
     (err: unknown) => toast.error(err instanceof Error ? err.message : "Couldn't do that."),
@@ -172,17 +173,69 @@ export const AlbumCard = memo(function AlbumCard({ album, width, sub }: { album:
   );
 });
 
+/**
+ * An artist's menu, the same from a card's long press and the artist page's ⋯ (like the web's):
+ * Change photo… for admins, then Hide where the server can. Whether there's anything in it: useHasArtistActions.
+ */
+export function ArtistActions({
+  artist,
+  open,
+  onClose,
+  onIdle,
+  onHidden,
+}: {
+  artist: { id: string; name: string };
+  open: boolean;
+  onClose: () => void;
+  onIdle?: () => void;
+  onHidden?: () => void;
+}) {
+  const admin = useIsAdmin();
+  const [changing, setChanging] = useState(false);
+  useMenuIdle(open || changing, onIdle);
+  return (
+    <>
+      <Sheet open={open} onClose={onClose} title={artist.name}>
+        {admin ? (
+          <SheetItem
+            label="Change photo…"
+            onPress={() => {
+              onClose();
+              setChanging(true);
+            }}
+          />
+        ) : null}
+        <HideItem kind="artist" id={artist.id} title={artist.name} onClose={onClose} onHidden={onHidden} divider={admin} />
+      </Sheet>
+      {admin ? <ArtistPhotoSheet artist={changing ? artist : null} onClose={() => setChanging(false)} /> : null}
+    </>
+  );
+}
+
+/** Change photo is for admins and Hide for servers that can; with neither, an artist has no menu. */
+export const useHasArtistActions = () => {
+  const admin = useIsAdmin();
+  const canHide = useCanHideAndLike();
+  return admin || canHide;
+};
+
 /** An artist on a shelf: their round photo (or an album cover of theirs), the name and how many albums, centred. */
 export const ArtistCard = memo(function ArtistCard({ artist, width }: { artist: ArtistSummary; width: number }) {
   const t = useTheme();
   const photo = artistImage(artist);
+  const menu = useCardMenu();
+  const hasMenu = useHasArtistActions();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${artist.name}, ${plural(artist.albumCount, "album")}`}
+      accessibilityActions={hasMenu ? [{ name: "longpress", label: "Options" }] : undefined}
+      onAccessibilityAction={menu.show}
       onPress={() => openArtist(artist.id)}
+      onLongPress={hasMenu ? withLongPressHaptic(menu.show) : undefined}
       style={({ pressed }) => ({ width, gap: 8, opacity: pressed ? 0.75 : 1 })}
     >
+      {menu.shown ? <ArtistActions artist={artist} open={menu.open} onClose={menu.close} onIdle={menu.idle} /> : null}
       {photo ? (
         <Cover path={photo} title={artist.name} size={width} radius={width / 2} />
       ) : (
@@ -308,7 +361,7 @@ function SongSheetItems({ track, onClose, hideAlbum, onAddToPlaylist }: { track:
       {queued ? (
         <SheetItem label="Remove from queue" onPress={run(async () => removeWaiting(ref), "Removed from queue")} />
       ) : (
-        <SheetItem label="Add to queue" onPress={run(() => addToUpNext(ref, "next"), "Added to queue")} />
+        <SheetItem label="Add to queue" onPress={run(() => addToUpNext(ref, "last"), "Added to queue")} />
       )}
       <SheetItem label="Add to playlist…" onPress={onAddToPlaylist} />
       {hideAlbum ? null : <SheetItem label="Go to album" onPress={close(() => openAlbum(track.albumId))} />}

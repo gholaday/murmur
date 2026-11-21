@@ -4,15 +4,25 @@ import * as ImagePicker from "expo-image-picker";
 import {
   apiPaths,
   type BookEditInfo,
-  type BookEditValues,
+  BOOK_FIELD_LABELS,
+  BOOK_PROVIDER_NAME,
+  bookFormOf,
+  type BookEditForm,
   changedFields,
   changedRows,
-  type ChapterDto,
+  chapterRowsOf,
+  type ChapterRow,
+  chapterStartOf,
   duration,
   errorText,
+  formatClock,
+  formatSize,
   type KnownSeries,
   type MatchSearchResult,
+  parseClock,
   plural,
+  sameChapterRow,
+  scannedText,
   suggestSeries,
 } from "@murmur/shared/client";
 import { absolute, api, authHeaders } from "@/lib/api";
@@ -21,7 +31,7 @@ import { queryClient } from "@/lib/query";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { MinusIcon, PlusIcon, RefreshIcon } from "./icons";
-import { PROVIDER_NAME, SheetHead, useBookMatch } from "./match";
+import { SheetHead, useBookMatch } from "./match";
 import { PictureEdit, type PictureOption, usePicturePick } from "./picture-edit";
 import { RemoveBooksSheet, Sheet } from "./sheet";
 import { Bone, Skeleton } from "./skeleton";
@@ -41,70 +51,6 @@ const TABS: { id: BookEditTab; label: string }[] = [
   { id: "match", label: "Match" },
   { id: "files", label: "Files" },
 ];
-
-interface Form {
-  title: string;
-  author: string;
-  narrator: string;
-  series: string;
-  seriesPosition: string;
-  year: string;
-  description: string;
-}
-
-const FIELD_LABELS: Record<keyof Form, string> = {
-  title: "Title",
-  author: "Author",
-  narrator: "Narrator",
-  series: "Series",
-  seriesPosition: "Book number",
-  year: "Year",
-  description: "Description",
-};
-
-function formOf(info: BookEditInfo): Form {
-  const b = info.book;
-  return {
-    title: b.title,
-    author: b.author ?? "",
-    narrator: b.narrator ?? "",
-    series: b.series ?? "",
-    seriesPosition: b.seriesPosition === null ? "" : String(b.seriesPosition),
-    year: b.year ?? "",
-    description: b.description ?? "",
-  };
-}
-
-function scannedText(s: BookEditValues, f: keyof Form): string {
-  if (f === "seriesPosition") return s.seriesPosition === null ? "" : String(s.seriesPosition);
-  return s[f] ?? "";
-}
-
-/** "1:02:03", "62:03" or "3723" to seconds; null when it can't be read. */
-function parseClock(text: string): number | null {
-  const parts = text.trim().split(":");
-  if (parts.length > 3 || parts.some((p) => !/^\d+(\.\d+)?$/.test(p))) return null;
-  return parts.reduce((sum, p) => sum * 60 + Number(p), 0);
-}
-
-function formatClock(sec: number): string {
-  const s = Math.round(sec);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  return `${h}:${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-}
-
-function formatSize(bytes: number) {
-  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-  if (bytes >= 1024 ** 2) return `${Math.round(bytes / 1024 ** 2)} MB`;
-  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}
-
-/** `sec` is the exact original start, kept when the shown (rounded) time isn't changed. */
-type Row = { title: string; start: string; sec?: number };
-const rowsOf = (chapters: ChapterDto[]): Row[] => chapters.map((c) => ({ title: c.title, start: formatClock(c.startSec), sec: c.startSec }));
-const startOf = (r: Row) => (r.sec !== undefined && r.start === formatClock(r.sec) ? r.sec : parseClock(r.start));
-const sameRow = (a: Row, b: Row) => a.title === b.title && a.start === b.start;
 
 type Act = (fn: () => Promise<BookEditInfo | void>, done: string) => Promise<void>;
 
@@ -147,15 +93,15 @@ function BookEdit({
 }) {
   const [tab, setTab] = useState(startTab);
   const [info, setInfo] = useState<BookEditInfo | null>(null);
-  const [form, setForm] = useState<Form | null>(null);
-  const [rows, setRows] = useState<Row[]>([]);
+  const [form, setForm] = useState<BookEditForm | null>(null);
+  const [rows, setRows] = useState<ChapterRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const adopt = useCallback((next: BookEditInfo) => {
     setInfo(next);
-    setForm(formOf(next));
-    setRows(rowsOf(next.book.chapters));
+    setForm(bookFormOf(next));
+    setRows(chapterRowsOf(next.book.chapters));
   }, []);
   const load = useCallback(() => api<BookEditInfo>(apiPaths.bookEdit(bookId)), [bookId]);
   useEffect(() => {
@@ -170,8 +116,8 @@ function BookEdit({
   }, [load, adopt]);
 
   // Save says how many: changed details, plus chapter rows added, removed or changed.
-  const detailChanges = info && form ? changedFields(form, formOf(info)) : 0;
-  const chapterChanges = info ? changedRows(rows, rowsOf(info.book.chapters), sameRow) : 0;
+  const detailChanges = info && form ? changedFields(form, bookFormOf(info)) : 0;
+  const chapterChanges = info ? changedRows(rows, chapterRowsOf(info.book.chapters), sameChapterRow) : 0;
   const detailsDirty = detailChanges > 0;
   const chaptersDirty = chapterChanges > 0;
 
@@ -199,7 +145,7 @@ function BookEdit({
       }
       if (chaptersDirty) {
         const chapters = rows.map((r, i) => {
-          const startSec = startOf(r);
+          const startSec = chapterStartOf(r);
           if (startSec === null) throw new Error(`Chapter ${i + 1}: start time should look like 1:02:03.`);
           if (!r.title.trim()) throw new Error(`Chapter ${i + 1} needs a name.`);
           return { title: r.title.trim(), startSec };
@@ -348,19 +294,19 @@ export function useSeriesSuggest(known: KnownSeries[], value: string, onPick: (n
   return { inputProps: { onFocus: open, onBlur: closeSoon }, onType: open, list };
 }
 
-function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; setForm: (f: Form) => void }) {
+function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: BookEditForm; setForm: (f: BookEditForm) => void }) {
   const t = useTheme();
   const series = useSeriesSuggest(info.knownSeries, form.series, (name) => setForm({ ...form, series: name }));
-  const field =(f: keyof Form, opts: { multiline?: boolean; placeholder?: string; numeric?: boolean } = {}) => {
+  const field =(f: keyof BookEditForm, opts: { multiline?: boolean; placeholder?: string; numeric?: boolean } = {}) => {
     const scanned = scannedText(info.scanned, f);
-    const saved = formOf(info)[f];
+    const saved = bookFormOf(info)[f];
     const changed = form[f].trim() !== scanned;
     // Unsaved typing can be undone; a saved edit can be reset to what the files say.
     const unsaved = form[f] !== saved;
     return (
       <View style={{ gap: 6 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Caption style={{ letterSpacing: 0.6 }}>{FIELD_LABELS[f]}</Caption>
+          <Caption style={{ letterSpacing: 0.6 }}>{BOOK_FIELD_LABELS[f]}</Caption>
           {changed ? <View accessibilityLabel="Edited" style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: t.accent }} /> : null}
           <View style={{ flex: 1 }} />
           {unsaved ? (
@@ -370,7 +316,7 @@ function DetailsTab({ info, form, setForm }: { info: BookEditInfo; form: Form; s
           ) : null}
         </View>
         <Input
-          accessibilityLabel={FIELD_LABELS[f]}
+          accessibilityLabel={BOOK_FIELD_LABELS[f]}
           value={form[f]}
           placeholder={opts.placeholder}
           onChangeText={(text) => {
@@ -468,8 +414,8 @@ function CoverTab({
         covers?.map((c) => ({
           key: `${c.provider}:${c.providerId}`,
           thumb: c.coverUrl!,
-          label: `Pick the ${PROVIDER_NAME[c.provider]} cover of ${c.title}`,
-          caption: PROVIDER_NAME[c.provider],
+          label: `Pick the ${BOOK_PROVIDER_NAME[c.provider]} cover of ${c.title}`,
+          caption: BOOK_PROVIDER_NAME[c.provider],
           apply: () => fromUrl(c.coverUrl!),
         })) ?? null
       }
@@ -480,9 +426,9 @@ function CoverTab({
   );
 }
 
-function ChaptersTab({ info, rows, setRows, busy, act }: { info: BookEditInfo; rows: Row[]; setRows: (r: Row[]) => void; busy: boolean; act: Act }) {
+function ChaptersTab({ info, rows, setRows, busy, act }: { info: BookEditInfo; rows: ChapterRow[]; setRows: (r: ChapterRow[]) => void; busy: boolean; act: Act }) {
   const t = useTheme();
-  const set = (i: number, patch: Partial<Row>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const set = (i: number, patch: Partial<ChapterRow>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   return (
     <>
       <Text variant="small">{info.chaptersEdited ? "Edited or matched chapters." : `${info.scannedChapters.length} chapters from the files.`}</Text>

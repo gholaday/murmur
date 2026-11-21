@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { apiPaths, type BookmarkDto, duration, type EpisodeWithShow, errorText, pastStart, shortDate, timeLeft } from "@murmur/shared/client";
 import { api } from "../api";
 import { BookmarkRows } from "../bookmark-rows";

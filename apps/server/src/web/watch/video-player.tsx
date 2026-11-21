@@ -40,10 +40,11 @@ import {
   WATCHED_AT,
   cueAt,
   FALLBACK_TINT,
+  CAST_FAILED,
 } from "@murmur/shared/client";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { api, refused } from "../api";
-import { CAST_FAILED, CastMedia, MEDIA_EVENTS, type MediaEventName, stopCasting, useCast } from "../cast/cast";
+import { CastMedia, MEDIA_EVENTS, type MediaEventName, stopCasting, useCast } from "../cast/cast";
 import { CastButton } from "../cast/cast-button";
 import {
   AudioTrackIcon,

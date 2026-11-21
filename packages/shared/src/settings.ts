@@ -106,3 +106,8 @@ export function backupLine(b: BackupStatusDto, now = Date.now()): { sub: string;
   const when = day === "Today" || day === "Yesterday" ? day.toLowerCase() : day;
   return { sub: `Last backed up ${when}`, dot: now - b.at > BACKUP_STALE_MS ? "warn" : "ok" };
 }
+
+/** Passwords need at least this many characters; the server checks it too. */
+export const MIN_PASSWORD = 8;
+export const SHORT_NEW_PASSWORD = `The new password needs at least ${MIN_PASSWORD} characters.`;
+export const SHORT_PASSWORD = `The password needs at least ${MIN_PASSWORD} characters.`;

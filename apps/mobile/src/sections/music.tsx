@@ -298,6 +298,7 @@ export function MusicSection() {
         onClose={() => setNaming(false)}
         title="New playlist"
         action="Make playlist"
+        busyLabel="Making…"
         onSubmit={async (name) => openPlaylist((await createPlaylist(name)).id)}
       />
     </View>

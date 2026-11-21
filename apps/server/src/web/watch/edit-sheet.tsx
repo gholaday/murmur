@@ -2,13 +2,13 @@
 
 /* eslint-disable @next/next/no-img-element -- TMDB picture suggestions are remote */
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { useEffect, useState } from "react";
+import { toast } from "../toast";
 import { apiPaths, changedFields, errorText, saveLabel, type WatchArtOption } from "@murmur/shared/client";
 import { api } from "../api";
 import { Cover } from "../cover";
 
-import { useBackdropClose } from "../sheet";
+import { useSheetDialog } from "../sheet";
 import { PicturePicker } from "../picture-picker";
 import { WatchMatchPanel } from "./match-sheet";
 
@@ -48,8 +48,7 @@ export function WatchEditDialog({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const ref = useRef<HTMLDialogElement>(null);
-  const backdropClose = useBackdropClose(onClose);
+  const { dialogProps, drag, dismiss } = useSheetDialog({ onClose });
   const [tab, setTab] = useState(startTab);
   const saved = { title: item.title, year: item.year ?? "", description: item.description ?? "" };
   const [form, setForm] = useState(saved);
@@ -57,11 +56,6 @@ export function WatchEditDialog({
   const changes = changedFields(form, saved);
   const dirty = changes > 0;
   const base = apiPaths.watchItem(kind, item.id);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (el && !el.open) el.showModal();
-  }, []);
 
   const save = async () => {
     setBusy(true);
@@ -102,9 +96,10 @@ export function WatchEditDialog({
   );
 
   return (
-    <dialog ref={ref} className="sheet wide" aria-label={kind === "movie" ? "Edit movie" : "Edit show"} onClose={onClose} {...backdropClose}>
+    <dialog className="sheet wide" aria-label={kind === "movie" ? "Edit movie" : "Edit show"} {...dialogProps}>
       <div className="edit">
-        <div className="edit-head">
+        <div className="sheet-grab" aria-hidden="true" {...drag} />
+        <div className="edit-head" {...drag}>
           <Cover
             className="edit-thumb poster"
             src={item.posterHash ? artUrl(item.id, "poster", item.posterHash, "small") : null}
@@ -174,7 +169,7 @@ export function WatchEditDialog({
               onMatched={(title) => {
                 toast(`Matched to ${title}`);
                 router.refresh();
-                onClose();
+                dismiss();
               }}
             />
           )}

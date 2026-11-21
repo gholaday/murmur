@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiPaths, type HiddenChange, type HiddenDto, plural } from "@murmur/shared/client";
+import { apiPaths, type HiddenChange, type HiddenDto, type HiddenItem, type LibrarySection, plural } from "@murmur/shared/client";
 import { toast } from "@/components/toast";
 import { api } from "./api";
 import { nullIfMissing } from "./data";
@@ -47,15 +47,43 @@ export async function hideBooks(ids: string[]) {
   });
 }
 
-/** Puts it back in your lists. */
-export function unhide(change: HiddenChange) {
+/** Puts it back in your lists; resolves to whether that worked. */
+export function unhide(change: HiddenChange): Promise<boolean> {
   // You > Hidden drops the row at once.
   queryClient.setQueryData<HiddenDto | null>(keys.hidden, (d) =>
     d && { books: d.books.filter((i) => !same(i, change)), music: d.music.filter((i) => !same(i, change)), watch: d.watch.filter((i) => !same(i, change)) },
   );
-  return send(change, false).catch((err: unknown) => {
-    toast.error(err instanceof Error ? err.message : "Couldn't unhide that.");
-    void queryClient.invalidateQueries({ queryKey: keys.hidden });
+  return send(change, false).then(
+    () => true,
+    (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Couldn't unhide that.");
+      void queryClient.invalidateQueries({ queryKey: keys.hidden });
+      return false;
+    },
+  );
+}
+
+/** You > Hidden's Unhide: says so, with an Undo that hides it again and puts the row back where it was. */
+export async function unhideRow(item: HiddenItem, section: LibrarySection) {
+  const at = queryClient.getQueryData<HiddenDto | null>(keys.hidden)?.[section].findIndex((i) => same(i, item)) ?? -1;
+  const change = { kind: item.kind, id: item.id };
+  if (!(await unhide(change))) return;
+  toast.show(`Unhid ${item.title}`, {
+    duration: 5000,
+    action: {
+      label: "Undo",
+      onPress: () =>
+        void send(change, true).then(
+          () =>
+            queryClient.setQueryData<HiddenDto | null>(keys.hidden, (d) => {
+              if (!d || d[section].some((i) => same(i, item))) return d;
+              const list = [...d[section]];
+              list.splice(at < 0 ? list.length : Math.min(at, list.length), 0, item);
+              return { ...d, [section]: list };
+            }),
+          (err: unknown) => toast.error(err instanceof Error ? err.message : "Couldn't hide that."),
+        ),
+    },
   });
 }
 

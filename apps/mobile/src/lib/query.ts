@@ -3,6 +3,7 @@ import { AppState } from "react-native";
 import * as Network from "expo-network";
 import { dehydrate, focusManager, hydrate, onlineManager, QueryClient, type DehydratedState, type Query } from "@tanstack/react-query";
 import { HttpError, type SavedPlace, storageKeys } from "@murmur/shared/client";
+import { onReach, serverAnswers } from "./api";
 import { keys, keyStartsWith } from "./query-keys";
 import { getJson, removeKey, setJson } from "./storage";
 
@@ -136,13 +137,56 @@ export function clearPersistedCache() {
   removeKey(DETAILS_KEY);
 }
 
-// React Query's web defaults don't know about app focus or connectivity on a phone.
+/** How often to ask again while the server can't be reached and the app is open. */
+const RECHECK_MS = 15_000;
+
+/**
+ * Offline means the server can't be reached, not that Android sees no internet: a server on
+ * the home network works without internet, and a phone with internet may not reach it. No
+ * network at all is offline at once; otherwise every request says whether it got through, and
+ * while one didn't, the server is asked again now and then (and on a network change or
+ * coming back to the app) until it answers.
+ */
 onlineManager.setEventListener((setOnline) => {
-  const sub = Network.addNetworkStateListener((s) => setOnline(s.isInternetReachable !== false && !!s.isConnected));
-  return () => sub.remove();
+  let connected = true;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const stopTimer = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  };
+  const check = async () => {
+    stopTimer();
+    if (!connected) return setOnline(false);
+    const reached = await serverAnswers();
+    if (connected) mark(reached);
+  };
+  const mark = (reached: boolean) => {
+    setOnline(reached);
+    stopTimer();
+    if (!reached && connected && AppState.currentState === "active") timer = setTimeout(() => void check(), RECHECK_MS);
+  };
+  onReach(mark);
+  // At launch the first requests tell; only no network at all is known before them.
+  void Network.getNetworkStateAsync().then((s) => {
+    connected = !!s.isConnected;
+    if (!connected) setOnline(false);
+  });
+  const net = Network.addNetworkStateListener((s) => {
+    connected = !!s.isConnected;
+    void check();
+  });
+  const app = AppState.addEventListener("change", (state) => {
+    if (state === "active" && !onlineManager.isOnline()) void check();
+    else if (state !== "active") stopTimer();
+  });
+  return () => {
+    stopTimer();
+    net.remove();
+    app.remove();
+  };
 });
 
 AppState.addEventListener("change", (state) => focusManager.setFocused(state === "active"));
 
-/** Whether the phone has a connection, as React Query sees it. */
+/** Whether the server can be reached, as React Query sees it. */
 export const useOnline = () => useSyncExternalStore(onlineManager.subscribe.bind(onlineManager), () => onlineManager.isOnline());

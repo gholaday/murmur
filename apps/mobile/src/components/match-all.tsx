@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import {
   ALBUM_PROVIDER_NAME,
+  BOOK_PROVIDER_NAME,
   type AlbumMatchAllDto,
   type AlbumMatchAllField,
   albumCover,
@@ -18,7 +19,7 @@ import { queryClient } from "@/lib/query";
 import { fonts, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { CheckIcon, DownIcon } from "./icons";
-import { ALBUM_FIELDS, BOOK_FIELDS, lastAlbumFields, lastBookFields, PROVIDER_NAME, ScorePill } from "./match";
+import { ALBUM_FIELDS, BOOK_FIELDS, lastAlbumFields, lastBookFields, ScorePill } from "./match";
 import { SmallButton } from "./settings";
 import { Sheet } from "./sheet";
 import { toast } from "./toast";
@@ -100,7 +101,7 @@ const BOOKS: Kind = {
         color: i.coverColor,
         theirs: c?.coverUrl ?? null,
         found: c?.title ?? null,
-        sub: c ? [PROVIDER_NAME[c.provider], c.narrator ? `read by ${c.narrator}` : null, c.durationSec ? duration(c.durationSec) : null].filter(Boolean).join(", ") : null,
+        sub: c ? [BOOK_PROVIDER_NAME[c.provider], c.narrator ? `read by ${c.narrator}` : null, c.durationSec ? duration(c.durationSec) : null].filter(Boolean).join(", ") : null,
         score: c?.score ?? null,
         applied: i.applied.map((f) => label(BOOK_FIELDS, f).toLowerCase()),
         changes: i.changes.map((x) => ({ label: label(BOOK_FIELDS, x.field), from: x.from, to: x.to, edited: x.edited })),
@@ -233,7 +234,7 @@ export function useMatchAll(which: "books" | "albums") {
   return { kind, job, loaded, filter, setFilter, picked, pick, busy, start, apply, undo, stop, discard };
 }
 
-/** Before a run: how many aren't matched, and Match all, which opens the fields to take. */
+/** Before a run, in the head row: Match all, which opens the fields to take. */
 export function MatchAllStart({ m, unmatched }: { m: MatchAll; unmatched: number }) {
   const { kind } = m;
   const [open, setOpen] = useState(false);
@@ -247,11 +248,9 @@ export function MatchAllStart({ m, unmatched }: { m: MatchAll; unmatched: number
   };
   return (
     <>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
-        <Text variant="small">{`${plural(unmatched, kind.noun)} not matched`}</Text>
-        <SmallButton
+      <View style={{ paddingHorizontal: 10 }}>
+        <LinkButton
           label="Match all"
-          primary
           onPress={() => {
             setFields(new Set(kind.last() ?? kind.defaults));
             setOpen(true);

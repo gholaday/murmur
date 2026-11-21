@@ -144,8 +144,8 @@ export function BooksSection() {
         current="books"
         right={
           <>
-            {/* Customize is hidden for now; the mode stays, so showing this again brings it back. */}
-            {SHOW_CUSTOMIZE && tab === "books" ? (
+            {/* Customize is hidden for now, but the empty state's Customize still opens it, so Done shows while it's on. */}
+            {(SHOW_CUSTOMIZE || customizing) && tab === "books" ? (
               <IconButton
                 label={customizing ? "Done customizing" : "Customize"}
                 accessibilityState={{ selected: customizing }}

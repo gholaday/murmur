@@ -2,15 +2,18 @@ import { memo, useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { Image, type ImageStyle } from "expo-image";
-import { albumCover, duration, plural, type PlaylistDetail, playlistCoverTiles, type PlaylistSummary } from "@murmur/shared/client";
-import { absolute, authHeaders } from "@/lib/api";
-import { addToPlaylist, createPlaylist, usePlaylists } from "@/lib/data";
+import { albumCover, apiPaths, duration, plural, type PlaylistDetail, playlistCoverTiles, type PlaylistSummary } from "@murmur/shared/client";
+import { absolute, api, authHeaders } from "@/lib/api";
+import { withLongPressHaptic } from "@/lib/haptics";
+import { addToPlaylist, createPlaylist, deletePlaylist, keys, updatePlaylist, usePlaylists } from "@/lib/data";
+import { queryClient } from "@/lib/query";
 import { isPlayingFrom } from "@/player/engine";
 import { useTheme } from "@/theme";
 import { Cover, useRetryOnFail } from "./cover";
 import { PlusIcon } from "./icons";
 import { Mixer, useNowPlaying } from "./mixer";
-import { Sheet, SheetItem } from "./sheet";
+import { addSongsToUpNext } from "./music";
+import { ConfirmSheet, Sheet, SheetItem, useCardMenu, useMenuIdle } from "./sheet";
 import { Bone, Skeleton } from "./skeleton";
 import { toast } from "./toast";
 import { Button, Field, Text } from "./ui";
@@ -80,17 +83,22 @@ function MosaicTile({ path, style }: { path: string; style: ImageStyle }) {
   );
 }
 
-/** A playlist in the grid: its cover, name, and how many songs. */
+/** A playlist in the grid: its cover, name, and how many songs. A long press opens its menu. */
 export const PlaylistCard = memo(function PlaylistCard({ playlist, width }: { playlist: PlaylistSummary; width: number }) {
   const t = useTheme();
   const now = useNowPlaying((s) => isPlayingFrom(s, "playlist", playlist.id));
+  const menu = useCardMenu();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${playlist.name}, ${plural(playlist.trackCount, "song")}`}
+      accessibilityActions={[{ name: "longpress", label: "Options" }]}
+      onAccessibilityAction={menu.show}
       onPress={() => openPlaylist(playlist.id)}
+      onLongPress={withLongPressHaptic(menu.show)}
       style={({ pressed }) => ({ width, gap: 8, opacity: pressed ? 0.75 : 1 })}
     >
+      {menu.shown ? <PlaylistActions playlist={playlist} open={menu.open} onClose={menu.close} onIdle={menu.idle} /> : null}
       <PlaylistCover playlist={playlist}>{now ? <Mixer playing={now === "playing"} /> : null}</PlaylistCover>
       <View style={{ gap: 2 }}>
         <Text variant="bodyStrong" numberOfLines={1} style={{ fontSize: 14, color: now ? t.accent : t.text }}>
@@ -125,6 +133,77 @@ export function NewPlaylistTile({ width, onPress }: { width: number; onPress: ()
         New playlist
       </Text>
     </Pressable>
+  );
+}
+
+/**
+ * A playlist's menu, the same from its card's long press and its page's ⋯ (like the web's): Add to
+ * queue, Rename… and Delete playlist, which asks first. `onDeleted` runs once it's gone (the page leaves).
+ */
+export function PlaylistActions({
+  playlist,
+  open,
+  onClose,
+  onIdle,
+  onDeleted,
+}: {
+  playlist: PlaylistSummary;
+  open: boolean;
+  onClose: () => void;
+  onIdle?: () => void;
+  onDeleted?: () => void;
+}) {
+  const [step, setStep] = useState<"rename" | "delete" | null>(null);
+  useMenuIdle(open || step !== null, onIdle);
+  const then = (fn: () => void) => () => {
+    onClose();
+    fn();
+  };
+  const addToQueue = async () => {
+    try {
+      const p = await queryClient.fetchQuery({ queryKey: keys.playlist(playlist.id), queryFn: () => api<PlaylistDetail>(apiPaths.playlist(playlist.id)) });
+      await addSongsToUpNext(p.tracks);
+    } catch (err) {
+      toast.error(errorText(err, "Couldn't do that."));
+    }
+  };
+  return (
+    <>
+      <Sheet open={open} onClose={onClose} title={playlist.name}>
+        {playlist.trackCount ? <SheetItem label="Add to queue" onPress={then(() => void addToQueue())} /> : null}
+        <SheetItem label="Rename…" onPress={then(() => setStep("rename"))} />
+        <SheetItem label="Delete playlist" danger onPress={then(() => setStep("delete"))} />
+      </Sheet>
+      <NamePlaylistSheet
+        open={step === "rename"}
+        onClose={() => setStep(null)}
+        title="Rename playlist"
+        initial={playlist.name}
+        action="Save"
+        onSubmit={async (name) => {
+          await updatePlaylist(playlist.id, { name });
+          toast.show("Renamed");
+        }}
+      />
+      <ConfirmSheet
+        open={step === "delete"}
+        title={`Delete ${playlist.name}?`}
+        message="Its songs stay in your library."
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => {
+          setStep(null);
+          deletePlaylist(playlist.id).then(
+            () => {
+              toast.show(`Deleted ${playlist.name}`);
+              onDeleted?.();
+            },
+            (err: unknown) => toast.error(errorText(err, "Couldn't delete the playlist.")),
+          );
+        }}
+        onClose={() => setStep(null)}
+      />
+    </>
   );
 }
 
@@ -170,6 +249,7 @@ export function NamePlaylistSheet({
   title,
   initial,
   action,
+  busyLabel = "Saving…",
   onSubmit,
 }: {
   open: boolean;
@@ -177,6 +257,8 @@ export function NamePlaylistSheet({
   title: string;
   initial?: string;
   action: string;
+  /** The button while it saves: "Making…" for a new one. */
+  busyLabel?: string;
   /** Throws to keep the sheet open; it shows the error itself. */
   onSubmit: (name: string) => Promise<void>;
 }) {
@@ -186,7 +268,7 @@ export function NamePlaylistSheet({
         <NameForm
           initial={initial}
           action={action}
-          busyLabel="Saving…"
+          busyLabel={busyLabel}
           onSubmit={async (name) => {
             try {
               await onSubmit(name);

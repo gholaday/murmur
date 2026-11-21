@@ -41,7 +41,7 @@ export function DownloadsView() {
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: top, paddingBottom: bottom }}>
-        <BackRow title="Downloads" />
+        <BackRow title="Downloaded" />
         {all.length ? (
           <ListMeta
             text={bytes > 0 ? `${formatBytes(bytes)} on this phone` : ""}
@@ -108,6 +108,7 @@ export function DownloadsView() {
         title="Remove all downloads?"
         message="Everything downloaded is deleted from this phone. It all stays on the server, so you can download it again."
         confirmLabel="Remove all"
+        danger
         onConfirm={() => void removeAllDownloads()}
         onClose={() => setRemovingAll(false)}
       />

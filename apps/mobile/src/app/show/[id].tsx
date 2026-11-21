@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react";
-import { Animated, Linking, Pressable, TextInput, View } from "react-native";
+import { Animated, Pressable, TextInput, View } from "react-native";
 import Reanimated from "react-native-reanimated";
 import { router, useLocalSearchParams } from "expo-router";
 import {
   apiPaths,
   type BookmarkDto,
   type EpisodeWithShow,
-  errorText,
   matchesEpisode,
   SHOW_TABS,
   type ShowTab,
@@ -20,20 +19,16 @@ import { HeroBackdrop } from "@/components/hero";
 import { CloseIcon, FilterIcon, MoreIcon, SearchIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BackRow, Empty, NestedFallback, useBottomPad, useTopInset } from "@/components/page";
-import { ConfirmSheet, Sheet, SheetItem } from "@/components/sheet";
+import { Sheet, SheetItem } from "@/components/sheet";
 import { FadeIn } from "@/components/skeleton";
-import { toast } from "@/components/toast";
 import { usePullRefresh } from "@/components/pull-refresh";
-import { ShowHero, ShowHeroBones } from "@/components/podcasts";
+import { ShowActions, ShowHero, ShowHeroBones, UnsubscribeSheet } from "@/components/podcasts";
 import { StickyHeading, useStickyHeading } from "@/components/sticky-heading";
 import { TextTabs, useTabFade } from "@/components/text-tabs";
 import { Button, IconButton, Text } from "@/components/ui";
-import { api } from "@/lib/api";
 import { usePodcastBookmarks } from "@/lib/bookmarks";
-import { invalidateListening, keys, useEpisodes, useFirstEpisodes, usePodcast } from "@/lib/data";
+import { useEpisodes, useFirstEpisodes, usePodcast } from "@/lib/data";
 import { useHasDirectory } from "@/lib/directory";
-import { queryClient } from "@/lib/query";
-import { refreshUpNext } from "@/player/engine";
 import { fonts, useTheme } from "@/theme";
 
 type Item = "top" | "heading" | "empty" | "bookmarks" | "morelike" | EpisodeWithShow;
@@ -45,6 +40,9 @@ function byEpisode(bookmarks: BookmarkDto[]): BookmarkDto[][] {
   const newest = (group: BookmarkDto[]) => Math.max(...group.map((b) => b.createdAt));
   return [...groups.values()].sort((a, b) => newest(b) - newest(a));
 }
+
+/** After unsubscribing: the Podcasts tab in place of this page, like the web. */
+const toPodcasts = () => router.replace("/podcasts");
 
 export default function ShowScreen() {
   const t = useTheme();
@@ -68,7 +66,6 @@ export default function ShowScreen() {
   const bookmarkGroups = useMemo(() => byEpisode(bookmarks), [bookmarks]);
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
-  const [busy, setBusy] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   // Only what had to wait fades in; anything already cached shows at once.
   const [showWaited] = useState(!podcast.data);
@@ -141,18 +138,6 @@ export default function ShowScreen() {
       <NestedFallback>{podcast.isError ? <Empty title="Couldn't load this podcast">{podcast.error.message}</Empty> : <ShowHeroBones />}</NestedFallback>
     );
   }
-
-  // Like the web's: what fails says so in a toast, `failed` in place of the server's words.
-  const run = async (fn: () => Promise<unknown>, failed?: string) => {
-    setBusy(true);
-    try {
-      await fn();
-    } catch (err) {
-      toast.error(failed ?? errorText(err));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const cover600 = show.coverHash ? apiPaths.podcastCoverUrl(show.id, show.coverHash, 600) : null;
 
@@ -327,31 +312,7 @@ export default function ShowScreen() {
       </FadeIn>
 
       <BottomMiniPlayer />
-      <Sheet open={sheet === "menu"} onClose={() => setSheet(null)} title={show.title}>
-        <SheetItem
-          label={busy ? "Checking…" : "Check for new episodes"}
-          disabled={busy}
-          onPress={() => {
-            setSheet(null);
-            void run(async () => {
-              await api(apiPaths.podcastRefresh(show.id), { method: "POST" });
-              invalidateListening();
-              void queryClient.invalidateQueries({ queryKey: keys.podcast(show.id) });
-              toast.show("Checked for new episodes");
-            });
-          }}
-        />
-        {show.link ? (
-          <SheetItem
-            label="Podcast website"
-            onPress={() => {
-              setSheet(null);
-              void Linking.openURL(show.link!);
-            }}
-          />
-        ) : null}
-        <SheetItem label="Unsubscribe" danger onPress={() => setSheet("unsubscribe")} />
-      </Sheet>
+      <ShowActions show={show} open={sheet === "menu"} onClose={() => setSheet(null)} onUnsubscribed={toPodcasts} />
 
       <Sheet open={sheet === "sort"} onClose={() => setSheet(null)} title="Sort episodes">
         {[false, true].map((oldest) => (
@@ -368,25 +329,7 @@ export default function ShowScreen() {
         ))}
       </Sheet>
 
-      <ConfirmSheet
-        open={sheet === "unsubscribe"}
-        title={`Unsubscribe from ${show.title}?`}
-        message="Your listening history for this podcast is removed from your lists."
-        confirmLabel="Unsubscribe"
-        danger
-        onConfirm={() =>
-          void run(async () => {
-            await api(apiPaths.podcast(show.id), { method: "DELETE" });
-            void queryClient.invalidateQueries({ queryKey: keys.podcasts });
-            void queryClient.invalidateQueries({ queryKey: keys.newEpisodes });
-            void queryClient.invalidateQueries({ queryKey: keys.continueEpisodes });
-            void refreshUpNext();
-            router.back();
-            toast.show(`Unsubscribed from ${show.title}`);
-          }, "Couldn't unsubscribe.")
-        }
-        onClose={() => setSheet(null)}
-      />
+      <UnsubscribeSheet show={show} open={sheet === "unsubscribe"} onClose={() => setSheet(null)} after={toPodcasts} />
     </View>
   );
 }

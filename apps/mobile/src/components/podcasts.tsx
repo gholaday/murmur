@@ -1,16 +1,26 @@
-import { Pressable, useWindowDimensions, View } from "react-native";
+import { useState } from "react";
+import { Linking, Pressable, useWindowDimensions, View } from "react-native";
 import { router } from "expo-router";
+import * as Clipboard from "expo-clipboard";
 import {
   apiPaths,
   type EpisodeWithShow,
+  errorText,
   plural,
   PODCAST_SORT_LABEL,
+  type PodcastDetail,
   type PodcastListId,
   type PodcastSort,
   type PodcastSummary,
   shortDate,
 } from "@murmur/shared/client";
+import { api } from "@/lib/api";
+import { invalidateListening, keys } from "@/lib/data";
+import { withLongPressHaptic } from "@/lib/haptics";
+import { queryClient } from "@/lib/query";
 import { createStore } from "@/lib/store";
+import { refreshUpNext } from "@/player/engine";
+import { toast } from "./toast";
 import { fonts, mixColor, useTheme } from "@/theme";
 import { Cover } from "./cover";
 import { EpisodeActions, useEpisodePlay } from "./episode-row";
@@ -19,7 +29,7 @@ import { CheckIcon, LockIcon, PlusIcon } from "./icons";
 import { PAD } from "./library";
 import { Mixer, useNowPlaying } from "./mixer";
 import { ActionButton } from "./music";
-import { Sheet, SheetItem } from "./sheet";
+import { ConfirmSheet, Sheet, SheetItem, useCardMenu, useMenuIdle } from "./sheet";
 import { Bone, Skeleton } from "./skeleton";
 import { ACTION_HEIGHT, NumberBadge, Text } from "./ui";
 
@@ -204,16 +214,112 @@ export function ContinueCard({ episode, width }: { episode: EpisodeWithShow; wid
   );
 }
 
+/** Unsubscribes, and takes the show out of your lists and Up Next. The toast says so. */
+export async function unsubscribeShow(show: { id: string; title: string }) {
+  await api(apiPaths.podcast(show.id), { method: "DELETE" });
+  void queryClient.invalidateQueries({ queryKey: keys.podcasts });
+  void queryClient.invalidateQueries({ queryKey: keys.newEpisodes });
+  void queryClient.invalidateQueries({ queryKey: keys.continueEpisodes });
+  void refreshUpNext();
+  toast.show(`Unsubscribed from ${show.title}`);
+}
+
+/** A show with what its page knows: the website and feed, which a card has only once the page was opened. */
+type ShowRef = PodcastSummary & Partial<Pick<PodcastDetail, "link" | "feedUrl">>;
+
+/**
+ * A show's menu, the same from its card's long press and its page's ⋯ (like the web's): Check for
+ * new episodes, then the website and Copy feed URL where they're known, then Unsubscribe, which
+ * asks first. `onUnsubscribed` runs once that's done (the page leaves).
+ */
+export function ShowActions({
+  show,
+  open,
+  onClose,
+  onIdle,
+  onUnsubscribed,
+}: {
+  show: ShowRef;
+  open: boolean;
+  onClose: () => void;
+  onIdle?: () => void;
+  onUnsubscribed?: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  useMenuIdle(open || confirming, onIdle);
+  const then = (fn: () => Promise<unknown> | void) => () => {
+    onClose();
+    Promise.resolve()
+      .then(fn)
+      .catch((err: unknown) => toast.error(errorText(err)));
+  };
+  return (
+    <>
+      <Sheet open={open} onClose={onClose} title={show.title}>
+        <SheetItem
+          label="Check for new episodes"
+          onPress={then(async () => {
+            await api(apiPaths.podcastRefresh(show.id), { method: "POST" });
+            invalidateListening();
+            void queryClient.invalidateQueries({ queryKey: keys.podcast(show.id) });
+            toast.show("Checked for new episodes");
+          })}
+        />
+        {show.link ? <SheetItem label="Podcast website" onPress={then(() => Linking.openURL(show.link!))} /> : null}
+        {show.feedUrl ? (
+          <SheetItem
+            label="Copy feed URL"
+            onPress={then(async () => {
+              await Clipboard.setStringAsync(show.feedUrl!);
+              toast.show("Feed URL copied");
+            })}
+          />
+        ) : null}
+        <SheetItem label="Unsubscribe" danger onPress={then(() => setConfirming(true))} />
+      </Sheet>
+      <UnsubscribeSheet show={show} open={confirming} onClose={() => setConfirming(false)} after={onUnsubscribed} />
+    </>
+  );
+}
+
+/** Asks before unsubscribing; `after` runs once it's done (the show's page leaves). */
+export function UnsubscribeSheet({ show, open, onClose, after }: { show: PodcastSummary; open: boolean; onClose: () => void; after?: () => void }) {
+  return (
+    <ConfirmSheet
+      open={open}
+      title={`Unsubscribe from ${show.title}?`}
+      message="Your listening history for this podcast is removed from your lists."
+      confirmLabel="Unsubscribe"
+      danger
+      onConfirm={() => {
+        onClose();
+        unsubscribeShow(show).then(after, (err: unknown) => toast.error(errorText(err, "Couldn't unsubscribe.")));
+      }}
+      onClose={onClose}
+    />
+  );
+}
+
+/** A followed show's card. A long press opens its menu, like every other card. */
 export function ShowCard({ show, width }: { show: PodcastSummary; width: number }) {
   const t = useTheme();
   const now = useNowPlaying((s) => s.item?.type === "episode" && s.item.podcastId === show.id);
+  const menu = useCardMenu();
+  // The website and feed, if the show's page was opened.
+  const detail = menu.shown ? queryClient.getQueryData<PodcastDetail>(keys.podcast(show.id)) : undefined;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={show.unplayedCount ? `${show.title}, ${show.unplayedCount} unplayed` : show.title}
+      accessibilityActions={[{ name: "longpress", label: "Options" }]}
+      onAccessibilityAction={menu.show}
       onPress={() => router.push(`/show/${show.id}`)}
+      onLongPress={withLongPressHaptic(menu.show)}
       style={({ pressed }) => ({ width, gap: 6, opacity: pressed ? 0.75 : 1 })}
     >
+      {menu.shown ? (
+        <ShowActions show={{ ...show, link: detail?.link, feedUrl: detail?.feedUrl }} open={menu.open} onClose={menu.close} onIdle={menu.idle} />
+      ) : null}
       <View>
         <Cover path={show.coverHash ? apiPaths.podcastCoverUrl(show.id, show.coverHash, 200) : null} title={show.title} color={show.coverColor} />
         {show.unplayedCount > 0 ? (

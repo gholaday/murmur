@@ -1,7 +1,7 @@
 import { memo, useCallback, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { apiPaths, episodeLabel, percentDone, plural, seasonName, type ShowDetail, type VideoEpisode, type VideoQuality } from "@murmur/shared/client";
+import { apiPaths, episodeLabel, percentDone, plural, seasonName, showEpisodes, type ShowDetail, type VideoEpisode, type VideoQuality } from "@murmur/shared/client";
 import { CheckIcon, MoreIcon, PlayedIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
@@ -17,7 +17,7 @@ import { ArtBar, QualityButton, startEpisodeDownload, Still, SubtitleRow, VideoD
 import { WatchActions } from "@/components/watch-edit";
 import { useDownloads } from "@/lib/downloads";
 import { useOnline } from "@/lib/query";
-import { episodeSub, markWatched, openVideoPlayer, showEpisodes, subtitleTracks, useShow } from "@/lib/watch";
+import { episodeSub, markWatched, openVideoPlayer, subtitleTracks, useShow } from "@/lib/watch";
 import { fonts, useTheme } from "@/theme";
 
 export default function TvShowScreen() {
@@ -46,10 +46,10 @@ export default function TvShowScreen() {
 
 function mark(list: VideoEpisode[], done: boolean, what: string) {
   markWatched(
-    list.map((e) => ({ id: e.id, durationSec: e.durationSec })),
+    list.map((e) => ({ id: e.id, durationSec: e.durationSec, progress: e.progress })),
     done,
+    done ? `Marked ${what} as watched` : `Marked ${what} as not watched`,
   );
-  toast.show(done ? `Marked ${what} as watched` : `Marked ${what} as not watched`);
 }
 
 const markEpisode = (e: VideoEpisode, done: boolean) => mark([e], done, episodeLabel(e.season, e.episode));

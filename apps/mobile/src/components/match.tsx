@@ -7,12 +7,16 @@ import {
   type AlbumMatchSearch,
   type AlbumMatchValues,
   apiPaths,
+  BOOK_PROVIDER_NAME,
+  bookMatchText,
   type ArtistPhotoOption,
   duration,
   errorText,
   type MatchField,
   type MatchPreview,
   type MatchSearchResult,
+  matchCanApply,
+  matchIsSame,
   type MatchValues,
   plural,
   reviewLabel,
@@ -34,17 +38,17 @@ import { Button, IconButton, Pills, Text } from "./ui";
 // Match for admins, like the web's: search, pick a result, review what it changes field by field,
 // and apply. Books and albums work the same way; an artist's photo is picked straight from a list.
 
-export const PROVIDER_NAME = { audible: "Audible", google: "Google Books", itunes: "Apple Books" } as const;
+const bookField = (field: MatchField, label: string) => ({ field, label, text: (v: MatchValues) => bookMatchText(v, field) });
 
-export const BOOK_FIELDS: { field: MatchField; label: string; text: (v: MatchValues) => string | null }[] = [
-  { field: "cover", label: "Cover", text: (v) => v.coverUrl },
-  { field: "title", label: "Title", text: (v) => v.title },
-  { field: "author", label: "Author", text: (v) => v.author },
-  { field: "narrator", label: "Narrator", text: (v) => v.narrator },
-  { field: "series", label: "Series", text: (v) => seriesLabel(v.series, v.seriesPosition) },
-  { field: "year", label: "Year", text: (v) => v.year },
-  { field: "description", label: "Description", text: (v) => v.description },
-  { field: "chapters", label: "Chapters", text: (v) => (v.chapterCount ? `${v.chapterCount} chapters` : null) },
+export const BOOK_FIELDS = [
+  bookField("cover", "Cover"),
+  bookField("title", "Title"),
+  bookField("author", "Author"),
+  bookField("narrator", "Narrator"),
+  bookField("series", "Series"),
+  bookField("year", "Year"),
+  bookField("description", "Description"),
+  bookField("chapters", "Chapters"),
 ];
 
 const songsText = (v: AlbumMatchValues) => v.songs.map((s) => `${s.number ?? "–"}  ${s.title.trim()}`).join("\n");
@@ -183,13 +187,10 @@ export function useBookMatch(bookId: string, shown: boolean, onApplied: () => vo
     }
   };
 
-  const blocked = (p: MatchPreview, f: MatchField) => (f === "chapters" ? p.chaptersNote : null);
-  const can = (p: MatchPreview, f: MatchField) =>
-    !!BOOK_FIELDS.find((x) => x.field === f)?.text(p.proposed) && !blocked(p, f) && !sameAs(BOOK_FIELDS, p.current, p.proposed, f);
   // The fields Review would let you apply, which is what its button counts.
-  const changes = ahead ? BOOK_FIELDS.filter((x) => can(ahead, x.field)).length : null;
+  const changes = ahead ? BOOK_FIELDS.filter((x) => matchCanApply(ahead, x.field)).length : null;
   // A remembered field this result has no value for stays unticked and isn't sent.
-  const fields = preview ? [...chosen].filter((f) => can(preview, f)) : [];
+  const fields = preview ? [...chosen].filter((f) => matchCanApply(preview, f)) : [];
 
   const apply = async () => {
     if (!preview || fields.length === 0) return;
@@ -219,7 +220,7 @@ export function useBookMatch(bookId: string, shown: boolean, onApplied: () => vo
       {preview ? (
         <>
           <View style={{ paddingHorizontal: 12 }}>
-            <ReviewHead from={PROVIDER_NAME[preview.provider]} onBack={() => setPreview(null)} />
+            <ReviewHead from={BOOK_PROVIDER_NAME[preview.provider]} onBack={() => setPreview(null)} />
           </View>
           <ReviewList
           fields={BOOK_FIELDS}
@@ -227,9 +228,9 @@ export function useBookMatch(bookId: string, shown: boolean, onApplied: () => vo
           proposed={preview.proposed}
           chosen={chosen}
           setChosen={setChosen}
-          can={(f) => can(preview, f)}
-          same={(f) => sameAs(BOOK_FIELDS, preview.current, preview.proposed, f)}
-          note={(f) => blocked(preview, f)}
+          can={(f) => matchCanApply(preview, f)}
+          same={(f) => matchIsSame(preview, f)}
+          note={(f) => (f === "chapters" ? preview.chaptersNote : null)}
           />
         </>
       ) : (
@@ -255,7 +256,7 @@ export function useBookMatch(bookId: string, shown: boolean, onApplied: () => vo
                   art={c.coverUrl}
                   title={c.subtitle ? `${c.title}: ${c.subtitle}` : c.title}
                   sub={[c.author, c.narrator ? `read by ${c.narrator}` : null].filter(Boolean).join(", ")}
-                  tags={[seriesLabel(c.series, c.seriesPosition), c.durationSec ? duration(c.durationSec) : null, c.year, PROVIDER_NAME[c.provider]]}
+                  tags={[seriesLabel(c.series, c.seriesPosition), c.durationSec ? duration(c.durationSec) : null, c.year, BOOK_PROVIDER_NAME[c.provider]]}
                   reasons={on ? c.reasons : undefined}
                   score={c.score}
                 />

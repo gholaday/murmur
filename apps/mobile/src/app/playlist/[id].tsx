@@ -6,16 +6,17 @@ import { Facts, HERO_COVER, HeroBackdrop, HeroBones, ItemHero } from "@/componen
 import { MoreIcon, PlusIcon } from "@/components/icons";
 import { PAD } from "@/components/library";
 import { BottomMiniPlayer } from "@/components/mini-player";
-import { ActionButton, addSongsToUpNext, PlayButton, ShuffleButton, SongRow, SongSheet } from "@/components/music";
+import { ActionButton, PlayButton, ShuffleButton, SongRow, SongSheet } from "@/components/music";
 import { BackRow, Empty, useBottomPad, useTopInset } from "@/components/page";
-import { NamePlaylistSheet, PlaylistCover, playlistFacts } from "@/components/playlists";
+import { PlaylistActions, PlaylistCover, playlistFacts } from "@/components/playlists";
 import { usePullRefresh } from "@/components/pull-refresh";
-import { ConfirmSheet, Sheet, SheetItem } from "@/components/sheet";
+import { SheetItem } from "@/components/sheet";
 import { Bone, FadeIn, ListRowBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { SortableList, SortableScrollView } from "@/components/sortable-list";
 import { toast } from "@/components/toast";
 import { ACTION_HEIGHT, IconButton, Text } from "@/components/ui";
-import { deletePlaylist, keys, updatePlaylist, usePlaylist } from "@/lib/data";
+import { keys, updatePlaylist, usePlaylist } from "@/lib/data";
+import { jumpToSection } from "@/lib/library";
 import { queryClient } from "@/lib/query";
 import { type MusicSource, playMusic } from "@/player/engine";
 import { useTheme } from "@/theme";
@@ -31,8 +32,6 @@ export default function PlaylistScreen() {
   const fade = useJustLoaded(!playlist.isPending);
   const p = playlist.data;
   const [more, setMore] = useState(false);
-  const [renaming, setRenaming] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [song, setSong] = useState<TrackDto | null>(null);
   const source: MusicSource | null = p ? { kind: "playlist", refId: p.id, title: p.name, tracks: p.tracks } : null;
   const first = p?.covers[0];
@@ -148,63 +147,11 @@ export default function PlaylistScreen() {
           />
         )}
       />
-      {p ? (
-        <>
-          <Sheet open={more} onClose={() => setMore(false)} title={p.name}>
-            {p.tracks.length ? (
-              <SheetItem
-                label="Add to queue"
-                onPress={() => {
-                  setMore(false);
-                  void addSongsToUpNext(p.tracks);
-                }}
-              />
-            ) : null}
-            <SheetItem
-              label="Rename…"
-              onPress={() => {
-                setMore(false);
-                setRenaming(true);
-              }}
-            />
-            <SheetItem
-              label="Delete playlist"
-              danger
-              onPress={() => {
-                setMore(false);
-                setDeleting(true);
-              }}
-            />
-          </Sheet>
-          <NamePlaylistSheet
-            open={renaming}
-            onClose={() => setRenaming(false)}
-            title="Rename playlist"
-            initial={p.name}
-            action="Save"
-            onSubmit={async (name) => {
-              await updatePlaylist(p.id, { name });
-              toast.show("Renamed");
-            }}
-          />
-          <ConfirmSheet
-            open={deleting}
-            title={`Delete ${p.name}?`}
-            confirmLabel="Delete"
-            danger
-            onConfirm={() => {
-              deletePlaylist(p.id).then(
-                () => {
-                  toast.show(`Deleted ${p.name}`);
-                  if (router.canGoBack()) router.back();
-                },
-                (err: unknown) => toast.error(err instanceof Error ? err.message : "Couldn't delete the playlist."),
-              );
-            }}
-            onClose={() => setDeleting(false)}
-          />
-        </>
-      ) : null}
+      {p ? <PlaylistActions playlist={p} open={more} onClose={() => setMore(false)} onDeleted={() => {
+        // Replaced, not gone back to, like the web: Library on Music.
+        jumpToSection("music");
+        router.replace("/");
+      }} /> : null}
     </View>
   );
 }

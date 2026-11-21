@@ -14,7 +14,7 @@ Murmur reads your audiobook folders (the Audiobookshelf layout, `Author/[Series]
 
 Murmur is inspired by [Audiobookshelf](https://www.audiobookshelf.org/) and [Plex](https://www.plex.tv/). It reads Audiobookshelf's book layout and Plex's movie and show layout, so an existing library works without moving anything, and streams video the way Plex does: as it is where the device can play it, and converted on the server where it can't. It aims for a smaller feature set that's simple to run.
 
-- **Audiobooks:** single-file `.m4b` and multi-file books, chapters, series, home shelves (including More like your last book and Short listens), a Play next shelf you put in order, and optional metadata matching from Audible (always confirmed by you).
+- **Audiobooks:** single-file `.m4b` and multi-file books, chapters, series, home shelves (including More like your last book and Short listens), a Play next shelf you put in order, several books marked, hidden or edited at once, and optional metadata matching from Audible (always confirmed by you).
 - **Podcasts:** browse the top shows and ones like yours, search or add by RSS URL, OPML import and export, a queue, and the newest episodes kept on the server.
 - **Music (optional):** albums, artists and songs read from their tags, likes and playlists for each person, a Home with Jump back in, On repeat and New albums, songs in the queue, and album matching from MusicBrainz and Deezer.
 - **Movies and shows (optional):** Watch, beside Books and Music in Library, with Continue watching, Next episodes, Next in the collection and More like, from `Title (Year)` movie folders and `Show/Season` folders. Posters, descriptions and episode names come from TMDB. Files play as they are where the device can, and otherwise are converted on the server, on its GPU where it has one, with a choice of audio track and subtitles, a 720p option for slow connections, the next episode lined up, and downloads to the phone. A separate add-on, `murmur-video`, does the video work; set up in [addons/video](addons/video/README.md).
@@ -47,7 +47,7 @@ services:
       - /path/to/murmur/cache:/cache
 ```
 
-Run `docker compose up -d`, open `http://<host>:3333`, and create the first account, which becomes the admin.
+Run `docker compose up -d`, open `http://<host>:3333`, and create the first account, which becomes the admin. A few first-run steps then show what the server found and which tabs to keep.
 
 **Android app:** download `murmur-<version>.apk` from the [latest release](https://github.com/gholaday/murmur/releases/latest), or add this repository to [Obtainium](https://github.com/ImranR98/Obtainium) to get updates automatically.
 

@@ -26,6 +26,7 @@ import { FilterIcon, PlusIcon } from "../icons";
 import { Chip, Chips, EmptyState, NestedHead, ScrollRow, SectionTitle, StickyHead } from "../ui";
 import { ChoiceSheet } from "../sheet";
 import { BrowseView } from "./browse";
+import { PodcastCardMenu } from "./podcast-menu";
 import { EpisodeActions, EpisodeRow, useEpisodePlay } from "./episode-row";
 
 /** An episode you're part way through, as a wide card on Home's sideways shelf. */
@@ -56,15 +57,18 @@ function ContinueEpisodeCard({ episode: e, onChanged }: { episode: EpisodeWithSh
 export function PodcastCard({ podcast: p }: { podcast: PodcastSummary }) {
   const { current, playing } = useNowPlaying((n) => n.type === "episode" && n.podcastId === p.id);
   return (
-    <Link href={`/podcasts/${p.id}`} className={`card${current ? " playing" : ""}`} title={p.title}>
-      <div className="card-cover">
-        <Cover src={p.coverHash ? apiPaths.podcastCoverUrl(p.id, p.coverHash, 200) : null} color={p.coverColor} title={p.title} />
-        {current ? <Mixer playing={playing} /> : null}
-      </div>
-      {p.unplayedCount > 0 ? <span className="badge-count">{p.unplayedCount > 99 ? "99+" : p.unplayedCount}</span> : null}
-      <div className="card-title">{p.title}</div>
-      {p.lastError ? <div className="card-sub error">Feed problem</div> : null}
-    </Link>
+    <div className={`card${current ? " playing" : ""}`}>
+      <Link href={`/podcasts/${p.id}`} className="card-link" title={p.title}>
+        <div className="card-cover">
+          <Cover src={p.coverHash ? apiPaths.podcastCoverUrl(p.id, p.coverHash, 200) : null} color={p.coverColor} title={p.title} />
+          {current ? <Mixer playing={playing} /> : null}
+        </div>
+        {p.unplayedCount > 0 ? <span className="badge-count">{p.unplayedCount > 99 ? "99+" : p.unplayedCount}</span> : null}
+        <div className="card-title">{p.title}</div>
+        {p.lastError ? <div className="card-sub error">Feed problem</div> : null}
+      </Link>
+      <PodcastCardMenu podcast={p} />
+    </div>
   );
 }
 

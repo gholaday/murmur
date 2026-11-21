@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { toast } from "sonner";
-import { apiPaths, type MovieDetail, type ShowDetail } from "@murmur/shared/client";
+import { toast } from "../toast";
+import { apiPaths, type MovieDetail, type ShowDetail, showPlayEpisode } from "@murmur/shared/client";
 import { useAdmin } from "../admin";
 import { api } from "../api";
 import { CardMenu, MenuItem, MenuSep } from "../card-menu";
@@ -51,8 +51,9 @@ export function WatchMenuItems({
       <MenuItem
         onClick={choose(async () => {
           if (kind === "movie") return router.push(playHref("movie", id));
-          const show = (await load()) as ShowDetail;
-          if (show.upNextId) router.push(playHref("episode", show.upNextId));
+          // Once every episode is watched, Play starts the show again.
+          const next = showPlayEpisode((await load()) as ShowDetail);
+          if (next) router.push(playHref("episode", next.id));
         })}
       >
         {resume ? "Resume" : "Play"}

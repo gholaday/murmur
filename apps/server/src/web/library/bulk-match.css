@@ -1,7 +1,6 @@
 /* ---------- Bulk match (Library, Not matched) ---------- */
 
 .bulk { display: flex; flex-direction: column; gap: 12px; }
-.bulk-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .bulk-item { border-bottom: 1px solid var(--line); }
 .bulk-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
 @media (max-width: 600px) { .bulk-row-actions { flex-direction: column; } }
@@ -16,7 +15,8 @@
 .bulk-changes dd { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 6px; min-width: 0; }
 .bulk-changes dd > span { overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .bulk-from { color: var(--muted); text-decoration: line-through; }
-.bulk-tabs { gap: 18px; margin-top: 0; }
+/* The tabs and Apply stick to the top while a long list scrolls under them. */
+.bulk-tabs { gap: 18px; margin: 0 -20px; padding: 0 20px; position: sticky; top: 0; z-index: 4; background: var(--bg); }
 .bulk-tabs .subtab { white-space: nowrap; }
 .bulk-tabs .btn { margin-left: auto; }
 .bulk-progress { display: flex; flex-direction: column; gap: 10px; padding-block: 14px; }

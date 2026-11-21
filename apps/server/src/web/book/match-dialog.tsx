@@ -2,13 +2,13 @@
 
 /* eslint-disable @next/next/no-img-element -- provider cover thumbnails are remote */
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
-import { apiPaths, storageKeys, type BookDetail, duration, type MatchCandidate, type MatchField, type MatchPreview, type MatchSearchResult, type MatchValues, reviewLabel, seriesLabel } from "@murmur/shared/client";
+import { toast } from "../toast";
+import { apiPaths, BOOK_PROVIDER_NAME, matchCanApply, matchIsSame, storageKeys, type BookDetail, duration, type MatchCandidate, type MatchField, type MatchPreview, type MatchSearchResult, type MatchValues, reviewLabel, seriesLabel } from "@murmur/shared/client";
 import { api } from "../api";
 import { BackIcon } from "../icons";
+import { ResultsSkeleton } from "../skeletons";
 
 const keyOf = (c: Pick<MatchCandidate, "provider" | "providerId">) => `${c.provider}:${c.providerId}`;
-export const PROVIDER_NAME = { audible: "Audible", google: "Google Books", itunes: "Apple Books" } as const;
 
 export const FIELDS: Array<{ field: MatchField; label: string; show: (v: MatchValues) => React.ReactNode }> = [
   { field: "cover", label: "Cover", show: (v) => (v.coverUrl ? <img src={v.coverUrl} alt="" /> : <span className="muted">None</span>) },
@@ -39,36 +39,6 @@ function saveLastFields(fields: MatchField[]) {
   } catch {
     // private mode: the next review starts from the recommended fields
   }
-}
-
-// Only stray spaces at the ends are ignored: a change of case or spelling is worth applying.
-const norm = (s: string | null) => (s ?? "").trim();
-
-/**
- * The book already has exactly the result's value. Covers and chapter lists can't be told
- * apart from here, so they're never "same".
- */
-function isSame(preview: MatchPreview, field: MatchField): boolean {
-  const { current: c, proposed: p } = preview;
-  switch (field) {
-    case "title":
-    case "author":
-    case "narrator":
-    case "year":
-    case "description":
-      return !!p[field] && norm(c[field]) === norm(p[field]);
-    case "series":
-      return !!p.series && norm(c.series) === norm(p.series) && c.seriesPosition === p.seriesPosition;
-    default:
-      return false;
-  }
-}
-
-/** Fields the result has a new value for and that can be applied. */
-function canApply(preview: MatchPreview, field: MatchField): boolean {
-  const entry = FIELDS.find((f) => f.field === field);
-  const blocked = field === "chapters" && !!preview.chaptersNote;
-  return !!entry?.show(preview.proposed) && !blocked && !isSame(preview, field);
 }
 
 /**
@@ -142,7 +112,7 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
     [result, book.id],
   );
   const ahead = usePreviewAhead(selected, loadPreview);
-  const changes = ahead ? FIELDS.filter((f) => canApply(ahead, f.field)).length : null;
+  const changes = ahead ? FIELDS.filter((f) => matchCanApply(ahead, f.field)).length : null;
 
   const review = async () => {
     if (!selected) return;
@@ -161,7 +131,7 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
   };
 
   // A remembered field this result has no value for stays unchecked and isn't sent.
-  const fields = preview ? [...chosen].filter((f) => canApply(preview, f)) : [];
+  const fields = preview ? [...chosen].filter((f) => matchCanApply(preview, f)) : [];
 
   const apply = async () => {
     if (!preview || fields.length === 0) return;
@@ -185,14 +155,9 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
     <div className="match-panel">
       {preview ? (
         <>
-          <div className="match-bar">
-            <button type="button" className="btn" onClick={() => setPreview(null)}>
-              <BackIcon size={18} /> Results
-            </button>
-            <button type="button" className="btn btn-primary" disabled={busy || fields.length === 0} onClick={() => void apply()}>
-              {busy ? "Applying…" : fields.length ? `Apply ${fields.length} ${fields.length === 1 ? "field" : "fields"}` : "Pick a field"}
-            </button>
-          </div>
+          <button type="button" className="btn match-back" onClick={() => setPreview(null)}>
+            <BackIcon size={18} /> Results
+          </button>
           <div style={{ overflowX: "auto" }}>
             <table className="compare">
               <thead>
@@ -200,21 +165,21 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
                   <th />
                   <th>Field</th>
                   <th>Now</th>
-                  <th>{PROVIDER_NAME[preview.provider]}</th>
+                  <th>{BOOK_PROVIDER_NAME[preview.provider]}</th>
                 </tr>
               </thead>
               <tbody>
                 {FIELDS.map(({ field, label, show }) => {
                   const proposed = show(preview.proposed);
                   const blocked = field === "chapters" && !!preview.chaptersNote;
-                  const disabled = !canApply(preview, field);
-                  const same = isSame(preview, field);
+                  const disabled = !matchCanApply(preview, field);
+                  const same = matchIsSame(preview, field);
                   return (
                     <tr key={field} className={same ? "same" : undefined}>
                       <td>
                         <input
                           type="checkbox"
-                          aria-label={`Use ${label.toLowerCase()} from ${PROVIDER_NAME[preview.provider]}`}
+                          aria-label={`Use ${label.toLowerCase()} from ${BOOK_PROVIDER_NAME[preview.provider]}`}
                           checked={chosen.has(field) && !disabled}
                           disabled={disabled}
                           onChange={(e) => {
@@ -241,6 +206,11 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
               </tbody>
             </table>
           </div>
+          <div className="match-bar">
+            <button type="button" className="btn btn-primary" disabled={busy || fields.length === 0} onClick={() => void apply()}>
+              {busy ? "Applying…" : fields.length ? `Apply ${fields.length} ${fields.length === 1 ? "field" : "fields"}` : "Pick a field"}
+            </button>
+          </div>
         </>
       ) : (
         <>
@@ -255,7 +225,7 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
               <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" aria-label="Search title" />
               <input className="input" value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="Author" aria-label="Search author" />
             </div>
-            <button type="submit" className="btn btn-primary" disabled={busy || !title.trim()}>
+            <button type="submit" className="btn" disabled={busy || !title.trim()}>
               {busy && !result ? "Searching…" : "Search"}
             </button>
           </form>
@@ -265,13 +235,6 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
               <p className="muted">No results.</p>
             ) : (
               <>
-                {selected ? (
-                  <div className="match-bar">
-                    <button type="button" className="btn btn-primary wide" disabled={busy || changes === 0} onClick={() => void review()}>
-                      {busy ? "Loading…" : reviewLabel(changes)}
-                    </button>
-                  </div>
-                ) : null}
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {result.candidates.map((c) => {
                     const k = keyOf(c);
@@ -290,7 +253,7 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
                               seriesLabel(c.series, c.seriesPosition),
                               c.durationSec ? duration(c.durationSec) : null,
                               c.year,
-                              PROVIDER_NAME[c.provider],
+                              BOOK_PROVIDER_NAME[c.provider],
                             ]
                               .filter(Boolean)
                               .map((tag) => (
@@ -310,12 +273,17 @@ export function MatchPanel({ book, onApplied }: { book: BookDetail; onApplied: (
                     );
                   })}
                 </div>
+                {selected ? (
+                  <div className="match-bar">
+                    <button type="button" className="btn btn-primary" disabled={busy || changes === 0} onClick={() => void review()}>
+                      {busy ? "Loading…" : reviewLabel(changes)}
+                    </button>
+                  </div>
+                ) : null}
               </>
             )
           ) : busy ? (
-            <div className="loading-center" aria-busy="true" aria-label="Searching">
-              <div className="spinner" />
-            </div>
+            <ResultsSkeleton />
           ) : null}
         </>
       )}

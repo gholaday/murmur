@@ -20,6 +20,24 @@ export function onChangesHeader(fn: (token: string | null) => void) {
   noteChanges = fn;
 }
 
+let noteReach: ((reached: boolean) => void) | null = null;
+
+/** Hands whether each request reached the server to lib/query.ts, which decides what offline means. */
+export function onReach(fn: (reached: boolean) => void) {
+  noteReach = fn;
+}
+
+/** Whether the signed-in server answers at all, for checking again while it's unreachable. */
+export async function serverAnswers(): Promise<boolean> {
+  if (!serverUrl) return true;
+  try {
+    await fetch(absolute(apiPaths.health), { signal: AbortSignal.timeout(5_000) });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // The shared class, so an error from here and one checked anywhere else are the same kind.
 export { HttpError };
 
@@ -94,8 +112,10 @@ async function request<T>(path: string, method: string, body: unknown): Promise<
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch {
+    noteReach?.(false);
     throw new Error("Can't reach your Murmur server.");
   }
+  noteReach?.(true);
   noteChanges?.(res.headers.get(CHANGES_HEADER));
   if (res.status === 401) {
     onUnauthorized?.();

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { apiPaths, hasKind, parseRecent, plural, storageKeys, withRecent, type SearchKind, type SearchName, type SearchResultsDto, type UserPrefs } from "@murmur/shared/client";
 import { api } from "../api";
+import { BookActions } from "../book/book-actions";
 import { HIDDEN_CHANGED } from "../hidden";
 import { CloseIcon, SearchIcon } from "../icons";
 import { BookCard } from "../library/book-card";
@@ -237,6 +238,14 @@ function RecentSearches({ recent, onPick, onForget }: { recent: string[]; onPick
 
 const isEmpty = (r: SearchResultsDto) => !hasKind(r, "all");
 
+/**
+ * A group's cards: a shelf on All, a grid on a kind's tab. Defined here, not inside Results: a
+ * component made in render is new each time, so every card would remount and close its menu.
+ */
+function Cards({ all, children }: { all: boolean; children: React.ReactNode }) {
+  return all ? <ScrollRow>{children}</ScrollRow> : <div className="grid">{children}</div>;
+}
+
 /** On All, a shelf per group with a heading that opens its kind's tab; on a kind's tab, the full grids and lists. */
 function Results({ results: r, kind, onKind }: { results: SearchResultsDto; kind: SearchKind; onKind: (k: SearchKind) => void }) {
   const player = usePlayerControls();
@@ -244,16 +253,18 @@ function Results({ results: r, kind, onKind }: { results: SearchResultsDto; kind
   const all = kind === "all";
   // A song plays every song found, in this order, even past the four All shows.
   const songs = all ? r.songs.slice(0, 4) : r.songs;
-  const Cards = ({ children }: { children: React.ReactNode }) => (all ? <ScrollRow>{children}</ScrollRow> : <div className="grid">{children}</div>);
   const open = (k: SearchKind) => (all ? () => onKind(k) : undefined);
   return (
     <>
       <Group title="Books" show={r.books.length > 0} onOpen={open("books")}>
-        <Cards>
-          {r.books.map((b) => (
-            <BookCard key={b.id} book={b} />
-          ))}
-        </Cards>
+        {/* Book cards here open their menu like everywhere else. */}
+        <BookActions>
+          <Cards all={all}>
+            {r.books.map((b) => (
+              <BookCard key={b.id} book={b} />
+            ))}
+          </Cards>
+        </BookActions>
       </Group>
       <Group title="Authors" show={r.authors.length > 0} onOpen={open("books")}>
         <NameRows names={r.authors} href={(n) => `/?author=${encodeURIComponent(n)}`} />
@@ -262,7 +273,7 @@ function Results({ results: r, kind, onKind }: { results: SearchResultsDto; kind
         <NameRows names={r.series} href={(n) => `/?series=${encodeURIComponent(n)}`} />
       </Group>
       <Group title="Podcasts" show={r.podcasts.length > 0} onOpen={open("podcasts")}>
-        <Cards>
+        <Cards all={all}>
           {r.podcasts.map((p) => (
             <PodcastCard key={p.id} podcast={p} />
           ))}
@@ -276,14 +287,14 @@ function Results({ results: r, kind, onKind }: { results: SearchResultsDto; kind
         </div>
       </Group>
       <Group title="Artists" show={r.artists.length > 0} onOpen={open("music")}>
-        <Cards>
+        <Cards all={all}>
           {r.artists.map((a) => (
             <ArtistCard key={a.id} artist={a} />
           ))}
         </Cards>
       </Group>
       <Group title="Albums" show={r.albums.length > 0} onOpen={open("music")}>
-        <Cards>
+        <Cards all={all}>
           {r.albums.map((a) => (
             <AlbumCard key={a.id} album={a} />
           ))}
@@ -297,7 +308,7 @@ function Results({ results: r, kind, onKind }: { results: SearchResultsDto; kind
         </div>
       </Group>
       <Group title="Movies and shows" show={r.watch.length > 0} onOpen={open("watch")}>
-        <Cards>
+        <Cards all={all}>
           {r.watch.map((p) => (
             <PosterCard key={`${p.kind}-${p.id}`} kind={p.kind} id={p.id} title={p.title} year={p.year} posterHash={p.posterHash} color={p.color} watched={p.watched} />
           ))}

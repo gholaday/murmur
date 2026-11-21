@@ -98,8 +98,11 @@ export function Still({ videoId, hash, title, className = "" }: { videoId: strin
 export function StillCard({ card }: { card: WatchCard }) {
   const position = card.progress && !card.progress.finished ? card.progress.positionSec : 0;
   const left = position > 0 ? timeLeft(card.durationSec, position) : null;
+  // The menu is the movie's or the show's, the same as its poster card's.
+  const owner = card.kind === "movie" ? { kind: "movie" as const, id: card.id } : card.showId ? { kind: "show" as const, id: card.showId } : null;
   return (
-    <Link className="continue-card watch-card" href={playHref(card.kind, card.id)}>
+    <div className="card continue-card watch-card">
+    <Link className="card-link" href={playHref(card.kind, card.id)}>
       <div className="card-cover">
         <Cover src={watchCardArtUrl(card)} color={null} title={card.title} className="still" />
         {position > 0 ? (
@@ -116,5 +119,7 @@ export function StillCard({ card }: { card: WatchCard }) {
         </div>
       </div>
     </Link>
+      {owner ? <PosterCardMenu kind={owner.kind} id={owner.id} title={card.title} watched={false} resume={position > 0} playHref={playHref} /> : null}
+    </div>
   );
 }

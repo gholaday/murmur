@@ -19,6 +19,7 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--tex
 
 .row-scroll { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; margin: 0 -20px; padding: 0 20px; }
 .continue-card { width: 169px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+.continue-card > .card-link { gap: 8px; }
 .continue-card .cover { border-radius: 10px; }
 /* ScrollRow: round arrows over a sideways row's ends, centred on the covers. Mouse only, shown while hovering. */
 .scroll-row { position: relative; --arrow-y: 100px; }
@@ -117,7 +118,7 @@ input[type="search"]::-webkit-search-cancel-button:hover { background: var(--tex
 .card-dots { width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: rgba(17, 18, 20, 0.72); color: #f3f1ec; opacity: 0; transition: opacity 0.12s; }
 .card:hover .card-dots, .card-dots:focus-visible, .card-dots[aria-expanded="true"] { opacity: 1; }
 @media (hover: none) { .card-dots { opacity: 1; } }
-.card:has(.card-menu) .card-done { right: auto; left: 6px; }
+.card:has(.card-menu) .card-done, .card:has(.card-menu) .card-link > .badge-count { right: auto; left: 6px; }
 
 /* Selecting several: an empty disc where the finished check goes, filled once picked, and the cover outlined. */
 .card-pick { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; box-sizing: border-box; border-radius: 12px; border: 2px solid rgba(243, 241, 236, 0.85); background: rgba(17, 18, 20, 0.72); color: var(--on-accent); display: flex; align-items: center; justify-content: center; pointer-events: none; animation: fade-in 0.15s ease-out; }

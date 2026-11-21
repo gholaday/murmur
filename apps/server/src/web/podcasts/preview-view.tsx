@@ -1,6 +1,6 @@
 "use client";
 
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {

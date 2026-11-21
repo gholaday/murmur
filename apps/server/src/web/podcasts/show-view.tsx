@@ -1,6 +1,6 @@
 "use client";
 
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
@@ -9,7 +9,6 @@ import {
   type BookmarkDto,
   type EpisodeDto,
   type EpisodeWithShow,
-  errorText,
   FALLBACK_TINT,
   matchesEpisode,
   plural,
@@ -27,8 +26,10 @@ import { Cover } from "../cover";
 import { CheckIcon, FilterIcon, LockIcon, SearchIcon } from "../icons";
 import { usePlayerControls } from "../player/engine";
 import { Chip, Chips, Description, EmptyState, HeroBar, SearchBox } from "../ui";
-import { ConfirmSheet, Sheet, SheetItem } from "../sheet";
+import { Sheet, SheetItem } from "../sheet";
 import { EpisodeRow } from "./episode-row";
+import { MenuSheet } from "../card-menu";
+import { PodcastMenuItems, UnsubscribeSheet } from "./podcast-menu";
 
 /** A quiet check on the cover's top right corner says you're subscribed; it asks before unsubscribing. */
 function SubscribedCheck({ onClick }: { onClick: () => void }) {
@@ -72,7 +73,6 @@ export function ShowView({
     [bookmarks],
   );
   const firstByEpisode = useMemo(() => byEpisode(firstBookmarks), [firstBookmarks]);
-  const [busy, setBusy] = useState(false);
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   // Every episode, fetched the first time you need more than the first page.
@@ -124,18 +124,6 @@ export function ShowView({
     return q ? list.filter((e) => matchesEpisode(e, q)) : list;
   }, [ordered, q, tab]);
 
-  const run = async (fn: () => Promise<unknown>, done?: string) => {
-    setBusy(true);
-    try {
-      await fn();
-      if (done) toast(done);
-      changed();
-    } catch (err) {
-      toast.error(errorText(err));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return (
     <>
@@ -278,55 +266,14 @@ export function ShowView({
         ))}
       </Sheet>
 
-      <Sheet open={sheet === "menu"} onClose={() => setSheet(null)} title={podcast.title}>
-        <SheetItem
-          disabled={busy}
-          onClick={() => {
-            setSheet(null);
-            void run(() => api(apiPaths.podcastRefresh(podcast.id), { method: "POST" }), "Checked for new episodes");
-          }}
-        >
-          {busy ? "Checking…" : "Check for new episodes"}
-        </SheetItem>
-        {podcast.link ? (
-          <a className="sheet-item" href={podcast.link} target="_blank" rel="noreferrer">
-            Podcast website
-          </a>
-        ) : null}
-        <SheetItem
-          onClick={() => {
-            void navigator.clipboard?.writeText(podcast.feedUrl).then(() => toast("Feed URL copied"));
-            setSheet(null);
-          }}
-        >
-          Copy feed URL
-        </SheetItem>
-        <SheetItem danger onClick={() => setSheet("unsubscribe")}>
-          Unsubscribe
-        </SheetItem>
-      </Sheet>
-
-      <ConfirmSheet
-        open={sheet === "unsubscribe"}
-        title={`Unsubscribe from ${podcast.title}?`}
-        message="Your listening history for this podcast is removed from your lists."
-        confirmLabel="Unsubscribe"
-        busy={busy}
-        onConfirm={async () => {
-          setBusy(true);
-          try {
-            await api(apiPaths.podcast(podcast.id), { method: "DELETE" });
-            toast(`Unsubscribed from ${podcast.title}`);
-            router.push("/podcasts");
-            router.refresh();
-          } catch (err) {
-            toast.error(errorText(err, "Couldn't unsubscribe."));
-            setBusy(false);
-            setSheet(null);
-          }
-        }}
+      <MenuSheet
+        open={sheet === "menu"}
         onClose={() => setSheet(null)}
+        title={podcast.title}
+        items={(choose) => <PodcastMenuItems podcast={podcast} choose={choose} unsubscribe={() => setSheet("unsubscribe")} onChecked={() => all && void loadAll()} />}
       />
+      {/* Replaced, not pushed: Back mustn't return to a show you've left. */}
+      <UnsubscribeSheet podcast={podcast} open={sheet === "unsubscribe"} onClose={() => setSheet(null)} after={() => router.replace("/podcasts")} />
     </>
   );
 }

@@ -10,7 +10,6 @@ import { Card } from "@/components/settings";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { HeroBones } from "@/components/hero";
 import { FadeIn, Skeleton } from "@/components/skeleton";
-import { toast } from "@/components/toast";
 import { IconButton, RoundButton, Text } from "@/components/ui";
 import { FileDetails, PickRow, PosterCard, QualityButton, startMovieDownload, SubtitleRow, VideoDownloadButton, WatchHero, WidePlayButton } from "@/components/watch";
 import { WatchActions } from "@/components/watch-edit";
@@ -87,10 +86,8 @@ function MovieView({ movie }: { movie: MovieDetail }) {
   const playSub = started ? timeLeft(version.durationSec, position) : duration(version.durationSec);
   const hasSubtitles = subtitleTracks(version.file).length > 0;
 
-  const mark = (done: boolean) => {
-    markWatched([{ id: movie.id, durationSec: version.durationSec }], done);
-    toast.show(done ? "Marked as watched" : "Marked as not watched");
-  };
+  const mark = (done: boolean) =>
+    markWatched([{ id: movie.id, durationSec: version.durationSec, progress: movie.progress }], done, done ? "Marked as watched" : "Marked as not watched");
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>

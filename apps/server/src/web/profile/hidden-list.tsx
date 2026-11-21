@@ -5,6 +5,7 @@ import { apiPaths, errorText, type HiddenDto, type HiddenItem, LIBRARY_SECTION_L
 import { api } from "../api";
 import { Cover } from "../cover";
 import { useHidden } from "../hidden";
+import { toast } from "../toast";
 import { EmptyState, SectionTitle } from "../ui";
 
 const ORDER: LibrarySection[] = ["books", "music", "watch"];
@@ -13,7 +14,7 @@ const ORDER: LibrarySection[] = ["books", "music", "watch"];
 export function HiddenList() {
   const [hidden, setHidden] = useState<HiddenDto | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
-  const { unhide } = useHidden();
+  const { unhide, rehide } = useHidden();
   useEffect(() => {
     api<HiddenDto>(apiPaths.hidden).then(setHidden, (err: unknown) => setFailed(errorText(err)));
   }, []);
@@ -24,9 +25,18 @@ export function HiddenList() {
   if (!sections.length) return <EmptyState title="Nothing hidden" />;
 
   const show = async (section: LibrarySection, item: HiddenItem) => {
-    if (await unhide({ kind: item.kind, id: item.id })) {
-      setHidden((h) => h && { ...h, [section]: h[section].filter((x) => !(x.kind === item.kind && x.id === item.id)) });
-    }
+    const change = { kind: item.kind, id: item.id };
+    const at = hidden[section].indexOf(item);
+    if (!(await unhide(change))) return;
+    setHidden((h) => h && { ...h, [section]: h[section].filter((x) => x !== item) });
+    // Undo hides it again and puts the row back where it was.
+    toast(`Unhid ${item.title}`, {
+      action: {
+        label: "Undo",
+        onClick: () =>
+          void rehide(change).then((ok) => ok && setHidden((h) => h && { ...h, [section]: [...h[section].slice(0, at), item, ...h[section].slice(at)] })),
+      },
+    });
   };
   return (
     <div className="view-fade">

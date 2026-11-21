@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- provider cover thumbnails are remote */
 import { useRouter } from "next/navigation";
 import { useContext, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import {
   apiPaths,
   type BulkMatchDto,
@@ -12,9 +12,10 @@ import {
   errorText,
   type MatchField,
   plural,
+  BOOK_PROVIDER_NAME,
 } from "@murmur/shared/client";
 import { api } from "../api";
-import { FIELDS, lastFields, PROVIDER_NAME, scoreClass } from "../book/match-dialog";
+import { FIELDS, lastFields, scoreClass } from "../book/match-dialog";
 import { Cover } from "../cover";
 import { DownIcon } from "../icons";
 import { Sheet } from "../sheet";
@@ -35,7 +36,16 @@ const FILTER_LABEL: Record<Filter, string> = { review: "To review", applied: "Ap
  * Bulk match, shown with the Not matched chip: a Match all button, the run's progress, and its
  * results to review. The run itself is on the server, so leaving the page doesn't stop it.
  */
-export function BulkMatch({ unmatched, children }: { unmatched: number; children: React.ReactNode }) {
+export function BulkMatch({
+  unmatched,
+  head,
+  children,
+}: {
+  unmatched: number;
+  /** Draws the page's head, with Match all among its actions while there's something to match. */
+  head: (action: React.ReactNode) => React.ReactNode;
+  children: React.ReactNode;
+}) {
   const router = useRouter();
   const actions = useContext(BookActionsContext);
   const [job, setJob] = useState<BulkMatchDto | null>(null);
@@ -101,22 +111,26 @@ export function BulkMatch({ unmatched, children }: { unmatched: number; children
 
   // Until a run starts, the unmatched books themselves show below the button.
   if (!job) {
-    if (unmatched === 0) return children;
+    if (unmatched === 0) return (
+      <>
+        {head(null)}
+        {children}
+      </>
+    );
     return (
       <>
-        <div className="bulk-bar">
-          <span className="muted small">{plural(unmatched, "book")} not matched</span>
+        {head(
           <button
             type="button"
-            className="btn btn-primary"
+            className="text-btn"
             onClick={() => {
               setFields(new Set(lastFields() ?? DEFAULT_FIELDS));
               setStarting(true);
             }}
           >
             Match all
-          </button>
-        </div>
+          </button>,
+        )}
         <Sheet open={starting} onClose={() => setStarting(false)} title={`Match ${plural(unmatched, "book")}`}>
           <p className="sheet-note">
             Each book is searched and its best result shown for you to check. Nothing changes until you apply.
@@ -160,83 +174,86 @@ export function BulkMatch({ unmatched, children }: { unmatched: number; children
     ).then(() => router.refresh());
 
   return (
-    <div className="bulk">
-      {job.running ? (
-        <div className="card-box bulk-progress">
+    <>
+      {head(null)}
+      <div className="bulk">
+        {job.running ? (
+          <div className="card-box bulk-progress">
+            <div className="bulk-progress-head">
+              <strong>Matching {plural(job.total, "book")}</strong>
+              <span className="muted small">
+                {job.done} of {job.total}
+              </span>
+            </div>
+            <div className="bar thick">
+              <div style={{ width: `${job.total ? (job.done / job.total) * 100 : 0}%` }} />
+            </div>
+            <div className="bulk-progress-foot muted small">
+              <span>{job.current ? `Now: ${job.current}` : "Starting…"}</span>
+              <button type="button" className="link-btn" disabled={busy} onClick={() => void run(() => api(PATH, { method: "DELETE" }))}>
+                Stop
+              </button>
+            </div>
+          </div>
+        ) : (
+          // Discarding drops the results only; matches already applied stay.
           <div className="bulk-progress-head">
-            <strong>Matching {plural(job.total, "book")}</strong>
-            <span className="muted small">
-              {job.done} of {job.total}
-            </span>
-          </div>
-          <div className="bar thick">
-            <div style={{ width: `${job.total ? (job.done / job.total) * 100 : 0}%` }} />
-          </div>
-          <div className="bulk-progress-foot muted small">
-            <span>{job.current ? `Now: ${job.current}` : "Starting…"}</span>
-            <button type="button" className="link-btn" disabled={busy} onClick={() => void run(() => api(PATH, { method: "DELETE" }))}>
-              Stop
+            <strong>Matched {plural(job.total, "book")}</strong>
+            <button type="button" className="link-btn" disabled={busy} onClick={() => void run(() => api(PATH, { method: "DELETE" }), "Results discarded")}>
+              Discard
             </button>
           </div>
-        </div>
-      ) : (
-        // Discarding drops the results only; matches already applied stay.
-        <div className="bulk-progress-head">
-          <strong>Matched {plural(job.total, "book")}</strong>
-          <button type="button" className="link-btn" disabled={busy} onClick={() => void run(() => api(PATH, { method: "DELETE" }), "Results discarded")}>
-            Discard
-          </button>
-        </div>
-      )}
-
-      <div className="subtabs bulk-tabs" role="tablist">
-        {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
-          <button key={f} type="button" role="tab" className="subtab" aria-selected={filter === f} onClick={() => setFilter(f)}>
-            {FILTER_LABEL[f]}
-          </button>
-        ))}
-        {filter === "review" && by("review").length ? (
-          <button
-            type="button"
-            className="btn btn-primary btn-small"
-            disabled={busy || pickedReview.length === 0}
-            onClick={() => apply(pickedReview.map((i) => i.bookId))}
-          >
-            {pickedReview.length ? `Apply ${pickedReview.length}` : "Pick some"}
-          </button>
-        ) : null}
-      </div>
-
-      {shown.length === 0 ? (
-        <EmptyState>{job.running ? "Nothing here yet." : `No books under ${FILTER_LABEL[filter].toLowerCase()}.`}</EmptyState>
-      ) : (
-        <div>
-          {shown.map((item) => (
-            <BulkRow
-              key={item.bookId}
-              item={item}
-              picked={picked.has(item.bookId)}
-              busy={busy}
-              onPick={(on) =>
-                setPicked((p) => {
-                  const out = new Set(p);
-                  if (on) out.add(item.bookId);
-                  else out.delete(item.bookId);
-                  return out;
-                })
-              }
-              onUndo={() =>
-                void run(() => api(`${PATH}/undo`, { method: "POST", body: { bookId: item.bookId } }), "Put back").then(() =>
-                  router.refresh(),
-                )
-              }
-              onApply={() => apply([item.bookId])}
-              onSearch={() => actions?.edit(item.bookId, "match")}
-            />
+        )}
+  
+        <div className="subtabs bulk-tabs" role="tablist">
+          {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
+            <button key={f} type="button" role="tab" className="subtab" aria-selected={filter === f} onClick={() => setFilter(f)}>
+              {FILTER_LABEL[f]}
+            </button>
           ))}
+          {filter === "review" && by("review").length ? (
+            <button
+              type="button"
+              className="btn btn-primary btn-small"
+              disabled={busy || pickedReview.length === 0}
+              onClick={() => apply(pickedReview.map((i) => i.bookId))}
+            >
+              {pickedReview.length ? `Apply ${pickedReview.length}` : "Pick some"}
+            </button>
+          ) : null}
         </div>
-      )}
-    </div>
+  
+        {shown.length === 0 ? (
+          <EmptyState>{job.running ? "Nothing here yet." : `No books under ${FILTER_LABEL[filter].toLowerCase()}.`}</EmptyState>
+        ) : (
+          <div>
+            {shown.map((item) => (
+              <BulkRow
+                key={item.bookId}
+                item={item}
+                picked={picked.has(item.bookId)}
+                busy={busy}
+                onPick={(on) =>
+                  setPicked((p) => {
+                    const out = new Set(p);
+                    if (on) out.add(item.bookId);
+                    else out.delete(item.bookId);
+                    return out;
+                  })
+                }
+                onUndo={() =>
+                  void run(() => api(`${PATH}/undo`, { method: "POST", body: { bookId: item.bookId } }), "Put back").then(() =>
+                    router.refresh(),
+                  )
+                }
+                onApply={() => apply([item.bookId])}
+                onSearch={() => actions?.edit(item.bookId, "match")}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -261,7 +278,7 @@ function BulkRow({
   const c = item.candidate;
   const mine = item.coverHash ? apiPaths.coverUrl(item.bookId, item.coverHash, 200) : null;
   const sub = c
-    ? [PROVIDER_NAME[c.provider], c.narrator ? `read by ${c.narrator}` : null, c.durationSec ? duration(c.durationSec) : null]
+    ? [BOOK_PROVIDER_NAME[c.provider], c.narrator ? `read by ${c.narrator}` : null, c.durationSec ? duration(c.durationSec) : null]
         .filter(Boolean)
         .join(", ")
     : null;

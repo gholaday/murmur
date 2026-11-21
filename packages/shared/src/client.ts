@@ -9,6 +9,7 @@ export * from "./bulk";
 export * from "./bookmark-store";
 export * from "./cast";
 export * from "./changes";
+export * from "./edit";
 export * from "./format";
 export * from "./hidden";
 export * from "./http-error";

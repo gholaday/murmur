@@ -16,6 +16,7 @@ import {
   plural,
 } from "@murmur/shared/client";
 import { api } from "../api";
+import { CardMenu, MenuItem, MenuSheet } from "../card-menu";
 import { Cover } from "../cover";
 import { Mixer } from "../mixer";
 import { PauseIcon, PlayIcon, PlusIcon } from "../icons";
@@ -63,8 +64,112 @@ export function PlaylistCard({ playlist }: { playlist: PlaylistSummary }) {
         <div className="card-title">{playlist.name}</div>
         <div className="card-sub">{plural(playlist.trackCount, "song")}</div>
       </Link>
+      <PlaylistCardMenu playlist={playlist} />
     </div>
   );
+}
+
+/** A playlist card's ⋯ and right-click menu: the same items as its page's ⋯. */
+function PlaylistCardMenu({ playlist }: { playlist: PlaylistSummary }) {
+  const router = useRouter();
+  const menu = usePlaylistMenu(playlist, { onRenamed: () => router.refresh(), onDeleted: () => router.refresh() });
+  return (
+    <>
+      <CardMenu label={playlist.name} items={menu.items} />
+      {menu.sheets}
+    </>
+  );
+}
+
+type Choose = (fn: () => unknown) => () => void;
+
+/**
+ * A playlist's menu, the same on its card and its page: Add to queue, Rename…, then Delete playlist,
+ * which asks first. `items` go in a CardMenu or MenuSheet; `sheets` are the rename and delete sheets.
+ */
+function usePlaylistMenu(
+  playlist: PlaylistSummary,
+  { tracks, onRenamed, onDeleted }: { tracks?: PlaylistDetail["tracks"]; onRenamed: (p: PlaylistDetail) => void; onDeleted: () => void },
+) {
+  const player = usePlayerControls();
+  const [open, setOpen] = useState<"rename" | "delete" | null>(null);
+  const [name, setName] = useState(playlist.name);
+  const [busy, setBusy] = useState(false);
+
+  const rename = async () => {
+    setBusy(true);
+    try {
+      onRenamed(await api<PlaylistDetail>(apiPaths.playlist(playlist.id), { method: "PATCH", body: { name: name.trim() } }));
+      toast("Renamed");
+      setOpen(null);
+    } catch (err) {
+      toast.error(errorText(err, "Couldn't save the playlist."));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const del = async () => {
+    setBusy(true);
+    try {
+      await api(apiPaths.playlist(playlist.id), { method: "DELETE" });
+      toast(`Deleted ${playlist.name}`);
+      setOpen(null);
+      onDeleted();
+    } catch (err) {
+      toast.error(errorText(err, "Couldn't delete the playlist."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const items = (choose: Choose) => (
+    <>
+      {playlist.trackCount ? (
+        <MenuItem
+          onClick={choose(async () => {
+            // A card has only the summary, so it loads the songs first.
+            const list = tracks ?? (await api<PlaylistDetail>(apiPaths.playlist(playlist.id))).tracks;
+            await player.addToUpNext(
+              list.map((t) => ({ itemType: "track", itemId: t.id })),
+              "last",
+            );
+            toast("Added to queue");
+          })}
+        >
+          Add to queue
+        </MenuItem>
+      ) : null}
+      <MenuItem
+        onClick={choose(() => {
+          setName(playlist.name);
+          setOpen("rename");
+        })}
+      >
+        Rename…
+      </MenuItem>
+      <MenuItem danger onClick={choose(() => setOpen("delete"))}>
+        Delete playlist
+      </MenuItem>
+    </>
+  );
+
+  const sheets = (
+    <>
+      <ConfirmSheet
+        open={open === "delete"}
+        title={`Delete ${playlist.name}?`}
+        message="Its songs stay in your library."
+        confirmLabel="Delete"
+        busy={busy}
+        onConfirm={() => void del()}
+        onClose={() => setOpen(null)}
+      />
+      <Sheet open={open === "rename"} onClose={() => setOpen(null)} title="Rename playlist">
+        <NameForm name={name} setName={setName} busy={busy} label="Save" onSubmit={() => void rename()} />
+      </Sheet>
+    </>
+  );
+  return { items, sheets };
 }
 
 /** The New playlist tile, first in the Playlists grid, and its sheet; opens the new playlist once it's made. */
@@ -99,13 +204,27 @@ export function NewPlaylistButton() {
         <span className="card-title">New playlist</span>
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title="New playlist">
-        <NameForm name={name} setName={setName} busy={busy} label="Make playlist" onSubmit={() => void create()} />
+        <NameForm name={name} setName={setName} busy={busy} label="Make playlist" busyLabel="Making…" onSubmit={() => void create()} />
       </Sheet>
     </>
   );
 }
 
-function NameForm({ name, setName, busy, label, onSubmit }: { name: string; setName: (s: string) => void; busy: boolean; label: string; onSubmit: () => void }) {
+function NameForm({
+  name,
+  setName,
+  busy,
+  label,
+  busyLabel = "Saving…",
+  onSubmit,
+}: {
+  name: string;
+  setName: (s: string) => void;
+  busy: boolean;
+  label: string;
+  busyLabel?: string;
+  onSubmit: () => void;
+}) {
   return (
     <form
       className="form"
@@ -116,7 +235,7 @@ function NameForm({ name, setName, busy, label, onSubmit }: { name: string; setN
     >
       <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Playlist name" aria-label="Playlist name" autoFocus />
       <button type="submit" className="btn btn-primary btn-big" disabled={busy || !name.trim()}>
-        {busy ? "Saving…" : label}
+        {busy ? busyLabel : label}
       </button>
     </form>
   );
@@ -128,10 +247,6 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
   const player = usePlayerControls();
   const [playlist, setPlaylist] = useState(initial);
   const [menu, setMenu] = useState(false);
-  const [renaming, setRenaming] = useState(false);
-  const [name, setName] = useState(initial.name);
-  const [busy, setBusy] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const { tracks } = playlist;
   const source: MusicSource = { kind: "playlist", refId: playlist.id, title: playlist.name, tracks };
   const from = usePlayerSelect((s) => s.isPlayingFrom("playlist", playlist.id));
@@ -146,19 +261,25 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
     player.setExpanded(true);
   };
 
-  const save = async (change: { name?: string; trackIds?: string[] }, done?: string) => {
-    setBusy(true);
+  const save = async (change: { trackIds: string[] }) => {
     try {
       setPlaylist(await api<PlaylistDetail>(apiPaths.playlist(playlist.id), { method: "PATCH", body: change }));
-      if (done) toast(done);
       return true;
     } catch (err) {
       toast.error(errorText(err, "Couldn't save the playlist."));
       return false;
-    } finally {
-      setBusy(false);
     }
   };
+
+  const actions = usePlaylistMenu(playlist, {
+    tracks,
+    onRenamed: setPlaylist,
+    onDeleted: () => {
+      // Replaced, not pushed: Back mustn't return to the deleted playlist.
+      router.replace("/music?tab=playlists");
+      router.refresh();
+    },
+  });
 
   const setOrder = (next: PlaylistDetail["tracks"]) => {
     const before = playlist;
@@ -177,20 +298,6 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
 
   const firstCover = playlist.covers[0];
   const heroArt = firstCover ? albumCover(firstCover.albumId, firstCover.coverHash, 600) : null;
-
-  const del = async () => {
-    setBusy(true);
-    try {
-      await api(apiPaths.playlist(playlist.id), { method: "DELETE" });
-      toast(`Deleted ${playlist.name}`);
-      router.push("/music?tab=playlists");
-      router.refresh();
-    } catch (err) {
-      toast.error(errorText(err, "Couldn't delete the playlist."));
-      setBusy(false);
-      setDeleting(false);
-    }
-  };
 
   return (
     <>
@@ -264,59 +371,8 @@ export function PlaylistView({ playlist: initial }: { playlist: PlaylistDetail }
         </EmptyState>
       )}
 
-      <Sheet open={menu} onClose={() => setMenu(false)} title={playlist.name}>
-        {tracks.length ? (
-          <SheetItem
-            onClick={() => {
-              setMenu(false);
-              player.addToUpNext(
-                tracks.map((t) => ({ itemType: "track", itemId: t.id })),
-                "next",
-              ).then(
-                () => toast("Added to queue"),
-                (err: unknown) => toast.error(errorText(err)),
-              );
-            }}
-          >
-            Add to queue
-          </SheetItem>
-        ) : null}
-        <SheetItem
-          onClick={() => {
-            setMenu(false);
-            setName(playlist.name);
-            setRenaming(true);
-          }}
-        >
-          Rename…
-        </SheetItem>
-        <SheetItem
-          danger
-          onClick={() => {
-            setMenu(false);
-            setDeleting(true);
-          }}
-        >
-          Delete playlist
-        </SheetItem>
-      </Sheet>
-      <ConfirmSheet
-        open={deleting}
-        title={`Delete ${playlist.name}?`}
-        confirmLabel="Delete"
-        busy={busy}
-        onConfirm={() => void del()}
-        onClose={() => setDeleting(false)}
-      />
-      <Sheet open={renaming} onClose={() => setRenaming(false)} title="Rename playlist">
-        <NameForm
-          name={name}
-          setName={setName}
-          busy={busy}
-          label="Save"
-          onSubmit={() => void save({ name: name.trim() }, "Renamed").then((ok) => ok && setRenaming(false))}
-        />
-      </Sheet>
+      <MenuSheet open={menu} onClose={() => setMenu(false)} title={playlist.name} items={actions.items} />
+      {actions.sheets}
     </>
   );
 }

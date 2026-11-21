@@ -55,7 +55,6 @@ import {
 import { Empty, useTopInset } from "@/components/page";
 import { BarFill, CastButton, SeekThumb, SkipButton, Tile } from "@/components/player-controls";
 import { Sheet, SheetItem } from "@/components/sheet";
-import { toast } from "@/components/toast";
 import { CHAPTER_ROW, ChapterList } from "@/components/chapters";
 import { TextTabs } from "@/components/text-tabs";
 import { Caption, Chips, CountPill, IconButton, Text } from "@/components/ui";
@@ -67,11 +66,13 @@ import { AD_MODES, adBreak, adModeFor, adPrefsStore, setShowMode, useAdDetection
 import { useCast } from "@/player/cast";
 import {
   chapterStep,
+  currentMarkTarget,
   cycleRepeat,
   getPosition,
   goBack,
   jumpTo,
   markCurrent,
+  markProgress,
   play,
   type Playable,
   seek,
@@ -691,8 +692,8 @@ function CoverPills({ item, scrub, marks }: { item: Playable; scrub: number | nu
         <CoverPill
           color={t.accent}
           onPress={() => {
-            markCurrent(true);
-            toast.show("Marked as played");
+            const before = currentMarkTarget();
+            if (before) void markProgress([before], true, "Marked as played");
           }}
         >
           <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: t.onAccent }}>Mark played</Text>
@@ -820,8 +821,8 @@ function MoreItems({ item, close, ads, openAds }: { item: Playable; close: () =>
           <SheetItem
             label={item.type === "book" ? "Mark as finished" : "Mark played"}
             onPress={choose(() => {
-              markCurrent(true);
-              toast.show(item.type === "book" ? "Marked as finished" : "Marked as played");
+              const before = currentMarkTarget();
+              if (before) void markProgress([before], true, item.type === "book" ? "Marked as finished" : "Marked as played");
             })}
           />
           <SheetItem label="Start from the beginning" onPress={choose(() => markCurrent(false))} />

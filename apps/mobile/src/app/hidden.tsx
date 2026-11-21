@@ -6,7 +6,7 @@ import { usePullRefresh } from "@/components/pull-refresh";
 import { SmallButton } from "@/components/settings";
 import { FadeIn, ListRowBone, Skeleton, useJustLoaded } from "@/components/skeleton";
 import { Text } from "@/components/ui";
-import { unhide, useHidden } from "@/lib/hidden";
+import { unhideRow, useHidden } from "@/lib/hidden";
 import { useTheme } from "@/theme";
 
 const SECTIONS: LibrarySection[] = ["books", "music", "watch"];
@@ -27,7 +27,7 @@ export default function HiddenScreen() {
           <View key={s}>
             <SectionTitle title={LIBRARY_SECTION_LABELS[s]} count={d[s].length} />
             {d[s].map((item) => (
-              <HiddenRow key={`${item.kind}:${item.id}`} item={item} />
+              <HiddenRow key={`${item.kind}:${item.id}`} item={item} section={s} />
             ))}
           </View>
         ))}
@@ -58,7 +58,7 @@ export default function HiddenScreen() {
 }
 
 /** Its picture (round for an artist), title and line, and Unhide. */
-function HiddenRow({ item }: { item: HiddenItem }) {
+function HiddenRow({ item, section }: { item: HiddenItem; section: LibrarySection }) {
   const t = useTheme();
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, borderBottomWidth: 1, borderBottomColor: t.line }}>
@@ -71,7 +71,7 @@ function HiddenRow({ item }: { item: HiddenItem }) {
           {item.sub}
         </Text>
       </View>
-      <SmallButton label="Unhide" onPress={() => void unhide({ kind: item.kind, id: item.id })} />
+      <SmallButton label="Unhide" onPress={() => void unhideRow(item, section)} />
     </View>
   );
 }

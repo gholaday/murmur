@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { apiPaths } from "@murmur/shared/client";
+import { apiPaths, MIN_PASSWORD, SHORT_PASSWORD } from "@murmur/shared/client";
 import { EyeIcon, EyeOffIcon } from "@/web/icons";
 
 export function LoginForm({ setup }: { setup: boolean }) {
@@ -11,9 +11,10 @@ export function LoginForm({ setup }: { setup: boolean }) {
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    if (setup && String(form.get("password")).length < MIN_PASSWORD) return setError(SHORT_PASSWORD);
     setBusy(true);
     setError(null);
-    const form = new FormData(e.currentTarget);
     const res = await fetch(setup ? apiPaths.setup : apiPaths.login, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -43,7 +44,6 @@ export function LoginForm({ setup }: { setup: boolean }) {
             name="password"
             type={shown ? "text" : "password"}
             autoComplete={setup ? "new-password" : "current-password"}
-            minLength={setup ? 8 : 1}
             required
           />
           <button type="button" className="icon-btn" aria-label={shown ? "Hide password" : "Show password"} onClick={() => setShown((s) => !s)}>
