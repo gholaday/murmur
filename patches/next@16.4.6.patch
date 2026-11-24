@@ -1,0 +1,36 @@
+diff --git a/dist/esm/server/send-response.js b/dist/esm/server/send-response.js
+index 080d60cb20a57b7e81411c12ed16e41e1fdbf621..89af0bb0db8e65f326f226f540fe0699e4f2e178 100644
+--- a/dist/esm/server/send-response.js
++++ b/dist/esm/server/send-response.js
+@@ -42,7 +42,12 @@ const FORBIDDEN_HEADERS = [
+             if (name.toLowerCase() === 'x-middleware-set-cookie') {
+                 return;
+             }
+-            if (FORBIDDEN_HEADERS.includes(name)) {
++            // Murmur: keep Content-Length on a body nothing decoded (no Content-Encoding), so range
++            // clients like Android's player can seek. A body fetch() decompressed still loses it, and
++            // Node cuts the connection if a kept length doesn't match the body.
++            if (name === 'content-length' && !response.headers.has('content-encoding')) {
++                res.originalResponse.strictContentLength = true;
++            } else if (FORBIDDEN_HEADERS.includes(name)) {
+                 return;
+             }
+             // The append handling is special cased for `set-cookie`.
+diff --git a/dist/server/send-response.js b/dist/server/send-response.js
+index 6232e7a729e33f6550e83f8ff7ffe0581c891683..6c9d2fdf04c561de39beaa64643bce2aad584973 100644
+--- a/dist/server/send-response.js
++++ b/dist/server/send-response.js
+@@ -46,7 +46,12 @@ async function sendResponse(req, res, response, waitUntil) {
+             if (name.toLowerCase() === 'x-middleware-set-cookie') {
+                 return;
+             }
+-            if (FORBIDDEN_HEADERS.includes(name)) {
++            // Murmur: keep Content-Length on a body nothing decoded (no Content-Encoding), so range
++            // clients like Android's player can seek. A body fetch() decompressed still loses it, and
++            // Node cuts the connection if a kept length doesn't match the body.
++            if (name === 'content-length' && !response.headers.has('content-encoding')) {
++                res.originalResponse.strictContentLength = true;
++            } else if (FORBIDDEN_HEADERS.includes(name)) {
+                 return;
+             }
+             // The append handling is special cased for `set-cookie`.

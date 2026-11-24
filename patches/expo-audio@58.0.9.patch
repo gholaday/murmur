@@ -14,18 +14,62 @@ index 36a19f2d9c4a979a940ab681a1fb844ce45f7c75..58dbfdcda178fa62ed2f0a0d5a6e8532
 +  </application>
  </manifest>
 diff --git a/android/src/main/java/expo/modules/audio/AudioModule.kt b/android/src/main/java/expo/modules/audio/AudioModule.kt
-index 6c81fce3dd518d3b82e3280940a001c7be84dd0a..21724ab33cc62ec2c5b2c8f2de4cf97b66f34f3b 100644
+index 6c81fce3dd518d3b82e3280940a001c7be84dd0a..a0e6e450cccd0a64ddc612018fcadc69a3b450bd 100644
 --- a/android/src/main/java/expo/modules/audio/AudioModule.kt
 +++ b/android/src/main/java/expo/modules/audio/AudioModule.kt
-@@ -40,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
+@@ -28,6 +28,7 @@ import androidx.media3.exoplayer.hls.HlsMediaSource
+ import androidx.media3.exoplayer.smoothstreaming.SsMediaSource
+ import androidx.media3.exoplayer.source.MediaSource
+ import androidx.media3.exoplayer.source.ProgressiveMediaSource
++import androidx.media3.extractor.DefaultExtractorsFactory
+ import expo.modules.interfaces.permissions.Permissions
+ import expo.modules.kotlin.Promise
+ import expo.modules.kotlin.exception.Exceptions
+@@ -40,7 +41,9 @@ import kotlinx.coroutines.Dispatchers
  import kotlinx.coroutines.GlobalScope
  import kotlinx.coroutines.launch
  import kotlinx.coroutines.runBlocking
 +import expo.modules.audio.service.MurmurLibrary
  import okhttp3.OkHttpClient
++import okhttp3.ResponseBody.Companion.asResponseBody
  import java.io.File
  import java.util.UUID
-@@ -390,9 +391,21 @@ class AudioModule : Module() {
+ import java.util.concurrent.ConcurrentHashMap
+@@ -50,7 +53,32 @@ class AudioModule : Module() {
+   private lateinit var audioManager: AudioManager
+   private val context: Context
+     get() = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+-  private val httpClient = OkHttpClient()
++  // Next.js 16 leaves Content-Length off Murmur's streams, and without a length ExoPlayer can't
++  // seek in most MP3s: every seek starts over at 0:00. The length comes from Content-Range, or
++  // the server's X-File-Size for a whole-file answer.
++  private val httpClient = OkHttpClient.Builder()
++    .addInterceptor { chain ->
++      val response = chain.proceed(chain.request())
++      val body = response.body
++      val length = knownLength(response.code, response.header("Content-Range"), response.header("X-File-Size"))
++      if (body == null || body.contentLength() >= 0 || length == null) {
++        response
++      } else {
++        response.newBuilder()
++          .header("Content-Length", length.toString())
++          .body(body.source().asResponseBody(body.contentType(), length))
++          .build()
++      }
++    }
++    .build()
++
++  private fun knownLength(code: Int, contentRange: String?, fileSize: String?): Long? {
++    if (code == 206) {
++      val m = Regex("""bytes (\d+)-(\d+)/""").find(contentRange ?: return null) ?: return null
++      return m.groupValues[2].toLong() - m.groupValues[1].toLong() + 1
++    }
++    return if (code == 200) fileSize?.toLongOrNull()?.takeIf { it > 0 } else null
++  }
+ 
+   private val players = ConcurrentHashMap<String, AudioPlayer>()
+   private val recorders = ConcurrentHashMap<String, AudioRecorder>()
+@@ -390,9 +418,21 @@ class AudioModule : Module() {
    override fun definition() = ModuleDefinition {
      Name("ExpoAudio")
  
@@ -47,7 +91,7 @@ index 6c81fce3dd518d3b82e3280940a001c7be84dd0a..21724ab33cc62ec2c5b2c8f2de4cf97b
      }
  
      AsyncFunction("setAudioModeAsync") { mode: AudioMode ->
-@@ -521,6 +534,7 @@ class AudioModule : Module() {
+@@ -521,6 +561,7 @@ class AudioModule : Module() {
      }
  
      OnDestroy {
@@ -55,6 +99,21 @@ index 6c81fce3dd518d3b82e3280940a001c7be84dd0a..21724ab33cc62ec2c5b2c8f2de4cf97b
        context.unregisterReceiver(ringerModeReceiver)
        GlobalScope.launch(Dispatchers.Main) {
          audioSessionActivityKeepers.clear()
+@@ -1198,7 +1239,13 @@ class AudioModule : Module() {
+       CONTENT_TYPE_SS -> SsMediaSource.Factory(factory)
+       CONTENT_TYPE_DASH -> DashMediaSource.Factory(factory)
+       CONTENT_TYPE_HLS -> HlsMediaSource.Factory(factory)
+-      CONTENT_TYPE_OTHER -> ProgressiveMediaSource.Factory(factory)
++      // Many podcast MP3s (ads stitched in on the fly) carry no seek table, and ExoPlayer then
++      // treats them as unseekable: every seek starts over at 0:00. Estimating from the bitrate
++      // lets them seek, like a browser does.
++      CONTENT_TYPE_OTHER -> ProgressiveMediaSource.Factory(
++        factory,
++        DefaultExtractorsFactory().setConstantBitrateSeekingEnabled(true)
++      )
+       else -> throw IllegalStateException("Unsupported type: $type")
+     }.createMediaSource(mediaItem)
+   }
 diff --git a/android/src/main/java/expo/modules/audio/AudioPlayer.kt b/android/src/main/java/expo/modules/audio/AudioPlayer.kt
 index fb2d0b57fb8718df04e5c073b70837b2658f2c16..5213ca338383fb6b08be629b2e66a3716374e65e 100644
 --- a/android/src/main/java/expo/modules/audio/AudioPlayer.kt

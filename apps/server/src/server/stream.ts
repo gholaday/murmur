@@ -178,9 +178,11 @@ export async function proxyStream(req: Request, url: string, mimeType: string, u
     throw new HttpError(502, `The podcast's audio host answered ${upstream.status}.`);
   }
   const out = new Headers({ "Cache-Control": "private, no-transform" });
+  // A host that compressed anyway had its body decoded by fetch, so its length no longer fits.
+  const decoded = !!upstream.headers.get("content-encoding");
   for (const name of PASS_THROUGH_HEADERS) {
     const value = upstream.headers.get(name);
-    if (value) out.set(name, value);
+    if (value && !(decoded && name === "content-length")) out.set(name, value);
   }
   // Hosts sometimes label audio as octet-stream, which some players refuse. Only an audio type
   // of theirs is kept, so nothing relayed is ever served as a page.

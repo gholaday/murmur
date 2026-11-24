@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   expo-audio@58.0.9:
-    hash: 95ef2a90bb898c6b2d7db8ce2ebe02a89b542e5000764777fdcf4327a91706ec
+    hash: ffdf5992db115f2c0bd53e23ec8dd022fd78ee39f8fd93ff03a4cfd426617bf3
     path: patches/expo-audio@58.0.9.patch
   expo-router@58.0.23:
     hash: ca0766dab6cd4b73fbcd5eb8a82d7a30a7dfca1eb5e80cdd3a1154958424b45d
@@ -14,6 +14,9 @@ patchedDependencies:
   expo-video@58.0.13:
     hash: f2d59029429ea168bbf076ea7ab8aa52f1faf066e602cfb3f55ea9bf5e66755e
     path: patches/expo-video@58.0.13.patch
+  next@16.4.6:
+    hash: 4a1e4f5133ecbfa70281757464a910455640403e89df87352d73031efc3ae1e0
+    path: patches/next@16.4.6.patch
   react-native-google-cast@4.9.1:
     hash: 6d217afdb288ec9bdddc33fae7fec1d9e89f942b62705270d9f9bf9e66c0427b
     path: patches/react-native-google-cast@4.9.1.patch
@@ -69,7 +72,7 @@ importers:
         version: 58.0.14(@babel/core@7.29.7)(@expo/dom-webview@58.0.2)(@expo/metro-runtime@58.0.14)(expo-router@58.0.23)(react-dom@19.3.1(react@19.3.0))(react-native-worklets@0.13.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0))(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)(typescript@6.0.3)
       expo-audio:
         specifier: 58.0.9
-        version: 58.0.9(patch_hash=95ef2a90bb898c6b2d7db8ce2ebe02a89b542e5000764777fdcf4327a91706ec)(expo-asset@58.0.16(expo@58.0.14)(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)(typescript@6.0.3))(expo@58.0.14)(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
+        version: 58.0.9(patch_hash=ffdf5992db115f2c0bd53e23ec8dd022fd78ee39f8fd93ff03a4cfd426617bf3)(expo-asset@58.0.16(expo@58.0.14)(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)(typescript@6.0.3))(expo@58.0.14)(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
       expo-build-properties:
         specifier: 58.0.11
         version: 58.0.11(expo@58.0.14)
@@ -199,7 +202,7 @@ importers:
         version: 12.2.3
       next:
         specifier: 16.4.6
-        version: 16.4.6(@babel/core@7.29.7)(@types/node@24.19.2)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 16.4.6(patch_hash=4a1e4f5133ecbfa70281757464a910455640403e89df87352d73031efc3ae1e0)(@babel/core@7.29.7)(@types/node@24.19.2)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react:
         specifier: 19.3.1
         version: 19.3.1
@@ -7381,7 +7384,9 @@ snapshots:
       metro-runtime: 0.87.1
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.88.0': {}
 
@@ -8688,7 +8693,7 @@ snapshots:
       - typescript
     optional: true
 
-  expo-audio@58.0.9(patch_hash=95ef2a90bb898c6b2d7db8ce2ebe02a89b542e5000764777fdcf4327a91706ec)(expo-asset@58.0.16(expo@58.0.14)(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)(typescript@6.0.3))(expo@58.0.14)(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0):
+  expo-audio@58.0.9(patch_hash=ffdf5992db115f2c0bd53e23ec8dd022fd78ee39f8fd93ff03a4cfd426617bf3)(expo-asset@58.0.16(expo@58.0.14)(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)(typescript@6.0.3))(expo@58.0.14)(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0):
     dependencies:
       expo: 58.0.14(@babel/core@7.29.7)(@expo/dom-webview@58.0.2)(@expo/metro-runtime@58.0.14)(expo-router@58.0.23)(react-dom@19.3.1(react@19.3.0))(react-native-worklets@0.13.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0))(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)(typescript@6.0.3)
       expo-asset: 58.0.16(expo@58.0.14)(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)(typescript@6.0.3)
@@ -9913,7 +9918,7 @@ snapshots:
     dependencies:
       content-type: 2.1.0
 
-  next@16.4.6(@babel/core@7.29.7)(@types/node@24.19.2)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+  next@16.4.6(patch_hash=4a1e4f5133ecbfa70281757464a910455640403e89df87352d73031efc3ae1e0)(@babel/core@7.29.7)(@types/node@24.19.2)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
       '@next/env': 16.4.6
       '@swc/helpers': 0.5.23
